@@ -4,14 +4,14 @@ enum Tab: String, CaseIterable {
     case home, allena, corpo, stats
     var label: String {
         switch self {
-        case .home: return "Home"; case .allena: return "Allena"
-        case .corpo: return "Corpo"; case .stats: return "Stats"
+        case .home: return t("nav.home"); case .allena: return t("nav.train")
+        case .corpo: return t("nav.body"); case .stats: return t("nav.stats")
         }
     }
     var sub: String {
         switch self {
-        case .home: return "Dashboard"; case .allena: return "Log allenamento"
-        case .corpo: return "Misurazioni & Check-in"; case .stats: return "Statistiche"
+        case .home: return t("sub.home"); case .allena: return t("sub.train")
+        case .corpo: return t("sub.body"); case .stats: return t("sub.stats")
         }
     }
 }
@@ -21,13 +21,14 @@ struct RootView: View {
     @EnvironmentObject var timer: RestTimer
     @EnvironmentObject var toast: ToastCenter
     @State private var tab: Tab = .home
+    @State private var showSettings = false
 
     var body: some View {
         ZStack(alignment: .bottom) {
             Theme.bg.ignoresSafeArea()
 
             VStack(spacing: 0) {
-                HeaderBar(tab: tab)
+                HeaderBar(tab: tab) { showSettings = true }
                 ScrollView {
                     VStack(spacing: 11) {
                         switch tab {
@@ -55,6 +56,7 @@ struct RootView: View {
             }
         }
         .animation(.spring(response: 0.4, dampingFraction: 0.75), value: toast.message)
+        .sheet(isPresented: $showSettings) { SettingsView(store: store) }
     }
 }
 
@@ -62,6 +64,7 @@ struct RootView: View {
 struct HeaderBar: View {
     @EnvironmentObject var store: Store
     let tab: Tab
+    var onSettings: () -> Void = {}
     var body: some View {
         let d = headerDate()
         HStack(alignment: .center) {
@@ -81,6 +84,11 @@ struct HeaderBar: View {
                 Text(d.day.uppercased()).font(.system(size: 10, weight: .semibold)).tracking(1).foregroundColor(Theme.sub)
                 Text("\(trimNum(store.lastWeight)) kg").font(.num(15)).foregroundColor(Theme.acc)
             }
+            Button { tap(); onSettings() } label: {
+                Image(systemName: "gearshape.fill").foregroundColor(Theme.sub).font(.system(size: 18))
+                    .frame(width: 38, height: 38)
+            }
+            .padding(.leading, 6)
         }
         .padding(.horizontal, 20).padding(.top, 12).padding(.bottom, 14)
         .background(Theme.bg.opacity(0.92))

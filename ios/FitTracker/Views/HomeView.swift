@@ -25,13 +25,20 @@ struct HomeView: View {
 
         // Key stats
         HStack(spacing: 9) {
-            StatTile(label: "Peso", value: trimNum(lw), unit: "kg", note: "BMI \(trimNum(bmi)) · \(cat.0)")
-            StatTile(label: "Streak", value: "\(store.streak)", valueColor: Theme.acc, note: store.streak == 1 ? "giorno" : "giorni")
-            StatTile(label: "Sessioni", value: "\(store.sessions.count)", valueColor: Theme.blue, note: "totali")
+            StatTile(label: t("home.weight"), value: trimNum(lw), unit: "kg", note: "BMI \(trimNum(bmi)) · \(cat.0)")
+            StatTile(label: t("home.streak"), value: "\(store.streak)", valueColor: Theme.acc, note: store.streak == 1 ? t("home.day") : t("home.days"))
+            StatTile(label: t("home.sessions"), value: "\(store.sessions.count)", valueColor: Theme.blue, note: t("home.total"))
         }
 
         goalsCard(lw: lw)
         nextWorkoutCard
+
+        Group {
+            OverloadCard()
+            ReadinessCard()
+            LoadCard()
+            NutritionCard()
+        }
 
         if ws.count > 1 { weightChartCard(ws) }
         recentPRsCard
@@ -42,13 +49,15 @@ struct HomeView: View {
     // MARK: Check-in
     private var checkInCard: some View {
         Card(bg: Theme.c1) {
-            Lbl(text: "Check-in di oggi", color: Theme.acc2).padding(.bottom, 10)
+            Lbl(text: t("home.checkin"), color: Theme.acc2).padding(.bottom, 10)
             HStack(spacing: 10) {
-                labeledField("PESO (KG)", "87,5", $weightInput)
-                labeledField("SLEEP (0-100)", "78", $sleepInput)
+                labeledField("\(t("home.weight")) (KG)", "87,5", $weightInput)
+                if store.prefs.sleepEnabled {
+                    labeledField("\(t("home.sleep")) (0-100)", "78", $sleepInput)
+                }
             }
             .padding(.bottom, 10)
-            FilledButton(title: "Salva check-in") { saveCheckIn() }
+            FilledButton(title: t("home.save_checkin")) { saveCheckIn() }
         }
         .overlay(RoundedRectangle(cornerRadius: Theme.radius).stroke(Theme.acc.opacity(0.3), lineWidth: 1))
     }
@@ -58,14 +67,14 @@ struct HomeView: View {
         return Card(accent: Theme.good) {
             HStack {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("CHECK-IN COMPLETATO").font(.head(12, .semibold)).tracking(1).foregroundColor(Theme.good)
-                    Text("Peso \(trimNum(tw?.weight ?? store.lastWeight)) kg" + (tw?.sleep != nil ? " · Sleep \(tw!.sleep!)/100" : ""))
+                    Text(t("home.checkin_done").uppercased()).font(.head(12, .semibold)).tracking(1).foregroundColor(Theme.good)
+                    Text("\(t("home.weight")) \(trimNum(tw?.weight ?? store.lastWeight)) kg" + (tw?.sleep != nil ? " · \(t("home.sleep")) \(tw!.sleep!)/100" : ""))
                         .font(.system(size: 11)).foregroundColor(Theme.sub)
                 }
                 Spacer()
                 HStack(alignment: .firstTextBaseline, spacing: 3) {
                     Text("\(store.streak)").font(.num(22)).foregroundColor(Theme.good)
-                    Text(store.streak == 1 ? "giorno" : "gg").font(.system(size: 11)).foregroundColor(Theme.sub)
+                    Text(store.streak == 1 ? t("home.day") : t("home.days")).font(.system(size: 11)).foregroundColor(Theme.sub)
                 }
             }
         }
@@ -85,28 +94,30 @@ struct HomeView: View {
         guard hasW || hasS else { return }
         store.saveCheckIn(weight: hasW ? w : nil, sleep: hasS ? Int(s.rounded()) : nil)
         weightInput = ""; sleepInput = ""
-        toast.show("Check-in salvato")
+        toast.show(t("home.checkin_saved"))
     }
 
     // MARK: Goals
     private func goalsCard(lw: Double) -> some View {
         let p = store.prefs
-        let wtPct = max(0, min(1, (p.startWeight - lw) / max(0.1, p.startWeight - p.goalWeight)))
+        // Bidirectional: progress from start weight toward the goal, loss or gain.
+        let denom = p.goalWeight - p.startWeight
+        let wtPct = abs(denom) < 0.1 ? 1 : max(0, min(1, (lw - p.startWeight) / denom))
         let bf = store.currentBF
         let bfPct = bf.map { max(0, min(1, ($0 - p.goalBF) / max(0.1, 35 - p.goalBF))) }
         return Card {
-            Lbl(text: "Obiettivi", color: Theme.acc2).padding(.bottom, 12)
+            Lbl(text: t("home.goals"), color: Theme.acc2).padding(.bottom, 12)
             HStack(spacing: 16) {
                 VStack(spacing: 0) {
                     HStack {
-                        Text("Peso").font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.sub)
+                        Text(t("home.weight")).font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.sub)
                         Spacer()
                         Text("\(trimNum(lw)) → \(trimNum(p.goalWeight)) kg").font(.num(13)).foregroundColor(Theme.acc)
                     }.padding(.bottom, 5)
                     Bar(value: wtPct).padding(.bottom, bf != nil ? 12 : 0)
                     if let bf, let bfPct {
                         HStack {
-                            Text("Grasso").font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.sub)
+                            Text(t("home.fat")).font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.sub)
                             Spacer()
                             Text("\(trimNum(bf))% → \(trimNum(p.goalBF))%").font(.num(13)).foregroundColor(Theme.red)
                         }.padding(.bottom, 5)
@@ -126,10 +137,10 @@ struct HomeView: View {
                     Card(accent: Color(hex: p.color)) {
                         HStack {
                             VStack(alignment: .leading, spacing: 0) {
-                                Lbl(text: "Prossimo allenamento").padding(.bottom, 6)
+                                Lbl(text: t("home.next_workout")).padding(.bottom, 6)
                                 Text(p.name.uppercased()).font(.head(22, .bold)).tracking(0.5)
                                     .foregroundColor(Color(hex: p.color))
-                                Text("\(p.sub) · \(p.exercises.count) esercizi").font(.system(size: 11))
+                                Text("\(p.sub) · \(p.exercises.count) \(t("home.exercises"))").font(.system(size: 11))
                                     .foregroundColor(Theme.sub).padding(.top, 5)
                             }
                             Spacer()
@@ -145,7 +156,7 @@ struct HomeView: View {
     private func weightChartCard(_ ws: [DailyEntry]) -> some View {
         let data = Array(ws.suffix(14))
         return Card {
-            Lbl(text: "Peso · ultimi 14 giorni").padding(.bottom, 8)
+            Lbl(text: t("home.weight14")).padding(.bottom, 8)
             Chart(data) { e in
                 LineMark(x: .value("g", fmtShort(e.date)), y: .value("kg", e.weight ?? 0))
                     .interpolationMethod(.catmullRom)
@@ -171,7 +182,7 @@ struct HomeView: View {
         return Group {
             if !items.isEmpty {
                 Card {
-                    Lbl(text: "Record recenti").padding(.bottom, 4)
+                    Lbl(text: t("home.recent_pr")).padding(.bottom, 4)
                     ForEach(items.indices, id: \.self) { i in
                         let name = items[i].key
                         let info = items[i].value
@@ -194,10 +205,10 @@ struct HomeView: View {
         let wk1 = store.weekStats(offset: 1)
         let totalVol = store.sessions.reduce(0.0) { $0 + $1.volume }
         return Card {
-            Lbl(text: "Confronto settimane").padding(.bottom, 4)
-            compRow("Peso medio", wk0.avgWeight.map { "\(trimNum($0)) kg" } ?? "—", wk1.avgWeight.map { "\(trimNum($0)) prec." } ?? "—")
-            compRow("Allenamenti", "\(wk0.sessions)", "\(wk1.sessions) prec.")
-            compRow("Volume totale", "\(Int(totalVol)) kg", "lifetime")
+            Lbl(text: t("home.week_cmp_title")).padding(.bottom, 4)
+            compRow(t("home.avg_weight"), wk0.avgWeight.map { "\(trimNum($0)) kg" } ?? "—", wk1.avgWeight.map { "\(trimNum($0)) \(t("home.prev"))" } ?? "—")
+            compRow(t("home.workouts"), "\(wk0.sessions)", "\(wk1.sessions) \(t("home.prev"))")
+            compRow(t("home.total_volume"), "\(Int(totalVol)) kg", t("home.lifetime"))
         }
     }
 
@@ -216,11 +227,11 @@ struct HomeView: View {
     private var backupRow: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text("BACKUP").font(.head(10, .semibold)).tracking(1.5).foregroundColor(Theme.sub)
-                Text("Salvataggio automatico locale").font(.system(size: 10)).foregroundColor(Theme.sub)
+                Text(t("home.backup").uppercased()).font(.head(10, .semibold)).tracking(1.5).foregroundColor(Theme.sub)
+                Text(t("home.backup_auto")).font(.system(size: 10)).foregroundColor(Theme.sub)
             }
             Spacer()
-            GhostButton(title: "Esporta dati") {
+            GhostButton(title: t("home.export_data")) {
                 if let url = store.exportFile() { shareURL = IdentURL(url: url) }
             }
         }

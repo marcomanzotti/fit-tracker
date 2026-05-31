@@ -13,11 +13,11 @@ struct PlanEditorView: View {
         VStack(spacing: 11) {
             // Back row
             HStack(spacing: 12) {
-                GhostButton(title: "← Annulla") { onCancel() }
+                GhostButton(title: "← \(t("cancel"))") { onCancel() }
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(isNew ? "NUOVO GIORNO" : "MODIFICA GIORNO")
+                    Text((isNew ? t("wk.new_day") : t("wk.edit_day")).uppercased())
                         .font(.head(18, .bold)).tracking(0.5).foregroundColor(Color(hex: plan.color))
-                    Text("Personalizza esercizi, serie e ripetizioni")
+                    Text(t("pe.subtitle_hint"))
                         .font(.system(size: 10)).foregroundColor(Theme.sub)
                 }
                 Spacer()
@@ -25,13 +25,13 @@ struct PlanEditorView: View {
 
             // Name + subtitle
             Card {
-                Lbl(text: "Nome giorno").padding(.bottom, 8)
-                InputField(placeholder: "es. Push, Petto, Gambe…", text: $plan.name, keyboard: .default)
+                Lbl(text: t("pe.day_name")).padding(.bottom, 8)
+                InputField(placeholder: t("pe.day_name_ph"), text: $plan.name, keyboard: .default)
                     .padding(.bottom, 10)
-                Lbl(text: "Sottotitolo").padding(.bottom, 8)
-                InputField(placeholder: "es. Spalle + Petto", text: $plan.sub, keyboard: .default)
+                Lbl(text: t("pe.subtitle")).padding(.bottom, 8)
+                InputField(placeholder: t("pe.subtitle_ph"), text: $plan.sub, keyboard: .default)
                     .padding(.bottom, 12)
-                Lbl(text: "Colore").padding(.bottom, 8)
+                Lbl(text: t("pe.color")).padding(.bottom, 8)
                 HStack(spacing: 10) {
                     ForEach(Theme.planColors, id: \.self) { c in
                         Circle().fill(Color(hex: c))
@@ -46,13 +46,13 @@ struct PlanEditorView: View {
             // Exercises
             Card {
                 HStack {
-                    Lbl(text: "Esercizi (\(plan.exercises.count))")
+                    Lbl(text: "\(t("pe.exercises")) (\(plan.exercises.count))")
                     Spacer()
                 }
                 .padding(.bottom, 10)
 
                 if plan.exercises.isEmpty {
-                    Text("Nessun esercizio. Aggiungine uno qui sotto.")
+                    Text(t("pe.no_ex"))
                         .font(.system(size: 12)).foregroundColor(Theme.sub)
                         .padding(.vertical, 8)
                 }
@@ -64,7 +64,7 @@ struct PlanEditorView: View {
                 Button { tap(); plan.exercises.append(PlanExercise(name: "")) } label: {
                     HStack(spacing: 6) {
                         Image(systemName: "plus")
-                        Text("Aggiungi esercizio").font(.system(size: 13, weight: .semibold))
+                        Text(t("wk.add_ex")).font(.system(size: 13, weight: .semibold))
                     }
                     .foregroundColor(Theme.acc)
                     .frame(maxWidth: .infinity, minHeight: 44)
@@ -75,19 +75,19 @@ struct PlanEditorView: View {
                 .padding(.top, 6)
             }
 
-            BigButton(title: isNew ? "Crea giorno" : "Salva modifiche") { onSave() }
+            BigButton(title: isNew ? t("wk.create_day") : t("pe.save_changes")) { onSave() }
 
             if !isNew {
                 Button { tap(); confirmDelete = true } label: {
-                    Text("Elimina giorno").font(.system(size: 13, weight: .semibold))
+                    Text(t("pe.delete_day")).font(.system(size: 13, weight: .semibold))
                         .foregroundColor(Theme.red)
                         .frame(maxWidth: .infinity, minHeight: 46)
                         .overlay(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous).stroke(Theme.red.opacity(0.4), lineWidth: 1))
                 }
                 .padding(.top, 2)
-                .confirmationDialog("Eliminare questo giorno?", isPresented: $confirmDelete, titleVisibility: .visible) {
-                    Button("Elimina", role: .destructive) { onDelete() }
-                    Button("Annulla", role: .cancel) {}
+                .confirmationDialog(t("pe.delete_day_q"), isPresented: $confirmDelete, titleVisibility: .visible) {
+                    Button(t("delete"), role: .destructive) { onDelete() }
+                    Button(t("cancel"), role: .cancel) {}
                 }
             }
         }
@@ -97,7 +97,7 @@ struct PlanEditorView: View {
         VStack(spacing: 9) {
             HStack(spacing: 8) {
                 TextField("", text: $plan.exercises[i].name,
-                          prompt: Text("Nome esercizio").foregroundColor(Theme.sub))
+                          prompt: Text(t("pe.ex_name_ph")).foregroundColor(Theme.sub))
                     .font(.system(size: 14, weight: .medium)).foregroundColor(Theme.txt)
                 Button { tap(); plan.exercises.remove(at: i) } label: {
                     Image(systemName: "xmark").font(.system(size: 13)).foregroundColor(Theme.red.opacity(0.7))
@@ -107,7 +107,7 @@ struct PlanEditorView: View {
             HStack(spacing: 10) {
                 // Sets stepper
                 HStack(spacing: 8) {
-                    Text("SERIE").font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
+                    Text(t("pe.sets").uppercased()).font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
                     Button { tap(); if plan.exercises[i].sets > 1 { plan.exercises[i].sets -= 1 } } label: {
                         Image(systemName: "minus").font(.system(size: 11, weight: .bold)).foregroundColor(Theme.txt)
                             .frame(width: 26, height: 26).background(Theme.c3).clipShape(Circle())
@@ -120,7 +120,7 @@ struct PlanEditorView: View {
                 }
                 Spacer()
                 // Reps
-                Text("RIP").font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
+                Text(t("wk.reps").uppercased()).font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
                 TextField("", text: $plan.exercises[i].reps,
                           prompt: Text("10").foregroundColor(Theme.sub))
                     .multilineTextAlignment(.center)
@@ -140,11 +140,57 @@ struct PlanEditorView: View {
                     }.buttonStyle(.plain).disabled(i == plan.exercises.count - 1)
                 }
             }
+            methodRow(i)
         }
         .padding(.vertical, 11).padding(.horizontal, 12)
         .background(Theme.c2)
         .clipShape(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous).stroke(Theme.brd, lineWidth: 1))
         .padding(.bottom, 8)
+    }
+
+    private func methodRow(_ i: Int) -> some View {
+        let cur = plan.exercises[i].trainMethod
+        let isGrouped = cur == .superset || cur == .giant
+        return HStack(spacing: 10) {
+            Text(t("wk.method").uppercased()).font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
+            Menu {
+                ForEach(TrainMethod.allCases, id: \.self) { m in
+                    Button(methodLabel(m)) { tap(); plan.exercises[i].method = m == .normal ? nil : m.rawValue }
+                }
+            } label: {
+                HStack(spacing: 5) {
+                    Text(methodLabel(cur)).font(.system(size: 12, weight: .semibold)).foregroundColor(Theme.txt)
+                    Image(systemName: "chevron.down").font(.system(size: 9)).foregroundColor(Theme.sub)
+                }
+                .padding(.vertical, 6).padding(.horizontal, 10)
+                .background(Theme.c1).clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(Theme.brd, lineWidth: 1))
+            }
+            Spacer()
+            if isGrouped {
+                Text(t("pe.group").uppercased()).font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
+                Button { tap(); let g = (plan.exercises[i].supersetGroup ?? 1); plan.exercises[i].supersetGroup = max(1, g - 1) } label: {
+                    Image(systemName: "minus").font(.system(size: 10, weight: .bold)).foregroundColor(Theme.txt)
+                        .frame(width: 24, height: 24).background(Theme.c3).clipShape(Circle())
+                }.buttonStyle(.plain)
+                Text("\(plan.exercises[i].supersetGroup ?? 1)").font(.num(15)).frame(minWidth: 14)
+                Button { tap(); plan.exercises[i].supersetGroup = (plan.exercises[i].supersetGroup ?? 0) + 1 } label: {
+                    Image(systemName: "plus").font(.system(size: 10, weight: .bold)).foregroundColor(Theme.txt)
+                        .frame(width: 24, height: 24).background(Theme.c3).clipShape(Circle())
+                }.buttonStyle(.plain)
+            }
+        }
+        .padding(.top, 2)
+    }
+
+    private func methodLabel(_ m: TrainMethod) -> String {
+        switch m {
+        case .normal:    return t("none")
+        case .superset:  return t("wk.superset")
+        case .dropset:   return "Drop set"
+        case .restpause: return "Rest-pause"
+        case .giant:     return "Giant set"
+        }
     }
 }

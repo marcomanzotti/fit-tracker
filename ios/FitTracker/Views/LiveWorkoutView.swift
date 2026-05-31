@@ -13,6 +13,10 @@ struct LiveWorkoutView: View {
     @State private var addName = ""
     @State private var showNotes: Set<UUID> = []
     @State private var saved = false
+    @State private var sessDuration = ""
+    @State private var sessRPE = ""
+    @State private var sessAvgHR = ""
+    @State private var sessRMSSD = ""
 
     private var lastSess: WorkoutSession? { store.lastSession(forPlan: plan.id) }
 
@@ -26,17 +30,40 @@ struct LiveWorkoutView: View {
             }
 
             addExerciseCard
+            sessionLoadCard
 
-            BigButton(title: saved ? "Salvata" : "Salva sessione", color: saved ? Theme.good : Theme.acc) {
+            BigButton(title: saved ? t("wk.saved") : t("wk.save_session"), color: saved ? Theme.good : Theme.acc) {
                 saveSession()
             }
+        }
+    }
+
+    // MARK: Session internal-load capture (sRPE / TRIMP inputs)
+    private var sessionLoadCard: some View {
+        Card {
+            Lbl(text: t("load.title"), color: Theme.acc2).padding(.bottom, 10)
+            HStack(spacing: 10) {
+                loadField(t("wk.duration"), $sessDuration)
+                loadField(t("wk.rpe"), $sessRPE)
+            }.padding(.bottom, 10)
+            HStack(spacing: 10) {
+                loadField(t("wk.avg_hr"), $sessAvgHR)
+                loadField(t("wk.rmssd"), $sessRMSSD)
+            }
+        }
+    }
+
+    private func loadField(_ label: String, _ binding: Binding<String>) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(label.uppercased()).font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
+            InputField(placeholder: "—", text: binding, keyboard: .numberPad)
         }
     }
 
     // MARK: Header
     private var backRow: some View {
         HStack(spacing: 12) {
-            GhostButton(title: "← Indietro") { onBack() }
+            GhostButton(title: "← \(t("wk.back"))") { onBack() }
             VStack(alignment: .leading, spacing: 2) {
                 Text(plan.name.uppercased()).font(.head(20, .bold)).tracking(0.5)
                     .foregroundColor(Color(hex: plan.color))
@@ -48,7 +75,7 @@ struct LiveWorkoutView: View {
 
     private func lastSessionBlock(_ last: WorkoutSession) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Lbl(text: "Ultima · \(last.date)", color: Theme.acc2).padding(.bottom, 3)
+            Lbl(text: "\(t("wk.last")) · \(last.date)", color: Theme.acc2).padding(.bottom, 3)
             ForEach(last.exercises.prefix(3)) { e in
                 (Text(e.name).foregroundColor(Theme.txt.opacity(0.7)).fontWeight(.semibold)
                  + Text(": " + e.sets.map { "\(disp($0.weight))×\(disp($0.reps))" }.joined(separator: " · "))
@@ -56,7 +83,7 @@ struct LiveWorkoutView: View {
                     .font(.system(size: 11))
             }
             if last.exercises.count > 3 {
-                Text("+\(last.exercises.count - 3) altri").font(.system(size: 10, weight: .semibold)).foregroundColor(Theme.sub)
+                Text("+\(last.exercises.count - 3) \(t("wk.others"))").font(.system(size: 10, weight: .semibold)).foregroundColor(Theme.sub)
             }
         }
         .padding(.vertical, 11).padding(.horizontal, 14)
@@ -72,12 +99,19 @@ struct LiveWorkoutView: View {
         let pr = store.exercisePR(ex.name)
         let prevEx = lastSess?.exercises.first { $0.name == ex.name }
         let sug = store.suggested(planId: plan.id, exercise: ex.name)
+        let prog = store.progression(planId: plan.id, exercise: ex.name)
 
         return Card {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(ex.name).font(.system(size: 14, weight: .semibold)).foregroundColor(Theme.txt)
-                    if !ex.target.isEmpty { Tag(text: ex.target) }
+                    HStack(spacing: 6) {
+                        if !ex.target.isEmpty { Tag(text: ex.target) }
+                        if ex.trainMethod != .normal {
+                            Badge(text: ex.trainMethod.short + (ex.supersetGroup.map { " \($0)" } ?? ""),
+                                  color: Theme.blue, bg: Theme.blue.opacity(0.14))
+                        }
+                    }
                 }
                 Spacer()
                 if pr > 0 {
@@ -91,7 +125,7 @@ struct LiveWorkoutView: View {
 
             if let prevEx, !prevEx.sets.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("ULTIMA VOLTA").font(.head(9, .semibold)).tracking(2).foregroundColor(Theme.blue)
+                    Text(t("wk.last_time_label").uppercased()).font(.head(9, .semibold)).tracking(2).foregroundColor(Theme.blue)
                     FlowText(items: prevEx.sets.enumerated().map { "S\($0.offset + 1): \(disp($0.element.weight))×\(disp($0.element.reps))" })
                 }
                 .padding(.vertical, 9).padding(.horizontal, 12)
@@ -105,7 +139,7 @@ struct LiveWorkoutView: View {
             if let sug {
                 HStack(spacing: 6) {
                     Image(systemName: "arrow.up.right").font(.system(size: 11))
-                    Text("Prova \(trimNum(sug)) kg").font(.system(size: 12, weight: .bold))
+                    Text("\(t("wk.try")) \(trimNum(sug)) kg").font(.system(size: 12, weight: .bold))
                 }
                 .foregroundColor(Theme.acc2)
                 .padding(.vertical, 6).padding(.horizontal, 13)
@@ -115,10 +149,22 @@ struct LiveWorkoutView: View {
                 .padding(.bottom, 11)
             }
 
+            if let prog, prog == .addLoad || prog == .addReps {
+                HStack(spacing: 6) {
+                    Image(systemName: prog == .addLoad ? "scalemass" : "plus.forwardslash.minus").font(.system(size: 11))
+                    Text(t(prog.key)).font(.system(size: 12, weight: .bold))
+                }
+                .foregroundColor(prog == .addLoad ? Theme.acc : Theme.blue)
+                .padding(.vertical, 6).padding(.horizontal, 13)
+                .background((prog == .addLoad ? Theme.acc : Theme.blue).opacity(0.09))
+                .clipShape(Capsule())
+                .padding(.bottom, 11)
+            }
+
             // Column headers
             HStack(spacing: 9) {
                 Spacer().frame(width: 28)
-                Text("RIP").font(.head(9, .semibold)).tracking(1.5).foregroundColor(Theme.sub).frame(width: 66)
+                Text(t("wk.reps").uppercased()).font(.head(9, .semibold)).tracking(1.5).foregroundColor(Theme.sub).frame(width: 66)
                 Text("KG").font(.head(9, .semibold)).tracking(1.5).foregroundColor(Theme.sub).frame(width: 66)
                 Spacer()
             }
@@ -131,12 +177,12 @@ struct LiveWorkoutView: View {
             // Footer controls
             HStack {
                 HStack(spacing: 8) {
-                    GhostButton(title: "+ Serie") { log[i].sets.append(SetEntry()) }
-                    GhostButton(title: "Timer \(store.prefs.timer)s", color: Theme.blue) { timer.start(store.prefs.timer) }
+                    GhostButton(title: t("wk.add_set")) { log[i].sets.append(SetEntry()) }
+                    GhostButton(title: "\(t("wk.timer")) \(store.prefs.timer)s", color: Theme.blue) { timer.start(store.prefs.timer) }
                 }
                 Spacer()
                 if log[i].volume > 0 {
-                    Text("Vol \(Int(log[i].volume)) · Max \(trimNum(log[i].maxWeight)) kg")
+                    Text("\(t("wk.vol")) \(Int(log[i].volume)) · \(t("wk.max")) \(trimNum(log[i].maxWeight)) kg")
                         .font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.sub)
                 }
             }
@@ -144,7 +190,7 @@ struct LiveWorkoutView: View {
 
             // Notes
             if showNotes.contains(ex.id) {
-                TextField("", text: $log[i].notes, prompt: Text("Note…").foregroundColor(Theme.sub), axis: .vertical)
+                TextField("", text: $log[i].notes, prompt: Text(t("wk.note_ph")).foregroundColor(Theme.sub), axis: .vertical)
                     .lineLimit(2...4)
                     .font(.system(size: 13)).foregroundColor(Theme.txt)
                     .padding(.vertical, 10).padding(.horizontal, 14)
@@ -154,7 +200,7 @@ struct LiveWorkoutView: View {
                     .padding(.top, 9)
             } else {
                 Button { tap(); showNotes.insert(ex.id) } label: {
-                    Text("+ Note").font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.sub)
+                    Text(t("wk.add_note")).font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.sub)
                         .padding(.vertical, 8).padding(.horizontal, 12)
                         .background(Theme.c2).clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
                         .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).stroke(Theme.brd, lineWidth: 1))
@@ -189,9 +235,9 @@ struct LiveWorkoutView: View {
     // MARK: Add exercise on the fly
     private var addExerciseCard: some View {
         Card {
-            Lbl(text: "Aggiungi esercizio").padding(.bottom, 8)
+            Lbl(text: t("wk.add_ex")).padding(.bottom, 8)
             HStack(spacing: 9) {
-                TextField("", text: $addName, prompt: Text("es. Dip alle parallele").foregroundColor(Theme.sub))
+                TextField("", text: $addName, prompt: Text(t("wk.add_ex_ph")).foregroundColor(Theme.sub))
                     .font(.system(size: 15, weight: .medium)).foregroundColor(Theme.txt)
                     .padding(.vertical, 12).padding(.horizontal, 14)
                     .background(Theme.c2).clipShape(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous))
@@ -202,7 +248,7 @@ struct LiveWorkoutView: View {
                         .clipShape(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous))
                 }.buttonStyle(.plain)
             }
-            Text("Aggiunto alla sessione e salvato nel giorno per le prossime volte.")
+            Text(t("wk.add_ex_hint"))
                 .font(.system(size: 10)).foregroundColor(Theme.sub).padding(.top, 8)
         }
     }
@@ -217,7 +263,7 @@ struct LiveWorkoutView: View {
             store.plans[idx].exercises.append(PlanExercise(name: name, sets: 3, reps: "10"))
         }
         addName = ""
-        toast.show("Esercizio aggiunto")
+        toast.show(t("wk.ex_added"))
     }
 
     // MARK: Save
@@ -228,16 +274,20 @@ struct LiveWorkoutView: View {
             copy.sets = e.sets.filter { $0.filled }
             return copy
         }.filter { !$0.sets.isEmpty }
-        guard !exercises.isEmpty else { toast.show("Nessuna serie da salvare"); return }
+        guard !exercises.isEmpty else { toast.show(t("wk.nothing_save")); return }
 
-        let sess = WorkoutSession(date: today(), planId: plan.id,
+        var sess = WorkoutSession(date: today(), planId: plan.id,
                                   planName: plan.name, planColor: plan.color,
                                   exercises: exercises)
+        sess.durationMin = Int(sessDuration)
+        sess.rpe = Int(sessRPE)
+        sess.avgHR = Int(sessAvgHR)
+        sess.rmssd = sessRMSSD.isEmpty ? nil : pf(sessRMSSD)
         store.sessions.append(sess)
         saved = true
         timer.stop()
         haptic(.success)
-        toast.show("Sessione salvata")
+        toast.show(t("wk.session_saved"))
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { onSaved() }
     }
 

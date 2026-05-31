@@ -7,8 +7,11 @@ struct StatsView: View {
     @State private var statsTab = "overview"
     @State private var selEx = ""
     @State private var openId: UUID?
+    @State private var editingSession: WorkoutSession?
 
-    private let tabs = [("overview", "Overview"), ("pr", "Record"), ("prog", "Progressi"), ("storico", "Storico")]
+    private var tabs: [(String, String)] {
+        [("overview", t("st.overview")), ("pr", t("st.records")), ("prog", t("st.progress")), ("storico", t("st.history"))]
+    }
 
     var body: some View {
         // Tab bar
@@ -44,7 +47,7 @@ struct StatsView: View {
         return Group {
             if withW.count > 1 {
                 Card {
-                    Lbl(text: "Peso · 90 giorni").padding(.bottom, 8)
+                    Lbl(text: t("st.weight90")).padding(.bottom, 8)
                     Chart(withW) { e in
                         LineMark(x: .value("g", fmtShort(e.date)), y: .value("kg", e.weight ?? 0))
                             .interpolationMethod(.catmullRom).foregroundStyle(Theme.acc)
@@ -57,7 +60,7 @@ struct StatsView: View {
             }
             if sleepD.count > 1 {
                 Card {
-                    Lbl(text: "Sleep score").padding(.bottom, 8)
+                    Lbl(text: t("st.sleep")).padding(.bottom, 8)
                     Chart(sleepD) { e in
                         LineMark(x: .value("g", fmtShort(e.date)), y: .value("s", e.sleep ?? 0))
                             .interpolationMethod(.catmullRom).foregroundStyle(Theme.blue)
@@ -70,7 +73,7 @@ struct StatsView: View {
             }
             if withW.count > 1 {
                 Card {
-                    Lbl(text: "BMI nel tempo").padding(.bottom, 8)
+                    Lbl(text: t("st.bmi_time")).padding(.bottom, 8)
                     Chart(withW) { e in
                         LineMark(x: .value("g", fmtShort(e.date)), y: .value("bmi", store.bmi(e.weight ?? 0)))
                             .interpolationMethod(.catmullRom).foregroundStyle(Color(hex: "b08fff"))
@@ -79,27 +82,27 @@ struct StatsView: View {
                 }
                 if let bf {
                     Card {
-                        Lbl(text: "Composizione corporea").padding(.bottom, 8)
+                        Lbl(text: t("st.composition")).padding(.bottom, 8)
                         Chart {
                             ForEach(withW) { e in
                                 LineMark(x: .value("g", fmtShort(e.date)),
                                          y: .value("kg", ((e.weight ?? 0) * (1 - bf / 100) * 10).rounded() / 10),
-                                         series: .value("s", "Magra"))
+                                         series: .value("s", t("st.lean")))
                                     .foregroundStyle(Theme.blue).interpolationMethod(.catmullRom)
                                 LineMark(x: .value("g", fmtShort(e.date)),
                                          y: .value("kg", ((e.weight ?? 0) * bf / 100 * 10).rounded() / 10),
-                                         series: .value("s", "Grasso"))
+                                         series: .value("s", t("st.fat")))
                                     .foregroundStyle(Theme.red).interpolationMethod(.catmullRom)
                             }
                         }
-                        .chartForegroundStyleScale(domain: ["Magra", "Grasso"], range: [Theme.blue, Theme.red])
+                        .chartForegroundStyleScale(domain: [t("st.lean"), t("st.fat")], range: [Theme.blue, Theme.red])
                         .chartLegend(position: .bottom, spacing: 8)
                         .chartYScale(domain: .automatic(includesZero: false)).styledAxes().frame(height: 155)
                     }
                 }
             }
             if withW.count < 2 {
-                Card { EmptyBox(title: "Nessun dato", text: "Registra peso e sleep per 2+ giorni per vedere i grafici.") }
+                Card { EmptyBox(title: t("st.no_data"), text: t("st.charts_hint")) }
             }
             profileCard
         }
@@ -115,9 +118,9 @@ struct StatsView: View {
         let prs = store.allPRs()
         let names = store.allExerciseNames()
         return Card {
-            Lbl(text: "I tuoi massimali").padding(.bottom, 4)
+            Lbl(text: t("st.maxes")).padding(.bottom, 4)
             if names.isEmpty {
-                Text("Crea un giorno con esercizi per tracciare i record.")
+                Text(t("st.maxes_hint"))
                     .font(.system(size: 12)).foregroundColor(Theme.sub).padding(.vertical, 8)
             }
             ForEach(names.indices, id: \.self) { idx in
@@ -142,9 +145,9 @@ struct StatsView: View {
     private var progress: some View {
         Group {
             Card {
-                Lbl(text: "Seleziona esercizio").padding(.bottom, 8)
+                Lbl(text: t("st.select_ex")).padding(.bottom, 8)
                 Picker("", selection: $selEx) {
-                    Text("— Scegli —").tag("")
+                    Text(t("st.choose")).tag("")
                     ForEach(store.plans) { p in
                         ForEach(p.exercises) { ex in
                             Text("\(p.name) · \(ex.name)").tag(ex.name)
@@ -161,10 +164,10 @@ struct StatsView: View {
             if !selEx.isEmpty {
                 let data = store.exerciseHistory(selEx)
                 if data.isEmpty {
-                    Card { EmptyBox(title: "Nessun dato", text: "Registra una sessione con questo esercizio.") }
+                    Card { EmptyBox(title: t("st.no_data"), text: t("st.progress_hint")) }
                 } else {
                     Card {
-                        Lbl(text: "Peso massimo per sessione").padding(.bottom, 8)
+                        Lbl(text: t("st.max_per_session")).padding(.bottom, 8)
                         Chart(data, id: \.date) { d in
                             LineMark(x: .value("g", d.date), y: .value("kg", d.maxW))
                                 .foregroundStyle(Theme.acc).interpolationMethod(.catmullRom)
@@ -174,7 +177,7 @@ struct StatsView: View {
                         .chartYScale(domain: .automatic(includesZero: false)).styledAxes().frame(height: 155)
                     }
                     Card {
-                        Lbl(text: "Volume totale per sessione").padding(.bottom, 8)
+                        Lbl(text: t("st.vol_per_session")).padding(.bottom, 8)
                         Chart(data, id: \.date) { d in
                             BarMark(x: .value("g", d.date), y: .value("vol", d.vol))
                                 .foregroundStyle(Theme.acc.opacity(0.55)).cornerRadius(5)
@@ -183,30 +186,32 @@ struct StatsView: View {
                     }
                     if data.count >= 2, let f = data.first, let l = data.last {
                         HStack(spacing: 9) {
-                            StatTile(label: "Prima", value: trimNum(f.maxW), unit: "kg", valueColor: Theme.sub)
-                            StatTile(label: "Ultima", value: trimNum(l.maxW), unit: "kg")
-                            StatTile(label: "Delta", value: "\(l.maxW - f.maxW >= 0 ? "+" : "")\(trimNum(l.maxW - f.maxW))", unit: "kg", valueColor: Theme.acc)
+                            StatTile(label: t("st.first"), value: trimNum(f.maxW), unit: "kg", valueColor: Theme.sub)
+                            StatTile(label: t("st.last"), value: trimNum(l.maxW), unit: "kg")
+                            StatTile(label: t("st.delta"), value: "\(l.maxW - f.maxW >= 0 ? "+" : "")\(trimNum(l.maxW - f.maxW))", unit: "kg", valueColor: Theme.acc)
                         }
                     }
                 }
             } else {
-                Card { EmptyBox(title: "Progressi", text: "Seleziona un esercizio per vedere la progressione.") }
+                Card { EmptyBox(title: t("st.progress"), text: t("st.progress_hint")) }
             }
         }
     }
 
-    // MARK: History
+    // MARK: History (calendar + list)
     private var history: some View {
         let sorted = store.sessions.sorted { $0.date > $1.date }
         return Group {
+            CalendarCard()
             if sorted.isEmpty {
-                Card { EmptyBox(title: "Storico vuoto", text: "Nessun allenamento registrato.") }
+                Card { EmptyBox(title: t("st.empty_history"), text: t("st.no_workouts")) }
             } else {
                 ForEach(sorted) { s in
                     historyCard(s)
                 }
             }
         }
+        .sheet(item: $editingSession) { s in SessionEditorView(session: s) }
     }
 
     private func historyCard(_ s: WorkoutSession) -> some View {
@@ -217,7 +222,7 @@ struct StatsView: View {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(s.planName.uppercased()).font(.head(18, .bold)).tracking(0.5)
                             .foregroundColor(Color(hex: s.planColor))
-                        Text("\(s.date) · \(s.totalSets) serie · ~\(store.estimateCalories(s)) kcal")
+                        Text("\(s.date) · \(s.totalSets) \(t("wk.sets_n")) · ~\(store.estimateCalories(s)) kcal")
                             .font(.system(size: 10)).foregroundColor(Theme.sub)
                     }
                     Spacer()
@@ -247,6 +252,15 @@ struct StatsView: View {
                                 .font(.system(size: 10, weight: .semibold)).foregroundColor(Theme.sub)
                         }
                     }
+                    if s.sportType.isCardio {
+                        Text(cardioLine(s)).font(.system(size: 12)).foregroundColor(Theme.sub)
+                    }
+                    if let load = s.sRPE {
+                        Text("sRPE \(Int(load))" + (store.trimp(s).map { " · TRIMP \(Int($0))" } ?? ""))
+                            .font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.acc2)
+                    }
+                    GhostButton(title: t("wk.edit_session")) { editingSession = s }
+                        .padding(.top, 4)
                 }
                 .padding(.top, 12)
                 .overlay(alignment: .top) { Rectangle().fill(Theme.brd).frame(height: 1) }
@@ -255,6 +269,15 @@ struct StatsView: View {
     }
 
     private func disp(_ s: String) -> String { s.isEmpty ? "?" : s }
+
+    private func cardioLine(_ s: WorkoutSession) -> String {
+        var parts: [String] = [s.sportType.label]
+        if let d = s.durationMin { parts.append("\(d) min") }
+        if let km = s.distanceKm { parts.append("\(trimNum(km)) km") }
+        if let p = s.pace { parts.append(paceStr(p) + (s.sportType == .swimming ? "/100m" : "/km")) }
+        if let hr = s.avgHR { parts.append("\(hr) bpm") }
+        return parts.joined(separator: " · ")
+    }
 }
 
 // MARK: - Editable profile / goals
@@ -271,17 +294,17 @@ struct ProfileCard: View {
 
     var body: some View {
         Card {
-            Lbl(text: "Obiettivi & profilo", color: Theme.acc2).padding(.bottom, 10)
+            Lbl(text: t("pc.title"), color: Theme.acc2).padding(.bottom, 10)
             HStack(spacing: 10) {
-                miniField("PESO OBIETTIVO", "80", $goalW)
-                miniField("GRASSO OBIETTIVO %", "15", $goalBF)
+                miniField(t("pc.goal_weight").uppercased(), "80", $goalW)
+                miniField(t("pc.goal_bf").uppercased(), "15", $goalBF)
             }.padding(.bottom, 10)
             HStack(spacing: 10) {
-                miniField("PESO INIZIALE", "88", $startW)
-                miniField("ALTEZZA (M)", "1.85", $height)
+                miniField(t("pc.start_weight").uppercased(), "88", $startW)
+                miniField(t("pc.height").uppercased(), "1.85", $height)
             }.padding(.bottom, 10)
-            miniField("RECUPERO TIMER (S)", "60", $timer).padding(.bottom, 12)
-            FilledButton(title: "Salva profilo") {
+            miniField(t("pc.timer").uppercased(), "60", $timer).padding(.bottom, 12)
+            FilledButton(title: t("pc.save")) {
                 var p = store.prefs
                 if pf(goalW) > 0 { p.goalWeight = pf(goalW) }
                 if pf(goalBF) > 0 { p.goalBF = pf(goalBF) }
@@ -289,7 +312,7 @@ struct ProfileCard: View {
                 if pf(height) > 0.5 { p.height = pf(height) }
                 if pf(timer) > 0 { p.timer = Int(pf(timer)) }
                 store.prefs = p
-                toast.show("Profilo salvato")
+                toast.show(t("pc.saved"))
             }
         }
         .onAppear {

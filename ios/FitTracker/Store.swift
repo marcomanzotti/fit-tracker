@@ -37,8 +37,12 @@ final class Store: ObservableObject {
             daily = a.daily; sessions = a.sessions; body = a.body; plans = a.plans; prefs = a.prefs
         }
         if plans.isEmpty { plans = Store.defaultPlans() }
+        L.lang = prefs.langCode
         loaded = true
     }
+
+    /// Keep the global localization language in sync with the stored preference.
+    func syncLang() { L.lang = prefs.langCode }
 
     func save() {
         guard loaded else { return }
@@ -105,7 +109,7 @@ extension Store {
                 PlanExercise(name: "Abductor machine", sets: 3, reps: "15"),
                 PlanExercise(name: "Calf raise in piedi", sets: 3, reps: "15")
             ]),
-            WorkoutPlan(id: "p4", name: "Spalle & Core", sub: "Postura + V-Shape", color: "ff6a00", exercises: [
+            WorkoutPlan(id: "p4", name: "Spalle & Core", sub: "Postura + V-Shape", color: "ffd21e", exercises: [
                 PlanExercise(name: "Arnold press manubri", sets: 4, reps: "10"),
                 PlanExercise(name: "Lateral raise cavo", sets: 3, reps: "12"),
                 PlanExercise(name: "Rear delt fly manubri", sets: 3, reps: "12"),
@@ -130,10 +134,10 @@ extension Store {
     func bmi(_ w: Double) -> Double { ((w / (prefs.height * prefs.height)) * 10).rounded() / 10 }
 
     func bmiCategory(_ b: Double) -> (String, Color) {
-        if b < 18.5 { return ("Sottopeso", Theme.blue) }
-        if b < 25   { return ("Normopeso", Theme.good) }
-        if b < 30   { return ("Sovrappeso", Theme.acc2) }
-        return ("Obeso", Theme.red)
+        if b < 18.5 { return (L.t("bmi.under"), Theme.blue) }
+        if b < 25   { return (L.t("bmi.normal"), Theme.good) }
+        if b < 30   { return (L.t("bmi.over"), Theme.acc2) }
+        return (L.t("bmi.obese"), Theme.red)
     }
 
     /// US-Navy body-fat estimate from neck & waist (cm).
@@ -193,9 +197,55 @@ extension Store {
     }
 
     func estimateCalories(_ s: WorkoutSession) -> Int {
-        let totSets = s.totalSets
+        if let manual = s.caloriesManual, manual > 0 { return manual }
+        let w = lastWeight
+        // HR-based (Keytel) when an average HR is available.
+        if let hr = s.avgHR, hr > 0, let dur = s.durationMin, dur > 0 {
+            let age = Double(prefs.age ?? 30)
+            let perMin: Double = prefs.sex_ == "f"
+                ? (-20.4022 + 0.4472 * Double(hr) - 0.1263 * w + 0.074 * age) / 4.184
+                : (-55.0969 + 0.6309 * Double(hr) + 0.1988 * w + 0.2017 * age) / 4.184
+            return max(0, Int((perMin * Double(dur)).rounded()))
+        }
+        // MET-based for cardio with a known duration.
+        if s.sportType.isCardio, let dur = s.durationMin, dur > 0 {
+            let met: Double
+            switch s.sportType {
+            case .running:  met = 9.8
+            case .swimming: met = 8.0
+            case .cycling:  met = 7.5
+            case .walking:  met = 3.5
+            default:        met = 6.0
+            }
+            return Int((met * w * Double(dur) / 60).rounded())
+        }
+        // Strength fallback (original heuristic).
         let vol = s.volume
-        return Int((vol * 0.022 + Double(totSets) * 3 + 60).rounded())
+        return Int((vol * 0.022 + Double(s.totalSets) * 3 + 60).rounded())
+    }
+
+    // MARK: Daily nutrition & recovery
+    func saveDailyExtras(kcal: Int? = nil, protein: Double? = nil, carbs: Double? = nil,
+                         fat: Double? = nil, salt: Double? = nil, steps: Int? = nil,
+                         rmssd: Double? = nil, restHR: Int? = nil) {
+        let day = today()
+        var e = daily.first(where: { $0.date == day }) ?? DailyEntry(date: day)
+        if let kcal { e.kcal = kcal }
+        if let protein { e.protein = protein }
+        if let carbs { e.carbs = carbs }
+        if let fat { e.fat = fat }
+        if let salt { e.salt = salt }
+        if let steps { e.steps = steps }
+        if let rmssd { e.rmssd = rmssd }
+        if let restHR { e.restHR = restHR }
+        daily.removeAll { $0.date == day }
+        daily.append(e)
+    }
+
+    // MARK: Session editing
+    func deleteSession(_ id: UUID) { sessions.removeAll { $0.id == id } }
+    func updateSession(_ s: WorkoutSession) {
+        if let i = sessions.firstIndex(where: { $0.id == s.id }) { sessions[i] = s }
     }
 
     struct WeekStat { var avgWeight: Double?; var sessions: Int }
