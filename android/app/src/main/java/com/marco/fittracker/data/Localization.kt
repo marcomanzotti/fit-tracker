@@ -57,6 +57,19 @@ object L {
         "home.fat" to ("Grasso" to "Body fat"),
         "home.exercises" to ("esercizi" to "exercises"),
         "home.workouts" to ("Allenamenti" to "Workouts"),
+        "home.goals" to ("Obiettivi" to "Goals"),
+        "home.fat" to ("Grasso" to "Body fat"),
+        "home.checkin_done" to ("Check-in completato" to "Check-in done"),
+        "home.checkin_saved" to ("Check-in salvato" to "Check-in saved"),
+        "home.weight14" to ("Peso · ultimi 14 giorni" to "Weight · last 14 days"),
+        "home.week_cmp" to ("Confronto settimane" to "Weekly comparison"),
+        "home.avg_weight" to ("Peso medio" to "Avg weight"),
+        "home.total_volume" to ("Volume totale" to "Total volume"),
+        "home.prev" to ("prec." to "prev"),
+        "home.lifetime" to ("lifetime" to "lifetime"),
+        "home.backup" to ("Backup" to "Backup"),
+        "home.backup_auto" to ("Salvataggio automatico locale" to "Automatic local save"),
+        "home.export_data" to ("Esporta dati" to "Export data"),
 
         "load.readiness" to ("Prontezza (HRV)" to "Readiness (HRV)"),
         "load.ready" to ("Pronto: puoi spingere" to "Ready: you can push"),
@@ -140,7 +153,69 @@ object L {
         "sport.swimming" to ("Nuoto" to "Swimming"),
         "sport.cycling" to ("Bici" to "Cycling"),
         "sport.walking" to ("Camminata" to "Walking"),
-        "sport.other" to ("Altro" to "Other")
+        "sport.other" to ("Altro" to "Other"),
+
+        // --- Info popups (scientific metrics) ---
+        "info.readiness.title" to ("Prontezza (HRV)" to "Readiness (HRV)"),
+        "info.readiness.body" to (
+            "Stima quanto sei recuperato dalla variabilità della frequenza cardiaca (HRV), misurata come RMSSD che inserisci al mattino. Usiamo il logaritmo naturale dell'RMSSD (lnRMSSD) e lo confrontiamo con la tua media degli ultimi ~60 giorni con uno z-score. Il punteggio 0-100 è 50 + 20 × z. Alto = recuperato, puoi spingere. Basso = sotto la norma, meglio andare leggeri. Servono almeno 5 misurazioni." to
+            "Estimates how recovered you are from heart-rate variability (HRV), measured as the RMSSD you type each morning. We take the natural log of RMSSD (lnRMSSD) and compare it to your ~60-day average as a z-score. The 0-100 score is 50 + 20 × z. High = recovered, you can push. Low = below your norm, go easy. At least 5 readings are needed."),
+        "info.acwr.title" to ("Carico acuto:cronico (ACWR)" to "Acute:Chronic load (ACWR)"),
+        "info.acwr.body" to (
+            "Rapporto tra il carico recente (acuto, 7 giorni) e quello abituale (cronico, 28 giorni), con media mobile esponenziale (EWMA). Il carico viene da sRPE o TRIMP, quindi compare solo dopo durata + RPE (o FC media). Zona: 0,8-1,3 ottimale; sotto 0,8 detraining; sopra 1,3 picco e maggior rischio infortuni." to
+            "Ratio of recent load (acute, 7 days) to habitual load (chronic, 28 days), via an exponentially weighted moving average (EWMA). Load comes from sRPE or TRIMP, so it only appears after duration + RPE (or avg HR). Zone: 0.8-1.3 sweet spot; below 0.8 detraining; above 1.3 a spike with higher injury risk."),
+        "info.monotony.title" to ("Monotonia" to "Monotony"),
+        "info.monotony.body" to (
+            "Quanto è uniforme il carico nella settimana: media giornaliera divisa per la deviazione standard (Foster). Valori alti (sopra ~2) = allenamenti tutti simili, più affaticamento. Variare l'intensità abbassa la monotonia. Servono almeno 2 giorni di allenamento con RPE/FC." to
+            "How even your load is across the week: mean daily load over its standard deviation (Foster). High (above ~2) = every session alike, more fatigue. Varying intensity lowers it. Needs at least 2 training days with RPE/HR."),
+        "info.strain.title" to ("Strain" to "Strain"),
+        "info.strain.body" to (
+            "Carico totale della settimana × monotonia (Foster). Riassume lo stress complessivo: alto quando alleni molto e in modo monotono. I picchi precedono spesso sovraccarico o cali di forma: buon segnale per una settimana di scarico." to
+            "Week's total load × monotony (Foster). Sums up overall stress: high when you train a lot and monotonously. Spikes often precede overreaching or dips: a good cue for a deload week."),
+        "info.load.title" to ("Carico interno" to "Internal load"),
+        "info.load.body" to (
+            "Misura lo stress dell'allenamento percepito dal corpo, non i kg sollevati. È sRPE (durata × RPE) o, con FC media, TRIMP. Da qui derivano ACWR, monotonia e strain. Senza durata + RPE (o FC) una sessione non genera carico interno, quindi queste metriche restano vuote." to
+            "Measures the training stress your body experiences, not the kilos lifted. It's sRPE (duration × RPE) or, with avg HR, TRIMP. ACWR, monotony and strain build on it. Without duration + RPE (or HR) a session produces no internal load, so these stay empty."),
+        "info.srpe.title" to ("sRPE (durata × RPE)" to "sRPE (duration × RPE)"),
+        "info.srpe.body" to (
+            "Session-RPE: durata in minuti × sforzo percepito (RPE 1-10, Borg CR10). È il modo più semplice e validato per quantificare il carico interno di qualsiasi allenamento. Inserisci durata e RPE a fine sessione." to
+            "Session-RPE: minutes × perceived effort (RPE 1-10, Borg CR10). The simplest validated way to quantify internal load of any session. Enter duration and RPE at the end."),
+        "info.bmi.title" to ("BMI" to "BMI"),
+        "info.bmi.body" to (
+            "Indice di massa corporea: peso (kg) / altezza (m) al quadrato. OMS: <18,5 sottopeso, 18,5-25 normopeso, 25-30 sovrappeso, >30 obeso. Non distingue muscolo da grasso: per i muscolosi può risultare alto. Per la composizione usa il grasso corporeo." to
+            "Body Mass Index: weight (kg) / height (m) squared. WHO: <18.5 underweight, 18.5-25 normal, 25-30 overweight, >30 obese. It can't tell muscle from fat, so muscular people read high. Use body fat for composition."),
+        "info.bodyfat.title" to ("Grasso corporeo" to "Body fat"),
+        "info.bodyfat.body" to (
+            "Percentuale di massa grassa sul peso. Inseriscila manualmente o usa la stima Navy da collo, vita e altezza. La Navy è comoda ma indicativa (±3-4%): misura sempre allo stesso modo e segui il trend." to
+            "Share of fat mass over weight. Enter it manually or use the Navy estimate from neck, waist and height. Navy is handy but approximate (±3-4%): measure the same way and follow the trend."),
+        "info.tdee.title" to ("TDEE & BMR" to "TDEE & BMR"),
+        "info.tdee.body" to (
+            "Il BMR (metabolismo basale) è l'energia a riposo (Mifflin-St Jeor da peso, altezza, età, sesso). Il TDEE è il dispendio totale: BMR × moltiplicatore di attività (1,2 sedentario → 1,9 atleta). È la base per le calorie obiettivo." to
+            "BMR (basal metabolic rate) is rest energy (Mifflin-St Jeor from weight, height, age, sex). TDEE is total expenditure: BMR × activity multiplier (1.2 sedentary → 1.9 athlete). It's the basis for calorie targets."),
+        "info.macros.title" to ("Macronutrienti" to "Macronutrients"),
+        "info.macros.body" to (
+            "Ripartizione di proteine, carboidrati e grassi sulle calorie obiettivo (range ISSN). Proteine ~1,8-2,2 g/kg (più alte in definizione). Grassi ~0,8 g/kg come minimo ormonale. I carboidrati riempiono il resto e alimentano la prestazione." to
+            "How protein, carbs and fat split the calorie target (ISSN ranges). Protein ~1.8-2.2 g/kg (higher on a cut). Fat ~0.8 g/kg as a hormonal floor. Carbs fill the rest and fuel performance."),
+        "info.carbcycle.title" to ("Ciclizzazione dei carboidrati" to "Carb cycling"),
+        "info.carbcycle.body" to (
+            "Sposta i carboidrati verso i giorni di allenamento mantenendo la media: più nei giorni ON (×1,30), meno nei giorni OFF (×0,65). Utile in definizione per allenarsi con energia restando in deficit. Le proteine restano costanti." to
+            "Shuttles carbs toward training days while keeping the average: more on ON days (×1.30), fewer on OFF days (×0.65). Useful on a cut to train with energy while in a deficit. Protein stays constant."),
+        "info.lea.title" to ("Disponibilità energetica (EA)" to "Energy availability (EA)"),
+        "info.lea.body" to (
+            "Energia per le funzioni vitali dopo l'allenamento: (calorie assunte − energia dell'esercizio) ÷ massa magra, sugli ultimi 7 giorni. Sotto 30 kcal/kg di massa magra c'è rischio LEA/RED-S: cali ormonali, ossei, di prestazione. 30-45 è cautela sotto carico." to
+            "Energy for vital functions after training: (calories eaten − exercise energy) ÷ fat-free mass, over 7 days. Below 30 kcal/kg lean mass risks LEA/RED-S: hormonal, bone and performance decline. 30-45 is a caution zone under load."),
+        "info.trend.title" to ("Trend del peso" to "Weight trend"),
+        "info.trend.body" to (
+            "Stima la reale variazione di peso (kg/sett) con una regressione lineare sugli ultimi ~21 pesi, togliendo il rumore quotidiano. Confronta il ritmo reale con l'obiettivo e suggerisce un aggiustamento calorico. Servono almeno 4 pesate." to
+            "Estimates your real weight change (kg/wk) with a linear regression over your last ~21 weigh-ins, removing daily noise. Compares the real rate to your target and suggests a calorie adjustment. Needs at least 4 weigh-ins."),
+        "info.overload.title" to ("Sovraccarico progressivo" to "Progressive overload"),
+        "info.overload.body" to (
+            "Suggerimenti di doppia progressione per il prossimo allenamento, confrontando l'ultima sessione col range di ripetizioni. Massimo del range su tutte le serie → aumenta il carico. Dentro al range → cerca più ripetizioni. Sotto → mantieni e cura la tecnica." to
+            "Double-progression hints for your next workout, comparing your last session to the rep range. Top of range on all sets → add load. Inside the range → chase more reps. Below → hold and refine technique."),
+        "info.calories.title" to ("Calorie bruciate" to "Calories burned"),
+        "info.calories.body" to (
+            "Stima dell'energia spesa dai tuoi dati (peso, età, sesso). Con FC media usiamo la formula di Keytel; per il cardio senza FC i MET × peso × durata; per la forza una stima da volume e serie. È un'approssimazione, non una misura da metabolimetro." to
+            "Estimate of energy spent from your profile (weight, age, sex). With avg HR we use the Keytel formula; for cardio without HR the activity METs × weight × duration; for strength a volume/sets estimate. It's an approximation, not a lab measurement.")
     )
 }
 
