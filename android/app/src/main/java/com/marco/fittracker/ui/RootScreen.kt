@@ -110,12 +110,13 @@ fun RootScreen() {
 
     CompositionLocalProvider(LocalStore provides store, LocalTimer provides timer, LocalToast provides toast) {
         var tab by remember { mutableStateOf(Tab.HOME) }
+        var showSettings by remember { mutableStateOf(false) }
         val statusPad = WindowInsets.statusBars.asPaddingValues()
         val navPad = WindowInsets.navigationBars.asPaddingValues()
 
         Box(Modifier.fillMaxSize().background(T.bg)) {
             Column(Modifier.fillMaxSize()) {
-                HeaderBar(tab, Modifier.padding(top = statusPad.calculateTopPadding()))
+                HeaderBar(tab, onSettings = { showSettings = true }, modifier = Modifier.padding(top = statusPad.calculateTopPadding()))
                 Column(
                     Modifier
                         .fillMaxSize()
@@ -140,6 +141,8 @@ fun RootScreen() {
                 if (timer.active) TimerStrip()
                 NavBar(tab, navPad) { tab = it }
             }
+
+            if (showSettings) SettingsDialog { showSettings = false }
 
             // Toast
             AnimatedVisibility(
@@ -167,8 +170,9 @@ private fun ToastView(text: String) {
 }
 
 @Composable
-private fun HeaderBar(tab: Tab, modifier: Modifier = Modifier) {
+private fun HeaderBar(tab: Tab, onSettings: () -> Unit = {}, modifier: Modifier = Modifier) {
     val store = LocalStore.current
+    val tap = rememberTap()
     val d = headerDate()
     Column(modifier.fillMaxWidth().background(T.bg)) {
         Row(
@@ -184,6 +188,9 @@ private fun HeaderBar(tab: Tab, modifier: Modifier = Modifier) {
                 Spacer(Modifier.height(4.dp))
                 Text(tab.sub.uppercase(), color = T.sub, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp)
             }
+            Icon(androidx.compose.material.icons.Icons.Filled.Settings, "settings", tint = T.sub,
+                modifier = Modifier.size(34.dp).clickable { tap(); onSettings() }.padding(6.dp))
+            Spacer(Modifier.width(6.dp))
             Column(horizontalAlignment = Alignment.End) {
                 Text(d.first, color = T.txt, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 Text(d.second.uppercase(), color = T.sub, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
