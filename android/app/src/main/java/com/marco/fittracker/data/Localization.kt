@@ -125,6 +125,8 @@ object L {
         "wk.deload_ex" to ("Scarica / tecnica" to "Deload / technique"),
         "wk.select_day" to ("Seleziona giorno" to "Select day"),
         "wk.new_day" to ("Nuovo giorno" to "New day"),
+        "wk.recent" to ("Sessioni recenti" to "Recent sessions"),
+        "wk.sets_n" to ("serie" to "sets"),
         "wk.cardio" to ("Cardio" to "Cardio"),
         "wk.cardio_types" to ("Attività cardio" to "Cardio activities"),
         "wk.new_cardio" to ("Nuova attività" to "New activity"),

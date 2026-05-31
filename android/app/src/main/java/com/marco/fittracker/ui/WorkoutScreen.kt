@@ -52,12 +52,14 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.DisposableEffect
+import com.marco.fittracker.data.CardioType
 import com.marco.fittracker.data.LoggedExercise
 import com.marco.fittracker.data.PlanExercise
 import com.marco.fittracker.data.SetEntry
 import com.marco.fittracker.data.WorkoutPlan
 import com.marco.fittracker.data.WorkoutSession
 import com.marco.fittracker.data.pf
+import com.marco.fittracker.data.t
 import com.marco.fittracker.data.today
 import com.marco.fittracker.data.trimNum
 
@@ -105,8 +107,13 @@ private fun WorkoutGrid(onStart: (WorkoutPlan) -> Unit, onNew: () -> Unit, onEdi
     val store = LocalStore.current
     val tap = rememberTap()
 
+    var loggingCardio by remember { mutableStateOf<CardioType?>(null) }
+    var editingCardio by remember { mutableStateOf<CardioType?>(null) }
+    var isNewCardio by remember { mutableStateOf(false) }
+    var editingSession by remember { mutableStateOf<WorkoutSession?>(null) }
+
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Lbl("Seleziona giorno", modifier = Modifier.weight(1f))
+        Lbl(t("wk.select_day"), modifier = Modifier.weight(1f))
         Row(
             Modifier.clip(RoundedCornerShape(10.dp)).background(T.acc.copy(alpha = 0.07f))
                 .border(1.dp, T.acc, RoundedCornerShape(10.dp))
@@ -137,24 +144,39 @@ private fun WorkoutGrid(onStart: (WorkoutPlan) -> Unit, onNew: () -> Unit, onEdi
         }
     }
 
-    // Recent sessions
+    // Cardio activities (saveable, customizable like strength days)
+    CardioSection(
+        onLog = { loggingCardio = it },
+        onEdit = { editingCardio = it; isNewCardio = false },
+        onNew = { editingCardio = CardioType(name = "", sport = "running", color = T.cardioColors.first()); isNewCardio = true }
+    )
+
+    // Recent sessions (tap to edit / delete)
     val recent = store.sessions.sortedByDescending { it.date }.take(5)
     if (recent.isNotEmpty()) {
         Card {
-            Lbl("Sessioni recenti")
+            Lbl(t("wk.recent"))
             Spacer(Modifier.height(4.dp))
             recent.forEach { s ->
-                DividerRow {
-                    Column(Modifier.weight(1f)) {
-                        Text(s.planName.uppercase(), color = hexColor(s.planColor), fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                        Spacer(Modifier.height(3.dp))
-                        Text("${s.date} · ${s.exercises.size} esercizi · ${store.estimateCalories(s)} kcal", color = T.sub, fontSize = 10.sp)
+                Box(Modifier.fillMaxWidth().clickable { tap(); editingSession = s }) {
+                    DividerRow {
+                        Column(Modifier.weight(1f)) {
+                            Text(s.planName.uppercase(), color = hexColor(s.planColor), fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                            Spacer(Modifier.height(3.dp))
+                            val detail = if (s.sportType.isCardio) (s.durationMin?.let { "$it min" } ?: s.sportType.label())
+                                         else "${s.exercises.size} ${t("home.exercises")}"
+                            Text("${s.date} · $detail · ${store.estimateCalories(s)} kcal", color = T.sub, fontSize = 10.sp)
+                        }
+                        Badge(if (s.sportType.isCardio) s.sportType.label() else "${s.totalSets} ${t("wk.sets_n")}")
                     }
-                    Badge("${s.totalSets} serie")
                 }
             }
         }
     }
+
+    loggingCardio?.let { CardioLoggerDialog(it) { loggingCardio = null } }
+    editingCardio?.let { CardioTypeEditorDialog(it, isNewCardio) { editingCardio = null } }
+    editingSession?.let { SessionEditorDialog(it) { editingSession = null } }
 }
 
 @Composable
