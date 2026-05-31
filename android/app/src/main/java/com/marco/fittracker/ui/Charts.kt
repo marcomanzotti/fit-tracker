@@ -189,6 +189,7 @@ fun BarChart(xLabels: List<String>, values: List<Double>, color: Color = T.acc.c
     }
 }
 
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun ChartLegend(series: List<Series>) {
     FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {

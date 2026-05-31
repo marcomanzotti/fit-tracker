@@ -278,6 +278,7 @@ fun EmptyBox(title: String, text: String) {
 }
 
 // MARK: - Wrapping chips row
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun ChipsFlow(items: List<String>, color: Color = T.blue, bg: Color = T.blue.copy(alpha = 0.1f)) {
     FlowRow(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
