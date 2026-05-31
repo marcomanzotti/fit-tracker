@@ -37,8 +37,12 @@ final class Store: ObservableObject {
             daily = a.daily; sessions = a.sessions; body = a.body; plans = a.plans; prefs = a.prefs
         }
         if plans.isEmpty { plans = Store.defaultPlans() }
+        L.lang = prefs.langCode
         loaded = true
     }
+
+    /// Keep the global localization language in sync with the stored preference.
+    func syncLang() { L.lang = prefs.langCode }
 
     func save() {
         guard loaded else { return }
@@ -105,7 +109,7 @@ extension Store {
                 PlanExercise(name: "Abductor machine", sets: 3, reps: "15"),
                 PlanExercise(name: "Calf raise in piedi", sets: 3, reps: "15")
             ]),
-            WorkoutPlan(id: "p4", name: "Spalle & Core", sub: "Postura + V-Shape", color: "ff6a00", exercises: [
+            WorkoutPlan(id: "p4", name: "Spalle & Core", sub: "Postura + V-Shape", color: "ffd21e", exercises: [
                 PlanExercise(name: "Arnold press manubri", sets: 4, reps: "10"),
                 PlanExercise(name: "Lateral raise cavo", sets: 3, reps: "12"),
                 PlanExercise(name: "Rear delt fly manubri", sets: 3, reps: "12"),

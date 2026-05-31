@@ -14,9 +14,6 @@ func today() -> String { isoFormatter.string(from: Date()) }
 /// "2024-05-31" -> "05-31"   (mirrors the web app's fmt())
 func fmtShort(_ date: String) -> String { String(date.dropFirst(5)) }
 
-let itMonths = ["Gen", "Feb", "Mar", "Apr", "Mag", "Giu", "Lug", "Ago", "Set", "Ott", "Nov", "Dic"]
-let itDays   = ["Dom", "Lun", "Mar", "Mer", "Gio", "Ven", "Sab"]
-
 func headerDate() -> (full: String, day: String) {
     let cal = Calendar.current
     let now = Date()
@@ -24,7 +21,7 @@ func headerDate() -> (full: String, day: String) {
     let m = cal.component(.month, from: now) - 1
     let y = cal.component(.year, from: now)
     let wd = cal.component(.weekday, from: now) - 1
-    return ("\(d) \(itMonths[max(0, min(11, m))]) \(y)", itDays[max(0, min(6, wd))])
+    return ("\(d) \(L.months[max(0, min(11, m))]) \(y)", L.days[max(0, min(6, wd))])
 }
 
 // MARK: - Number formatting
