@@ -30,6 +30,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -188,7 +189,7 @@ private fun HeaderBar(tab: Tab, onSettings: () -> Unit = {}, modifier: Modifier 
                 Spacer(Modifier.height(4.dp))
                 Text(tab.sub.uppercase(), color = T.sub, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp)
             }
-            Icon(androidx.compose.material.icons.Icons.Filled.Settings, "settings", tint = T.sub,
+            Icon(Icons.Filled.Settings, "settings", tint = T.sub,
                 modifier = Modifier.size(34.dp).clickable { tap(); onSettings() }.padding(6.dp))
             Spacer(Modifier.width(6.dp))
             Column(horizontalAlignment = Alignment.End) {
