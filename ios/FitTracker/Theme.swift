@@ -28,7 +28,7 @@ enum Theme {
     static let c3     = Color(hex: "2a2a30")
     static let brd    = Color(hex: "2a2a30")
     static let brd2   = Color(hex: "3a3a42")
-    static let acc    = Color(hex: "ffd21e")   // Tenerife yellow (was orange ff6a00)
+    static let acc    = Color(hex: "ffe000")   // Lamborghini-bright yellow (was ffd21e)
     static let acc2   = Color(hex: "ffb000")
     static let accDim = Color(hex: "c25200")
     static let txt    = Color(hex: "f4efe6")
@@ -39,7 +39,10 @@ enum Theme {
     static let good   = Color(hex: "7fc950")
 
     /// Swatches offered when creating / editing a workout day.
-    static let planColors = ["ffd21e", "ffb000", "ff5a52", "4fb8c4", "7fc950", "b08fff"]
+    static let planColors = ["ffe000", "ffb000", "ff5a52", "4fb8c4", "7fc950", "b08fff"]
+    /// Separate palette for cardio activity types (kept visually distinct from
+    /// the strength-day palette so cardio reads differently on the calendar).
+    static let cardioColors = ["4fb8c4", "ff5a52", "7fc950", "b08fff", "ffb000", "53a8ff"]
 
     static let radius:  CGFloat = 18
     static let radiusS: CGFloat = 12

@@ -34,6 +34,67 @@ struct Lbl: View {
     }
 }
 
+// MARK: - Info button + explanation popup (for scientific metrics)
+// Tapping any metric's small "i" opens a sheet explaining what it means, how it
+// is computed and how to read it. Content comes from localized keys
+// "info.<id>.title" / "info.<id>.body".
+struct InfoButton: View {
+    let id: String                 // e.g. "acwr" -> info.acwr.title / info.acwr.body
+    var color: Color = Theme.sub
+    @State private var show = false
+    var body: some View {
+        Button { tap(); show = true } label: {
+            Image(systemName: "info.circle").font(.system(size: 13)).foregroundColor(color)
+                .frame(width: 26, height: 26)
+        }
+        .buttonStyle(.plain)
+        .sheet(isPresented: $show) { InfoSheet(id: id) }
+    }
+}
+
+struct InfoSheet: View {
+    let id: String
+    @Environment(\.dismiss) private var dismiss
+    var body: some View {
+        ZStack {
+            Theme.bg.ignoresSafeArea()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    HStack(alignment: .top) {
+                        Text(t("info.\(id).title")).font(.head(20, .bold)).tracking(0.3)
+                            .foregroundColor(Theme.acc).fixedSize(horizontal: false, vertical: true)
+                        Spacer()
+                        Button { tap(); dismiss() } label: {
+                            Image(systemName: "xmark").foregroundColor(Theme.sub).frame(width: 34, height: 34)
+                        }
+                    }
+                    Text(t("info.\(id).body"))
+                        .font(.system(size: 14)).foregroundColor(Theme.txt).lineSpacing(5)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 10)
+                }
+                .padding(20)
+            }
+        }
+        .preferredColorScheme(.dark)
+        .presentationDetents([.medium, .large])
+    }
+}
+
+/// A card/section label with an inline info button on the right.
+struct InfoLbl: View {
+    let text: String
+    let info: String               // info id
+    var color: Color = Theme.sub
+    var body: some View {
+        HStack(spacing: 4) {
+            Lbl(text: text, color: color)
+            InfoButton(id: info, color: color)
+            Spacer()
+        }
+    }
+}
+
 // MARK: - Small stat tile
 struct StatTile: View {
     let label: String
@@ -41,9 +102,13 @@ struct StatTile: View {
     var unit: String? = nil
     var valueColor: Color = Theme.txt
     var note: String? = nil
+    var info: String? = nil        // optional info-popup id
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Lbl(text: label)
+            HStack(spacing: 2) {
+                Lbl(text: label)
+                if let info { InfoButton(id: info) }
+            }
             HStack(alignment: .firstTextBaseline, spacing: 2) {
                 Text(value).font(.num(30)).foregroundColor(valueColor)
                 if let unit { Text(unit).font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.sub) }

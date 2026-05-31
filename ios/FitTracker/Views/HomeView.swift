@@ -25,11 +25,12 @@ struct HomeView: View {
 
         // Key stats
         HStack(spacing: 9) {
-            StatTile(label: t("home.weight"), value: trimNum(lw), unit: "kg", note: "BMI \(trimNum(bmi)) · \(cat.0)")
+            StatTile(label: t("home.weight"), value: trimNum(lw), unit: "kg", note: "BMI \(trimNum(bmi)) · \(cat.0)", info: "bmi")
             StatTile(label: t("home.streak"), value: "\(store.streak)", valueColor: Theme.acc, note: store.streak == 1 ? t("home.day") : t("home.days"))
             StatTile(label: t("home.sessions"), value: "\(store.sessions.count)", valueColor: Theme.blue, note: t("home.total"))
         }
 
+        weekStripCard
         goalsCard(lw: lw)
         nextWorkoutCard
 
@@ -41,9 +42,67 @@ struct HomeView: View {
         }
 
         if ws.count > 1 { weightChartCard(ws) }
-        recentPRsCard
         weekComparisonCard
         backupRow
+    }
+
+    // MARK: Week activity strip (sporty 7-day overview)
+    private var weekStripCard: some View {
+        let cal = Calendar.current
+        let now = Date()
+        // Build the last 7 calendar days, oldest -> today.
+        let days: [(label: String, ds: String, isToday: Bool)] = (0..<7).reversed().map { i in
+            let d = cal.date(byAdding: .day, value: -i, to: now)!
+            let ds = isoFormatter.string(from: d)
+            return (L.days[cal.component(.weekday, from: d) - 1], ds, ds == today())
+        }
+        let trainedDays = days.filter { d in store.sessions.contains { $0.date == d.ds } }.count
+        return Card {
+            HStack {
+                Lbl(text: t("home.week_activity"), color: Theme.acc2)
+                Spacer()
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    Text("\(trainedDays)").font(.num(18)).foregroundColor(Theme.acc)
+                    Text("/ 7 \(t("home.workouts").lowercased())").font(.system(size: 10)).foregroundColor(Theme.sub)
+                }
+            }
+            .padding(.bottom, 12)
+            HStack(spacing: 7) {
+                ForEach(days, id: \.ds) { d in
+                    dayPip(d.label, ds: d.ds, isToday: d.isToday)
+                }
+            }
+        }
+    }
+
+    private func dayPip(_ label: String, ds: String, isToday: Bool) -> some View {
+        let sess = store.sessions.filter { $0.date == ds }
+        let color = sess.first.map { Color(hex: $0.planColor) }
+        let trained = color != nil
+        return VStack(spacing: 6) {
+            Text(label.uppercased()).font(.head(9, .semibold)).tracking(0.5)
+                .foregroundColor(isToday ? Theme.acc : Theme.sub)
+            ZStack {
+                RoundedRectangle(cornerRadius: 11, style: .continuous)
+                    .fill(trained ? (color ?? Theme.acc) : Theme.c2)
+                RoundedRectangle(cornerRadius: 11, style: .continuous)
+                    .stroke(isToday ? Theme.acc : (trained ? Color.clear : Theme.brd),
+                            lineWidth: isToday ? 2 : 1)
+                if trained {
+                    Image(systemName: sess.first!.sportType.isCardio ? sess.first!.sportType.icon : "dumbbell.fill")
+                        .font(.system(size: 13, weight: .bold)).foregroundColor(Theme.bg)
+                    if sess.count > 1 {
+                        Text("\(sess.count)").font(.system(size: 8, weight: .bold)).foregroundColor(Theme.bg)
+                            .frame(width: 13, height: 13).background(Theme.bg.opacity(0.001))
+                            .offset(x: 13, y: -13)
+                    }
+                } else {
+                    Circle().fill(Theme.brd2).frame(width: 4, height: 4)
+                }
+            }
+            .frame(height: 42)
+        }
+        .frame(maxWidth: .infinity)
     }
 
     // MARK: Check-in
@@ -170,32 +229,6 @@ struct HomeView: View {
             .chartYScale(domain: .automatic(includesZero: false))
             .styledAxes()
             .frame(height: 155)
-        }
-    }
-
-    // MARK: Recent PRs
-    private var recentPRsCard: some View {
-        let items = Array(store.allPRs()
-            .filter { $0.value.weight > 0 }
-            .sorted { ($0.value.date ?? "") > ($1.value.date ?? "") }
-            .prefix(3))
-        return Group {
-            if !items.isEmpty {
-                Card {
-                    Lbl(text: t("home.recent_pr")).padding(.bottom, 4)
-                    ForEach(items.indices, id: \.self) { i in
-                        let name = items[i].key
-                        let info = items[i].value
-                        HStack {
-                            Text(name).font(.system(size: 12, weight: .medium)).foregroundColor(Theme.txt)
-                            Spacer()
-                            Text("\(trimNum(info.weight)) kg").font(.num(22)).foregroundColor(Theme.acc)
-                        }
-                        .padding(.vertical, 8)
-                        .overlay(alignment: .bottom) { Rectangle().fill(Theme.brd).frame(height: 1) }
-                    }
-                }
-            }
         }
     }
 

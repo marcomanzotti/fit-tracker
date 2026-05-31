@@ -24,7 +24,7 @@ struct ReadinessCard: View {
         Group {
             if r.score != nil || r.samples > 0 {
                 Card(accent: zoneColor(r.advice)) {
-                    Lbl(text: t("load.readiness"), color: Theme.acc2).padding(.bottom, 10)
+                    InfoLbl(text: t("load.readiness"), info: "readiness", color: Theme.acc2).padding(.bottom, 10)
                     if let score = r.score {
                         HStack(alignment: .firstTextBaseline, spacing: 6) {
                             Text("\(score)").font(.num(34)).foregroundColor(zoneColor(r.advice))
@@ -56,10 +56,11 @@ struct LoadCard: View {
         Group {
             if acwr.ratio != nil || wk.total > 0 {
                 Card {
-                    Lbl(text: t("load.title"), color: Theme.acc2).padding(.bottom, 12)
+                    InfoLbl(text: t("load.title"), info: "load", color: Theme.acc2).padding(.bottom, 12)
                     if let ratio = acwr.ratio {
-                        HStack {
+                        HStack(spacing: 2) {
                             Text(t("load.acwr")).font(.system(size: 12, weight: .medium)).foregroundColor(Theme.sub)
+                            InfoButton(id: "acwr")
                             Spacer()
                             Text(trimNum(ratio)).font(.num(20)).foregroundColor(zoneColor(acwr.zone))
                         }
@@ -69,11 +70,11 @@ struct LoadCard: View {
                             .padding(.top, 5).padding(.bottom, 12)
                     }
                     HStack(spacing: 9) {
-                        StatTile(label: t("load.weekly"), value: "\(Int(wk.total))", valueColor: Theme.txt)
+                        StatTile(label: t("load.weekly"), value: "\(Int(wk.total))", valueColor: Theme.txt, info: "srpe")
                         StatTile(label: t("load.monotony"), value: wk.monotony.map { trimNum(($0 * 10).rounded() / 10) } ?? "—",
-                                 valueColor: (wk.monotony ?? 0) > 2 ? Theme.acc2 : Theme.txt)
+                                 valueColor: (wk.monotony ?? 0) > 2 ? Theme.acc2 : Theme.txt, info: "monotony")
                         StatTile(label: t("load.strain"), value: wk.strain.map { "\(Int($0))" } ?? "—",
-                                 valueColor: Theme.blue)
+                                 valueColor: Theme.blue, info: "strain")
                     }
                     if (wk.monotony ?? 0) > 2 || acwr.zone == "high" {
                         Text(t("load.deload")).font(.head(11, .semibold)).tracking(0.5)
@@ -96,8 +97,9 @@ struct NutritionCard: View {
         let trend = store.weightTrend()
         let lea = store.energyAvailability()
         Card(accent: Theme.acc) {
-            HStack {
+            HStack(spacing: 2) {
                 Lbl(text: t("nut.title"), color: Theme.acc2)
+                InfoButton(id: "tdee", color: Theme.acc2)
                 Spacer()
                 Text(modeLabel(e.mode).uppercased()).font(.head(11, .semibold)).tracking(1).foregroundColor(Theme.acc)
             }
@@ -112,14 +114,15 @@ struct NutritionCard: View {
             .padding(.bottom, 12)
 
             HStack(spacing: 9) {
-                StatTile(label: t("nut.protein"), value: "\(Int(e.protein))", unit: "g", valueColor: Theme.blue)
-                StatTile(label: t("nut.carbs"), value: "\(Int(e.carbs))", unit: "g", valueColor: Theme.acc2)
-                StatTile(label: t("nut.fat"), value: "\(Int(e.fat))", unit: "g", valueColor: Theme.good)
+                StatTile(label: t("nut.protein"), value: "\(Int(e.protein))", unit: "g", valueColor: Theme.blue, info: "macros")
+                StatTile(label: t("nut.carbs"), value: "\(Int(e.carbs))", unit: "g", valueColor: Theme.acc2, info: "macros")
+                StatTile(label: t("nut.fat"), value: "\(Int(e.fat))", unit: "g", valueColor: Theme.good, info: "macros")
             }
             .padding(.bottom, 10)
-            HStack {
+            HStack(spacing: 2) {
                 Text("\(t("nut.carb_high")): \(Int(e.carbHigh))g · \(t("nut.carb_low")): \(Int(e.carbLow))g")
                     .font(.system(size: 10)).foregroundColor(Theme.sub)
+                InfoButton(id: "carbcycle")
                 Spacer()
                 Text("\(t("nut.salt")) \(trimNum(e.saltMax))g").font(.system(size: 10)).foregroundColor(Theme.sub)
             }
@@ -127,8 +130,9 @@ struct NutritionCard: View {
 
             // Real weight trend vs target
             if let rate = trend.ratePerWeek {
-                HStack {
+                HStack(spacing: 2) {
                     Text(t("nut.trend")).font(.system(size: 12, weight: .medium)).foregroundColor(Theme.sub)
+                    InfoButton(id: "trend")
                     Spacer()
                     Text("\(rate > 0 ? "+" : "")\(trimNum(rate)) \(t("nut.per_week"))")
                         .font(.num(15)).foregroundColor(zoneColor(trend.status))
@@ -136,9 +140,14 @@ struct NutritionCard: View {
                 Text(trendText(trend)).font(.system(size: 10)).foregroundColor(zoneColor(trend.status)).padding(.top, 3)
             }
             if lea.risk == "risk" || lea.risk == "warn" {
-                Text("\(t(lea.risk == "risk" ? "nut.lea_risk" : "nut.lea_warn"))" + (lea.ea.map { " · EA \(trimNum($0))" } ?? ""))
-                    .font(.head(11, .semibold)).tracking(0.3)
-                    .foregroundColor(lea.risk == "risk" ? Theme.red : Theme.acc2).padding(.top, 8)
+                HStack(spacing: 2) {
+                    Text("\(t(lea.risk == "risk" ? "nut.lea_risk" : "nut.lea_warn"))" + (lea.ea.map { " · EA \(trimNum($0))" } ?? ""))
+                        .font(.head(11, .semibold)).tracking(0.3)
+                        .foregroundColor(lea.risk == "risk" ? Theme.red : Theme.acc2)
+                    InfoButton(id: "lea", color: lea.risk == "risk" ? Theme.red : Theme.acc2)
+                    Spacer()
+                }
+                .padding(.top, 8)
             }
             Text(t("nut.who_note")).font(.system(size: 9)).foregroundColor(Theme.sub).padding(.top, 8)
         }
@@ -174,7 +183,7 @@ struct OverloadCard: View {
         return Group {
             if !actionable.isEmpty {
                 Card(accent: Theme.acc2) {
-                    Lbl(text: t("wk.suggested"), color: Theme.acc2).padding(.bottom, 4)
+                    InfoLbl(text: t("wk.suggested"), info: "overload", color: Theme.acc2).padding(.bottom, 4)
                     ForEach(actionable.prefix(4).indices, id: \.self) { i in
                         let it = actionable[i]
                         HStack {

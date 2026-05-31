@@ -9,8 +9,10 @@ struct WorkoutView: View {
     @State private var log: [LoggedExercise] = []
     @State private var editing: WorkoutPlan?
     @State private var isNew = false
-    @State private var showCardio = false
     @State private var editingSession: WorkoutSession?
+    @State private var loggingCardio: CardioType?
+    @State private var editingCardio: CardioType?
+    @State private var isNewCardio = false
 
     var body: some View {
         if let pid = activePlanId, let plan = store.plan(pid) {
@@ -40,17 +42,6 @@ struct WorkoutView: View {
             HStack(spacing: 8) {
                 Lbl(text: t("wk.select_day"))
                 Spacer()
-                Button { tap(); showCardio = true } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "figure.run")
-                        Text("CARDIO").font(.head(10, .semibold)).tracking(1)
-                    }
-                    .foregroundColor(Theme.blue)
-                    .padding(.vertical, 8).padding(.horizontal, 12)
-                    .background(Theme.blue.opacity(0.07))
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Theme.blue, lineWidth: 1))
-                }
                 Button { tap(); newPlan() } label: {
                     HStack(spacing: 6) {
                         Image(systemName: "plus")
@@ -71,11 +62,95 @@ struct WorkoutView: View {
                 addCard
             }
 
+            cardioSection
             CalendarCard()
             recentSessions
         }
-        .sheet(isPresented: $showCardio) { CardioLoggerView() }
         .sheet(item: $editingSession) { s in SessionEditorView(session: s) }
+        .sheet(item: $loggingCardio) { ct in CardioLoggerView(type: ct) }
+        .sheet(item: $editingCardio) { ct in CardioTypeEditorView(type: ct, isNew: isNewCardio) }
+    }
+
+    // MARK: Cardio activities (saveable, customizable like strength days)
+    private var cardioSection: some View {
+        let cols = [GridItem(.flexible(), spacing: 11), GridItem(.flexible(), spacing: 11)]
+        return VStack(spacing: 11) {
+            HStack(spacing: 8) {
+                Lbl(text: t("wk.cardio_types"))
+                Spacer()
+                Button { tap(); newCardio() } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "plus")
+                        Text(t("wk.add_cardio").uppercased()).font(.head(10, .semibold)).tracking(1)
+                    }
+                    .foregroundColor(Theme.blue)
+                    .padding(.vertical, 8).padding(.horizontal, 12)
+                    .background(Theme.blue.opacity(0.07))
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Theme.blue, lineWidth: 1))
+                }
+            }
+            LazyVGrid(columns: cols, spacing: 11) {
+                ForEach(store.cardioTypes) { ct in cardioTile(ct) }
+                addCardioTile
+            }
+        }
+    }
+
+    private func cardioTile(_ ct: CardioType) -> some View {
+        ZStack(alignment: .topTrailing) {
+            Button { tap(); loggingCardio = ct } label: {
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack(spacing: 8) {
+                        Image(systemName: ct.sportType.icon).font(.system(size: 15, weight: .bold))
+                            .foregroundColor(Color(hex: ct.color))
+                        Spacer()
+                    }
+                    .padding(.bottom, 10).padding(.trailing, 24)
+                    Text(ct.name.uppercased()).font(.head(16, .bold)).tracking(0.5)
+                        .foregroundColor(Theme.txt).lineLimit(1)
+                    Text(ct.sportType.label).font(.system(size: 10)).foregroundColor(Theme.sub).padding(.top, 3)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 15).padding(.horizontal, 14)
+                .background(Theme.c1)
+                .overlay(alignment: .leading) { Rectangle().fill(Color(hex: ct.color)).frame(width: 3) }
+                .clipShape(RoundedRectangle(cornerRadius: Theme.radius, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: Theme.radius, style: .continuous).stroke(Theme.brd, lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+
+            Button { tap(); editCardio(ct) } label: {
+                Image(systemName: "slider.horizontal.3").font(.system(size: 13))
+                    .foregroundColor(Theme.sub).frame(width: 34, height: 30)
+            }
+            .buttonStyle(.plain)
+            .padding(6)
+        }
+    }
+
+    private var addCardioTile: some View {
+        Button { tap(); newCardio() } label: {
+            VStack(spacing: 8) {
+                Image(systemName: "plus.circle").font(.system(size: 24)).foregroundColor(Theme.sub)
+                Text(t("wk.new_cardio")).font(.head(11, .semibold)).tracking(1).foregroundColor(Theme.sub)
+            }
+            .frame(maxWidth: .infinity, minHeight: 104)
+            .background(Theme.c1.opacity(0.5))
+            .clipShape(RoundedRectangle(cornerRadius: Theme.radius, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: Theme.radius, style: .continuous)
+                .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [5, 4])).foregroundColor(Theme.brd2))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func newCardio() {
+        isNewCardio = true
+        editingCardio = CardioType(name: "", sport: "running", color: Theme.cardioColors.first!)
+    }
+    private func editCardio(_ ct: CardioType) {
+        isNewCardio = false
+        editingCardio = ct
     }
 
     private func dayCard(_ p: WorkoutPlan) -> some View {

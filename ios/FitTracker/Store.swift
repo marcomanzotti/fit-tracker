@@ -6,6 +6,7 @@ final class Store: ObservableObject {
     @Published var sessions: [WorkoutSession] = []
     @Published var body: [BodyEntry] = []
     @Published var plans: [WorkoutPlan] = []
+    @Published var cardioTypes: [CardioType] = []
     @Published var prefs: Prefs = Prefs()
 
     private var loaded = false
@@ -22,6 +23,7 @@ final class Store: ObservableObject {
             $sessions.map { _ in () }.eraseToAnyPublisher(),
             $body.map { _ in () }.eraseToAnyPublisher(),
             $plans.map { _ in () }.eraseToAnyPublisher(),
+            $cardioTypes.map { _ in () }.eraseToAnyPublisher(),
             $prefs.map { _ in () }.eraseToAnyPublisher()
         ]
         Publishers.MergeMany(pubs)
@@ -35,8 +37,10 @@ final class Store: ObservableObject {
         if let d = try? Data(contentsOf: dataURL),
            let a = try? JSONDecoder().decode(AppData.self, from: d) {
             daily = a.daily; sessions = a.sessions; body = a.body; plans = a.plans; prefs = a.prefs
+            cardioTypes = a.cardioTypes ?? []
         }
         if plans.isEmpty { plans = Store.defaultPlans() }
+        if cardioTypes.isEmpty { cardioTypes = Store.defaultCardioTypes() }
         L.lang = prefs.langCode
         loaded = true
     }
@@ -46,7 +50,7 @@ final class Store: ObservableObject {
 
     func save() {
         guard loaded else { return }
-        let a = AppData(daily: daily, sessions: sessions, body: body, plans: plans, prefs: prefs)
+        let a = AppData(daily: daily, sessions: sessions, body: body, plans: plans, prefs: prefs, cardioTypes: cardioTypes)
         guard let d = try? JSONEncoder().encode(a) else { return }
         try? d.write(to: dataURL, options: .atomic)
         // Rolling dated backup in Documents (visible in the Files app).
@@ -56,7 +60,7 @@ final class Store: ObservableObject {
 
     /// Produce a JSON file URL for sharing/export.
     func exportFile() -> URL? {
-        let a = AppData(daily: daily, sessions: sessions, body: body, plans: plans, prefs: prefs)
+        let a = AppData(daily: daily, sessions: sessions, body: body, plans: plans, prefs: prefs, cardioTypes: cardioTypes)
         guard let d = try? JSONEncoder.pretty.encode(a) else { return nil }
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("fittracker-\(today()).json")
         try? d.write(to: url, options: .atomic)
@@ -70,6 +74,7 @@ final class Store: ObservableObject {
               let a = try? JSONDecoder().decode(AppData.self, from: d) else { return false }
         daily = a.daily; sessions = a.sessions; body = a.body
         plans = a.plans.isEmpty ? Store.defaultPlans() : a.plans
+        cardioTypes = (a.cardioTypes?.isEmpty == false) ? a.cardioTypes! : Store.defaultCardioTypes()
         prefs = a.prefs
         return true
     }
@@ -81,44 +86,54 @@ extension JSONEncoder {
     }
 }
 
-// MARK: - Default starting templates (the original 4-day plan, now editable)
+// MARK: - Default starting templates (3-day Push / Pull / Legs split, fully editable)
+// Names and exercises are English defaults; everything is customizable per user.
 extension Store {
     static func defaultPlans() -> [WorkoutPlan] {
         [
-            WorkoutPlan(id: "p1", name: "Push", sub: "Spalle + Petto", color: "ff5a52", exercises: [
-                PlanExercise(name: "Military press bilanciere", sets: 4, reps: "8-10"),
-                PlanExercise(name: "Shoulder press manubri seduto", sets: 3, reps: "10"),
-                PlanExercise(name: "Lateral raise al cavo", sets: 3, reps: "12"),
-                PlanExercise(name: "Panca inclinata manubri", sets: 3, reps: "10"),
-                PlanExercise(name: "Cavi incrociati bassi", sets: 3, reps: "12"),
-                PlanExercise(name: "Triceps pushdown al cavo", sets: 3, reps: "12")
+            WorkoutPlan(id: "p1", name: "Push", sub: "Chest + Shoulders + Triceps", color: "ff5a52", exercises: [
+                PlanExercise(name: "Barbell bench press", sets: 4, reps: "6-8"),
+                PlanExercise(name: "Incline dumbbell press", sets: 3, reps: "8-10"),
+                PlanExercise(name: "Seated dumbbell shoulder press", sets: 3, reps: "10"),
+                PlanExercise(name: "Cable lateral raise", sets: 3, reps: "12-15"),
+                PlanExercise(name: "Cable chest fly", sets: 3, reps: "12"),
+                PlanExercise(name: "Triceps rope pushdown", sets: 3, reps: "12")
             ]),
-            WorkoutPlan(id: "p2", name: "Pull", sub: "Schiena + Bicipiti", color: "4fb8c4", exercises: [
-                PlanExercise(name: "Lat machine presa larga", sets: 4, reps: "10-12"),
-                PlanExercise(name: "Pulley presa stretta", sets: 3, reps: "12"),
-                PlanExercise(name: "Rematore manubrio 1 braccio", sets: 3, reps: "10"),
-                PlanExercise(name: "Face pull al cavo", sets: 3, reps: "15"),
-                PlanExercise(name: "Curl bilanciere EZ", sets: 3, reps: "10"),
-                PlanExercise(name: "Curl a martello manubri", sets: 3, reps: "12")
+            WorkoutPlan(id: "p2", name: "Pull", sub: "Back + Biceps + Rear Delts", color: "4fb8c4", exercises: [
+                PlanExercise(name: "Pull-up", sets: 4, reps: "6-10"),
+                PlanExercise(name: "Barbell row", sets: 3, reps: "8-10"),
+                PlanExercise(name: "Lat pulldown", sets: 3, reps: "10-12"),
+                PlanExercise(name: "Seated cable row", sets: 3, reps: "12"),
+                PlanExercise(name: "Face pull", sets: 3, reps: "15"),
+                PlanExercise(name: "EZ-bar biceps curl", sets: 3, reps: "10-12")
             ]),
-            WorkoutPlan(id: "p3", name: "Gambe", sub: "Quad + Posteriori", color: "ffb000", exercises: [
-                PlanExercise(name: "Leg press", sets: 4, reps: "12"),
-                PlanExercise(name: "RDL singola gamba", sets: 3, reps: "10/lato"),
-                PlanExercise(name: "Leg curl seduto", sets: 3, reps: "12"),
-                PlanExercise(name: "Adductor machine", sets: 3, reps: "15"),
-                PlanExercise(name: "Abductor machine", sets: 3, reps: "15"),
-                PlanExercise(name: "Calf raise in piedi", sets: 3, reps: "15")
-            ]),
-            WorkoutPlan(id: "p4", name: "Spalle & Core", sub: "Postura + V-Shape", color: "ffd21e", exercises: [
-                PlanExercise(name: "Arnold press manubri", sets: 4, reps: "10"),
-                PlanExercise(name: "Lateral raise cavo", sets: 3, reps: "12"),
-                PlanExercise(name: "Rear delt fly manubri", sets: 3, reps: "12"),
-                PlanExercise(name: "Shrug manubri", sets: 3, reps: "15"),
-                PlanExercise(name: "Plank laterale", sets: 3, reps: "30s/lato"),
-                PlanExercise(name: "Crunch al cavo", sets: 3, reps: "15")
+            WorkoutPlan(id: "p3", name: "Legs", sub: "Quads + Hamstrings + Calves", color: "ffb000", exercises: [
+                PlanExercise(name: "Barbell back squat", sets: 4, reps: "6-8"),
+                PlanExercise(name: "Romanian deadlift", sets: 3, reps: "8-10"),
+                PlanExercise(name: "Leg press", sets: 3, reps: "12"),
+                PlanExercise(name: "Seated leg curl", sets: 3, reps: "12"),
+                PlanExercise(name: "Leg extension", sets: 3, reps: "15"),
+                PlanExercise(name: "Standing calf raise", sets: 4, reps: "15")
             ])
         ]
     }
+
+    /// Default customizable cardio activities (colors from Theme.cardioColors).
+    static func defaultCardioTypes() -> [CardioType] {
+        [
+            CardioType(id: "c-run",  name: "Running", sport: "running",  color: "ff5a52"),
+            CardioType(id: "c-swim", name: "Swimming", sport: "swimming", color: "4fb8c4"),
+            CardioType(id: "c-bike", name: "Cycling", sport: "cycling",  color: "7fc950"),
+            CardioType(id: "c-walk", name: "Walking", sport: "walking",  color: "b08fff")
+        ]
+    }
+
+    // MARK: Cardio type mutations
+    func commitCardioType(_ ct: CardioType) {
+        if let i = cardioTypes.firstIndex(where: { $0.id == ct.id }) { cardioTypes[i] = ct }
+        else { cardioTypes.append(ct) }
+    }
+    func deleteCardioType(_ id: String) { cardioTypes.removeAll { $0.id == id } }
 }
 
 // MARK: - Derived data / domain logic (ports of the web app helpers)

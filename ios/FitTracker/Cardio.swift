@@ -1,27 +1,37 @@
 import SwiftUI
 
-// MARK: - Cardio session logger (running / swimming / cycling / walking)
+// MARK: - Cardio logger (logs a session for a saved, customizable activity type)
+// Mirrors strength days: every cardio activity is a saved CardioType with its own
+// name and color. Calories are estimated from the user's global profile (weight,
+// age, sex, and avg HR when provided).
 struct CardioLoggerView: View {
     @EnvironmentObject var store: Store
     @EnvironmentObject var toast: ToastCenter
     @Environment(\.dismiss) private var dismiss
 
-    @State private var sport = "running"
+    let type: CardioType
+
     @State private var duration = ""
     @State private var distance = ""
     @State private var avgHR = ""
     @State private var rpe = ""
     @State private var rmssd = ""
 
-    private let sports = ["running", "swimming", "cycling", "walking", "other"]
-
     var body: some View {
         ZStack {
             Theme.bg.ignoresSafeArea()
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    HStack {
-                        Text(t("wk.sport").uppercased()).font(.head(18, .bold)).tracking(1).foregroundColor(Theme.txt)
+                    HStack(spacing: 10) {
+                        Image(systemName: type.sportType.icon)
+                            .font(.system(size: 18, weight: .bold)).foregroundColor(Theme.bg)
+                            .frame(width: 40, height: 40)
+                            .background(Color(hex: type.color))
+                            .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(t("wk.log_cardio").uppercased()).font(.head(10, .semibold)).tracking(1.5).foregroundColor(Theme.sub)
+                            Text(type.name.uppercased()).font(.head(18, .bold)).tracking(0.5).foregroundColor(Color(hex: type.color))
+                        }
                         Spacer()
                         Button { tap(); dismiss() } label: {
                             Image(systemName: "xmark").foregroundColor(Theme.sub).frame(width: 34, height: 34)
@@ -30,10 +40,6 @@ struct CardioLoggerView: View {
                     .padding(.top, 18)
 
                     Card {
-                        FieldRow(label: t("wk.sport")) {
-                            PillSelect(options: sports, title: { sportLabel($0) }, selection: $sport)
-                        }
-                        Spacer().frame(height: 14)
                         HStack(spacing: 12) {
                             FieldRow(label: t("wk.duration")) { InputField(placeholder: "40", text: $duration, keyboard: .numberPad) }
                             FieldRow(label: t("wk.distance")) { InputField(placeholder: "8", text: $distance) }
@@ -47,6 +53,20 @@ struct CardioLoggerView: View {
                         FieldRow(label: t("wk.rmssd")) { InputField(placeholder: "—", text: $rmssd) }
                     }
 
+                    // Live calorie estimate from the user's global data.
+                    Card(accent: Theme.acc) {
+                        HStack(spacing: 2) {
+                            Lbl(text: t("wk.est_calories"), color: Theme.acc2)
+                            InfoButton(id: "calories", color: Theme.acc2)
+                            Spacer()
+                            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                                Text(estCalories.map { "\($0)" } ?? "—").font(.num(28)).foregroundColor(Theme.acc)
+                                Text("kcal").font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.sub)
+                            }
+                        }
+                        Text(t("wk.est_cal_hint")).font(.system(size: 10)).foregroundColor(Theme.sub).padding(.top, 6)
+                    }
+
                     BigButton(title: t("save")) { save() }
                         .padding(.bottom, 30)
                 }
@@ -57,22 +77,104 @@ struct CardioLoggerView: View {
         .preferredColorScheme(.dark)
     }
 
-    private func sportLabel(_ raw: String) -> String {
-        Sport(rawValue: raw)?.label ?? raw
+    private func buildSession(_ dur: Int) -> WorkoutSession {
+        WorkoutSession(
+            date: today(), planId: "cardio-\(type.id)", planName: type.name, planColor: type.color,
+            exercises: [], sport: type.sport, durationMin: dur,
+            rpe: Int(rpe), avgHR: Int(avgHR),
+            rmssd: rmssd.isEmpty ? nil : pf(rmssd),
+            distanceKm: distance.isEmpty ? nil : pf(distance))
+    }
+
+    private var estCalories: Int? {
+        guard let dur = Int(duration), dur > 0 else { return nil }
+        return store.estimateCalories(buildSession(dur))
     }
 
     private func save() {
         guard let dur = Int(duration), dur > 0 else { toast.show(t("wk.duration")); return }
-        let sp = Sport(rawValue: sport) ?? .running
-        let sess = WorkoutSession(
-            date: today(), planId: "cardio-\(sport)", planName: sp.label, planColor: sp.color,
-            exercises: [], sport: sport, durationMin: dur,
-            rpe: Int(rpe), avgHR: Int(avgHR),
-            rmssd: rmssd.isEmpty ? nil : pf(rmssd),
-            distanceKm: distance.isEmpty ? nil : pf(distance))
-        store.sessions.append(sess)
+        store.sessions.append(buildSession(dur))
         haptic(.success)
         toast.show(t("save"))
+        dismiss()
+    }
+}
+
+// MARK: - Cardio type editor (create / edit / delete a saved activity)
+struct CardioTypeEditorView: View {
+    @EnvironmentObject var store: Store
+    @EnvironmentObject var toast: ToastCenter
+    @Environment(\.dismiss) private var dismiss
+
+    @State var type: CardioType
+    let isNew: Bool
+    @State private var confirmDelete = false
+
+    private let sportKinds = ["running", "swimming", "cycling", "walking", "other"]
+
+    var body: some View {
+        ZStack {
+            Theme.bg.ignoresSafeArea()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    HStack {
+                        Text((isNew ? t("wk.new_cardio") : t("wk.edit_cardio")).uppercased())
+                            .font(.head(18, .bold)).tracking(0.5).foregroundColor(Color(hex: type.color))
+                        Spacer()
+                        Button { tap(); dismiss() } label: {
+                            Image(systemName: "xmark").foregroundColor(Theme.sub).frame(width: 34, height: 34)
+                        }
+                    }
+                    .padding(.top, 18)
+
+                    Card {
+                        Lbl(text: t("wk.activity_name")).padding(.bottom, 8)
+                        InputField(placeholder: t("wk.activity_name_ph"), text: $type.name, keyboard: .default)
+                            .padding(.bottom, 14)
+                        Lbl(text: t("wk.cardio_kind")).padding(.bottom, 8)
+                        PillSelect(options: sportKinds, title: { Sport(rawValue: $0)?.label ?? $0 }, selection: $type.sport)
+                            .padding(.bottom, 14)
+                        Lbl(text: t("pe.color")).padding(.bottom, 8)
+                        HStack(spacing: 10) {
+                            ForEach(Theme.cardioColors, id: \.self) { c in
+                                Circle().fill(Color(hex: c))
+                                    .frame(width: 30, height: 30)
+                                    .overlay(Circle().stroke(Theme.txt, lineWidth: type.color == c ? 2 : 0))
+                                    .onTapGesture { tap(); type.color = c }
+                            }
+                            Spacer()
+                        }
+                    }
+
+                    BigButton(title: isNew ? t("add") : t("save")) { save() }
+
+                    if !isNew {
+                        Button { tap(); confirmDelete = true } label: {
+                            Text(t("delete")).font(.system(size: 13, weight: .semibold)).foregroundColor(Theme.red)
+                                .frame(maxWidth: .infinity, minHeight: 46)
+                                .overlay(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous).stroke(Theme.red.opacity(0.4), lineWidth: 1))
+                        }
+                        .confirmationDialog(t("wk.delete_cardio_q"), isPresented: $confirmDelete, titleVisibility: .visible) {
+                            Button(t("delete"), role: .destructive) { store.deleteCardioType(type.id); toast.show(t("wk.cardio_deleted")); dismiss() }
+                            Button(t("cancel"), role: .cancel) {}
+                        }
+                    }
+                    Spacer(minLength: 30)
+                }
+                .padding(.horizontal, 18)
+            }
+            .scrollDismissesKeyboard(.interactively)
+        }
+        .preferredColorScheme(.dark)
+    }
+
+    private func save() {
+        var ct = type
+        if ct.name.trimmingCharacters(in: .whitespaces).isEmpty {
+            ct.name = Sport(rawValue: ct.sport)?.label ?? t("wk.cardio")
+        }
+        store.commitCardioType(ct)
+        toast.show(t("wk.cardio_saved"))
         dismiss()
     }
 }
