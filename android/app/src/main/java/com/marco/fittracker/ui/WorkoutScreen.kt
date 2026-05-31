@@ -1,0 +1,549 @@
+package com.marco.fittracker.ui
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AddCircle
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.NorthEast
+import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.SnapshotStateList
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.DisposableEffect
+import com.marco.fittracker.data.LoggedExercise
+import com.marco.fittracker.data.PlanExercise
+import com.marco.fittracker.data.SetEntry
+import com.marco.fittracker.data.WorkoutPlan
+import com.marco.fittracker.data.WorkoutSession
+import com.marco.fittracker.data.pf
+import com.marco.fittracker.data.today
+import com.marco.fittracker.data.trimNum
+
+@Composable
+fun WorkoutScreen() {
+    val store = LocalStore.current
+    val toast = LocalToast.current
+
+    var activePlanId by remember { mutableStateOf<String?>(null) }
+    var editingPlan by remember { mutableStateOf<WorkoutPlan?>(null) }
+    var isNew by remember { mutableStateOf(false) }
+    val log = remember { mutableStateListOf<LoggedExercise>() }
+
+    val active = activePlanId?.let { store.plan(it) }
+    when {
+        active != null -> LiveWorkout(active, log,
+            onBack = { activePlanId = null; log.clear() },
+            onSaved = { activePlanId = null; log.clear() })
+        editingPlan != null -> PlanEditor(editingPlan!!, isNew,
+            onSave = { p ->
+                val fixed = if (p.name.trim().isEmpty()) p.copy(name = "Nuovo giorno") else p
+                store.upsertPlan(fixed)
+                toast.show(if (isNew) "Giorno creato" else "Giorno aggiornato")
+                editingPlan = null
+            },
+            onDelete = { store.deletePlan(editingPlan!!.id); toast.show("Giorno eliminato"); editingPlan = null },
+            onCancel = { editingPlan = null })
+        else -> WorkoutGrid(
+            onStart = { p ->
+                log.clear()
+                log.addAll(p.exercises.map { ex ->
+                    LoggedExercise(name = ex.name, sets = List(maxOf(1, ex.sets)) { SetEntry() }, target = "${ex.sets}×${ex.reps}")
+                })
+                activePlanId = p.id
+            },
+            onNew = { editingPlan = WorkoutPlan(name = "", sub = "", color = T.planColors.first(), exercises = emptyList()); isNew = true },
+            onEdit = { editingPlan = it; isNew = false }
+        )
+    }
+}
+
+// MARK: - Grid of workout days
+@Composable
+private fun WorkoutGrid(onStart: (WorkoutPlan) -> Unit, onNew: () -> Unit, onEdit: (WorkoutPlan) -> Unit) {
+    val store = LocalStore.current
+    val tap = rememberTap()
+
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Lbl("Seleziona giorno", modifier = Modifier.weight(1f))
+        Row(
+            Modifier.clip(RoundedCornerShape(10.dp)).background(T.acc.copy(alpha = 0.07f))
+                .border(1.dp, T.acc, RoundedCornerShape(10.dp))
+                .clickable { tap(); onNew() }.padding(vertical = 8.dp, horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(Icons.Filled.Add, null, tint = T.acc, modifier = Modifier.size(14.dp))
+            Spacer(Modifier.width(6.dp))
+            Text("NUOVO GIORNO", color = T.acc, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
+        }
+    }
+
+    // 2-column grid built from rows
+    val cells = store.plans.toList()
+    val rows = (cells.size + 1 + 1) / 2  // +1 for add card
+    val items: List<WorkoutPlan?> = cells + listOf(null) // null = add card
+    for (r in 0 until rows) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(11.dp)) {
+            for (c in 0 until 2) {
+                val idx = r * 2 + c
+                Box(Modifier.weight(1f)) {
+                    if (idx < items.size) {
+                        val p = items[idx]
+                        if (p != null) DayCard(p, onStart, onEdit) else AddCard(onNew)
+                    }
+                }
+            }
+        }
+    }
+
+    // Recent sessions
+    val recent = store.sessions.sortedByDescending { it.date }.take(5)
+    if (recent.isNotEmpty()) {
+        Card {
+            Lbl("Sessioni recenti")
+            Spacer(Modifier.height(4.dp))
+            recent.forEach { s ->
+                DividerRow {
+                    Column(Modifier.weight(1f)) {
+                        Text(s.planName.uppercase(), color = hexColor(s.planColor), fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                        Spacer(Modifier.height(3.dp))
+                        Text("${s.date} · ${s.exercises.size} esercizi · ${store.estimateCalories(s)} kcal", color = T.sub, fontSize = 10.sp)
+                    }
+                    Badge("${s.totalSets} serie")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DayCard(p: WorkoutPlan, onStart: (WorkoutPlan) -> Unit, onEdit: (WorkoutPlan) -> Unit) {
+    val tap = rememberTap()
+    val pc = hexColor(p.color)
+    Box {
+        Column(
+            Modifier.fillMaxWidth()
+                .clip(RoundedCornerShape(T.radius))
+                .background(T.c1)
+                .drawBehind { drawRect(color = pc, size = androidx.compose.ui.geometry.Size(3.dp.toPx(), size.height)) }
+                .border(1.dp, T.brd, RoundedCornerShape(T.radius))
+                .clickable { tap(); onStart(p) }
+                .padding(vertical = 15.dp, horizontal = 14.dp)
+        ) {
+            Text("GIORNO", color = pc, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 2.sp)
+            Spacer(Modifier.height(5.dp))
+            Text(p.name.uppercase(), color = T.txt, fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+            Spacer(Modifier.height(3.dp))
+            Text(p.sub, color = T.sub, fontSize = 11.sp, maxLines = 1)
+            Spacer(Modifier.height(11.dp))
+            Box(Modifier.fillMaxWidth().height(1.dp).background(T.brd))
+            Spacer(Modifier.height(8.dp))
+            Text("${p.exercises.size} ESERCIZI", color = T.sub, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp)
+        }
+        Icon(
+            Icons.Filled.Tune, "modifica", tint = T.sub,
+            modifier = Modifier.align(Alignment.TopEnd).padding(6.dp).size(20.dp).clickable { tap(); onEdit(p) }
+        )
+    }
+}
+
+@Composable
+private fun AddCard(onNew: () -> Unit) {
+    val tap = rememberTap()
+    Column(
+        Modifier.fillMaxWidth().heightIn(min = 120.dp)
+            .clip(RoundedCornerShape(T.radius))
+            .background(T.c1.copy(alpha = 0.5f))
+            .border(1.dp, T.brd2, RoundedCornerShape(T.radius))
+            .clickable { tap(); onNew() }
+            .padding(vertical = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Icon(Icons.Filled.AddCircle, null, tint = T.sub, modifier = Modifier.size(26.dp))
+        Spacer(Modifier.height(8.dp))
+        Text("Crea giorno", color = T.sub, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
+    }
+}
+
+// MARK: - Live workout
+@Composable
+private fun LiveWorkout(plan: WorkoutPlan, log: SnapshotStateList<LoggedExercise>, onBack: () -> Unit, onSaved: () -> Unit) {
+    val store = LocalStore.current
+    val timer = LocalTimer.current
+    val toast = LocalToast.current
+    val tap = rememberTap()
+    val view = LocalView.current
+
+    var addName by remember { mutableStateOf("") }
+    val showNotes = remember { mutableStateListOf<String>() }
+    var saved by remember { mutableStateOf(false) }
+
+    DisposableEffect(Unit) { view.keepScreenOn = true; onDispose { view.keepScreenOn = false } }
+
+    val lastSess = store.lastSession(plan.id)
+
+    // Back row
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        GhostButton("← Indietro") { onBack() }
+        Column(Modifier.weight(1f)) {
+            Text(plan.name.uppercase(), color = hexColor(plan.color), fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text("${plan.sub} · ${today()}", color = T.sub, fontSize = 10.sp)
+        }
+    }
+
+    // Last session reference
+    if (lastSess != null) {
+        Column(
+            Modifier.fillMaxWidth()
+                .clip(RoundedCornerShape(T.radiusS))
+                .background(T.acc.copy(alpha = 0.04f))
+                .drawBehind { drawRect(color = T.acc, size = androidx.compose.ui.geometry.Size(2.dp.toPx(), size.height)) }
+                .padding(vertical = 11.dp, horizontal = 14.dp)
+        ) {
+            Lbl("Ultima · ${lastSess.date}", T.acc2)
+            Spacer(Modifier.height(3.dp))
+            lastSess.exercises.take(3).forEach { e ->
+                val sets = e.sets.joinToString(" · ") { "${disp(it.weight)}×${disp(it.reps)}" }
+                Text("${e.name}: $sets", color = T.sub, fontSize = 11.sp)
+            }
+            if (lastSess.exercises.size > 3)
+                Text("+${lastSess.exercises.size - 3} altri", color = T.sub, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+        }
+    }
+
+    // Exercise cards
+    log.indices.forEach { i -> ExerciseCard(plan, log, i, showNotes) }
+
+    // Add exercise on the fly
+    Card {
+        Lbl("Aggiungi esercizio")
+        Spacer(Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(9.dp), verticalAlignment = Alignment.CenterVertically) {
+            BasicTextField(
+                value = addName, onValueChange = { addName = it },
+                textStyle = TextStyle(color = T.txt, fontSize = 15.sp, fontWeight = FontWeight.Medium),
+                cursorBrush = SolidColor(T.acc), singleLine = true,
+                modifier = Modifier.weight(1f).clip(RoundedCornerShape(T.radiusS)).background(T.c2)
+                    .border(1.dp, T.brd, RoundedCornerShape(T.radiusS)).padding(vertical = 12.dp, horizontal = 14.dp),
+                decorationBox = { inner -> if (addName.isEmpty()) Text("es. Dip alle parallele", color = T.sub, fontSize = 15.sp); inner() }
+            )
+            Box(
+                Modifier.size(50.dp, 48.dp).clip(RoundedCornerShape(T.radiusS)).background(T.acc)
+                    .clickable {
+                        val name = addName.trim()
+                        if (name.isNotEmpty()) {
+                            tap()
+                            log.add(LoggedExercise(name = name, sets = List(3) { SetEntry() }, target = "3×10"))
+                            store.addExerciseToPlan(plan.id, name)
+                            addName = ""; toast.show("Esercizio aggiunto")
+                        }
+                    },
+                contentAlignment = Alignment.Center
+            ) { Icon(Icons.Filled.Add, null, tint = T.bg) }
+        }
+        Spacer(Modifier.height(8.dp))
+        Text("Aggiunto alla sessione e salvato nel giorno per le prossime volte.", color = T.sub, fontSize = 10.sp)
+    }
+
+    BigButton(if (saved) "Salvata" else "Salva sessione", color = if (saved) T.good else T.acc) {
+        if (!saved) {
+            val exercises = log.map { e -> e.copy(sets = e.sets.filter { it.filled }) }.filter { it.sets.isNotEmpty() }
+            if (exercises.isEmpty()) { toast.show("Nessuna serie da salvare") } else {
+                store.addSession(WorkoutSession(date = today(), planId = plan.id, planName = plan.name, planColor = plan.color, exercises = exercises))
+                saved = true; timer.stop()
+                view.performHapticFeedback(android.view.HapticFeedbackConstants.CONFIRM)
+                toast.show("Sessione salvata")
+                onSaved()
+            }
+        }
+    }
+}
+
+@Composable
+private fun ExerciseCard(plan: WorkoutPlan, log: SnapshotStateList<LoggedExercise>, i: Int, showNotes: SnapshotStateList<String>) {
+    val store = LocalStore.current
+    val timer = LocalTimer.current
+    val tap = rememberTap()
+    val ex = log[i]
+    val pr = store.exercisePR(ex.name)
+    val prevEx = store.lastSession(plan.id)?.exercises?.firstOrNull { it.name == ex.name }
+    val sug = store.suggested(plan.id, ex.name)
+
+    Card {
+        Row(verticalAlignment = Alignment.Top) {
+            Column(Modifier.weight(1f)) {
+                Text(ex.name, color = T.txt, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                if (ex.target.isNotEmpty()) { Spacer(Modifier.height(6.dp)); Tag(ex.target) }
+            }
+            if (pr > 0) {
+                Column(horizontalAlignment = Alignment.End) {
+                    Text("PR", color = T.sub, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp)
+                    Text("${trimNum(pr)} kg", color = T.acc, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+
+        if (prevEx != null && prevEx.sets.isNotEmpty()) {
+            Column(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(T.blue.copy(alpha = 0.05f))
+                    .border(1.dp, T.blue.copy(alpha = 0.12f), RoundedCornerShape(10.dp)).padding(vertical = 9.dp, horizontal = 12.dp)
+            ) {
+                Text("ULTIMA VOLTA", color = T.blue, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 2.sp)
+                Spacer(Modifier.height(6.dp))
+                ChipsFlow(prevEx.sets.mapIndexed { idx, s -> "S${idx + 1}: ${disp(s.weight)}×${disp(s.reps)}" })
+            }
+            Spacer(Modifier.height(10.dp))
+        }
+
+        if (sug != null) {
+            Row(
+                Modifier.clip(CircleShape).background(T.acc.copy(alpha = 0.09f))
+                    .border(1.dp, T.acc.copy(alpha = 0.22f), CircleShape).padding(vertical = 6.dp, horizontal = 13.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Filled.NorthEast, null, tint = T.acc2, modifier = Modifier.size(12.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("Prova ${trimNum(sug)} kg", color = T.acc2, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            }
+            Spacer(Modifier.height(11.dp))
+        }
+
+        // Column headers
+        Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+            Spacer(Modifier.width(28.dp))
+            Text("RIP", color = T.sub, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp, modifier = Modifier.width(66.dp), textAlign = TextAlign.Center)
+            Text("KG", color = T.sub, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp, modifier = Modifier.width(66.dp), textAlign = TextAlign.Center)
+        }
+        Spacer(Modifier.height(6.dp))
+
+        log[i].sets.indices.forEach { j -> SetRow(log, i, j, pr) }
+
+        // Footer
+        Row(Modifier.fillMaxWidth().padding(top = 9.dp), verticalAlignment = Alignment.CenterVertically) {
+            GhostButton("+ Serie") { log[i] = log[i].copy(sets = log[i].sets + SetEntry()) }
+            Spacer(Modifier.width(8.dp))
+            GhostButton("Timer ${store.prefs.timer}s", color = T.blue) { timer.start(store.prefs.timer) }
+            Spacer(Modifier.weight(1f))
+            if (log[i].volume > 0)
+                Text("Vol ${log[i].volume.toInt()} · Max ${trimNum(log[i].maxWeight)} kg", color = T.sub, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+        }
+
+        // Notes
+        Spacer(Modifier.height(9.dp))
+        if (showNotes.contains(ex.id)) {
+            BasicTextField(
+                value = log[i].notes, onValueChange = { log[i] = log[i].copy(notes = it) },
+                textStyle = TextStyle(color = T.txt, fontSize = 13.sp), cursorBrush = SolidColor(T.acc),
+                modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp).clip(RoundedCornerShape(10.dp)).background(T.c2)
+                    .border(1.dp, T.brd, RoundedCornerShape(10.dp)).padding(vertical = 10.dp, horizontal = 14.dp),
+                decorationBox = { inner -> if (log[i].notes.isEmpty()) Text("Note…", color = T.sub, fontSize = 13.sp); inner() }
+            )
+        } else {
+            Text("+ Note", color = T.sub, fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.clip(RoundedCornerShape(9.dp)).background(T.c2).border(1.dp, T.brd, RoundedCornerShape(9.dp))
+                    .clickable { tap(); showNotes.add(ex.id) }.padding(vertical = 8.dp, horizontal = 12.dp))
+        }
+    }
+}
+
+@Composable
+private fun SetRow(log: SnapshotStateList<LoggedExercise>, i: Int, j: Int, pr: Double) {
+    val tap = rememberTap()
+    val s = log[i].sets[j]
+    val w = pf(s.weight)
+    val isPR = w > pr && w > 0
+    fun editSet(transform: (SetEntry) -> SetEntry) {
+        val newSets = log[i].sets.toMutableList().also { it[j] = transform(it[j]) }
+        log[i] = log[i].copy(sets = newSets)
+    }
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = 2.dp)
+            .clip(RoundedCornerShape(9.dp)).background(if (isPR) T.acc.copy(alpha = 0.05f) else Color.Transparent),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(9.dp)
+    ) {
+        Text("S${j + 1}", color = T.sub, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(28.dp), textAlign = TextAlign.Center)
+        SmallNumField(s.reps, { v -> editSet { it.copy(reps = v) } }, highlight = isPR)
+        SmallNumField(s.weight, { v -> editSet { it.copy(weight = v) } }, highlight = isPR)
+        if (isPR) {
+            Text("PR", color = T.acc, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
+        } else {
+            Icon(Icons.Filled.Close, "rimuovi", tint = T.red.copy(alpha = 0.5f),
+                modifier = Modifier.size(34.dp, 42.dp).clickable {
+                    tap(); log[i] = log[i].copy(sets = log[i].sets.toMutableList().also { it.removeAt(j) })
+                })
+        }
+    }
+}
+
+// MARK: - Plan editor
+@Composable
+private fun PlanEditor(initial: WorkoutPlan, isNew: Boolean, onSave: (WorkoutPlan) -> Unit, onDelete: () -> Unit, onCancel: () -> Unit) {
+    val tap = rememberTap()
+    var plan by remember { mutableStateOf(initial) }
+    var confirmDelete by remember { mutableStateOf(false) }
+    val pc = hexColor(plan.color)
+
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        GhostButton("← Annulla") { onCancel() }
+        Column(Modifier.weight(1f)) {
+            Text(if (isNew) "NUOVO GIORNO" else "MODIFICA GIORNO", color = pc, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text("Personalizza esercizi, serie e ripetizioni", color = T.sub, fontSize = 10.sp)
+        }
+    }
+
+    Card {
+        Lbl("Nome giorno"); Spacer(Modifier.height(8.dp))
+        InputField(plan.name, { plan = plan.copy(name = it) }, "es. Push, Petto, Gambe…", KeyboardType.Text)
+        Spacer(Modifier.height(10.dp))
+        Lbl("Sottotitolo"); Spacer(Modifier.height(8.dp))
+        InputField(plan.sub, { plan = plan.copy(sub = it) }, "es. Spalle + Petto", KeyboardType.Text)
+        Spacer(Modifier.height(12.dp))
+        Lbl("Colore"); Spacer(Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            T.planColors.forEach { c ->
+                Box(
+                    Modifier.size(30.dp).clip(CircleShape).background(hexColor(c))
+                        .border(if (plan.color == c) 2.dp else 0.dp, T.txt, CircleShape)
+                        .clickable { tap(); plan = plan.copy(color = c) }
+                )
+            }
+        }
+    }
+
+    Card {
+        Lbl("Esercizi (${plan.exercises.size})")
+        Spacer(Modifier.height(10.dp))
+        if (plan.exercises.isEmpty())
+            Text("Nessun esercizio. Aggiungine uno qui sotto.", color = T.sub, fontSize = 12.sp, modifier = Modifier.padding(vertical = 8.dp))
+        plan.exercises.indices.forEach { i ->
+            PlanExerciseRow(
+                plan.exercises[i], i, plan.exercises.size,
+                onChange = { upd -> plan = plan.copy(exercises = plan.exercises.toMutableList().also { it[i] = upd }) },
+                onRemove = { plan = plan.copy(exercises = plan.exercises.toMutableList().also { it.removeAt(i) }) },
+                onMoveUp = { if (i > 0) plan = plan.copy(exercises = plan.exercises.toMutableList().also { java.util.Collections.swap(it, i, i - 1) }) },
+                onMoveDown = { if (i < plan.exercises.size - 1) plan = plan.copy(exercises = plan.exercises.toMutableList().also { java.util.Collections.swap(it, i, i + 1) }) }
+            )
+            Spacer(Modifier.height(8.dp))
+        }
+        Row(
+            Modifier.fillMaxWidth().heightIn(min = 44.dp).clip(RoundedCornerShape(T.radiusS))
+                .background(T.acc.copy(alpha = 0.07f)).border(1.dp, T.acc.copy(alpha = 0.4f), RoundedCornerShape(T.radiusS))
+                .clickable { tap(); plan = plan.copy(exercises = plan.exercises + PlanExercise(name = "")) }.padding(12.dp),
+            horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(Icons.Filled.Add, null, tint = T.acc, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(6.dp))
+            Text("Aggiungi esercizio", color = T.acc, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+        }
+    }
+
+    BigButton(if (isNew) "Crea giorno" else "Salva modifiche") { onSave(plan) }
+
+    if (!isNew) {
+        Text("Elimina giorno", color = T.red, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth().heightIn(min = 46.dp).border(1.dp, T.red.copy(alpha = 0.4f), RoundedCornerShape(T.radiusS))
+                .clickable { tap(); confirmDelete = true }.padding(vertical = 14.dp))
+    }
+
+    if (confirmDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            title = { Text("Eliminare questo giorno?", color = T.txt) },
+            confirmButton = { TextButton(onClick = { confirmDelete = false; onDelete() }) { Text("Elimina", color = T.red) } },
+            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Annulla", color = T.sub) } },
+            containerColor = T.c1
+        )
+    }
+}
+
+@Composable
+private fun PlanExerciseRow(ex: PlanExercise, i: Int, count: Int, onChange: (PlanExercise) -> Unit, onRemove: () -> Unit, onMoveUp: () -> Unit, onMoveDown: () -> Unit) {
+    val tap = rememberTap()
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(T.radiusS)).background(T.c2)
+            .border(1.dp, T.brd, RoundedCornerShape(T.radiusS)).padding(vertical = 11.dp, horizontal = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(9.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            BasicTextField(
+                value = ex.name, onValueChange = { onChange(ex.copy(name = it)) },
+                textStyle = TextStyle(color = T.txt, fontSize = 14.sp, fontWeight = FontWeight.Medium), cursorBrush = SolidColor(T.acc),
+                singleLine = true, modifier = Modifier.weight(1f),
+                decorationBox = { inner -> if (ex.name.isEmpty()) Text("Nome esercizio", color = T.sub, fontSize = 14.sp); inner() }
+            )
+            Icon(Icons.Filled.Close, "rimuovi", tint = T.red.copy(alpha = 0.7f), modifier = Modifier.size(30.dp).clickable { tap(); onRemove() })
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("SERIE", color = T.sub, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
+            Spacer(Modifier.width(8.dp))
+            Box(Modifier.size(26.dp).clip(CircleShape).background(T.c3).clickable { tap(); if (ex.sets > 1) onChange(ex.copy(sets = ex.sets - 1)) }, contentAlignment = Alignment.Center) {
+                Icon(Icons.Filled.Remove, null, tint = T.txt, modifier = Modifier.size(14.dp))
+            }
+            Text("${ex.sets}", color = T.txt, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(24.dp), textAlign = TextAlign.Center)
+            Box(Modifier.size(26.dp).clip(CircleShape).background(T.c3).clickable { tap(); onChange(ex.copy(sets = ex.sets + 1)) }, contentAlignment = Alignment.Center) {
+                Icon(Icons.Filled.Add, null, tint = T.txt, modifier = Modifier.size(14.dp))
+            }
+            Spacer(Modifier.weight(1f))
+            Text("RIP", color = T.sub, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
+            Spacer(Modifier.width(8.dp))
+            BasicTextField(
+                value = ex.reps, onValueChange = { onChange(ex.copy(reps = it)) },
+                textStyle = TextStyle(color = T.txt, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center),
+                cursorBrush = SolidColor(T.acc), singleLine = true,
+                modifier = Modifier.width(64.dp).clip(RoundedCornerShape(8.dp)).background(T.c2).border(1.dp, T.brd, RoundedCornerShape(8.dp)).padding(vertical = 7.dp),
+                decorationBox = { inner -> Box(contentAlignment = Alignment.Center) { if (ex.reps.isEmpty()) Text("10", color = T.sub, fontSize = 14.sp); inner() } }
+            )
+            Spacer(Modifier.width(8.dp))
+            Column {
+                Icon(Icons.Filled.KeyboardArrowUp, "su", tint = if (i > 0) T.sub else T.brd, modifier = Modifier.size(22.dp).clickable { tap(); onMoveUp() })
+                Icon(Icons.Filled.KeyboardArrowDown, "giu", tint = if (i < count - 1) T.sub else T.brd, modifier = Modifier.size(22.dp).clickable { tap(); onMoveDown() })
+            }
+        }
+    }
+}
+
+private fun disp(s: String): String = if (s.isEmpty()) "?" else s

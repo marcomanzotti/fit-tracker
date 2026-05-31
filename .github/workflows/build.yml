@@ -6,11 +6,17 @@ name: Build unsigned IPA
 on:
   push:
     branches: [ main ]
+    paths:
+      - 'ios/**'
+      - '.github/workflows/build.yml'
   workflow_dispatch:        # lets you trigger a build by hand from the Actions tab
 
 jobs:
   build:
     runs-on: macos-15        # this image ships Xcode 16 (needed for the project format)
+    defaults:
+      run:
+        working-directory: ios
 
     steps:
       - name: Checkout code
@@ -57,5 +63,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: FitTracker-ipa
-          path: FitTracker.ipa
+          path: ios/FitTracker.ipa
           if-no-files-found: error
