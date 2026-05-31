@@ -99,11 +99,11 @@ struct BodyView: View {
         Card {
             Lbl(text: t("body.analysis"), color: Theme.acc2).padding(.bottom, 12)
             HStack(spacing: 9) {
-                StatTile(label: "BMI", value: trimNum(bmi), valueColor: cat.1, note: cat.0)
+                StatTile(label: "BMI", value: trimNum(bmi), valueColor: cat.1, note: cat.0, info: "bmi")
                 StatTile(label: t("body.fat"), value: bf.map(trimNum) ?? "—", unit: bf != nil ? "%" : nil,
-                         valueColor: Theme.red, note: bf != nil ? "\(t("body.goal")) \(trimNum(store.prefs.goalBF))%" : "—")
+                         valueColor: Theme.red, note: bf != nil ? "\(t("body.goal")) \(trimNum(store.prefs.goalBF))%" : "—", info: "bodyfat")
                 StatTile(label: t("body.lean"), value: lean.map(trimNum) ?? "—", unit: lean != nil ? "kg" : nil,
-                         valueColor: Theme.blue, note: fat != nil ? "\(trimNum(fat!))kg \(t("body.fat"))" : "—")
+                         valueColor: Theme.blue, note: fat != nil ? "\(trimNum(fat!))kg \(t("body.fat"))" : "—", info: "bodyfat")
             }
             .padding(.bottom, 12)
 

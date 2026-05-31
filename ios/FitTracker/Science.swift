@@ -19,15 +19,19 @@ extension Store {
         return Double(dur) * hrr * 0.64 * exp(y * hrr)
     }
 
-    /// A single internal-load number per session: prefer sRPE, then TRIMP, then a
-    /// volume/duration fallback so every session still contributes to the trend.
-    func sessionLoad(_ s: WorkoutSession) -> Double {
+    /// Strictly *measured* internal load: sRPE (duration × session RPE) or, if
+    /// that's missing, TRIMP (duration + avg HR). Returns nil when the user has
+    /// entered no intensity data, so ACWR / monotony / strain never fabricate a
+    /// load from set counts alone (a single logged Push with no RPE/HR must not
+    /// produce a weekly load, monotony or strain number).
+    func measuredLoad(_ s: WorkoutSession) -> Double? {
         if let srpe = s.sRPE { return srpe }
         if let t = trimp(s) { return t }
-        if let d = s.durationMin, d > 0 { return Double(d) * 5 }     // assume RPE ~5
-        // strength session with no duration: rough proxy from sets
-        return Double(s.totalSets) * 6
+        return nil
     }
+
+    /// Any session that carries a usable internal-load signal.
+    func hasMeasuredLoad(_ s: WorkoutSession) -> Bool { measuredLoad(s) != nil }
 }
 
 // MARK: - Daily load series + ACWR (EWMA method)
@@ -46,7 +50,7 @@ extension Store {
     func dailyLoadSeries(days: Int) -> [LoadPoint] {
         let cal = Calendar.current
         var map: [String: Double] = [:]
-        for s in sessions { map[s.date, default: 0] += sessionLoad(s) }
+        for s in sessions { if let l = measuredLoad(s) { map[s.date, default: 0] += l } }
         var d = cal.startOfDay(for: Date())
         var stack: [LoadPoint] = []
         for _ in 0..<days {
@@ -106,17 +110,21 @@ extension Store {
         let mon = cal.startOfDay(for: cal.date(byAdding: .day, value: -dow - offset * 7, to: now)!)
         var daily = [Double](repeating: 0, count: 7)
         var count = 0
+        var trainingDays = Set<Int>()
         for s in sessions {
-            guard let d = isoFormatter.date(from: s.date) else { continue }
+            guard let l = measuredLoad(s), let d = isoFormatter.date(from: s.date) else { continue }
             let day = cal.startOfDay(for: d)
             let diff = cal.dateComponents([.day], from: mon, to: day).day ?? -1
-            if diff >= 0 && diff < 7 { daily[diff] += sessionLoad(s); count += 1 }
+            if diff >= 0 && diff < 7 { daily[diff] += l; count += 1; trainingDays.insert(diff) }
         }
         let total = daily.reduce(0, +)
         let mean = total / 7
         let variance = daily.reduce(0) { $0 + ($1 - mean) * ($1 - mean) } / 7
         let sd = variance.squareRoot()
-        let monotony = sd > 0 ? mean / sd : nil
+        // Monotony/strain are only meaningful with at least 2 training days in the
+        // week; with a single session they are statistically degenerate, so leave
+        // them nil rather than showing a misleading number.
+        let monotony = (sd > 0 && trainingDays.count >= 2) ? mean / sd : nil
         let strain = monotony.map { total * $0 }
         return WeekLoad(total: total, mean: mean, sd: sd, monotony: monotony, strain: strain, sessions: count)
     }

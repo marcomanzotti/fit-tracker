@@ -71,16 +71,7 @@ struct LoggedExercise: Codable, Identifiable, Equatable {
 // MARK: - Sport kinds
 enum Sport: String, Codable, CaseIterable {
     case strength, running, swimming, cycling, walking, other
-    var label: String {
-        switch self {
-        case .strength: return "Forza"
-        case .running:  return "Corsa"
-        case .swimming: return "Nuoto"
-        case .cycling:  return "Bici"
-        case .walking:  return "Camminata"
-        case .other:    return "Altro"
-        }
-    }
+    var label: String { L.t("sport." + rawValue) }
     var icon: String {
         switch self {
         case .strength: return "dumbbell.fill"
@@ -93,7 +84,7 @@ enum Sport: String, Codable, CaseIterable {
     }
     var color: String {
         switch self {
-        case .strength: return "ffd21e"
+        case .strength: return "ffe000"
         case .running:  return "ff5a52"
         case .swimming: return "4fb8c4"
         case .cycling:  return "7fc950"
@@ -102,6 +93,18 @@ enum Sport: String, Codable, CaseIterable {
         }
     }
     var isCardio: Bool { self != .strength }
+}
+
+// MARK: - A saved, customizable cardio activity type (mirrors WorkoutPlan for
+// strength days: its own name, color and underlying sport, fully editable, and
+// persisted so a custom "Other" activity name never has to be retyped).
+struct CardioType: Codable, Identifiable, Equatable {
+    var id: String = UUID().uuidString
+    var name: String
+    var sport: String          // Sport raw value (drives icon + calorie MET)
+    var color: String          // hex from Theme.cardioColors (customizable)
+
+    var sportType: Sport { Sport(rawValue: sport) ?? .other }
 }
 
 // MARK: - A completed workout session (strength or cardio)
@@ -192,7 +195,7 @@ let measureFields: [MeasureField] = [
     MeasureField(key: "arms",  label: "Braccia", color: "ffb000"),
     MeasureField(key: "legs",  label: "Gambe",   color: "7fc950"),
     MeasureField(key: "neck",  label: "Collo",   color: "b08fff"),
-    MeasureField(key: "hips",  label: "Fianchi", color: "ffd21e")
+    MeasureField(key: "hips",  label: "Fianchi", color: "ffe000")
 ]
 
 // MARK: - Custom workout plans (fully editable)
@@ -212,7 +215,7 @@ struct WorkoutPlan: Codable, Identifiable, Equatable {
     var id: String = UUID().uuidString
     var name: String
     var sub: String = ""
-    var color: String = "ffd21e"
+    var color: String = "ffe000"
     var exercises: [PlanExercise] = []
 }
 
@@ -308,4 +311,5 @@ struct AppData: Codable {
     var body: [BodyEntry] = []
     var plans: [WorkoutPlan] = []
     var prefs: Prefs = Prefs()
+    var cardioTypes: [CardioType]? = nil   // optional for backward-compatible decoding
 }
