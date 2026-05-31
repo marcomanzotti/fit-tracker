@@ -113,7 +113,9 @@ fun HomeScreen(onTab: (Tab) -> Unit) {
     // Goals
     run {
         val p = store.prefs
-        val wtPct = ((p.startWeight - lw) / maxOf(0.1, p.startWeight - p.goalWeight)).coerceIn(0.0, 1.0)
+        // Bidirectional: progress from start weight toward the goal, loss or gain.
+        val denom = p.goalWeight - p.startWeight
+        val wtPct = if (kotlin.math.abs(denom) < 0.1) 1.0 else ((lw - p.startWeight) / denom).coerceIn(0.0, 1.0)
         val bf = store.currentBF
         val bfPct = bf?.let { ((it - p.goalBF) / maxOf(0.1, 35 - p.goalBF)).coerceIn(0.0, 1.0) }
         Card {
