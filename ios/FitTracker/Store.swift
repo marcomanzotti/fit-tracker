@@ -134,10 +134,10 @@ extension Store {
     func bmi(_ w: Double) -> Double { ((w / (prefs.height * prefs.height)) * 10).rounded() / 10 }
 
     func bmiCategory(_ b: Double) -> (String, Color) {
-        if b < 18.5 { return ("Sottopeso", Theme.blue) }
-        if b < 25   { return ("Normopeso", Theme.good) }
-        if b < 30   { return ("Sovrappeso", Theme.acc2) }
-        return ("Obeso", Theme.red)
+        if b < 18.5 { return (L.t("bmi.under"), Theme.blue) }
+        if b < 25   { return (L.t("bmi.normal"), Theme.good) }
+        if b < 30   { return (L.t("bmi.over"), Theme.acc2) }
+        return (L.t("bmi.obese"), Theme.red)
     }
 
     /// US-Navy body-fat estimate from neck & waist (cm).

@@ -38,7 +38,7 @@ struct WorkoutView: View {
         let cols = [GridItem(.flexible(), spacing: 11), GridItem(.flexible(), spacing: 11)]
         return VStack(spacing: 11) {
             HStack(spacing: 8) {
-                Lbl(text: "Seleziona giorno")
+                Lbl(text: t("wk.select_day"))
                 Spacer()
                 Button { tap(); showCardio = true } label: {
                     HStack(spacing: 6) {
@@ -54,7 +54,7 @@ struct WorkoutView: View {
                 Button { tap(); newPlan() } label: {
                     HStack(spacing: 6) {
                         Image(systemName: "plus")
-                        Text("NUOVO GIORNO").font(.head(10, .semibold)).tracking(1)
+                        Text(t("wk.new_day").uppercased()).font(.head(10, .semibold)).tracking(1)
                     }
                     .foregroundColor(Theme.acc)
                     .padding(.vertical, 8).padding(.horizontal, 12)
@@ -84,14 +84,14 @@ struct WorkoutView: View {
         ZStack(alignment: .topTrailing) {
             Button { tap(); start(p) } label: {
                 VStack(alignment: .leading, spacing: 0) {
-                    Text("Giorno".uppercased()).font(.head(10, .semibold)).tracking(2)
+                    Text(t("wk.day").uppercased()).font(.head(10, .semibold)).tracking(2)
                         .foregroundColor(Color(hex: p.color))
                         .padding(.bottom, 5).padding(.trailing, 30)
                     Text(p.name.uppercased()).font(.head(18, .bold)).tracking(0.5)
                         .foregroundColor(Theme.txt).lineLimit(1).padding(.bottom, 3)
                     Text(p.sub).font(.system(size: 11)).foregroundColor(Theme.sub).lineLimit(1)
                     Divider().overlay(Theme.brd).padding(.top, 11).padding(.bottom, 8)
-                    Text("\(p.exercises.count) esercizi".uppercased()).font(.head(9, .semibold)).tracking(1.5)
+                    Text("\(p.exercises.count) \(t("wk.exercises_n"))".uppercased()).font(.head(9, .semibold)).tracking(1.5)
                         .foregroundColor(Theme.sub)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -116,7 +116,7 @@ struct WorkoutView: View {
         Button { tap(); newPlan() } label: {
             VStack(spacing: 8) {
                 Image(systemName: "plus.circle").font(.system(size: 26)).foregroundColor(Theme.sub)
-                Text("Crea giorno").font(.head(11, .semibold)).tracking(1).foregroundColor(Theme.sub)
+                Text(t("wk.create_day")).font(.head(11, .semibold)).tracking(1).foregroundColor(Theme.sub)
             }
             .frame(maxWidth: .infinity, minHeight: 120)
             .background(Theme.c1.opacity(0.5))
@@ -132,19 +132,19 @@ struct WorkoutView: View {
         return Group {
             if !recent.isEmpty {
                 Card {
-                    Lbl(text: "Sessioni recenti").padding(.bottom, 4)
+                    Lbl(text: t("wk.recent")).padding(.bottom, 4)
                     ForEach(Array(recent)) { s in
                         Button { tap(); editingSession = s } label: {
                             HStack {
                                 VStack(alignment: .leading, spacing: 3) {
                                     Text("\(s.planName)".uppercased()).font(.head(14, .semibold)).tracking(0.5)
                                         .foregroundColor(Color(hex: s.planColor))
-                                    Text("\(s.date) · \(s.sportType.isCardio ? cardioSummary(s) : "\(s.exercises.count) esercizi") · \(store.estimateCalories(s)) kcal")
+                                    Text("\(s.date) · \(s.sportType.isCardio ? cardioSummary(s) : "\(s.exercises.count) \(t("wk.exercises_n"))") · \(store.estimateCalories(s)) kcal")
                                         .font(.system(size: 10)).foregroundColor(Theme.sub)
                                 }
                                 Spacer()
                                 Image(systemName: "slider.horizontal.3").font(.system(size: 12)).foregroundColor(Theme.sub)
-                                Badge(text: s.sportType.isCardio ? s.sportType.label : "\(s.totalSets) serie")
+                                Badge(text: s.sportType.isCardio ? s.sportType.label : "\(s.totalSets) \(t("wk.sets_n"))")
                             }
                             .padding(.vertical, 11)
                             .overlay(alignment: .bottom) { Rectangle().fill(Theme.brd).frame(height: 1) }
@@ -195,20 +195,20 @@ struct WorkoutView: View {
 
     private func commitPlan() {
         guard var p = editing else { return }
-        if p.name.trimmingCharacters(in: .whitespaces).isEmpty { p.name = "Nuovo giorno" }
+        if p.name.trimmingCharacters(in: .whitespaces).isEmpty { p.name = t("wk.new_day") }
         if let idx = store.plans.firstIndex(where: { $0.id == p.id }) {
             store.plans[idx] = p
         } else {
             store.plans.append(p)
         }
         editing = nil
-        toast.show(isNew ? "Giorno creato" : "Giorno aggiornato")
+        toast.show(isNew ? t("wk.day_created") : t("wk.day_updated"))
     }
 
     private func deletePlan() {
         guard let p = editing else { return }
         store.plans.removeAll { $0.id == p.id }
         editing = nil
-        toast.show("Giorno eliminato")
+        toast.show(t("wk.day_deleted"))
     }
 }
