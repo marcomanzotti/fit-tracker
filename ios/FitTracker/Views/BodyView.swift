@@ -12,6 +12,14 @@ struct BodyView: View {
     @State private var measInputs: [String: String] = [:]
     @State private var shareURL: IdentURL?
     @State private var importing = false
+    // Nutrition & recovery inputs
+    @State private var kcalInput = ""
+    @State private var proteinInput = ""
+    @State private var carbsInput = ""
+    @State private var fatInput = ""
+    @State private var stepsInput = ""
+    @State private var rmssdInput = ""
+    @State private var restHRInput = ""
 
     var body: some View {
         let lw = store.lastWeight
@@ -24,21 +32,57 @@ struct BodyView: View {
         let fat = bf.map { ((lw * $0 / 100) * 10).rounded() / 10 }
 
         checkInCard
+        nutritionRecoveryCard
         analysisCard(lw: lw, bmi: bmi, cat: cat, bl: bl, navy: navy, bf: bf, lean: lean, fat: fat)
         measurementsCard(bl: bl)
         chartsSection
         backupCard
     }
 
+    // MARK: Nutrition & recovery (feeds the energy + readiness engines)
+    private var nutritionRecoveryCard: some View {
+        Card {
+            Lbl(text: t("nut.intake_today"), color: Theme.acc2).padding(.bottom, 10)
+            HStack(spacing: 10) {
+                field("KCAL", "2400", $kcalInput)
+                field("\(t("nut.protein")) (g)", "180", $proteinInput)
+            }.padding(.bottom, 10)
+            HStack(spacing: 10) {
+                field("\(t("nut.carbs")) (g)", "250", $carbsInput)
+                field("\(t("nut.fat")) (g)", "70", $fatInput)
+            }.padding(.bottom, 10)
+            HStack(spacing: 10) {
+                field("STEPS", "8000", $stepsInput)
+                field("\(t("wk.rmssd"))", "65", $rmssdInput)
+            }.padding(.bottom, 10)
+            HStack(spacing: 10) {
+                field("\(t("ob.rest_hr"))", "58", $restHRInput)
+                Spacer().frame(maxWidth: .infinity)
+            }.padding(.bottom, 10)
+            FilledButton(title: t("save")) {
+                store.saveDailyExtras(
+                    kcal: Int(kcalInput), protein: dOrNil(proteinInput), carbs: dOrNil(carbsInput),
+                    fat: dOrNil(fatInput), steps: Int(stepsInput), rmssd: dOrNil(rmssdInput), restHR: Int(restHRInput))
+                kcalInput = ""; proteinInput = ""; carbsInput = ""; fatInput = ""
+                stepsInput = ""; rmssdInput = ""; restHRInput = ""
+                toast.show(t("save"))
+            }
+        }
+    }
+
+    private func dOrNil(_ s: String) -> Double? { s.isEmpty ? nil : pf(s) }
+
     // MARK: Check-in
     private var checkInCard: some View {
         Card {
-            Lbl(text: "Check-in · \(today())", color: Theme.acc2).padding(.bottom, 10)
+            Lbl(text: "\(t("home.checkin")) · \(today())", color: Theme.acc2).padding(.bottom, 10)
             HStack(spacing: 10) {
-                field("PESO (KG)", "87,5", $weightInput)
-                field("SLEEP (0-100)", "78", $sleepInput)
+                field("\(t("home.weight")) (KG)", "87,5", $weightInput)
+                if store.prefs.sleepEnabled {
+                    field("\(t("home.sleep")) (0-100)", "78", $sleepInput)
+                }
             }.padding(.bottom, 10)
-            FilledButton(title: "Salva check-in") {
+            FilledButton(title: t("home.save_checkin")) {
                 let w = pf(weightInput), s = pf(sleepInput)
                 let hasW = w >= 30 && w <= 250, hasS = s > 0 && s <= 100
                 guard hasW || hasS else { return }

@@ -8,7 +8,7 @@ struct FitTrackerApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RootView()
+            AppRootView()
                 .environmentObject(store)
                 .environmentObject(timer)
                 .environmentObject(toast)

@@ -33,6 +33,13 @@ struct HomeView: View {
         goalsCard(lw: lw)
         nextWorkoutCard
 
+        Group {
+            OverloadCard()
+            ReadinessCard()
+            LoadCard()
+            NutritionCard()
+        }
+
         if ws.count > 1 { weightChartCard(ws) }
         recentPRsCard
         weekComparisonCard
@@ -42,13 +49,15 @@ struct HomeView: View {
     // MARK: Check-in
     private var checkInCard: some View {
         Card(bg: Theme.c1) {
-            Lbl(text: "Check-in di oggi", color: Theme.acc2).padding(.bottom, 10)
+            Lbl(text: t("home.checkin"), color: Theme.acc2).padding(.bottom, 10)
             HStack(spacing: 10) {
-                labeledField("PESO (KG)", "87,5", $weightInput)
-                labeledField("SLEEP (0-100)", "78", $sleepInput)
+                labeledField("\(t("home.weight")) (KG)", "87,5", $weightInput)
+                if store.prefs.sleepEnabled {
+                    labeledField("\(t("home.sleep")) (0-100)", "78", $sleepInput)
+                }
             }
             .padding(.bottom, 10)
-            FilledButton(title: "Salva check-in") { saveCheckIn() }
+            FilledButton(title: t("home.save_checkin")) { saveCheckIn() }
         }
         .overlay(RoundedRectangle(cornerRadius: Theme.radius).stroke(Theme.acc.opacity(0.3), lineWidth: 1))
     }
@@ -91,7 +100,9 @@ struct HomeView: View {
     // MARK: Goals
     private func goalsCard(lw: Double) -> some View {
         let p = store.prefs
-        let wtPct = max(0, min(1, (p.startWeight - lw) / max(0.1, p.startWeight - p.goalWeight)))
+        // Bidirectional: progress from start weight toward the goal, loss or gain.
+        let denom = p.goalWeight - p.startWeight
+        let wtPct = abs(denom) < 0.1 ? 1 : max(0, min(1, (lw - p.startWeight) / denom))
         let bf = store.currentBF
         let bfPct = bf.map { max(0, min(1, ($0 - p.goalBF) / max(0.1, 35 - p.goalBF))) }
         return Card {

@@ -13,6 +13,10 @@ struct LiveWorkoutView: View {
     @State private var addName = ""
     @State private var showNotes: Set<UUID> = []
     @State private var saved = false
+    @State private var sessDuration = ""
+    @State private var sessRPE = ""
+    @State private var sessAvgHR = ""
+    @State private var sessRMSSD = ""
 
     private var lastSess: WorkoutSession? { store.lastSession(forPlan: plan.id) }
 
@@ -26,10 +30,33 @@ struct LiveWorkoutView: View {
             }
 
             addExerciseCard
+            sessionLoadCard
 
             BigButton(title: saved ? "Salvata" : "Salva sessione", color: saved ? Theme.good : Theme.acc) {
                 saveSession()
             }
+        }
+    }
+
+    // MARK: Session internal-load capture (sRPE / TRIMP inputs)
+    private var sessionLoadCard: some View {
+        Card {
+            Lbl(text: t("load.title"), color: Theme.acc2).padding(.bottom, 10)
+            HStack(spacing: 10) {
+                loadField(t("wk.duration"), $sessDuration)
+                loadField(t("wk.rpe"), $sessRPE)
+            }.padding(.bottom, 10)
+            HStack(spacing: 10) {
+                loadField(t("wk.avg_hr"), $sessAvgHR)
+                loadField(t("wk.rmssd"), $sessRMSSD)
+            }
+        }
+    }
+
+    private func loadField(_ label: String, _ binding: Binding<String>) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(label.uppercased()).font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
+            InputField(placeholder: "—", text: binding, keyboard: .numberPad)
         }
     }
 
@@ -72,12 +99,19 @@ struct LiveWorkoutView: View {
         let pr = store.exercisePR(ex.name)
         let prevEx = lastSess?.exercises.first { $0.name == ex.name }
         let sug = store.suggested(planId: plan.id, exercise: ex.name)
+        let prog = store.progression(planId: plan.id, exercise: ex.name)
 
         return Card {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(ex.name).font(.system(size: 14, weight: .semibold)).foregroundColor(Theme.txt)
-                    if !ex.target.isEmpty { Tag(text: ex.target) }
+                    HStack(spacing: 6) {
+                        if !ex.target.isEmpty { Tag(text: ex.target) }
+                        if ex.trainMethod != .normal {
+                            Badge(text: ex.trainMethod.short + (ex.supersetGroup.map { " \($0)" } ?? ""),
+                                  color: Theme.blue, bg: Theme.blue.opacity(0.14))
+                        }
+                    }
                 }
                 Spacer()
                 if pr > 0 {
@@ -112,6 +146,18 @@ struct LiveWorkoutView: View {
                 .background(Theme.acc.opacity(0.09))
                 .clipShape(Capsule())
                 .overlay(Capsule().stroke(Theme.acc.opacity(0.22), lineWidth: 1))
+                .padding(.bottom, 11)
+            }
+
+            if let prog, prog == .addLoad || prog == .addReps {
+                HStack(spacing: 6) {
+                    Image(systemName: prog == .addLoad ? "scalemass" : "plus.forwardslash.minus").font(.system(size: 11))
+                    Text(t(prog.key)).font(.system(size: 12, weight: .bold))
+                }
+                .foregroundColor(prog == .addLoad ? Theme.acc : Theme.blue)
+                .padding(.vertical, 6).padding(.horizontal, 13)
+                .background((prog == .addLoad ? Theme.acc : Theme.blue).opacity(0.09))
+                .clipShape(Capsule())
                 .padding(.bottom, 11)
             }
 
@@ -230,9 +276,13 @@ struct LiveWorkoutView: View {
         }.filter { !$0.sets.isEmpty }
         guard !exercises.isEmpty else { toast.show("Nessuna serie da salvare"); return }
 
-        let sess = WorkoutSession(date: today(), planId: plan.id,
+        var sess = WorkoutSession(date: today(), planId: plan.id,
                                   planName: plan.name, planColor: plan.color,
                                   exercises: exercises)
+        sess.durationMin = Int(sessDuration)
+        sess.rpe = Int(sessRPE)
+        sess.avgHR = Int(sessAvgHR)
+        sess.rmssd = sessRMSSD.isEmpty ? nil : pf(sessRMSSD)
         store.sessions.append(sess)
         saved = true
         timer.stop()

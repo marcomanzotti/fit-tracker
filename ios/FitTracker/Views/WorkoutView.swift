@@ -9,6 +9,8 @@ struct WorkoutView: View {
     @State private var log: [LoggedExercise] = []
     @State private var editing: WorkoutPlan?
     @State private var isNew = false
+    @State private var showCardio = false
+    @State private var editingSession: WorkoutSession?
 
     var body: some View {
         if let pid = activePlanId, let plan = store.plan(pid) {
@@ -35,9 +37,20 @@ struct WorkoutView: View {
     private var grid: some View {
         let cols = [GridItem(.flexible(), spacing: 11), GridItem(.flexible(), spacing: 11)]
         return VStack(spacing: 11) {
-            HStack {
+            HStack(spacing: 8) {
                 Lbl(text: "Seleziona giorno")
                 Spacer()
+                Button { tap(); showCardio = true } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "figure.run")
+                        Text("CARDIO").font(.head(10, .semibold)).tracking(1)
+                    }
+                    .foregroundColor(Theme.blue)
+                    .padding(.vertical, 8).padding(.horizontal, 12)
+                    .background(Theme.blue.opacity(0.07))
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Theme.blue, lineWidth: 1))
+                }
                 Button { tap(); newPlan() } label: {
                     HStack(spacing: 6) {
                         Image(systemName: "plus")
@@ -58,8 +71,11 @@ struct WorkoutView: View {
                 addCard
             }
 
+            CalendarCard()
             recentSessions
         }
+        .sheet(isPresented: $showCardio) { CardioLoggerView() }
+        .sheet(item: $editingSession) { s in SessionEditorView(session: s) }
     }
 
     private func dayCard(_ p: WorkoutPlan) -> some View {
@@ -118,22 +134,33 @@ struct WorkoutView: View {
                 Card {
                     Lbl(text: "Sessioni recenti").padding(.bottom, 4)
                     ForEach(Array(recent)) { s in
-                        HStack {
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text("\(s.planName)".uppercased()).font(.head(14, .semibold)).tracking(0.5)
-                                    .foregroundColor(Color(hex: s.planColor))
-                                Text("\(s.date) · \(s.exercises.count) esercizi · \(store.estimateCalories(s)) kcal")
-                                    .font(.system(size: 10)).foregroundColor(Theme.sub)
+                        Button { tap(); editingSession = s } label: {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text("\(s.planName)".uppercased()).font(.head(14, .semibold)).tracking(0.5)
+                                        .foregroundColor(Color(hex: s.planColor))
+                                    Text("\(s.date) · \(s.sportType.isCardio ? cardioSummary(s) : "\(s.exercises.count) esercizi") · \(store.estimateCalories(s)) kcal")
+                                        .font(.system(size: 10)).foregroundColor(Theme.sub)
+                                }
+                                Spacer()
+                                Image(systemName: "slider.horizontal.3").font(.system(size: 12)).foregroundColor(Theme.sub)
+                                Badge(text: s.sportType.isCardio ? s.sportType.label : "\(s.totalSets) serie")
                             }
-                            Spacer()
-                            Badge(text: "\(s.totalSets) serie")
+                            .padding(.vertical, 11)
+                            .overlay(alignment: .bottom) { Rectangle().fill(Theme.brd).frame(height: 1) }
                         }
-                        .padding(.vertical, 11)
-                        .overlay(alignment: .bottom) { Rectangle().fill(Theme.brd).frame(height: 1) }
+                        .buttonStyle(.plain)
                     }
                 }
             }
         }
+    }
+
+    private func cardioSummary(_ s: WorkoutSession) -> String {
+        var parts: [String] = []
+        if let d = s.durationMin { parts.append("\(d) min") }
+        if let km = s.distanceKm { parts.append("\(trimNum(km)) km") }
+        return parts.isEmpty ? s.sportType.label : parts.joined(separator: " · ")
     }
 
     // MARK: Actions
@@ -142,7 +169,9 @@ struct WorkoutView: View {
             LoggedExercise(name: ex.name,
                            sets: (0..<max(1, ex.sets)).map { _ in SetEntry() },
                            notes: "",
-                           target: "\(ex.sets)×\(ex.reps)")
+                           target: "\(ex.sets)×\(ex.reps)",
+                           supersetGroup: ex.supersetGroup,
+                           method: ex.method)
         }
         UIApplication.shared.isIdleTimerDisabled = true
         activePlanId = plan.id

@@ -140,11 +140,57 @@ struct PlanEditorView: View {
                     }.buttonStyle(.plain).disabled(i == plan.exercises.count - 1)
                 }
             }
+            methodRow(i)
         }
         .padding(.vertical, 11).padding(.horizontal, 12)
         .background(Theme.c2)
         .clipShape(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous).stroke(Theme.brd, lineWidth: 1))
         .padding(.bottom, 8)
+    }
+
+    private func methodRow(_ i: Int) -> some View {
+        let cur = plan.exercises[i].trainMethod
+        let isGrouped = cur == .superset || cur == .giant
+        return HStack(spacing: 10) {
+            Text(t("wk.method").uppercased()).font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
+            Menu {
+                ForEach(TrainMethod.allCases, id: \.self) { m in
+                    Button(methodLabel(m)) { tap(); plan.exercises[i].method = m == .normal ? nil : m.rawValue }
+                }
+            } label: {
+                HStack(spacing: 5) {
+                    Text(methodLabel(cur)).font(.system(size: 12, weight: .semibold)).foregroundColor(Theme.txt)
+                    Image(systemName: "chevron.down").font(.system(size: 9)).foregroundColor(Theme.sub)
+                }
+                .padding(.vertical, 6).padding(.horizontal, 10)
+                .background(Theme.c1).clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(Theme.brd, lineWidth: 1))
+            }
+            Spacer()
+            if isGrouped {
+                Text("GRUPPO").font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
+                Button { tap(); let g = (plan.exercises[i].supersetGroup ?? 1); plan.exercises[i].supersetGroup = max(1, g - 1) } label: {
+                    Image(systemName: "minus").font(.system(size: 10, weight: .bold)).foregroundColor(Theme.txt)
+                        .frame(width: 24, height: 24).background(Theme.c3).clipShape(Circle())
+                }.buttonStyle(.plain)
+                Text("\(plan.exercises[i].supersetGroup ?? 1)").font(.num(15)).frame(minWidth: 14)
+                Button { tap(); plan.exercises[i].supersetGroup = (plan.exercises[i].supersetGroup ?? 0) + 1 } label: {
+                    Image(systemName: "plus").font(.system(size: 10, weight: .bold)).foregroundColor(Theme.txt)
+                        .frame(width: 24, height: 24).background(Theme.c3).clipShape(Circle())
+                }.buttonStyle(.plain)
+            }
+        }
+        .padding(.top, 2)
+    }
+
+    private func methodLabel(_ m: TrainMethod) -> String {
+        switch m {
+        case .normal:    return t("none")
+        case .superset:  return t("wk.superset")
+        case .dropset:   return "Drop set"
+        case .restpause: return "Rest-pause"
+        case .giant:     return "Giant set"
+        }
     }
 }

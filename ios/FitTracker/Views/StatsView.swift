@@ -7,8 +7,11 @@ struct StatsView: View {
     @State private var statsTab = "overview"
     @State private var selEx = ""
     @State private var openId: UUID?
+    @State private var editingSession: WorkoutSession?
 
-    private let tabs = [("overview", "Overview"), ("pr", "Record"), ("prog", "Progressi"), ("storico", "Storico")]
+    private var tabs: [(String, String)] {
+        [("overview", t("st.overview")), ("pr", t("st.records")), ("prog", t("st.progress")), ("storico", t("st.history"))]
+    }
 
     var body: some View {
         // Tab bar
@@ -195,10 +198,11 @@ struct StatsView: View {
         }
     }
 
-    // MARK: History
+    // MARK: History (calendar + list)
     private var history: some View {
         let sorted = store.sessions.sorted { $0.date > $1.date }
         return Group {
+            CalendarCard()
             if sorted.isEmpty {
                 Card { EmptyBox(title: "Storico vuoto", text: "Nessun allenamento registrato.") }
             } else {
@@ -207,6 +211,7 @@ struct StatsView: View {
                 }
             }
         }
+        .sheet(item: $editingSession) { s in SessionEditorView(session: s) }
     }
 
     private func historyCard(_ s: WorkoutSession) -> some View {
@@ -247,6 +252,15 @@ struct StatsView: View {
                                 .font(.system(size: 10, weight: .semibold)).foregroundColor(Theme.sub)
                         }
                     }
+                    if s.sportType.isCardio {
+                        Text(cardioLine(s)).font(.system(size: 12)).foregroundColor(Theme.sub)
+                    }
+                    if let load = s.sRPE {
+                        Text("sRPE \(Int(load))" + (store.trimp(s).map { " · TRIMP \(Int($0))" } ?? ""))
+                            .font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.acc2)
+                    }
+                    GhostButton(title: t("wk.edit_session")) { editingSession = s }
+                        .padding(.top, 4)
                 }
                 .padding(.top, 12)
                 .overlay(alignment: .top) { Rectangle().fill(Theme.brd).frame(height: 1) }
@@ -255,6 +269,15 @@ struct StatsView: View {
     }
 
     private func disp(_ s: String) -> String { s.isEmpty ? "?" : s }
+
+    private func cardioLine(_ s: WorkoutSession) -> String {
+        var parts: [String] = [s.sportType.label]
+        if let d = s.durationMin { parts.append("\(d) min") }
+        if let km = s.distanceKm { parts.append("\(trimNum(km)) km") }
+        if let p = s.pace { parts.append(paceStr(p) + (s.sportType == .swimming ? "/100m" : "/km")) }
+        if let hr = s.avgHR { parts.append("\(hr) bpm") }
+        return parts.joined(separator: " · ")
+    }
 }
 
 // MARK: - Editable profile / goals
