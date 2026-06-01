@@ -32,14 +32,11 @@ struct PlanEditorView: View {
                 InputField(placeholder: t("pe.subtitle_ph"), text: $plan.sub, keyboard: .default)
                     .padding(.bottom, 12)
                 Lbl(text: t("pe.color")).padding(.bottom, 8)
-                HStack(spacing: 10) {
-                    ForEach(Theme.planColors, id: \.self) { c in
-                        Circle().fill(Color(hex: c))
-                            .frame(width: 30, height: 30)
-                            .overlay(Circle().stroke(Theme.txt, lineWidth: plan.color == c ? 2 : 0))
-                            .onTapGesture { tap(); plan.color = c }
-                    }
-                    Spacer()
+                FlexWrap(Theme.sportColors, spacing: 10) { c in
+                    Circle().fill(Color(hex: c))
+                        .frame(width: 30, height: 30)
+                        .overlay(Circle().stroke(Theme.txt, lineWidth: plan.color == c ? 2 : 0))
+                        .onTapGesture { tap(); plan.color = c }
                 }
             }
 

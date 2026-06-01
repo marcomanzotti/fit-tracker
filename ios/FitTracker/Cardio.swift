@@ -151,14 +151,11 @@ struct CardioTypeEditorView: View {
                         PillSelect(options: sportKinds, title: { Sport(rawValue: $0)?.label ?? $0 }, selection: $type.sport)
                             .padding(.bottom, 14)
                         Lbl(text: t("pe.color")).padding(.bottom, 8)
-                        HStack(spacing: 10) {
-                            ForEach(Theme.cardioColors, id: \.self) { c in
-                                Circle().fill(Color(hex: c))
-                                    .frame(width: 30, height: 30)
-                                    .overlay(Circle().stroke(Theme.txt, lineWidth: type.color == c ? 2 : 0))
-                                    .onTapGesture { tap(); type.color = c }
-                            }
-                            Spacer()
+                        FlexWrap(Theme.sportColors, spacing: 10) { c in
+                            Circle().fill(Color(hex: c))
+                                .frame(width: 30, height: 30)
+                                .overlay(Circle().stroke(Theme.txt, lineWidth: type.color == c ? 2 : 0))
+                                .onTapGesture { tap(); type.color = c }
                         }
                     }
 

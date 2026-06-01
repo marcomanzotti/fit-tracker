@@ -25,6 +25,8 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
+import androidx.compose.ui.graphics.vector.ImageVector
+import com.marco.fittracker.data.Sport
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -190,8 +192,14 @@ private fun DayScheduleRow(wd: Int, dayName: String, isToday: Boolean) {
                     .clickable { open = true }.padding(vertical = 8.dp, horizontal = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(Modifier.size(9.dp).clip(CircleShape).background(slotColor(store, cur)))
-                Spacer(Modifier.width(6.dp))
+                Box(
+                    Modifier.size(18.dp).clip(RoundedCornerShape(5.dp)).background(slotColor(store, cur)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (cur == "rest") Icon(restIcon, null, tint = T.bg, modifier = Modifier.size(11.dp))
+                    else slotIcon(store, cur)?.let { Icon(it, null, tint = T.bg, modifier = Modifier.size(11.dp)) }
+                }
+                Spacer(Modifier.width(7.dp))
                 Text(slotLabel(store, cur), color = T.txt, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
             }
             DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
@@ -251,7 +259,10 @@ fun WeeklyPlanCard() {
                             .border(1.5.dp, if (wd == todayMon) T.acc else Color.Transparent, RoundedCornerShape(8.dp)),
                         contentAlignment = Alignment.Center
                     ) {
+                        // Show the activity icon (not just color) so two slots that
+                        // share a hue stay distinguishable, like rest days do.
                         if (sched[wd] == "rest") Icon(restIcon, null, tint = T.bg, modifier = Modifier.size(13.dp))
+                        else slotIcon(store, sched[wd])?.let { Icon(it, null, tint = T.bg, modifier = Modifier.size(15.dp)) }
                     }
                 }
             }
@@ -265,4 +276,13 @@ private fun slotChipColor(store: com.marco.fittracker.data.Store, id: String): C
     id == "rest" -> T.restFill
     else -> store.plans.firstOrNull { it.id == id }?.let { hexColor(it.color) }
         ?: store.cardioTypes.firstOrNull { it.id == id }?.let { hexColor(it.color) } ?: T.c3
+}
+
+/** Activity icon for an assigned slot (dumbbell for strength plans, sport icon
+ *  for cardio); null for empty / rest, so colors that collide are still
+ *  distinguishable at a glance. */
+private fun slotIcon(store: com.marco.fittracker.data.Store, id: String): ImageVector? = when {
+    id.isEmpty() || id == "rest" -> null
+    store.plans.any { it.id == id } -> sportIcon(Sport.STRENGTH)
+    else -> store.cardioTypes.firstOrNull { it.id == id }?.let { sportIcon(it.sportType) }
 }

@@ -47,6 +47,13 @@ object T {
 
     val planColors = listOf("ffe000", "ffb000", "ff5a52", "4fb8c4", "7fc950", "b08fff")
     val cardioColors = listOf("4fb8c4", "ff5a52", "7fc950", "b08fff", "ffb000", "53a8ff")
+    // Full swatch palette for the plan / cardio color pickers: loved defaults up
+    // front, then extra bright hues. No black or rest-day off-white, so a sport
+    // can't be confused with an empty or rest slot.
+    val sportColors = listOf(
+        "ffe000", "ffb000", "ff8a3d", "ff5a52", "e0556b", "ff5da2", "c47cff",
+        "b08fff", "53a8ff", "4fb8c4", "3dd6c4", "7fc950", "b6e64a", "2ecc8f"
+    )
 
     // Shared "rest day" identity: almost-white chip with a dark moon icon,
     // used identically on the weekly plan, the week strip and the calendar.

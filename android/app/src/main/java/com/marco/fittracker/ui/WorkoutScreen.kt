@@ -559,15 +559,7 @@ private fun PlanEditor(initial: WorkoutPlan, isNew: Boolean, onSave: (WorkoutPla
         InputField(plan.sub, { plan = plan.copy(sub = it) }, "es. Spalle + Petto", KeyboardType.Text)
         Spacer(Modifier.height(12.dp))
         Lbl("Colore"); Spacer(Modifier.height(8.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            T.planColors.forEach { c ->
-                Box(
-                    Modifier.size(30.dp).clip(CircleShape).background(hexColor(c))
-                        .border(if (plan.color == c) 2.dp else 0.dp, T.txt, CircleShape)
-                        .clickable { tap(); plan = plan.copy(color = c) }
-                )
-            }
-        }
+        ColorSwatches(plan.color) { plan = plan.copy(color = it) }
     }
 
     Card {

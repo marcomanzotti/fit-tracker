@@ -283,61 +283,89 @@ extension Store {
         return allDone ? ex.maxWeight + 2.5 : nil
     }
 
-    /// Energy spent in a session, in kcal. Always uses the most precise formula
-    /// the available data allows, in this order:
-    ///   1. manual override (user's own number wins);
-    ///   2. heart-rate based Keytel equation (needs avg HR + duration);
-    ///   3. sport-specific MET scaled by real speed (needs distance + duration);
-    ///   4. sport-specific fixed MET (needs duration only);
-    ///   5. strength MET / volume heuristic.
+    /// Energy spent in a session, in kcal, as *active* energy (the resting
+    /// baseline is removed, so the number is comparable to what a sports watch
+    /// reports). Each category has its own formula:
+    ///   - manual override always wins;
+    ///   - each aerobic sport (cycling / running / walking / swimming) has its
+    ///     own speed->MET curve, refined by avg HR when no distance is logged;
+    ///   - strength uses avg HR + duration, plus a small bump from volume lifted;
+    ///   - an unknown custom activity ("other", e.g. padel) uses a generic
+    ///     HR + duration estimate, or a moderate fixed MET if no HR.
+    /// A new activity that picks an existing sport category inherits that sport's
+    /// formula automatically (it flows through `sportType`).
     func estimateCalories(_ s: WorkoutSession) -> Int {
         if let manual = s.caloriesManual, manual > 0 { return manual }
         let w = lastWeight
-
-        // 2) HR-based (Keytel): most precise, accounts for real intensity.
-        if let hr = s.avgHR, hr > 0, let dur = s.durationMinutesD, dur > 0 {
-            let age = Double(prefs.age ?? 30)
-            let perMin: Double = prefs.sex_ == "f"
-                ? (-20.4022 + 0.4472 * Double(hr) - 0.1263 * w + 0.074 * age) / 4.184
-                : (-55.0969 + 0.6309 * Double(hr) + 0.1988 * w + 0.2017 * age) / 4.184
-            return max(0, Int((perMin * dur).rounded()))
+        guard let dur = s.durationMinutesD, dur > 0 else {
+            // No duration logged: fall back to a strength volume/sets heuristic.
+            return Int((s.volume * 0.022 + Double(s.totalSets) * 3 + 60).rounded())
         }
-
-        // 3 & 4) Cardio via METs (per-sport), refined by speed when distance known.
-        if s.sportType.isCardio, let dur = s.durationMinutesD, dur > 0 {
-            let speed: Double? = s.distanceKm.map { $0 / (dur / 60) }   // km/h
-            let met = cardioMET(sport: s.sportType, speedKmh: speed)
-            return Int((met * w * dur / 60).rounded())
-        }
-
-        // 5) Strength: MET-based when a duration is logged (~5 MET resistance
-        // training), else fall back to the volume/sets heuristic.
-        if let dur = s.durationMinutesD, dur > 0 {
-            return Int((5.0 * w * dur / 60).rounded())
-        }
-        let vol = s.volume
-        return Int((vol * 0.022 + Double(s.totalSets) * 3 + 60).rounded())
+        let hours = dur / 60
+        let speed: Double? = s.distanceKm.flatMap { $0 > 0 ? $0 / hours : nil }   // km/h
+        let hrr = hrReserve(s.avgHR, session: s)
+        let met = sportMET(s.sportType, speedKmh: speed, hrr: hrr)
+        // Active energy = (MET - 1 resting) x weight x hours.
+        var kcal = max(1.0, met - 1.0) * w * hours
+        if s.sportType == .strength { kcal += min(90.0, s.volume * 0.008) }
+        return max(1, Int(kcal.rounded()))
     }
 
-    /// Sport-specific MET. Each aerobic sport gets its own formula: cycling and
-    /// walking at the same duration burn very differently, and speed (when a
-    /// distance is logged) sharpens the estimate further. Values follow the
-    /// Compendium of Physical Activities.
-    private func cardioMET(sport: Sport, speedKmh v: Double?) -> Double {
+    /// Heart-rate reserve fraction (0...1) from profile resting/max HR, or nil
+    /// when no avg HR was entered.
+    private func hrReserve(_ hr: Int?, session s: WorkoutSession) -> Double? {
+        guard let hr, hr > 0 else { return nil }
+        let rest = Double(prefs.restHRorDefault)
+        let mx = Double(s.maxHRSes ?? prefs.estMaxHR)
+        guard mx > rest else { return nil }
+        return max(0, min(1, (Double(hr) - rest) / (mx - rest)))
+    }
+
+    /// Per-category gross MET. Aerobic sports use a speed->MET curve calibrated so
+    /// the resulting active energy stays close to a sports-watch reading (the old
+    /// HR-only Keytel equation badly overestimated, e.g. ~1200 kcal for a steady
+    /// ride). When no speed is available we fall back to an HR-driven estimate,
+    /// then to a moderate fixed MET.
+    private func sportMET(_ sport: Sport, speedKmh v: Double?, hrr: Double?) -> Double {
         switch sport {
         case .running:
-            guard let v, v > 0 else { return 9.8 }
-            return max(6.0, 0.95 * v)                 // ~10 MET at 10 km/h
+            if let v, v > 0 { return max(6.0, 0.95 * v + 0.5) }     // ~10 MET at 10 km/h
+            if let hrr { return 3.0 + 9.0 * hrr }
+            return 9.5
         case .cycling:
-            guard let v, v > 0 else { return 7.5 }
-            return max(4.0, 0.45 * v + 0.5)           // ~9 MET at 19 km/h, ~13 at 28
+            if let v, v > 0 {
+                switch v {
+                case ..<16:  return 3.8
+                case ..<20:  return 5.0      // ~17 km/h leisure -> ~500 kcal active for an 88-min ride
+                case ..<24:  return 6.8
+                case ..<28:  return 8.5
+                case ..<33:  return 10.5
+                default:     return 12.5
+                }
+            }
+            if let hrr { return 2.5 + 7.0 * hrr }
+            return 6.0
         case .walking:
-            guard let v, v > 0 else { return 3.5 }
-            return max(2.0, 0.65 * v + 1.0)           // ~4.3 MET at 5 km/h
+            if let v, v > 0 {
+                switch v {
+                case ..<3.2: return 2.5
+                case ..<4.8: return 3.3
+                case ..<6.4: return 4.5
+                case ..<8.0: return 6.0
+                default:     return 7.5
+                }
+            }
+            if let hrr { return 2.0 + 4.0 * hrr }
+            return 3.5
         case .swimming:
-            guard let v, v > 0 else { return 8.0 }
-            return v > 4 ? 10.0 : (v < 2.5 ? 6.0 : 8.0)
-        default:
+            if let v, v > 0 { return v > 4 ? 10.0 : (v < 2.5 ? 6.0 : 8.3) }
+            if let hrr { return 4.0 + 7.0 * hrr }
+            return 8.0
+        case .strength:
+            if let hrr { return 2.8 + 5.5 * hrr }
+            return 4.5
+        case .other:
+            if let hrr { return 2.0 + 7.0 * hrr }
             return 6.0
         }
     }

@@ -380,6 +380,25 @@ fun EmptyBox(title: String, text: String) {
     }
 }
 
+// MARK: - Color swatch picker (wraps the full sport palette)
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+fun ColorSwatches(selected: String, onSelect: (String) -> Unit) {
+    val tap = rememberTap()
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        T.sportColors.forEach { c ->
+            Box(
+                Modifier.size(30.dp).clip(CircleShape).background(hexColor(c))
+                    .border(if (selected == c) 2.dp else 0.dp, T.txt, CircleShape)
+                    .clickable { tap(); onSelect(c) }
+            )
+        }
+    }
+}
+
 // MARK: - Wrapping chips row
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable

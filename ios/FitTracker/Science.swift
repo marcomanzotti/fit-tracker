@@ -122,7 +122,10 @@ extension Store {
         let cal = Calendar.current
         let today = cal.startOfDay(for: Date())
         let dates = loaded.compactMap { isoFormatter.date(from: $0.date) }.map { cal.startOfDay(for: $0) }
-        let span = dates.min().map { cal.dateComponents([.day], from: $0, to: today).day ?? 0 } ?? 0
+        // Inclusive day span: a single session logged today is 1 day of history,
+        // not 0 (the "0 days is impossible" surprise). A session has internal load
+        // only when it carries an avg HR, so HR-less strength days don't count.
+        let span = dates.min().map { (cal.dateComponents([.day], from: $0, to: today).day ?? 0) + 1 } ?? 0
         let reliable = loaded.count >= needSessions && span >= needDays
         return LoadDataStatus(reliable: reliable, sessions: loaded.count, spanDays: span,
                               needSessions: needSessions, needDays: needDays)

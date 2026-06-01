@@ -176,7 +176,11 @@ struct LoadTrendCard: View {
     var body: some View {
         let series = store.dailyLoadSeries(days: 14)
         let acwr = store.acwr()
+        let reliable = store.loadDataStatus().reliable
         let hasLoad = series.contains { $0.load > 0 }
+        // Until ACWR is trustworthy, bars use a neutral accent so the chart never
+        // implies a danger zone off a single session.
+        let barColor = reliable ? zoneColor(acwr.zone) : Theme.acc2
         Group {
             if hasLoad {
                 Card {
@@ -184,7 +188,10 @@ struct LoadTrendCard: View {
                         Lbl(text: t("load.trend_title"), color: Theme.acc2)
                         InfoButton(id: "load", color: Theme.acc2)
                         Spacer()
-                        if let r = acwr.ratio {
+                        // Only surface ACWR here once it's reliable; otherwise it
+                        // lives in the "building baseline" card above and a number
+                        // here would just repeat a meaningless value.
+                        if reliable, let r = acwr.ratio {
                             Text("ACWR \(trimNum(r))").font(.head(11, .semibold)).tracking(0.3)
                                 .foregroundColor(zoneColor(acwr.zone))
                         }
@@ -200,7 +207,7 @@ struct LoadTrendCard: View {
                         )
                         .cornerRadius(3)
                         .foregroundStyle(LinearGradient(
-                            colors: [zoneColor(acwr.zone), zoneColor(acwr.zone).opacity(0.55)],
+                            colors: [barColor, barColor.opacity(0.55)],
                             startPoint: .top, endPoint: .bottom))
                     }
                     .chartYScale(domain: .automatic(includesZero: true))

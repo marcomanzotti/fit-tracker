@@ -183,19 +183,23 @@ fun LoadTrendCard() {
     val series = store.dailyLoadSeries(14)
     if (series.none { it.load > 0 }) return
     val acwr = store.acwr()
+    val reliable = store.loadDataStatus().reliable
+    // Neutral bars + no ACWR badge until the ratio is trustworthy; the value
+    // otherwise lives in the "building baseline" card above.
+    val barColor = if (reliable) zoneColor(acwr.zone) else T.acc2
     Card {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Lbl(t("load.trend_title"), T.acc2)
             Spacer(Modifier.width(5.dp))
             InfoButton("load", T.acc2)
             Spacer(Modifier.weight(1f))
-            acwr.ratio?.let { Text("ACWR ${trimNum(it)}", color = zoneColor(acwr.zone), fontSize = 11.sp, fontWeight = FontWeight.SemiBold) }
+            if (reliable) acwr.ratio?.let { Text("ACWR ${trimNum(it)}", color = zoneColor(acwr.zone), fontSize = 11.sp, fontWeight = FontWeight.SemiBold) }
         }
         Spacer(Modifier.height(12.dp))
         BarChart(
             xLabels = series.map { fmtDM(it.date) },
             values = series.map { it.load },
-            color = zoneColor(acwr.zone)
+            color = barColor
         )
     }
 }
