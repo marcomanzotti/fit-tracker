@@ -42,7 +42,7 @@ import com.marco.fittracker.data.adherence
 import com.marco.fittracker.data.dailyLoadSeries
 import com.marco.fittracker.data.energyAvailability
 import com.marco.fittracker.data.energyTargets
-import com.marco.fittracker.data.fmtShort
+import com.marco.fittracker.data.fmtDM
 import com.marco.fittracker.data.hasAnyTrimp
 import com.marco.fittracker.data.lastSessionTrimp
 import com.marco.fittracker.data.progression
@@ -192,7 +192,7 @@ fun LoadTrendCard() {
         }
         Spacer(Modifier.height(12.dp))
         BarChart(
-            xLabels = series.map { fmtShort(it.date) },
+            xLabels = series.map { fmtDM(it.date) },
             values = series.map { it.load },
             color = zoneColor(acwr.zone)
         )

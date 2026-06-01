@@ -15,6 +15,7 @@ struct CardioLoggerView: View {
     @State private var distance = ""
     @State private var avgHR = ""
     @State private var rmssd = ""
+    @State private var calManual = ""
 
     var body: some View {
         ZStack {
@@ -62,9 +63,17 @@ struct CardioLoggerView: View {
                             InfoButton(id: "calories", color: Theme.acc2)
                             Spacer()
                             HStack(alignment: .firstTextBaseline, spacing: 4) {
-                                Text(estCalories.map { "\($0)" } ?? "—").font(.num(28)).foregroundColor(Theme.acc)
+                                Text(calManual.isEmpty ? (estCalories.map { "\($0)" } ?? "—") : calManual)
+                                    .font(.num(28)).foregroundColor(Theme.acc)
                                 Text("kcal").font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.sub)
                             }
+                        }
+                        .padding(.bottom, 10)
+                        HStack(spacing: 8) {
+                            Text(t("wk.cal_override").uppercased()).font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
+                            Spacer()
+                            InputField(placeholder: estCalories.map { "\($0)" } ?? "—", text: $calManual, keyboard: .numberPad)
+                                .frame(width: 110)
                         }
                         Text(t("wk.est_cal_hint")).font(.system(size: 10)).foregroundColor(Theme.sub).padding(.top, 6)
                     }
@@ -85,7 +94,8 @@ struct CardioLoggerView: View {
             exercises: [], sport: type.sport, durationMin: dur,
             avgHR: Int(avgHR),
             rmssd: rmssd.isEmpty ? nil : pf(rmssd),
-            distanceKm: distance.isEmpty ? nil : pf(distance))
+            distanceKm: distance.isEmpty ? nil : pf(distance),
+            caloriesManual: Int(calManual).flatMap { $0 > 0 ? $0 : nil })
     }
 
     private var estCalories: Int? {

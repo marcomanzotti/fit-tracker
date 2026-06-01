@@ -46,7 +46,6 @@ struct HomeView: View {
             TrimpCard()
             LoadCard()
             LoadTrendCard()
-            OverloadCard()
             NutritionCard()
             ReadinessCard()
         }

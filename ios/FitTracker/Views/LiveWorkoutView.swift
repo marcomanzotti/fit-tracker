@@ -16,6 +16,7 @@ struct LiveWorkoutView: View {
     @State private var sessDuration = ""
     @State private var sessAvgHR = ""
     @State private var sessRMSSD = ""
+    @State private var sessCalManual = ""
 
     private var lastSess: WorkoutSession? { store.lastSession(forPlan: plan.id) }
 
@@ -30,10 +31,47 @@ struct LiveWorkoutView: View {
 
             addExerciseCard
             sessionLoadCard
+            caloriesCard
 
             BigButton(title: saved ? t("wk.saved") : t("wk.save_session"), color: saved ? Theme.good : Theme.acc) {
                 saveSession()
             }
+        }
+    }
+
+    // MARK: Calories burned (always shown; manual override wins)
+    /// Build a session snapshot from the current inputs so the calorie estimate
+    /// reflects whatever data the user has entered (volume, duration, avg HR).
+    private func currentSessionSnapshot() -> WorkoutSession {
+        var s = WorkoutSession(date: today(), planId: plan.id, planName: plan.name,
+                               planColor: plan.color, exercises: log)
+        s.durationMin = Int(sessDuration)
+        s.avgHR = Int(sessAvgHR)
+        return s
+    }
+
+    private var estCalories: Int { store.estimateCalories(currentSessionSnapshot()) }
+
+    private var caloriesCard: some View {
+        Card(accent: Theme.acc) {
+            HStack(spacing: 2) {
+                Lbl(text: t("wk.calories"), color: Theme.acc2)
+                InfoButton(id: "calories", color: Theme.acc2)
+                Spacer()
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    Text(sessCalManual.isEmpty ? "\(estCalories)" : sessCalManual)
+                        .font(.num(28)).foregroundColor(Theme.acc)
+                    Text("kcal").font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.sub)
+                }
+            }
+            .padding(.bottom, 10)
+            HStack(spacing: 8) {
+                Text(t("wk.cal_override").uppercased()).font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
+                Spacer()
+                InputField(placeholder: "\(estCalories)", text: $sessCalManual, keyboard: .numberPad)
+                    .frame(width: 110)
+            }
+            Text(t("wk.cal_hint")).font(.system(size: 9)).foregroundColor(Theme.sub).padding(.top, 6)
         }
     }
 
@@ -69,18 +107,19 @@ struct LiveWorkoutView: View {
                 Spacer()
             }
             .padding(.bottom, 9)
-            loadField(t("wk.rmssd"), $sessRMSSD, info: "rmssd")
+            loadField(t("wk.rmssd"), $sessRMSSD, info: "rmssd", keyboard: .decimalPad)
         }
     }
 
-    private func loadField(_ label: String, _ binding: Binding<String>, info: String? = nil) -> some View {
+    private func loadField(_ label: String, _ binding: Binding<String>, info: String? = nil,
+                           keyboard: UIKeyboardType = .numberPad) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 2) {
                 Text(label.uppercased()).font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
                 if let info { InfoButton(id: info) }
                 Spacer()
             }
-            InputField(placeholder: "—", text: binding, keyboard: .numberPad)
+            InputField(placeholder: "—", text: binding, keyboard: keyboard)
         }
     }
 
@@ -306,6 +345,7 @@ struct LiveWorkoutView: View {
         sess.durationMin = Int(sessDuration)
         sess.avgHR = Int(sessAvgHR)
         sess.rmssd = sessRMSSD.isEmpty ? nil : pf(sessRMSSD)
+        sess.caloriesManual = Int(sessCalManual).flatMap { $0 > 0 ? $0 : nil }
         store.sessions.append(sess)
         saved = true
         timer.stop()

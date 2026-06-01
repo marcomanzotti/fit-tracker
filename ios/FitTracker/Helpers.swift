@@ -14,6 +14,13 @@ func today() -> String { isoFormatter.string(from: Date()) }
 /// "2024-05-31" -> "05-31"   (mirrors the web app's fmt())
 func fmtShort(_ date: String) -> String { String(date.dropFirst(5)) }
 
+/// "2024-05-31" -> "31/05"   (short, readable day/month for dense charts)
+func fmtDM(_ date: String) -> String {
+    let p = date.split(separator: "-")
+    guard p.count == 3 else { return date }
+    return "\(p[2])/\(p[1])"
+}
+
 func headerDate() -> (full: String, day: String) {
     let cal = Calendar.current
     let now = Date()

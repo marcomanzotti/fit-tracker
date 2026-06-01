@@ -283,10 +283,18 @@ extension Store {
         return allDone ? ex.maxWeight + 2.5 : nil
     }
 
+    /// Energy spent in a session, in kcal. Always uses the most precise formula
+    /// the available data allows, in this order:
+    ///   1. manual override (user's own number wins);
+    ///   2. heart-rate based Keytel equation (needs avg HR + duration);
+    ///   3. sport-specific MET scaled by real speed (needs distance + duration);
+    ///   4. sport-specific fixed MET (needs duration only);
+    ///   5. strength MET / volume heuristic.
     func estimateCalories(_ s: WorkoutSession) -> Int {
         if let manual = s.caloriesManual, manual > 0 { return manual }
         let w = lastWeight
-        // HR-based (Keytel) when an average HR is available.
+
+        // 2) HR-based (Keytel): most precise, accounts for real intensity.
         if let hr = s.avgHR, hr > 0, let dur = s.durationMin, dur > 0 {
             let age = Double(prefs.age ?? 30)
             let perMin: Double = prefs.sex_ == "f"
@@ -294,21 +302,44 @@ extension Store {
                 : (-55.0969 + 0.6309 * Double(hr) + 0.1988 * w + 0.2017 * age) / 4.184
             return max(0, Int((perMin * Double(dur)).rounded()))
         }
-        // MET-based for cardio with a known duration.
+
+        // 3 & 4) Cardio via METs (per-sport), refined by speed when distance known.
         if s.sportType.isCardio, let dur = s.durationMin, dur > 0 {
-            let met: Double
-            switch s.sportType {
-            case .running:  met = 9.8
-            case .swimming: met = 8.0
-            case .cycling:  met = 7.5
-            case .walking:  met = 3.5
-            default:        met = 6.0
-            }
+            let speed: Double? = s.distanceKm.map { $0 / (Double(dur) / 60) }   // km/h
+            let met = cardioMET(sport: s.sportType, speedKmh: speed)
             return Int((met * w * Double(dur) / 60).rounded())
         }
-        // Strength fallback (original heuristic).
+
+        // 5) Strength: MET-based when a duration is logged (~5 MET resistance
+        // training), else fall back to the volume/sets heuristic.
+        if let dur = s.durationMin, dur > 0 {
+            return Int((5.0 * w * Double(dur) / 60).rounded())
+        }
         let vol = s.volume
         return Int((vol * 0.022 + Double(s.totalSets) * 3 + 60).rounded())
+    }
+
+    /// Sport-specific MET. Each aerobic sport gets its own formula: cycling and
+    /// walking at the same duration burn very differently, and speed (when a
+    /// distance is logged) sharpens the estimate further. Values follow the
+    /// Compendium of Physical Activities.
+    private func cardioMET(sport: Sport, speedKmh v: Double?) -> Double {
+        switch sport {
+        case .running:
+            guard let v, v > 0 else { return 9.8 }
+            return max(6.0, 0.95 * v)                 // ~10 MET at 10 km/h
+        case .cycling:
+            guard let v, v > 0 else { return 7.5 }
+            return max(4.0, 0.45 * v + 0.5)           // ~9 MET at 19 km/h, ~13 at 28
+        case .walking:
+            guard let v, v > 0 else { return 3.5 }
+            return max(2.0, 0.65 * v + 1.0)           // ~4.3 MET at 5 km/h
+        case .swimming:
+            guard let v, v > 0 else { return 8.0 }
+            return v > 4 ? 10.0 : (v < 2.5 ? 6.0 : 8.0)
+        default:
+            return 6.0
+        }
     }
 
     // MARK: Daily nutrition & recovery

@@ -19,15 +19,18 @@ extension Store {
         return Double(dur) * hrr * 0.64 * exp(y * hrr)
     }
 
-    /// Strictly *measured* internal load: sRPE (duration × session RPE) or, if
-    /// that's missing, TRIMP (duration + avg HR). Returns nil when the user has
-    /// entered no intensity data, so ACWR / monotony / strain never fabricate a
-    /// load from set counts alone (a single logged Push with no RPE/HR must not
+    /// Strictly *measured* internal load = TRIMP (duration + avg HR). Returns nil
+    /// when no average HR was entered, so ACWR / monotony / strain never fabricate
+    /// a load from set counts alone (a single logged Push with no HR must not
     /// produce a weekly load, monotony or strain number).
+    ///
+    /// We intentionally do NOT fall back to the old sRPE (duration × session RPE):
+    /// the RPE input was removed in v4, so any sRPE today comes only from legacy
+    /// sessions and would inflate internal load even when no avg HR was entered —
+    /// exactly the "load looks extremely high without HR" surprise. TRIMP is now
+    /// the single source of internal load.
     func measuredLoad(_ s: WorkoutSession) -> Double? {
-        if let srpe = s.sRPE { return srpe }
-        if let t = trimp(s) { return t }
-        return nil
+        trimp(s)
     }
 
     /// Any session that carries a usable internal-load signal.

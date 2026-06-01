@@ -106,7 +106,12 @@ struct StatTile: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 2) {
-                Lbl(text: label)
+                // Keep multi-word labels ("Weekly load", "Monotony") on a single
+                // line: shrink to fit rather than wrapping a syllable below.
+                Text(label.uppercased())
+                    .font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.sub)
+                    .lineLimit(1).minimumScaleFactor(0.6).fixedSize(horizontal: false, vertical: true)
+                    .layoutPriority(1)
                 if let info { InfoButton(id: info) }
             }
             HStack(alignment: .firstTextBaseline, spacing: 2) {

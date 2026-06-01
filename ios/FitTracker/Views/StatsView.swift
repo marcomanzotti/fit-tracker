@@ -255,8 +255,11 @@ struct StatsView: View {
                     if s.sportType.isCardio {
                         Text(cardioLine(s)).font(.system(size: 12)).foregroundColor(Theme.sub)
                     }
-                    if let load = s.sRPE {
-                        Text("sRPE \(Int(load))" + (store.trimp(s).map { " · TRIMP \(Int($0))" } ?? ""))
+                    if let tr = store.trimp(s) {
+                        Text("TRIMP \(Int(tr))")
+                            .font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.acc2)
+                    } else if let load = s.sRPE {
+                        Text("sRPE \(Int(load))")
                             .font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.acc2)
                     }
                     GhostButton(title: t("wk.edit_session")) { editingSession = s }

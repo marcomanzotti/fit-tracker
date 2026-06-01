@@ -18,6 +18,12 @@ fun today(): String = LocalDate.now().format(isoFmt)
 /** "2024-05-31" -> "05-31" */
 fun fmtShort(date: String): String = if (date.length >= 5) date.substring(5) else date
 
+/** "2024-05-31" -> "31/05"  (short, readable day/month for dense charts) */
+fun fmtDM(date: String): String {
+    val p = date.split("-")
+    return if (p.size == 3) "${p[2]}/${p[1]}" else date
+}
+
 val itMonths = listOf("Gen", "Feb", "Mar", "Apr", "Mag", "Giu", "Lug", "Ago", "Set", "Ott", "Nov", "Dic")
 val itDays = listOf("Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom")
 

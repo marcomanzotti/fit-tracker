@@ -95,6 +95,7 @@ fun CardioLoggerDialog(type: CardioType, onClose: () -> Unit) {
     var distance by remember { mutableStateOf("") }
     var avgHR by remember { mutableStateOf("") }
     var rmssd by remember { mutableStateOf("") }
+    var calManual by remember { mutableStateOf("") }
     val pc = hexColor(type.color)
 
     fun build(dur: Int) = WorkoutSession(
@@ -102,7 +103,8 @@ fun CardioLoggerDialog(type: CardioType, onClose: () -> Unit) {
         exercises = emptyList(), sport = type.sport, durationMin = dur,
         avgHR = avgHR.toIntOrNull(),
         rmssd = if (rmssd.isEmpty()) null else pf(rmssd),
-        distanceKm = if (distance.isEmpty()) null else pf(distance)
+        distanceKm = if (distance.isEmpty()) null else pf(distance),
+        caloriesManual = calManual.toIntOrNull()?.takeIf { it > 0 }
     )
     val est = duration.toIntOrNull()?.takeIf { it > 0 }?.let { store.estimateCalories(build(it)) }
 
@@ -137,10 +139,15 @@ fun CardioLoggerDialog(type: CardioType, onClose: () -> Unit) {
                 Spacer(Modifier.width(5.dp)); InfoButton("calories", T.acc2)
                 Spacer(Modifier.weight(1f))
                 Row(verticalAlignment = Alignment.Bottom) {
-                    Text(est?.toString() ?: "—", color = T.acc, fontSize = 26.sp, fontWeight = FontWeight.Bold)
+                    Text(if (calManual.isEmpty()) (est?.toString() ?: "—") else calManual, color = T.acc, fontSize = 26.sp, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.width(4.dp))
                     Text("kcal", color = T.sub, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                 }
+            }
+            Spacer(Modifier.height(10.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(t("wk.cal_override").uppercase(), color = T.sub, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp, modifier = Modifier.weight(1f))
+                Box(Modifier.width(110.dp)) { InputField(calManual, { calManual = it }, est?.toString() ?: "—", KeyboardType.Number) }
             }
             Spacer(Modifier.height(6.dp))
             Text(t("wk.est_cal_hint"), color = T.sub, fontSize = 10.sp)
@@ -264,6 +271,25 @@ fun SessionEditorDialog(initial: WorkoutSession, onClose: () -> Unit) {
         RecommendedFlag()
         Spacer(Modifier.height(9.dp))
         Field(t("wk.rmssd"), s.rmssd?.let { trimNum(it) } ?: "", { s = s.copy(rmssd = if (it.isEmpty()) null else pf(it)) }, "—", KeyboardType.Decimal)
+        Spacer(Modifier.height(14.dp))
+        // Calories burned (estimate from data; manual override wins).
+        Column(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(T.radiusS)).background(T.c1)
+                .border(1.dp, T.brd, RoundedCornerShape(T.radiusS)).padding(14.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Lbl(t("wk.calories"), T.acc2)
+                Spacer(Modifier.width(5.dp)); InfoButton("calories", T.acc2)
+                Spacer(Modifier.weight(1f))
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Text("${store.estimateCalories(s)}", color = T.acc, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.width(4.dp))
+                    Text("kcal", color = T.sub, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+            Field(t("wk.cal_override"), s.caloriesManual?.toString() ?: "", { s = s.copy(caloriesManual = it.toIntOrNull()?.takeIf { v -> v > 0 }) }, "—")
+        }
         Spacer(Modifier.height(14.dp))
         // Per-exercise set editing
         s.exercises.forEachIndexed { ei, ex ->
