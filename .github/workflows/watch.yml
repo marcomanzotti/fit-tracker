@@ -51,13 +51,16 @@ jobs:
             clean build
 
       - name: Build the iPhone host with the watch embedded (Release, unsigned)
+        # Use -destination (not -sdk iphoneos): a global -sdk overrides every
+        # target's SDKROOT, forcing the watchOS dependency to compile against the
+        # iOS SDK. A destination lets each target build for its own platform.
         run: |
           set -o pipefail
           xcodebuild \
             -project FitTracker.xcodeproj \
             -scheme FitTrackerWatchHost \
             -configuration Release \
-            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
             -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
