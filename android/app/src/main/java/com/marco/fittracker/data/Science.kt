@@ -11,7 +11,7 @@ import kotlin.math.sqrt
 
 // MARK: TRIMP (Banister, sex-weighted)
 fun Store.trimp(s: WorkoutSession): Double? {
-    val dur = s.durationMin ?: return null
+    val dur = s.durationMinutesD ?: return null
     val hr = s.avgHR ?: return null
     if (dur <= 0 || hr <= 0) return null
     val rest = prefs.restHRorDefault.toDouble()
@@ -79,6 +79,26 @@ fun Store.dailyLoadSeries(days: Int): List<LoadPoint> {
         d = d.minusDays(1)
     }
     return out.reversed()
+}
+
+/** Whether there is enough load history for ACWR/monotony/strain to be
+ *  meaningful. ACWR compares a 7-day acute window to a 28-day chronic one, so
+ *  with only a couple of sessions the ratio is wildly out of scale. We require a
+ *  minimum number of HR-logged sessions over enough calendar days first. */
+data class LoadDataStatus(
+    val reliable: Boolean, val sessions: Int, val spanDays: Int,
+    val needSessions: Int, val needDays: Int
+)
+fun Store.loadDataStatus(): LoadDataStatus {
+    val needSessions = 6; val needDays = 21
+    val loaded = sessions.filter { measuredLoad(it) != null }
+    val today = LocalDate.now()
+    val dates = loaded.mapNotNull { runCatching { LocalDate.parse(it.date) }.getOrNull() }
+    val span = dates.minOrNull()?.let {
+        java.time.temporal.ChronoUnit.DAYS.between(it, today).toInt()
+    } ?: 0
+    val reliable = loaded.size >= needSessions && span >= needDays
+    return LoadDataStatus(reliable, loaded.size, span, needSessions, needDays)
 }
 
 fun Store.acwr(): ACWRResult {

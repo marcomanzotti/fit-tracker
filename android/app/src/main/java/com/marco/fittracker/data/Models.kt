@@ -24,6 +24,23 @@ fun fmtDM(date: String): String {
     return if (p.size == 3) "${p[2]}/${p[1]}" else date
 }
 
+/** Total seconds -> compact "1h 05m", "45m 30s" or "30s" for session summaries. */
+fun fmtDuration(seconds: Int): String {
+    val h = seconds / 3600; val m = (seconds % 3600) / 60; val s = seconds % 60
+    return when {
+        h > 0 -> "%dh %02dm".format(h, m)
+        m > 0 -> if (s > 0) "%dm %02ds".format(m, s) else "${m}m"
+        else -> "${s}s"
+    }
+}
+
+/** Decimal minutes -> "m:ss" pace string. */
+fun paceStr(minPerUnit: Double): String {
+    val m = minPerUnit.toInt()
+    val s = ((minPerUnit - m) * 60).toInt()
+    return "%d:%02d".format(m, s)
+}
+
 val itMonths = listOf("Gen", "Feb", "Mar", "Apr", "Mag", "Giu", "Lug", "Ago", "Set", "Ott", "Nov", "Dic")
 val itDays = listOf("Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom")
 
@@ -136,12 +153,14 @@ data class WorkoutSession(
     val exercises: List<LoggedExercise> = emptyList(),
     // Internal-load / cardio fields (all optional, backward compatible)
     val sport: String? = null,
-    val durationMin: Int? = null,
+    val durationMin: Int? = null,       // legacy whole-minute duration (old data)
+    val durationSec: Int? = null,       // canonical duration in seconds (H/M/S)
     val rpe: Int? = null,
     val avgHR: Int? = null,
     val maxHRSes: Int? = null,
     val rmssd: Double? = null,
     val distanceKm: Double? = null,
+    val paceManual: Double? = null,     // user pace/speed override (native unit)
     val elevationM: Double? = null,
     val poolLengthM: Int? = null,
     val caloriesManual: Int? = null
@@ -149,21 +168,47 @@ data class WorkoutSession(
     val totalSets: Int get() = exercises.sumOf { it.sets.size }
     val volume: Double get() = exercises.sumOf { it.volume }
     val sportType: Sport get() = Sport.from(sport ?: "strength")
+
+    /** Canonical duration in seconds (new H/M/S value, falling back to minutes). */
+    val durationSeconds: Int?
+        get() = when {
+            (durationSec ?: 0) > 0 -> durationSec
+            (durationMin ?: 0) > 0 -> durationMin!! * 60
+            else -> null
+        }
+    /** Duration in (possibly fractional) minutes for the science formulas. */
+    val durationMinutesD: Double? get() = durationSeconds?.let { it / 60.0 }
+
     /** sRPE internal load = duration (min) x session RPE. */
     val sRPE: Double?
         get() {
-            val d = durationMin; val r = rpe
-            return if (d != null && r != null && d > 0 && r > 0) (d * r).toDouble() else null
+            val d = durationMinutesD; val r = rpe
+            return if (d != null && r != null && d > 0 && r > 0) d * r else null
         }
-    /** Average pace: min/km (run/walk/bike) or min/100m (swim). */
-    val pace: Double?
+
+    /** Pace/speed unit: cycling tracks km/h, swimming min/100m, else min/km. */
+    val paceIsSpeed: Boolean get() = sportType == Sport.CYCLING
+    val paceUnit: String get() = when (sportType) {
+        Sport.CYCLING -> "km/h"; Sport.SWIMMING -> "/100m"; else -> "/km"
+    }
+    /** Auto pace/speed from distance + duration, in the native unit. */
+    val autoPace: Double?
         get() {
-            val d = durationMin ?: return null
-            if (d <= 0) return null
+            val mins = durationMinutesD ?: return null
+            if (mins <= 0) return null
             val dist = distanceKm ?: return null
             if (dist <= 0) return null
-            return if (sportType == Sport.SWIMMING) d / (dist * 1000 / 100) else d / dist
+            return when (sportType) {
+                Sport.CYCLING -> dist / (mins / 60)
+                Sport.SWIMMING -> mins / (dist * 1000 / 100)
+                else -> mins / dist
+            }
         }
+    /** Effective pace: a manual override wins, otherwise the auto value. */
+    val effectivePace: Double? get() = paceManual ?: autoPace
+
+    /** Legacy: average pace min/km (run/walk/bike) or min/100m (swim). */
+    val pace: Double? get() = autoPace
 }
 
 // MARK: - Body measurements

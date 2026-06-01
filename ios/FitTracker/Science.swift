@@ -10,13 +10,13 @@ extension Store {
     /// Banister TRIMP for a session, needs avg HR + duration. Uses resting/max HR
     /// from the profile (max estimated from age if not measured).
     func trimp(_ s: WorkoutSession) -> Double? {
-        guard let dur = s.durationMin, dur > 0, let hr = s.avgHR, hr > 0 else { return nil }
+        guard let dur = s.durationMinutesD, dur > 0, let hr = s.avgHR, hr > 0 else { return nil }
         let rest = Double(prefs.restHRorDefault)
         let mx = Double(s.maxHRSes ?? prefs.estMaxHR)
         guard mx > rest else { return nil }
         let hrr = max(0, min(1, (Double(hr) - rest) / (mx - rest)))
         let y = prefs.sex_ == "f" ? 1.67 : 1.92
-        return Double(dur) * hrr * 0.64 * exp(y * hrr)
+        return dur * hrr * 0.64 * exp(y * hrr)
     }
 
     /// Strictly *measured* internal load = TRIMP (duration + avg HR). Returns nil
@@ -64,7 +64,12 @@ extension Store {
 }
 
 // MARK: - Daily load series + ACWR (EWMA method)
-struct LoadPoint: Identifiable { var date: String; var load: Double; var id: String { date } }
+struct LoadPoint: Identifiable {
+    var date: String
+    var load: Double
+    var id: String { date }
+    var day: Date { isoFormatter.date(from: date) ?? Date() }
+}
 
 struct ACWRResult {
     var ratio: Double?
@@ -97,6 +102,30 @@ extension Store {
         var e = values[0]
         for v in values.dropFirst() { e = v * lambda + e * (1 - lambda) }
         return e
+    }
+
+    /// Whether there is enough load history for ACWR/monotony/strain to be
+    /// meaningful. ACWR compares a 7-day acute window to a 28-day chronic one, so
+    /// with only a couple of sessions the ratio is wildly out of scale (e.g. 3.6
+    /// off a single ride). We require a minimum number of HR-logged sessions
+    /// spread over enough calendar days before showing the numbers.
+    struct LoadDataStatus {
+        var reliable: Bool
+        var sessions: Int          // sessions carrying internal load so far
+        var spanDays: Int          // days from the first such session to today
+        var needSessions: Int      // minimum sessions required
+        var needDays: Int          // minimum span (days) required
+    }
+    func loadDataStatus() -> LoadDataStatus {
+        let needSessions = 6, needDays = 21
+        let loaded = sessions.filter { measuredLoad($0) != nil }
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: Date())
+        let dates = loaded.compactMap { isoFormatter.date(from: $0.date) }.map { cal.startOfDay(for: $0) }
+        let span = dates.min().map { cal.dateComponents([.day], from: $0, to: today).day ?? 0 } ?? 0
+        let reliable = loaded.count >= needSessions && span >= needDays
+        return LoadDataStatus(reliable: reliable, sessions: loaded.count, spanDays: span,
+                              needSessions: needSessions, needDays: needDays)
     }
 
     /// ACWR with the EWMA method (acute = 7d, chronic = 28d).

@@ -275,9 +275,11 @@ struct StatsView: View {
 
     private func cardioLine(_ s: WorkoutSession) -> String {
         var parts: [String] = [s.sportType.label]
-        if let d = s.durationMin { parts.append("\(d) min") }
+        if let sec = s.durationSeconds { parts.append(fmtDuration(sec)) }
         if let km = s.distanceKm { parts.append("\(trimNum(km)) km") }
-        if let p = s.pace { parts.append(paceStr(p) + (s.sportType == .swimming ? "/100m" : "/km")) }
+        if let p = s.effectivePace {
+            parts.append(s.paceIsSpeed ? "\(trimNum((p * 10).rounded() / 10)) \(s.paceUnit)" : paceStr(p) + s.paceUnit)
+        }
         if let hr = s.avgHR { parts.append("\(hr) bpm") }
         return parts.joined(separator: " · ")
     }

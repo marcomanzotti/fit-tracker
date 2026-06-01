@@ -11,11 +11,12 @@ struct CardioLoggerView: View {
 
     let type: CardioType
 
-    @State private var duration = ""
+    @State private var durationSec: Int? = nil
     @State private var distance = ""
     @State private var avgHR = ""
     @State private var rmssd = ""
     @State private var calManual = ""
+    @State private var paceManual: Double? = nil
 
     var body: some View {
         ZStack {
@@ -40,12 +41,14 @@ struct CardioLoggerView: View {
                     .padding(.top, 18)
 
                     Card {
-                        HStack(spacing: 12) {
-                            FieldRow(label: t("wk.duration")) { InputField(placeholder: "40", text: $duration, keyboard: .numberPad) }
+                        HMSField(label: t("wk.duration"), seconds: $durationSec)
+                        Spacer().frame(height: 14)
+                        HStack(alignment: .top, spacing: 12) {
                             FieldRow(label: t("wk.distance")) { InputField(placeholder: "8", text: $distance) }
+                            FieldRow(label: t("wk.avg_hr")) { InputField(placeholder: "150", text: $avgHR, keyboard: .numberPad) }
                         }
                         Spacer().frame(height: 14)
-                        FieldRow(label: t("wk.avg_hr")) { InputField(placeholder: "150", text: $avgHR, keyboard: .numberPad) }
+                        PaceField(session: buildSession(), manual: $paceManual)
                         Rectangle().fill(Theme.brd).frame(height: 1).padding(.vertical, 13)
                         HStack(spacing: 7) {
                             Text(t("load.recommended").uppercased()).font(.head(8, .semibold)).tracking(1).foregroundColor(Theme.sub)
@@ -88,24 +91,25 @@ struct CardioLoggerView: View {
         .preferredColorScheme(.dark)
     }
 
-    private func buildSession(_ dur: Int) -> WorkoutSession {
+    private func buildSession() -> WorkoutSession {
         WorkoutSession(
             date: today(), planId: "cardio-\(type.id)", planName: type.name, planColor: type.color,
-            exercises: [], sport: type.sport, durationMin: dur,
+            exercises: [], sport: type.sport, durationSec: durationSec,
             avgHR: Int(avgHR),
             rmssd: rmssd.isEmpty ? nil : pf(rmssd),
             distanceKm: distance.isEmpty ? nil : pf(distance),
+            paceManual: paceManual,
             caloriesManual: Int(calManual).flatMap { $0 > 0 ? $0 : nil })
     }
 
     private var estCalories: Int? {
-        guard let dur = Int(duration), dur > 0 else { return nil }
-        return store.estimateCalories(buildSession(dur))
+        guard let dur = durationSec, dur > 0 else { return nil }
+        return store.estimateCalories(buildSession())
     }
 
     private func save() {
-        guard let dur = Int(duration), dur > 0 else { toast.show(t("wk.duration")); return }
-        store.sessions.append(buildSession(dur))
+        guard let dur = durationSec, dur > 0 else { toast.show(t("wk.duration")); return }
+        store.sessions.append(buildSession())
         haptic(.success)
         toast.show(t("save"))
         dismiss()

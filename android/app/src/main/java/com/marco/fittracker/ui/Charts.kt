@@ -173,7 +173,8 @@ fun BarChart(xLabels: List<String>, values: List<Double>, color: Color = T.acc.c
             drawLine(T.mut, Offset(leftPad, gy), Offset(size.width, gy), 1f)
             drawAxisText(fmtNum(gv), leftPad - 4.dp.toPx(), gy + 3.dp.toPx(), Paint.Align.RIGHT, T.sub)
         }
-        val step = max(1, n / 5)
+        // Thin the x-axis labels so dense series (e.g. 14 days) don't overlap.
+        val step = max(1, (n + 4) / 5)
         values.indices.forEach { i ->
             val x = leftPad + slot * i + (slot - bw) / 2
             val barH = (values[i] / hi * h).toFloat()

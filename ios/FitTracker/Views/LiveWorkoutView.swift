@@ -13,7 +13,7 @@ struct LiveWorkoutView: View {
     @State private var addName = ""
     @State private var showNotes: Set<UUID> = []
     @State private var saved = false
-    @State private var sessDuration = ""
+    @State private var sessDurationSec: Int? = nil
     @State private var sessAvgHR = ""
     @State private var sessRMSSD = ""
     @State private var sessCalManual = ""
@@ -45,7 +45,7 @@ struct LiveWorkoutView: View {
     private func currentSessionSnapshot() -> WorkoutSession {
         var s = WorkoutSession(date: today(), planId: plan.id, planName: plan.name,
                                planColor: plan.color, exercises: log)
-        s.durationMin = Int(sessDuration)
+        s.durationSec = sessDurationSec
         s.avgHR = Int(sessAvgHR)
         return s
     }
@@ -77,19 +77,18 @@ struct LiveWorkoutView: View {
 
     // MARK: Session internal-load capture (TRIMP from duration + avg HR)
     private var liveTrimp: Double? {
-        guard let d = Int(sessDuration), d > 0, let hr = Int(sessAvgHR), hr > 0 else { return nil }
+        guard let d = sessDurationSec, d > 0, let hr = Int(sessAvgHR), hr > 0 else { return nil }
         var s = WorkoutSession(date: today(), planId: plan.id, planName: plan.name, planColor: plan.color)
-        s.durationMin = d; s.avgHR = hr
+        s.durationSec = d; s.avgHR = hr
         return store.trimp(s)
     }
 
     private var sessionLoadCard: some View {
         Card {
             InfoLbl(text: t("load.title"), info: "load", color: Theme.acc2).padding(.bottom, 10)
-            HStack(spacing: 10) {
-                loadField(t("wk.duration"), $sessDuration)
-                loadField(t("wk.avg_hr"), $sessAvgHR, info: "trimp")
-            }
+            HMSField(label: t("wk.duration"), seconds: $sessDurationSec)
+            Spacer().frame(height: 12)
+            loadField(t("wk.avg_hr"), $sessAvgHR, info: "trimp")
             if let v = liveTrimp {
                 HStack(spacing: 6) {
                     Text("TRIMP").font(.head(9, .semibold)).tracking(1.5).foregroundColor(Theme.sub)
@@ -114,11 +113,7 @@ struct LiveWorkoutView: View {
     private func loadField(_ label: String, _ binding: Binding<String>, info: String? = nil,
                            keyboard: UIKeyboardType = .numberPad) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 2) {
-                Text(label.uppercased()).font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
-                if let info { InfoButton(id: info) }
-                Spacer()
-            }
+            FieldLabel(label, info: info)
             InputField(placeholder: "—", text: binding, keyboard: keyboard)
         }
     }
@@ -342,7 +337,7 @@ struct LiveWorkoutView: View {
         var sess = WorkoutSession(date: today(), planId: plan.id,
                                   planName: plan.name, planColor: plan.color,
                                   exercises: exercises)
-        sess.durationMin = Int(sessDuration)
+        sess.durationSec = sessDurationSec
         sess.avgHR = Int(sessAvgHR)
         sess.rmssd = sessRMSSD.isEmpty ? nil : pf(sessRMSSD)
         sess.caloriesManual = Int(sessCalManual).flatMap { $0 > 0 ? $0 : nil }

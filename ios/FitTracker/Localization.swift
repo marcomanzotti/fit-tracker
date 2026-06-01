@@ -100,6 +100,12 @@ enum L {
         "load.title":        ("Carico interno", "Internal load"),
         "load.srpe":         ("sRPE (durata × RPE)", "sRPE (duration × RPE)"),
         "load.trimp":        ("TRIMP", "TRIMP"),
+        "load.building":     ("Baseline in costruzione", "Building baseline"),
+        "load.building_body": (
+            "ACWR, monotonia e strain confrontano il carico recente (7 giorni) con quello abituale (28 giorni): con poche sessioni il valore è completamente fuori scala e non affidabile.\n\nServono almeno %d sessioni con durata + FC media, distribuite su almeno %d giorni. L'ideale sono circa 4 settimane di dati costanti.",
+            "ACWR, monotony and strain compare your recent load (7 days) with your habitual load (28 days): with only a few sessions the value is completely out of scale and unreliable.\n\nYou need at least %d sessions with duration + average HR, spread over at least %d days. About 4 weeks of consistent data is ideal."),
+        "load.sessions_logged": ("Sessioni con carico", "Load sessions"),
+        "load.history_days":    ("Giorni di storico", "Days of history"),
 
         // --- Nutrition ------------------------------------------------------
         "nut.title":         ("Nutrizione", "Nutrition"),
@@ -139,7 +145,10 @@ enum L {
         "wk.last_time":      ("Ultima volta", "Last time"),
         "wk.notes":          ("Note", "Notes"),
         "wk.rpe":            ("RPE sessione", "Session RPE"),
-        "wk.duration":       ("Durata (min)", "Duration (min)"),
+        "wk.duration":       ("Durata", "Duration"),
+        "dur.h":             ("ore", "hrs"),
+        "dur.m":             ("min", "min"),
+        "dur.s":             ("sec", "sec"),
         "wk.avg_hr":         ("FC media", "Avg HR"),
         "wk.rmssd":          ("RMSSD", "RMSSD"),
         "wk.superset":       ("Superset", "Superset"),
@@ -147,6 +156,8 @@ enum L {
         "wk.sport":          ("Sport", "Sport"),
         "wk.distance":       ("Distanza (km)", "Distance (km)"),
         "wk.pace":           ("Ritmo", "Pace"),
+        "wk.speed":          ("Velocità", "Speed"),
+        "wk.pace_auto":      ("Auto da distanza e durata", "Auto from distance & duration"),
         "wk.finish_ask":     ("Terminare e salvare la sessione?", "Finish and save the session?"),
         "wk.edit_session":   ("Modifica sessione", "Edit session"),
         "wk.del_session":    ("Elimina sessione", "Delete session"),
@@ -487,6 +498,10 @@ enum L {
         "info.calories.body": (
             "Stima dell'energia spesa nella sessione a partire dai tuoi dati (peso, età, sesso).\n\nSe hai inserito la FC media usiamo la formula di Keytel basata sulla frequenza cardiaca; per il cardio senza FC usiamo i MET dell'attività × peso × durata; per la forza una stima da volume e serie. È un'approssimazione, non una misura da metabolimetro.",
             "An estimate of the energy spent in the session, derived from your profile (weight, age, sex). The app always uses the most precise formula your data allows.\n\nWith average HR we use the Keytel heart-rate equation (most precise). For cardio without HR we use a sport-specific MET — cycling, running, walking and swimming each have their own formula, refined by your real speed when a distance is logged. For strength we use a resistance-training MET over the session duration, or a volume estimate. You can always type your own number to override the estimate. It's an approximation, not a lab measurement."),
+        "info.pace.title": ("Ritmo & velocità", "Pace & speed"),
+        "info.pace.body": (
+            "Il ritmo viene calcolato automaticamente da distanza e durata, nell'unità tipica di ogni sport: la bici usa la velocità in km/h, la corsa e la camminata il passo in min/km, il nuoto il passo in min/100m.\n\nInserisci distanza e durata e il valore compare da solo. Se vuoi, puoi scriverlo a mano per sovrascrivere il calcolo automatico: la tua cifra ha sempre la precedenza.",
+            "Pace is computed automatically from distance and duration, in each sport's usual unit: cycling uses speed in km/h, running and walking use min/km pace, swimming uses min/100m.\n\nEnter distance and duration and the value fills in by itself. If you prefer, type it by hand to override the automatic calculation: your number always wins."),
         "info.rmssd.title": ("RMSSD (HRV)", "RMSSD (HRV)"),
         "info.rmssd.body": (
             "L'RMSSD è la principale misura della variabilità della frequenza cardiaca (HRV): la radice quadrata della media dei quadrati delle differenze tra battiti consecutivi (intervalli R-R), in millisecondi.\n\nRiflette l'attività del sistema nervoso parasimpatico (recupero). Valori più alti del tuo solito indicano buon recupero; valori bassi indicano stress o affaticamento. Misuralo al mattino, da sdraiato, sempre nello stesso modo, con un'app HRV o una fascia cardio, e inseriscilo qui. L'app lo trasforma poi nel punteggio di Prontezza.",

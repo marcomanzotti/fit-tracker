@@ -41,11 +41,12 @@ struct Lbl: View {
 struct InfoButton: View {
     let id: String                 // e.g. "acwr" -> info.acwr.title / info.acwr.body
     var color: Color = Theme.sub
+    var size: CGFloat = 26         // tap-target size (shrink to keep label rows aligned)
     @State private var show = false
     var body: some View {
         Button { tap(); show = true } label: {
             Image(systemName: "info.circle").font(.system(size: 13)).foregroundColor(color)
-                .frame(width: 26, height: 26)
+                .frame(width: size, height: size)
         }
         .buttonStyle(.plain)
         .sheet(isPresented: $show) { InfoSheet(id: id) }
@@ -231,6 +232,127 @@ struct GhostButton: View {
                 .background(Theme.c2)
                 .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).stroke(Theme.brd, lineWidth: 1))
+        }
+    }
+}
+
+// MARK: - Uniform field label
+/// A field caption with an optional inline info button, pinned to a fixed height
+/// and a single line. Because the height never changes whether or not an info
+/// button is present, input boxes in adjacent columns always start at the same
+/// vertical position and keep equal sizes.
+struct FieldLabel: View {
+    let text: String
+    var info: String? = nil
+    init(_ text: String, info: String? = nil) { self.text = text; self.info = info }
+    var body: some View {
+        HStack(spacing: 2) {
+            Text(text.uppercased())
+                .font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
+                .lineLimit(1).minimumScaleFactor(0.7)
+            if let info { InfoButton(id: info, size: 18) }
+            Spacer(minLength: 0)
+        }
+        .frame(height: 18)
+    }
+}
+
+// MARK: - Duration field (H / M / S)
+/// Three integer boxes (hours / minutes / seconds) bound to a total-seconds value.
+/// Replaces the old "minutes only" entry so a 1h28m ride is logged precisely and
+/// every duration-based formula (TRIMP, pace, calories) gets the exact time.
+struct HMSField: View {
+    let label: String
+    @Binding var seconds: Int?
+    var info: String? = nil
+
+    @State private var h = ""
+    @State private var m = ""
+    @State private var s = ""
+    @State private var synced = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            FieldLabel(label, info: info)
+            HStack(spacing: 8) {
+                box($h, "dur.h", "0")
+                box($m, "dur.m", "30")
+                box($s, "dur.s", "00")
+            }
+        }
+        .onAppear { if !synced { sync(); synced = true } }
+        .onChange(of: h) { _ in recompute() }
+        .onChange(of: m) { _ in recompute() }
+        .onChange(of: s) { _ in recompute() }
+    }
+
+    private func box(_ b: Binding<String>, _ unitKey: String, _ ph: String) -> some View {
+        VStack(spacing: 4) {
+            TextField("", text: b, prompt: Text(ph).foregroundColor(Theme.sub))
+                .keyboardType(.numberPad).multilineTextAlignment(.center)
+                .foregroundColor(Theme.txt).font(.system(size: 16, weight: .medium))
+                .padding(.vertical, 13)
+                .frame(maxWidth: .infinity)
+                .background(Theme.c2)
+                .clipShape(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous).stroke(Theme.brd, lineWidth: 1))
+            Text(t(unitKey)).font(.head(8, .semibold)).tracking(1).foregroundColor(Theme.sub)
+        }
+    }
+
+    private func recompute() {
+        let total = Int(pf(h)) * 3600 + Int(pf(m)) * 60 + Int(pf(s))
+        seconds = total > 0 ? total : nil
+    }
+    private func sync() {
+        guard let sec = seconds, sec > 0 else { return }
+        if sec >= 3600 { h = "\(sec / 3600)" }
+        m = "\((sec % 3600) / 60)"
+        if sec % 60 != 0 { s = "\(sec % 60)" }
+    }
+}
+
+// MARK: - Pace / speed field
+/// Per-sport pace entry: cycling shows km/h, swimming min/100m, the rest min/km.
+/// The box auto-fills (as a placeholder) from distance + duration; typing a value
+/// overrides it. The caption shows the readable auto value (mm:ss for min-based).
+struct PaceField: View {
+    let session: WorkoutSession
+    @Binding var manual: Double?
+
+    @State private var text = ""
+    @State private var synced = false
+
+    private var auto: Double? { session.autoPace }
+    // The editable box always holds a plain decimal in the native unit; the
+    // caption renders the readable form (mm:ss for min-based paces).
+    private func dec(_ v: Double) -> String { trimNum((v * 10).rounded() / 10) }
+    private func readable(_ v: Double) -> String {
+        session.paceIsSpeed ? "\(dec(v)) \(session.paceUnit)" : "\(paceStr(v)) \(session.paceUnit)"
+    }
+    private var shownPace: Double? { pf(text) > 0 ? pf(text) : auto }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            FieldLabel("\(t(session.paceIsSpeed ? "wk.speed" : "wk.pace")) (\(session.paceUnit))", info: "pace")
+            TextField("", text: $text,
+                      prompt: Text(auto.map { dec($0) } ?? "—").foregroundColor(Theme.sub))
+                .keyboardType(.decimalPad)
+                .foregroundColor(Theme.txt).font(.system(size: 16, weight: .medium))
+                .padding(.vertical, 13).padding(.horizontal, 15)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Theme.c2)
+                .clipShape(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous).stroke(Theme.brd, lineWidth: 1))
+            if let shown = shownPace {
+                Text("\(text.isEmpty ? t("wk.pace_auto") : t("wk.pace")) · \(readable(shown))")
+                    .font(.system(size: 9)).foregroundColor(Theme.sub)
+            }
+        }
+        .onAppear { if !synced { if let m = manual { text = dec(m) }; synced = true } }
+        .onChange(of: text) { _ in
+            let v = pf(text)
+            manual = (text.isEmpty || v <= 0) ? nil : v
         }
     }
 }

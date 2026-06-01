@@ -85,6 +85,12 @@ object L {
         "load.weekly" to ("Carico settimanale" to "Weekly load"),
         "load.deload" to ("Valuta una settimana di scarico" to "Consider a deload week"),
         "load.title" to ("Carico interno" to "Internal load"),
+        "load.building" to ("Baseline in costruzione" to "Building baseline"),
+        "load.building_body" to (
+            "ACWR, monotonia e strain confrontano il carico recente (7 giorni) con quello abituale (28 giorni): con poche sessioni il valore è completamente fuori scala e non affidabile.\n\nServono almeno %d sessioni con durata + FC media, distribuite su almeno %d giorni. L'ideale sono circa 4 settimane di dati costanti." to
+            "ACWR, monotony and strain compare your recent load (7 days) with your habitual load (28 days): with only a few sessions the value is completely out of scale and unreliable.\n\nYou need at least %d sessions with duration + average HR, spread over at least %d days. About 4 weeks of consistent data is ideal."),
+        "load.sessions_logged" to ("Sessioni con carico" to "Load sessions"),
+        "load.history_days" to ("Giorni di storico" to "Days of history"),
 
         "nut.title" to ("Nutrizione" to "Nutrition"),
         "nut.cut" to ("Definizione" to "Cut"),
@@ -110,13 +116,19 @@ object L {
         "wk.reps" to ("Rip" to "Reps"),
         "wk.suggested" to ("Suggerito" to "Suggested"),
         "wk.rpe" to ("RPE sessione" to "Session RPE"),
-        "wk.duration" to ("Durata (min)" to "Duration (min)"),
+        "wk.duration" to ("Durata" to "Duration"),
+        "dur.h" to ("ore" to "hrs"),
+        "dur.m" to ("min" to "min"),
+        "dur.s" to ("sec" to "sec"),
         "wk.avg_hr" to ("FC media" to "Avg HR"),
         "wk.rmssd" to ("RMSSD" to "RMSSD"),
         "wk.superset" to ("Superset" to "Superset"),
         "wk.method" to ("Metodo" to "Method"),
         "wk.sport" to ("Sport" to "Sport"),
         "wk.distance" to ("Distanza (km)" to "Distance (km)"),
+        "wk.pace" to ("Ritmo" to "Pace"),
+        "wk.speed" to ("Velocità" to "Speed"),
+        "wk.pace_auto" to ("Auto da distanza e durata" to "Auto from distance & duration"),
         "wk.edit_session" to ("Modifica sessione" to "Edit session"),
         "wk.del_session" to ("Elimina sessione" to "Delete session"),
         "wk.add_reps" to ("Aumenta le ripetizioni" to "Add reps"),
@@ -299,6 +311,10 @@ object L {
         "info.calories.body" to (
             "Stima dell'energia spesa dai tuoi dati (peso, età, sesso). L'app usa sempre la formula più precisa che i dati permettono.\n\nCon FC media usiamo l'equazione di Keytel (più precisa). Per il cardio senza FC usiamo un MET specifico per sport — bici, corsa, camminata e nuoto hanno ciascuno la propria formula, affinata dalla velocità reale quando inserisci la distanza. Per la forza un MET da allenamento di resistenza sulla durata, oppure una stima da volume. Puoi sempre inserire il tuo numero per sovrascrivere la stima." to
             "Estimate of energy spent from your profile (weight, age, sex). The app always uses the most precise formula your data allows.\n\nWith avg HR we use the Keytel equation (most precise). For cardio without HR we use a sport-specific MET — cycling, running, walking and swimming each have their own formula, refined by your real speed when a distance is logged. For strength a resistance-training MET over the duration, or a volume estimate. You can always type your own number to override the estimate."),
+        "info.pace.title" to ("Ritmo & velocità" to "Pace & speed"),
+        "info.pace.body" to (
+            "Il ritmo viene calcolato automaticamente da distanza e durata, nell'unità tipica di ogni sport: la bici usa la velocità in km/h, la corsa e la camminata il passo in min/km, il nuoto il passo in min/100m.\n\nInserisci distanza e durata e il valore compare da solo. Se vuoi, puoi scriverlo a mano per sovrascrivere il calcolo automatico: la tua cifra ha sempre la precedenza." to
+            "Pace is computed automatically from distance and duration, in each sport's usual unit: cycling uses speed in km/h, running and walking use min/km pace, swimming uses min/100m.\n\nEnter distance and duration and the value fills in by itself. If you prefer, type it by hand to override the automatic calculation: your number always wins."),
         "info.trimp.title" to ("TRIMP" to "TRIMP"),
         "info.trimp.body" to (
             "Training Impulse (Banister): pesa la durata con la frequenza cardiaca di riserva e un fattore esponenziale diverso per uomo e donna. Richiede FC media e durata, oltre a FC a riposo e massima del profilo. Più preciso dell'sRPE per il cardio." to
