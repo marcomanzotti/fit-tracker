@@ -39,6 +39,17 @@
 		FT00000000000000000031 /* FitTracker.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FitTracker.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		FT00000000000000000040 /* Exceptions for "FitTrackerWatch" folder in "FitTrackerWatch" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+				FitTrackerWatch.entitlements,
+			);
+			target = FT00000000000000000020 /* FitTrackerWatch */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		FT00000000000000000009 /* FitTracker */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
@@ -52,6 +63,9 @@
 		};
 		FT00000000000000000011 /* FitTrackerWatch */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				FT00000000000000000040 /* Exceptions for "FitTrackerWatch" folder in "FitTrackerWatch" target */,
+			);
 			path = FitTrackerWatch;
 			sourceTree = "<group>";
 		};
