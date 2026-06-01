@@ -96,9 +96,15 @@ data class ReadinessResult(
 )
 
 fun Store.readiness(): ReadinessResult {
-    val map = HashMap<String, Double>()
-    for (s in sessions) s.rmssd?.let { if (it > 0) map[s.date] = it }
-    for (d in daily) d.rmssd?.let { if (it > 0) map[d.date] = it }
+    // Prefer manual RMSSD; fall back to imported SDNN when RMSSD is sparse. The
+    // readiness math is a personal-baseline z-score of ln(HRV), so either metric
+    // works as long as one source is used consistently.
+    val rmssdMap = HashMap<String, Double>()
+    for (s in sessions) s.rmssd?.let { if (it > 0) rmssdMap[s.date] = it }
+    for (d in daily) d.rmssd?.let { if (it > 0) rmssdMap[d.date] = it }
+    val sdnnMap = HashMap<String, Double>()
+    for (d in daily) d.hrvSDNN?.let { if (it > 0) sdnnMap[d.date] = it }
+    val map = if (rmssdMap.size >= sdnnMap.size) rmssdMap else sdnnMap
     val pairs = map.filter { it.value > 0 }.toSortedMap()
     if (pairs.isEmpty()) return ReadinessResult(null, null, null, null, 0, "none")
     val lns = pairs.values.map { ln(it) }

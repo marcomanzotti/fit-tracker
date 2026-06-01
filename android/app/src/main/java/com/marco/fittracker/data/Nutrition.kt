@@ -12,7 +12,7 @@ data class EnergyTargets(
     val bmr: Double, val tdee: Double, val target: Double,
     val protein: Double, val fat: Double, val carbs: Double,
     val carbHigh: Double, val carbLow: Double, val saltMax: Double,
-    val rateTarget: Double, val mode: GoalMode
+    val rateTarget: Double, val mode: GoalMode, val adaptive: Boolean
 )
 
 data class TrendResult(
@@ -21,6 +21,11 @@ data class TrendResult(
 )
 
 data class LEAResult(val ea: Double?, val risk: String)
+
+data class AdherenceResult(
+    val loggingPct: Double, val avgSteps: Int?, val sessions: Int,
+    val avgIntake: Int?, val days: Int, val status: String
+)
 
 fun Store.bmr(weight: Double? = null): Double {
     val w = weight ?: lastWeight
@@ -31,6 +36,45 @@ fun Store.bmr(weight: Double? = null): Double {
 }
 
 fun Store.tdee(weight: Double? = null): Double = bmr(weight) * prefs.activityLevel.multiplier
+
+/** Data-driven maintenance: real maintenance ~= avg logged intake - energy
+ *  implied by the measured weight trend. Null until there's enough logging. */
+fun Store.adaptiveTDEE(days: Int = 21): Double? {
+    val tr = weightTrend(days)
+    val rate = tr.ratePerWeek ?: return null
+    if (tr.points < 8) return null
+    val cutoff = LocalDate.now().minusDays(days.toLong())
+    val intakes = daily.mapNotNull { e ->
+        val k = e.kcal ?: return@mapNotNull null
+        val d = runCatching { LocalDate.parse(e.date) }.getOrNull() ?: return@mapNotNull null
+        if (k > 0 && !d.isBefore(cutoff)) k else null
+    }
+    if (intakes.size < 8) return null
+    val avgIntake = intakes.sum().toDouble() / intakes.size
+    val dailyChangeKcal = rate * 7700 / 7
+    return Math.round(avgIntake - dailyChangeKcal).toDouble()
+}
+
+/** Adherence over a 2-3 week window: logging consistency, steps, volume. */
+fun Store.adherence(days: Int = 14): AdherenceResult {
+    val cutoff = LocalDate.now().minusDays(days.toLong())
+    fun recent(ds: String): Boolean {
+        val d = runCatching { LocalDate.parse(ds) }.getOrNull() ?: return false
+        return !d.isBefore(cutoff)
+    }
+    val logged = daily.filter { recent(it.date) && (it.kcal ?: 0) > 0 }
+    val stepVals = daily.mapNotNull { if (recent(it.date)) it.steps?.takeIf { s -> s > 0 } else null }
+    val sess = sessions.count { recent(it.date) }
+    val loggingPct = logged.size.toDouble() / days
+    val avgSteps = if (stepVals.isEmpty()) null else stepVals.sum() / stepVals.size
+    val avgIntake = if (logged.isEmpty()) null else logged.mapNotNull { it.kcal }.sum() / logged.size
+    val status = when {
+        logged.isEmpty() -> "none"
+        loggingPct < 0.5 -> "low_logging"
+        else -> "ok"
+    }
+    return AdherenceResult(loggingPct, avgSteps, sess, avgIntake, days, status)
+}
 
 fun Store.targetRate(): Double {
     prefs.weeklyRate?.let { if (abs(it) > 0.001) return it }
@@ -45,7 +89,8 @@ fun Store.fatFreeMass(): Double? {
 
 fun Store.energyTargets(): EnergyTargets {
     val w = lastWeight
-    val td = tdee(w)
+    val adaptive = adaptiveTDEE()
+    val td = adaptive ?: tdee(w)
     val rate = targetRate()
     val dailyDelta = rate * 7700 / 7
     var target = td + dailyDelta
@@ -65,7 +110,8 @@ fun Store.energyTargets(): EnergyTargets {
         carbLow = Math.round(carbs * 0.65).toDouble(),
         saltMax = 5.0,
         rateTarget = Math.round(rate * 100.0) / 100.0,
-        mode = mode
+        mode = mode,
+        adaptive = adaptive != null
     )
 }
 

@@ -22,6 +22,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.NorthEast
@@ -122,9 +123,11 @@ private fun WorkoutGrid(onStart: (WorkoutPlan) -> Unit, onNew: () -> Unit, onEdi
         ) {
             Icon(Icons.Filled.Add, null, tint = T.acc, modifier = Modifier.size(14.dp))
             Spacer(Modifier.width(6.dp))
-            Text("NUOVO GIORNO", color = T.acc, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
+            Text(t("wk.new_day").uppercase(), color = T.acc, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
         }
     }
+
+    Text(t("wk.edit_hint"), color = T.sub, fontSize = 11.sp, lineHeight = 15.sp)
 
     // 2-column grid built from rows
     val cells = store.plans.toList()
@@ -201,12 +204,18 @@ private fun DayCard(p: WorkoutPlan, onStart: (WorkoutPlan) -> Unit, onEdit: (Wor
             Spacer(Modifier.height(11.dp))
             Box(Modifier.fillMaxWidth().height(1.dp).background(T.brd))
             Spacer(Modifier.height(8.dp))
-            Text("${p.exercises.size} ESERCIZI", color = T.sub, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp)
+            Text("${p.exercises.size} ${t("wk.exercises_n").uppercase()}", color = T.sub, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp)
         }
-        Icon(
-            Icons.Filled.Tune, "modifica", tint = T.sub,
-            modifier = Modifier.align(Alignment.TopEnd).padding(6.dp).size(20.dp).clickable { tap(); onEdit(p) }
-        )
+        Row(
+            Modifier.align(Alignment.TopEnd).padding(7.dp)
+                .clip(RoundedCornerShape(20.dp)).background(pc)
+                .clickable { tap(); onEdit(p) }.padding(vertical = 4.dp, horizontal = 7.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(Icons.Filled.Edit, "edit", tint = T.bg, modifier = Modifier.size(11.dp))
+            Spacer(Modifier.width(3.dp))
+            Text(t("wk.edit").uppercase(), color = T.bg, fontSize = 8.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.5.sp)
+        }
     }
 }
 

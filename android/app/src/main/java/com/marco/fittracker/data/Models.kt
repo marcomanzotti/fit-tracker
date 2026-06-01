@@ -55,7 +55,8 @@ data class DailyEntry(
     val steps: Int? = null,
     // Recovery (optional, manual entry)
     val rmssd: Double? = null,
-    val restHR: Int? = null
+    val restHR: Int? = null,
+    val hrvSDNN: Double? = null    // HRV SDNN imported from a health platform (ms)
 )
 
 // MARK: - A single logged set
@@ -250,7 +251,11 @@ data class Prefs(
     val trainingDays: Int? = null,
     val restingHR: Int? = null,
     val maxHR: Int? = null,
-    val sleepTracking: Boolean? = null
+    val sleepTracking: Boolean? = null,
+    // Optional weekly schedule: 7 entries Mon..Sun, each a plan id / cardio id /
+    // "rest" / "" (auto). When any slot is set, "next workout" follows the week.
+    val schedule: List<String>? = null,
+    val healthKit: Boolean? = null
 ) {
     val langCode: String get() = if (language == "it" || language == "en") language!! else "it"
     val didOnboard: Boolean get() = onboarded == true
@@ -270,6 +275,10 @@ data class Prefs(
             return Math.round(208 - 0.7 * (age ?: 30)).toInt()
         }
     val restHRorDefault: Int get() = restingHR?.takeIf { it > 0 } ?: 60
+    val healthKitEnabled: Boolean get() = healthKit == true
+    /** Schedule normalized to exactly 7 slots (Mon..Sun); missing -> all empty. */
+    val weekSchedule: List<String> get() = schedule?.takeIf { it.size == 7 } ?: List(7) { "" }
+    val hasSchedule: Boolean get() = weekSchedule.any { it.isNotEmpty() && it != "rest" }
 }
 
 // MARK: - The whole persisted document

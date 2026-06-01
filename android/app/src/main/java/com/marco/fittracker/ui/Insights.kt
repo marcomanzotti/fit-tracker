@@ -38,8 +38,11 @@ import com.marco.fittracker.data.GoalMode
 import com.marco.fittracker.data.ProgKind
 import com.marco.fittracker.data.TrendResult
 import com.marco.fittracker.data.acwr
+import com.marco.fittracker.data.adherence
+import com.marco.fittracker.data.dailyLoadSeries
 import com.marco.fittracker.data.energyAvailability
 import com.marco.fittracker.data.energyTargets
+import com.marco.fittracker.data.fmtShort
 import com.marco.fittracker.data.progression
 import com.marco.fittracker.data.readiness
 import com.marco.fittracker.data.t
@@ -124,6 +127,41 @@ fun ReadinessCard() {
         } else {
             Text(t("load.need_data"), color = T.sub, fontSize = 12.sp)
         }
+        // Advanced: DFA-alpha1 aerobic threshold (deferred, clearly labeled)
+        Spacer(Modifier.height(10.dp))
+        Box(Modifier.fillMaxWidth().height(1.dp).background(T.brd))
+        Spacer(Modifier.height(10.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(t("metric.dfa"), color = T.sub, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+            Spacer(Modifier.width(4.dp))
+            InfoButton("dfa")
+            Spacer(Modifier.weight(1f))
+            Text(t("metric.dfa_soon"), color = T.sub, fontSize = 9.sp, textAlign = androidx.compose.ui.text.style.TextAlign.End)
+        }
+    }
+}
+
+// MARK: - Internal-load trend (visual bar chart of daily sRPE/TRIMP)
+@Composable
+fun LoadTrendCard() {
+    val store = LocalStore.current
+    val series = store.dailyLoadSeries(14)
+    if (series.none { it.load > 0 }) return
+    val acwr = store.acwr()
+    Card {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Lbl(t("load.trend_title"), T.acc2)
+            Spacer(Modifier.width(5.dp))
+            InfoButton("load", T.acc2)
+            Spacer(Modifier.weight(1f))
+            acwr.ratio?.let { Text("ACWR ${trimNum(it)}", color = zoneColor(acwr.zone), fontSize = 11.sp, fontWeight = FontWeight.SemiBold) }
+        }
+        Spacer(Modifier.height(12.dp))
+        BarChart(
+            xLabels = series.map { fmtShort(it.date) },
+            values = series.map { it.load },
+            color = zoneColor(acwr.zone)
+        )
     }
 }
 
@@ -173,6 +211,7 @@ fun NutritionCard() {
     val e = store.energyTargets()
     val trend = store.weightTrend()
     val lea = store.energyAvailability()
+    val adh = store.adherence()
     val modeKey = when (e.mode) { GoalMode.CUT -> "nut.cut"; GoalMode.BULK -> "nut.bulk"; else -> "nut.maintain" }
     Card(accent = T.acc) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -180,6 +219,10 @@ fun NutritionCard() {
             Spacer(Modifier.width(5.dp))
             InfoButton("tdee", T.acc2)
             Spacer(Modifier.weight(1f))
+            if (e.adaptive) {
+                Badge(t("nut.adaptive"), T.good, T.good.copy(alpha = 0.14f))
+                Spacer(Modifier.width(6.dp))
+            }
             Text(t(modeKey).uppercase(), color = T.acc, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
         }
         Spacer(Modifier.height(12.dp))
@@ -222,21 +265,48 @@ fun NutritionCard() {
                 InfoButton("lea", if (lea.risk == "risk") T.red else T.acc2)
             }
         }
+        // Adherence (2-3 week consistency driving the adaptive target)
+        if (adh.status != "none") {
+            Spacer(Modifier.height(10.dp))
+            Box(Modifier.fillMaxWidth().height(1.dp).background(T.brd))
+            Spacer(Modifier.height(10.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(t("nut.adherence"), color = T.sub, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                Spacer(Modifier.width(4.dp))
+                InfoButton("adherence")
+            }
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                RowScopeStatTile(t("nut.logging"), "${Math.round(adh.loggingPct * 100)}", "%",
+                    valueColor = if (adh.status == "low_logging") T.acc2 else T.good, modifier = Modifier.weight(1f))
+                RowScopeStatTile(t("nut.steps_avg"), adh.avgSteps?.let { "$it" } ?: "—",
+                    valueColor = T.blue, info = "steps", modifier = Modifier.weight(1f))
+                RowScopeStatTile(t("nut.vol_sessions"), "${adh.sessions}", modifier = Modifier.weight(1f))
+            }
+            if (adh.status == "low_logging") {
+                Spacer(Modifier.height(8.dp))
+                Text(t("nut.low_logging"), color = T.acc2, fontSize = 10.sp)
+            }
+        }
         Spacer(Modifier.height(8.dp))
         Text(t("nut.who_note"), color = T.sub, fontSize = 9.sp)
     }
 }
 
-private fun trendText(tr: TrendResult): String = when (tr.status) {
-    "ok" -> t("nut.trend_ok"); "fast" -> t("nut.trend_fast")
-    "slow" -> t("nut.trend_slow"); "wrong" -> t("nut.trend_wrong"); else -> ""
+private fun trendText(tr: TrendResult): String {
+    var s = when (tr.status) {
+        "ok" -> t("nut.trend_ok"); "fast" -> t("nut.trend_fast")
+        "slow" -> t("nut.trend_slow"); "wrong" -> t("nut.trend_wrong"); else -> ""
+    }
+    if (tr.kcalAdjust != 0) s += " · ${t("nut.adjust_pre")} ${tr.kcalAdjust} kcal"
+    return s
 }
 
 // MARK: - Progressive-overload suggestions card
 @Composable
 fun OverloadCard() {
     val store = LocalStore.current
-    val plan = store.nextPlan() ?: return
+    val plan = store.nextStrengthPlan() ?: return
     val items = plan.exercises.mapNotNull { ex ->
         store.progression(plan.id, ex.name)?.let { ex.name to it }
     }.filter { it.second == ProgKind.ADD_LOAD || it.second == ProgKind.ADD_REPS }

@@ -178,6 +178,54 @@ object L {
         "sport.walking" to ("Camminata" to "Walking"),
         "sport.other" to ("Altro" to "Other"),
 
+        // --- Goal editor ---
+        "goal.change" to ("Cambia obiettivo" to "Change goal"),
+        "goal.title" to ("Modifica obiettivo" to "Edit goal"),
+        "goal.hint" to ("L'obiettivo resta fisso finché non lo cambi qui. Il peso iniziale è il punto di partenza dei progressi." to
+            "Your goal stays fixed until you change it here. Start weight is the baseline your progress is measured from."),
+        "goal.start_weight" to ("Peso iniziale (kg)" to "Start weight (kg)"),
+        "goal.saved" to ("Obiettivo aggiornato" to "Goal updated"),
+        "ob.goal_weight" to ("Peso obiettivo (kg)" to "Goal weight (kg)"),
+        "ob.rate" to ("Ritmo (kg/sett)" to "Rate (kg/wk)"),
+
+        // --- Weekly plan / next workout ---
+        "plan.week" to ("Piano settimanale" to "Weekly plan"),
+        "plan.week_hint" to ("Assegna un allenamento a ogni giorno. Il prossimo allenamento seguirà quest'ordine. Lascia vuoto per la rotazione automatica." to
+            "Assign a workout to each day. The next workout follows this order. Leave empty for automatic rotation."),
+        "plan.rest" to ("Riposo" to "Rest"),
+        "plan.auto" to ("Automatico" to "Auto"),
+        "plan.rotation" to ("Rotazione automatica" to "Automatic rotation"),
+        "plan.scheduled" to ("Da piano settimanale" to "From weekly plan"),
+        "plan.clear" to ("Azzera piano" to "Clear plan"),
+        "plan.today" to ("Oggi" to "Today"),
+        "plan.saved" to ("Piano salvato" to "Plan saved"),
+
+        // --- Train page hint ---
+        "wk.edit_hint" to ("Tocca Modifica su un giorno per rinominarlo, cambiarne colore ed esercizi o eliminarlo. Anche i giorni predefiniti sono completamente personalizzabili." to
+            "Tap Edit on a day to rename it, change its color and exercises, or delete it. The default days are fully customizable too."),
+        "wk.edit" to ("Modifica" to "Edit"),
+        "wk.exercises_n" to ("esercizi" to "exercises"),
+        "wk.day" to ("Giorno" to "Day"),
+
+        // --- Adherence / adaptive nutrition ---
+        "nut.adaptive" to ("Adattivo" to "Adaptive"),
+        "nut.adherence" to ("Costanza" to "Adherence"),
+        "nut.logging" to ("Dieta tracciata" to "Nutrition logged"),
+        "nut.steps_avg" to ("Passi medi" to "Avg steps"),
+        "nut.vol_sessions" to ("Allenamenti (2 sett.)" to "Workouts (2 wks)"),
+        "nut.low_logging" to ("Traccia la dieta più spesso per stime più precise" to "Log nutrition more often for sharper estimates"),
+        "nut.adjust_pre" to ("Aggiusta di" to "Adjust by"),
+
+        // --- Health data sources / metrics ---
+        "hk.optional_note" to ("Questi dati non sono obbligatori ma migliorano prontezza, carico e nutrizione." to
+            "This data is not required but improves readiness, load and nutrition."),
+        "hk.android_note" to ("Su Android inserisci questi dati a mano. L'import automatico (Health Connect) arriverà più avanti." to
+            "On Android enter this data by hand. Automatic import (Health Connect) is coming later."),
+        "lbl.steps" to ("Passi" to "Steps"),
+        "metric.dfa" to ("DFA-alpha1 (soglia aerobica)" to "DFA-alpha1 (aerobic threshold)"),
+        "metric.dfa_soon" to ("Richiede una fascia cardio Bluetooth · in arrivo" to "Needs a Bluetooth chest strap · coming soon"),
+        "load.trend_title" to ("Andamento carico · 14 giorni" to "Load trend · 14 days"),
+
         // --- Info popups (scientific metrics) ---
         "info.readiness.title" to ("Prontezza (HRV)" to "Readiness (HRV)"),
         "info.readiness.body" to (
@@ -238,7 +286,43 @@ object L {
         "info.calories.title" to ("Calorie bruciate" to "Calories burned"),
         "info.calories.body" to (
             "Stima dell'energia spesa dai tuoi dati (peso, età, sesso). Con FC media usiamo la formula di Keytel; per il cardio senza FC i MET × peso × durata; per la forza una stima da volume e serie. È un'approssimazione, non una misura da metabolimetro." to
-            "Estimate of energy spent from your profile (weight, age, sex). With avg HR we use the Keytel formula; for cardio without HR the activity METs × weight × duration; for strength a volume/sets estimate. It's an approximation, not a lab measurement.")
+            "Estimate of energy spent from your profile (weight, age, sex). With avg HR we use the Keytel formula; for cardio without HR the activity METs × weight × duration; for strength a volume/sets estimate. It's an approximation, not a lab measurement."),
+        "info.trimp.title" to ("TRIMP" to "TRIMP"),
+        "info.trimp.body" to (
+            "Training Impulse (Banister): pesa la durata con la frequenza cardiaca di riserva e un fattore esponenziale diverso per uomo e donna. Richiede FC media e durata, oltre a FC a riposo e massima del profilo. Più preciso dell'sRPE per il cardio." to
+            "Training Impulse (Banister): weights duration by heart-rate reserve and a sex-specific exponential factor. Needs avg HR and duration, plus your resting and max HR. More precise than sRPE for cardio."),
+        "info.rmssd.title" to ("RMSSD (HRV)" to "RMSSD (HRV)"),
+        "info.rmssd.body" to (
+            "L'RMSSD è la principale misura di variabilità della frequenza cardiaca (HRV): la radice della media dei quadrati delle differenze tra battiti consecutivi (intervalli R-R), in millisecondi. Riflette il recupero del sistema nervoso parasimpatico. Misuralo al mattino, da sdraiato, sempre allo stesso modo, con un'app HRV o una fascia cardio, e inseriscilo qui. L'app lo trasforma nel punteggio di Prontezza." to
+            "RMSSD is the main heart-rate variability (HRV) metric: the root mean square of successive differences between consecutive heartbeats (R-R intervals), in milliseconds. It reflects parasympathetic (recovery) activity. Measure it in the morning, lying down, the same way each time, with an HRV app or chest strap, and enter it here. The app turns it into your Readiness score."),
+        "info.dfa.title" to ("DFA-alpha1 (soglia aerobica)" to "DFA-alpha1 (aerobic threshold)"),
+        "info.dfa.body" to (
+            "La DFA-alpha1 è un indice dall'analisi frattale degli intervalli R-R durante la corsa. Quando scende verso 0,75 segnala la prima soglia aerobica, stimabile senza test di laboratorio. Richiede un flusso continuo e accurato di intervalli R-R battito-battito da una fascia cardiaca Bluetooth, quindi arriverà con il supporto Bluetooth. La FC da polso non è abbastanza precisa." to
+            "DFA-alpha1 is an index from fractal analysis of R-R intervals during running. When it drops toward 0.75 it marks the first aerobic threshold, estimable without a lab test. It needs a continuous, accurate beat-to-beat R-R stream from a Bluetooth chest strap, so it's coming with Bluetooth support. Wrist HR is not precise enough."),
+        "info.weekplan.title" to ("Piano settimanale" to "Weekly plan"),
+        "info.weekplan.body" to (
+            "Decide quale sarà il prossimo allenamento. Senza piano, l'app ruota tra i giorni nell'ordine della pagina Allena (dopo Push viene Pull, ecc., poi ricomincia). Col piano settimanale assegni a ogni giorno un allenamento, un'attività cardio o riposo: il prossimo seguirà l'ordine che preferisci (es. Lunedì Push, Martedì Corsa, Giovedì Pull…). Lascia vuoto per la rotazione automatica." to
+            "Decides your next workout. Without a plan, the app rotates through your days in the Train-page order (after Push comes Pull, etc., then loops). With the weekly plan you assign each weekday a workout, a cardio activity or rest: the next one follows the order you prefer (e.g. Monday Push, Tuesday Running, Thursday Pull…). Leave empty for automatic rotation."),
+        "info.adherence.title" to ("Costanza & TDEE adattivo" to "Adherence & adaptive TDEE"),
+        "info.adherence.body" to (
+            "Le calorie obiettivo non si basano solo sul peso. Con abbastanza giorni di dieta e peso tracciati, l'app calcola il mantenimento reale (TDEE adattivo) = calorie medie assunte − energia implicata dal trend di peso. Così impara la tua spesa vera. Considera anche costanza, passi medi e volume di allenamento delle ultime 2-3 settimane." to
+            "Your calorie target isn't based on weight alone. With enough days of logged nutrition and weight, the app computes your real maintenance (adaptive TDEE) = average intake − the energy implied by your weight trend. So it learns your true expenditure. It also considers logging consistency, average steps and training volume over the last 2-3 weeks."),
+        "info.steps.title" to ("Passi" to "Steps"),
+        "info.steps.body" to (
+            "I passi giornalieri misurano l'attività non sportiva (NEAT), che incide molto sul dispendio totale. Inseriscili a mano. Servono a valutare la costanza di movimento e a rendere più precise le stime caloriche adattive." to
+            "Daily steps measure non-exercise activity (NEAT), which heavily affects total expenditure. Enter them by hand. They help gauge how consistently you move and sharpen the adaptive calorie estimates."),
+        "info.sleep.title" to ("Punteggio sonno" to "Sleep score"),
+        "info.sleep.body" to (
+            "Un punteggio 0-100 di quanto bene hai dormito (durata e qualità percepita). Il sonno è tra i fattori più importanti per recupero, prestazione e composizione corporea. Inseriscilo ogni mattina col peso." to
+            "A 0-100 score of how well you slept (duration and perceived quality). Sleep is one of the biggest drivers of recovery, performance and body composition. Log it each morning with your weight."),
+        "info.goal.title" to ("Obiettivo & progressi" to "Goal & progress"),
+        "info.goal.body" to (
+            "Il tuo obiettivo (peso e grasso) è fissato al primo accesso e NON cambia a ogni check-in: resta stabile finché non lo modifichi col pulsante Cambia obiettivo. La barra parte dal peso iniziale e arriva all'obiettivo. Il numero a sinistra è il peso attuale, che cambia a ogni pesata: è normale, l'obiettivo a destra resta fisso." to
+            "Your goal (weight and body fat) is set at first launch and does NOT change at every check-in: it stays fixed until you change it with the Change goal button. The bar runs from start weight to goal. The left number is your current weight, which changes with each weigh-in: that's normal, the goal on the right stays put."),
+        "info.streak.title" to ("Striscia" to "Streak"),
+        "info.streak.body" to (
+            "I giorni consecutivi con un check-in o un allenamento. La striscia resta attiva per tutta la giornata di oggi: non si azzera solo perché non hai ancora fatto il check-in. Si interrompe solo quando passa un giorno intero senza check-in né allenamento." to
+            "The consecutive days you've done a check-in or workout. The streak stays active all of today: it doesn't reset just because you haven't checked in yet. It only breaks once a full day passes with no check-in and no workout.")
     )
 }
 

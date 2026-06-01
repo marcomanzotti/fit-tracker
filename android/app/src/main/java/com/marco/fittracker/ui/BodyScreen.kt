@@ -37,6 +37,7 @@ import com.marco.fittracker.data.BodyEntry
 import com.marco.fittracker.data.fmtShort
 import com.marco.fittracker.data.measureFields
 import com.marco.fittracker.data.pf
+import com.marco.fittracker.data.t
 import com.marco.fittracker.data.today
 import com.marco.fittracker.data.trimNum
 
@@ -50,6 +51,14 @@ fun BodyScreen() {
     var sleepInput by remember { mutableStateOf("") }
     var bfInput by remember { mutableStateOf("") }
     val measInputs = remember { mutableStateMapOf<String, String>() }
+    // Nutrition & recovery (feeds the energy + readiness engines)
+    var kcalInput by remember { mutableStateOf("") }
+    var proteinInput by remember { mutableStateOf("") }
+    var carbsInput by remember { mutableStateOf("") }
+    var fatInput by remember { mutableStateOf("") }
+    var stepsInput by remember { mutableStateOf("") }
+    var rmssdInput by remember { mutableStateOf("") }
+    var restHRInput by remember { mutableStateOf("") }
 
     val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) {
@@ -83,6 +92,44 @@ fun BodyScreen() {
                 store.saveCheckIn(if (hasW) w else null, if (hasS) Math.round(s).toInt() else null)
                 weightInput = ""; sleepInput = ""; toast.show("Check-in salvato")
             }
+        }
+    }
+
+    // Nutrition & recovery (feeds the energy + readiness engines)
+    Card {
+        Lbl(t("nut.intake_today"), T.acc2)
+        Spacer(Modifier.height(10.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            LabeledField("KCAL", "2400", kcalInput, { kcalInput = it }, Modifier.weight(1f))
+            LabeledField("${t("nut.protein")} (g)", "180", proteinInput, { proteinInput = it }, Modifier.weight(1f))
+        }
+        Spacer(Modifier.height(10.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            LabeledField("${t("nut.carbs")} (g)", "250", carbsInput, { carbsInput = it }, Modifier.weight(1f))
+            LabeledField("${t("nut.fat")} (g)", "70", fatInput, { fatInput = it }, Modifier.weight(1f))
+        }
+        Spacer(Modifier.height(10.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            InfoLabeledField(t("lbl.steps").uppercase(), "8000", stepsInput, { stepsInput = it }, "steps", Modifier.weight(1f))
+            InfoLabeledField(t("wk.rmssd"), "65", rmssdInput, { rmssdInput = it }, "rmssd", Modifier.weight(1f))
+        }
+        Spacer(Modifier.height(10.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            LabeledField(t("ob.rest_hr"), "58", restHRInput, { restHRInput = it }, Modifier.weight(1f))
+            Spacer(Modifier.weight(1f))
+        }
+        Spacer(Modifier.height(10.dp))
+        Text(t("hk.android_note"), color = T.sub, fontSize = 10.sp, lineHeight = 14.sp)
+        Spacer(Modifier.height(10.dp))
+        FilledButton(t("save")) {
+            fun dn(s: String): Double? = if (s.isBlank()) null else pf(s)
+            store.saveDailyExtras(
+                kcal = kcalInput.toIntOrNull(), protein = dn(proteinInput), carbs = dn(carbsInput),
+                fat = dn(fatInput), steps = stepsInput.toIntOrNull(), rmssd = dn(rmssdInput), restHR = restHRInput.toIntOrNull()
+            )
+            kcalInput = ""; proteinInput = ""; carbsInput = ""; fatInput = ""
+            stepsInput = ""; rmssdInput = ""; restHRInput = ""
+            toast.show(t("save"))
         }
     }
 
@@ -175,6 +222,19 @@ fun BodyScreen() {
             GhostButton("Esporta JSON") { shareExport(context, store) }
             GhostButton("Importa JSON") { importLauncher.launch("application/json") }
         }
+    }
+}
+
+@Composable
+private fun InfoLabeledField(label: String, ph: String, value: String, onChange: (String) -> Unit, info: String, modifier: Modifier = Modifier) {
+    Column(modifier) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(label, color = T.sub, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
+            Spacer(Modifier.width(4.dp))
+            InfoButton(info)
+        }
+        Spacer(Modifier.height(6.dp))
+        InputField(value, onChange, ph)
     }
 }
 

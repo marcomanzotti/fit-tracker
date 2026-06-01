@@ -55,11 +55,11 @@ fun HomeScreen(onTab: (Tab) -> Unit) {
 
     var weightInput by remember { mutableStateOf("") }
     var sleepInput by remember { mutableStateOf("") }
+    var editingGoal by remember { mutableStateOf(false) }
 
     val lw = store.lastWeight
     val bmi = store.bmi(lw)
     val cat = bmiCategory(bmi)
-    val ws = store.sortedDaily.filter { it.weight != null }
 
     // Check-in
     if (!store.hasCheckedIn()) {
@@ -103,28 +103,64 @@ fun HomeScreen(onTab: (Tab) -> Unit) {
     // Key stats
     Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
         RowScopeStatTile(t("home.weight"), trimNum(lw), "kg", note = "BMI ${trimNum(bmi)} · ${cat.first}", info = "bmi", modifier = Modifier.weight(1f))
-        RowScopeStatTile(t("home.streak"), "${store.streak}", valueColor = T.acc, note = if (store.streak == 1) t("home.day") else t("home.days"), modifier = Modifier.weight(1f))
+        RowScopeStatTile(t("home.streak"), "${store.streak}", valueColor = T.acc, note = if (store.streak == 1) t("home.day") else t("home.days"), info = "streak", modifier = Modifier.weight(1f))
         RowScopeStatTile(t("home.sessions"), "${store.sessions.size}", valueColor = T.blue, note = t("home.total"), modifier = Modifier.weight(1f))
     }
 
     // Sporty week-activity strip
     WeekStrip()
 
-    // Goals
+    // Next workout (schedule-aware: strength plan or cardio activity)
+    store.nextUp()?.let { item ->
+        val pc = hexColor(item.color)
+        Card(accent = pc, modifier = Modifier.clickable { onTab(Tab.ALLENA) }) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Lbl(t("home.next_workout"))
+                        Spacer(Modifier.width(6.dp))
+                        Text("· " + (if (store.prefs.hasSchedule) t("plan.scheduled") else t("plan.rotation")),
+                            color = T.sub, fontSize = 8.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                    Spacer(Modifier.height(6.dp))
+                    Text(item.name.uppercase(), color = pc, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                    if (item.sub.isNotEmpty()) {
+                        Spacer(Modifier.height(5.dp))
+                        Text(item.sub + (if (item is com.marco.fittracker.data.Store.NextItem.Plan) " · ${item.plan.exercises.size} ${t("home.exercises")}" else ""),
+                            color = T.sub, fontSize = 11.sp)
+                    }
+                }
+                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = T.sub)
+            }
+        }
+    }
+
+    // Weekly plan
+    WeeklyPlanCard()
+
+    // Goals (locked; only changes via the Change Goal button)
     run {
         val p = store.prefs
-        // Bidirectional: progress from start weight toward the goal, loss or gain.
         val denom = p.goalWeight - p.startWeight
         val wtPct = if (kotlin.math.abs(denom) < 0.1) 1.0 else ((lw - p.startWeight) / denom).coerceIn(0.0, 1.0)
         val bf = store.currentBF
         val bfPct = bf?.let { ((it - p.goalBF) / maxOf(0.1, 35 - p.goalBF)).coerceIn(0.0, 1.0) }
         Card {
-            Lbl("Obiettivi", T.acc2)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Lbl(t("home.goals"), T.acc2)
+                Spacer(Modifier.width(5.dp))
+                InfoButton("goal", T.acc2)
+                Spacer(Modifier.weight(1f))
+                Text(t("goal.change").uppercase(), color = T.acc, fontSize = 9.sp, fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.clip(RoundedCornerShape(20.dp)).background(T.acc.copy(alpha = 0.10f))
+                        .border(1.dp, T.acc.copy(alpha = 0.5f), RoundedCornerShape(20.dp))
+                        .clickable { editingGoal = true }.padding(vertical = 6.dp, horizontal = 10.dp))
+            }
             Spacer(Modifier.height(12.dp))
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 Column(Modifier.weight(1f)) {
                     Row {
-                        Text("Peso", color = T.sub, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                        Text(t("home.weight"), color = T.sub, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                         Spacer(Modifier.weight(1f))
                         Text("${trimNum(lw)} → ${trimNum(p.goalWeight)} kg", color = T.acc, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                     }
@@ -133,7 +169,7 @@ fun HomeScreen(onTab: (Tab) -> Unit) {
                     if (bf != null && bfPct != null) {
                         Spacer(Modifier.height(12.dp))
                         Row {
-                            Text("Grasso", color = T.sub, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                            Text(t("home.fat"), color = T.sub, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                             Spacer(Modifier.weight(1f))
                             Text("${trimNum(bf)}% → ${trimNum(p.goalBF)}%", color = T.red, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                         }
@@ -146,56 +182,14 @@ fun HomeScreen(onTab: (Tab) -> Unit) {
         }
     }
 
-    // Next workout
-    store.nextPlan()?.let { p ->
-        val pc = hexColor(p.color)
-        Card(accent = pc, modifier = Modifier.clickable { onTab(Tab.ALLENA) }) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Lbl("Prossimo allenamento")
-                    Spacer(Modifier.height(6.dp))
-                    Text(p.name.uppercase(), color = pc, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.height(5.dp))
-                    Text("${p.sub} · ${p.exercises.size} esercizi", color = T.sub, fontSize = 11.sp)
-                }
-                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = T.sub)
-            }
-        }
-    }
-
-    // Training-science insight cards
-    OverloadCard()
+    // Scientific dashboard (visual + data, with info popups)
     ReadinessCard()
     LoadCard()
+    LoadTrendCard()
+    OverloadCard()
     NutritionCard()
 
-    // Weight chart
-    if (ws.size > 1) {
-        val data = ws.takeLast(14)
-        Card {
-            Lbl(t("home.weight14"))
-            Spacer(Modifier.height(8.dp))
-            LineChart(
-                xLabels = data.map { fmtShort(it.date) },
-                series = listOf(Series(t("home.weight"), T.acc, data.map { it.weight })),
-                fill = true, points = true
-            )
-        }
-    }
-
-    // Week comparison
-    run {
-        val wk0 = store.weekStats(0)
-        val wk1 = store.weekStats(1)
-        val totalVol = store.sessions.sumOf { it.volume }
-        Card {
-            Lbl(t("home.week_cmp"))
-            Spacer(Modifier.height(4.dp))
-            CompRow(t("home.avg_weight"), wk0.avgWeight?.let { "${trimNum(it)} kg" } ?: "—", wk1.avgWeight?.let { "${trimNum(it)} ${t("home.prev")}" } ?: "—")
-            CompRow(t("home.workouts"), "${wk0.sessions}", "${wk1.sessions} ${t("home.prev")}")
-            CompRow(t("home.total_volume"), "${totalVol.toInt()} kg", t("home.lifetime"))
-        }
-    }
+    if (editingGoal) GoalEditorDialog { editingGoal = false }
 
     // Backup
     Row(

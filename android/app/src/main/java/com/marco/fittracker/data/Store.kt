@@ -107,28 +107,81 @@ class Store(app: Application) : AndroidViewModel(app) {
 
     fun hasCheckedIn(): Boolean = daily.any { it.date == today() && it.weight != null }
 
+    /** Consecutive days with a check-in or workout. Today is a grace period: the
+     *  streak stays alive all day even before today's check-in, and only breaks
+     *  after a full day has passed with nothing logged. */
     val streak: Int
         get() {
             val dates = HashSet<String>()
             daily.forEach { dates.add(it.date) }
             sessions.forEach { dates.add(it.date) }
-            var n = 0
             var d = LocalDate.now()
-            repeat(365) {
+            if (!dates.contains(d.toString())) d = d.minusDays(1)   // today still open
+            var n = 0
+            repeat(400) {
                 val s = d.toString()
                 if (dates.contains(s)) { n += 1; d = d.minusDays(1) } else return n
             }
             return n
         }
 
-    /** Next plan to train, cycling through the plan list after the most recent session. */
-    fun nextPlan(): WorkoutPlan? {
+    // MARK: - Next workout (schedule-aware)
+    /** What to train next: a strength plan or a cardio activity. */
+    sealed class NextItem {
+        data class Plan(val plan: WorkoutPlan) : NextItem()
+        data class Cardio(val cardio: CardioType) : NextItem()
+        val name: String get() = when (this) { is Plan -> plan.name; is Cardio -> cardio.name }
+        val color: String get() = when (this) { is Plan -> plan.color; is Cardio -> cardio.color }
+        val sub: String get() = when (this) { is Plan -> plan.sub; is Cardio -> cardio.sportType.label() }
+        val isCardio: Boolean get() = this is Cardio
+    }
+
+    private fun scheduleItem(id: String): NextItem? {
+        if (id.isEmpty() || id == "rest") return null
+        plans.firstOrNull { it.id == id }?.let { return NextItem.Plan(it) }
+        cardioTypes.firstOrNull { it.id == id }?.let { return NextItem.Cardio(it) }
+        return null
+    }
+
+    /** The next thing to train (schedule first, else rotation). */
+    fun nextUp(): NextItem? {
+        if (prefs.hasSchedule) {
+            val sched = prefs.weekSchedule
+            val now = LocalDate.now()
+            val todayMon = (now.dayOfWeek.value - 1).coerceIn(0, 6)   // Monday = 0
+            val trainedToday = sessions.any { it.date == today() }
+            for (off in 0 until 8) {
+                if (off == 0 && trainedToday) continue
+                scheduleItem(sched[(todayMon + off) % 7])?.let { return it }
+            }
+            return null
+        }
+        return nextPlanRotation()?.let { NextItem.Plan(it) }
+    }
+
+    /** Next strength plan only (used by progressive-overload suggestions). */
+    fun nextStrengthPlan(): WorkoutPlan? {
+        if (prefs.hasSchedule) (nextUp() as? NextItem.Plan)?.let { return it.plan }
+        return nextPlanRotation()
+    }
+
+    /** Rotation: the plan after the most recent session's plan, looping. */
+    fun nextPlanRotation(): WorkoutPlan? {
         if (plans.isEmpty()) return null
         val last = sessions.sortedByDescending { it.date }.firstOrNull() ?: return plans.first()
         val idx = plans.indexOfFirst { it.id == last.planId }
         if (idx < 0) return plans.first()
         return plans[(idx + 1) % plans.size]
     }
+
+    fun setSchedule(weekday: Int, id: String) {
+        if (weekday !in 0..6) return
+        val s = prefs.weekSchedule.toMutableList()
+        s[weekday] = id
+        val keep = s.any { it.isNotEmpty() && it != "rest" }
+        updatePrefs(prefs.copy(schedule = if (keep) s else null))
+    }
+    fun clearSchedule() { updatePrefs(prefs.copy(schedule = null)) }
 
     fun exercisePR(name: String): Double {
         var mx = 0.0
@@ -192,14 +245,14 @@ class Store(app: Application) : AndroidViewModel(app) {
     fun saveDailyExtras(
         kcal: Int? = null, protein: Double? = null, carbs: Double? = null,
         fat: Double? = null, salt: Double? = null, steps: Int? = null,
-        rmssd: Double? = null, restHR: Int? = null
+        rmssd: Double? = null, restHR: Int? = null, hrvSDNN: Double? = null
     ) {
         val t = today()
         val e = daily.firstOrNull { it.date == t } ?: DailyEntry(date = t)
         val ne = e.copy(
             kcal = kcal ?: e.kcal, protein = protein ?: e.protein, carbs = carbs ?: e.carbs,
             fat = fat ?: e.fat, salt = salt ?: e.salt, steps = steps ?: e.steps,
-            rmssd = rmssd ?: e.rmssd, restHR = restHR ?: e.restHR
+            rmssd = rmssd ?: e.rmssd, restHR = restHR ?: e.restHR, hrvSDNN = hrvSDNN ?: e.hrvSDNN
         )
         daily.removeAll { it.date == t }
         daily.add(ne)
