@@ -57,6 +57,7 @@ struct RootView: View {
         }
         .animation(.spring(response: 0.4, dampingFraction: 0.75), value: toast.message)
         .sheet(isPresented: $showSettings) { SettingsView(store: store) }
+        .onAppear { if store.prefs.healthKitEnabled { store.syncHealth() } }
     }
 }
 

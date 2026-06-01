@@ -17,6 +17,7 @@ struct EnergyTargets {
     var saltMax: Double         // g/day (WHO)
     var rateTarget: Double      // kg/week (signed)
     var mode: GoalMode
+    var adaptive: Bool          // true when TDEE was learned from logged data
 }
 
 struct TrendResult {
@@ -36,6 +37,19 @@ struct LEAResult {
     var risk: String
 }
 
+/// Adherence signals over the last ~2-3 weeks that drive a smarter calorie
+/// adjustment than weight alone: how consistently nutrition is logged, average
+/// steps, and training volume.
+struct AdherenceResult {
+    var loggingPct: Double       // 0...1 share of days with kcal logged
+    var avgSteps: Int?           // average daily steps (if any logged)
+    var sessions: Int            // workouts in the window
+    var avgIntake: Int?          // average logged kcal
+    var days: Int                // window length
+    /// "ok" | "low_logging" | "none"
+    var status: String
+}
+
 extension Store {
     // --- Basal & total energy ------------------------------------------------
     func bmr(weight: Double? = nil) -> Double {
@@ -48,6 +62,46 @@ extension Store {
 
     func tdee(weight: Double? = nil) -> Double {
         bmr(weight: weight) * prefs.activityLevel.multiplier
+    }
+
+    /// Data-driven ("adaptive") maintenance estimate: when there are enough days
+    /// of logged intake AND a reliable weight trend, real maintenance ≈ average
+    /// intake − the energy implied by the measured rate of weight change. This is
+    /// the gold-standard adjustment: it learns your true expenditure from your
+    /// own data instead of trusting the activity multiplier. Returns nil until
+    /// there's enough adherence to be trustworthy.
+    func adaptiveTDEE(days: Int = 21) -> Double? {
+        let tr = weightTrend(days: days)
+        guard let rate = tr.ratePerWeek, tr.points >= 8 else { return nil }
+        let cal = Calendar.current
+        let cutoff = cal.date(byAdding: .day, value: -days, to: Date())!
+        let intakes = daily.compactMap { e -> Int? in
+            guard let k = e.kcal, k > 0, let d = isoFormatter.date(from: e.date), d >= cutoff else { return nil }
+            return k
+        }
+        guard intakes.count >= 8 else { return nil }
+        let avgIntake = Double(intakes.reduce(0, +)) / Double(intakes.count)
+        let dailyChangeKcal = rate * 7700 / 7          // energy implied by the trend
+        return (avgIntake - dailyChangeKcal).rounded()
+    }
+
+    /// Adherence over a 2-3 week window: logging consistency, steps, volume.
+    func adherence(days: Int = 14) -> AdherenceResult {
+        let cal = Calendar.current
+        let cutoff = cal.date(byAdding: .day, value: -days, to: Date())!
+        func recent(_ ds: String) -> Bool { (isoFormatter.date(from: ds) ?? .distantPast) >= cutoff }
+        let logged = daily.filter { recent($0.date) && ($0.kcal ?? 0) > 0 }
+        let stepVals = daily.compactMap { e -> Int? in recent(e.date) ? (e.steps.flatMap { $0 > 0 ? $0 : nil }) : nil }
+        let sess = sessions.filter { recent($0.date) }.count
+        let loggingPct = Double(logged.count) / Double(days)
+        let avgSteps = stepVals.isEmpty ? nil : stepVals.reduce(0, +) / stepVals.count
+        let avgIntake = logged.isEmpty ? nil : logged.compactMap { $0.kcal }.reduce(0, +) / logged.count
+        let status: String
+        if logged.isEmpty { status = "none" }
+        else if loggingPct < 0.5 { status = "low_logging" }
+        else { status = "ok" }
+        return AdherenceResult(loggingPct: loggingPct, avgSteps: avgSteps, sessions: sess,
+                               avgIntake: avgIntake, days: days, status: status)
     }
 
     /// Target kg/week (signed). User value wins, else derived from goal mode.
@@ -64,7 +118,10 @@ extension Store {
 
     func energyTargets() -> EnergyTargets {
         let w = lastWeight
-        let td = tdee(weight: w)
+        // Prefer the data-driven maintenance once enough has been logged; this is
+        // the adherence-driven part: the target follows your real expenditure.
+        let adaptive = adaptiveTDEE()
+        let td = adaptive ?? tdee(weight: w)
         let rate = targetRate()                         // kg/week
         let dailyDelta = rate * 7700 / 7                // ~7700 kcal per kg
         var target = td + dailyDelta
@@ -91,7 +148,8 @@ extension Store {
             carbHigh: carbHigh, carbLow: carbLow,
             saltMax: 5,                                 // WHO recommendation
             rateTarget: (rate * 100).rounded() / 100,
-            mode: mode
+            mode: mode,
+            adaptive: adaptive != nil
         )
     }
 

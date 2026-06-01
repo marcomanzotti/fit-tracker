@@ -217,15 +217,18 @@ struct OnboardingView: View {
 // MARK: - Settings / edit profile (sheet)
 struct SettingsView: View {
     @EnvironmentObject var store: Store
+    @EnvironmentObject var toast: ToastCenter
     @Environment(\.dismiss) private var dismiss
     @State private var f: ProfileFields
     @State private var sleepTrack: Bool
     @State private var timerSec: String
+    @State private var hkOn: Bool
 
     init(store: Store) {
         _f = State(initialValue: ProfileFields(store.prefs, currentWeight: store.lastWeight))
         _sleepTrack = State(initialValue: store.prefs.sleepEnabled)
         _timerSec = State(initialValue: String(store.prefs.timer))
+        _hkOn = State(initialValue: store.prefs.healthKitEnabled)
     }
 
     var body: some View {
@@ -259,6 +262,8 @@ struct SettingsView: View {
                         }
                     }
 
+                    healthCard
+
                     BigButton(title: t("save")) { save() }
                         .padding(.bottom, 30)
                 }
@@ -269,10 +274,43 @@ struct SettingsView: View {
         .preferredColorScheme(.dark)
     }
 
+    // MARK: Apple Health (optional data source)
+    private var healthCard: some View {
+        Card {
+            HStack(spacing: 2) {
+                Lbl(text: t("hk.connect"), color: Theme.acc2)
+                InfoButton(id: "steps", color: Theme.acc2)
+                Spacer()
+            }
+            .padding(.bottom, 8)
+            Text(t("hk.hint")).font(.system(size: 11)).foregroundColor(Theme.sub).lineSpacing(3).padding(.bottom, 12)
+            if HealthKitManager.shared.isAvailable {
+                if hkOn {
+                    HStack(spacing: 10) {
+                        Text(t("hk.connected").uppercased()).font(.head(11, .semibold)).tracking(0.5).foregroundColor(Theme.good)
+                        Spacer()
+                        GhostButton(title: t("hk.sync"), color: Theme.acc) {
+                            store.syncHealth { ok in if ok { toast.show(t("hk.synced")) } }
+                        }
+                    }
+                } else {
+                    FilledButton(title: t("hk.connect")) {
+                        store.syncHealth { ok in
+                            if ok { hkOn = true; store.prefs.healthKit = true; toast.show(t("hk.synced")) }
+                        }
+                    }
+                }
+            } else {
+                Text(t("hk.unavailable")).font(.system(size: 12)).foregroundColor(Theme.sub)
+            }
+        }
+    }
+
     private func save() {
         var p = store.prefs
         f.apply(to: &p)
         p.sleepTracking = sleepTrack
+        p.healthKit = hkOn
         if let ts = Int(timerSec), ts > 0 { p.timer = ts }
         store.prefs = p
         store.syncLang()

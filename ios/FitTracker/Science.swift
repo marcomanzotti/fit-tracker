@@ -145,10 +145,16 @@ extension Store {
     /// Reads RMSSD typed into daily check-ins (and sessions), builds a ~60-day
     /// lnRMSSD baseline, returns today's reading as a 0-100 readiness score.
     func readiness() -> ReadinessResult {
-        // collect (date -> rmssd), preferring daily entry, else any session value
-        var map: [String: Double] = [:]
-        for s in sessions { if let r = s.rmssd, r > 0 { map[s.date] = r } }
-        for d in daily { if let r = d.rmssd, r > 0 { map[d.date] = r } }
+        // Collect a single, consistent HRV source. Manual RMSSD is preferred; if
+        // there isn't enough of it, fall back to SDNN imported from Apple Health.
+        // The readiness math is a personal-baseline z-score of ln(HRV), so it works
+        // on either metric as long as one source is used consistently.
+        var rmssdMap: [String: Double] = [:]
+        for s in sessions { if let r = s.rmssd, r > 0 { rmssdMap[s.date] = r } }
+        for d in daily { if let r = d.rmssd, r > 0 { rmssdMap[d.date] = r } }
+        var sdnnMap: [String: Double] = [:]
+        for d in daily { if let h = d.hrvSDNN, h > 0 { sdnnMap[d.date] = h } }
+        let map = rmssdMap.count >= sdnnMap.count ? rmssdMap : sdnnMap
         let pairs = map.filter { $0.value > 0 }.sorted { $0.key < $1.key }
         guard pairs.count >= 1 else {
             return ReadinessResult(score: nil, lnToday: nil, baseline: nil, sd: nil, samples: 0, advice: "none")

@@ -25,6 +25,7 @@ struct DailyEntry: Codable, Identifiable, Equatable {
     // Recovery (optional, manual entry)
     var rmssd: Double?        // HRV RMSSD typed from an external HRV app
     var restHR: Int?          // morning resting heart rate
+    var hrvSDNN: Double?      // HRV SDNN imported from Apple Health (ms)
     var id: String { date }
 }
 
@@ -272,6 +273,12 @@ struct Prefs: Codable, Equatable {
     var restingHR: Int?        // resting HR for TRIMP / zones
     var maxHR: Int?            // measured max HR (else estimated from age)
     var sleepTracking: Bool?   // prompt for sleep score (default true)
+    /// Optional weekly schedule: exactly 7 entries, Monday..Sunday. Each entry is
+    /// a plan id, a cardio-type id, "rest", or "" (auto/none). When any slot is
+    /// assigned, the "next workout" follows this weekday schedule; otherwise it
+    /// falls back to simple rotation through the plan list.
+    var schedule: [String]?
+    var healthKit: Bool?       // user opted into Apple Health import
 
     // Convenience accessors -----------------------------------------------
     var langCode: String {
@@ -296,6 +303,14 @@ struct Prefs: Codable, Equatable {
         return Int((208 - 0.7 * a).rounded())
     }
     var restHRorDefault: Int { (restingHR ?? 0) > 0 ? restingHR! : 60 }
+    var healthKitEnabled: Bool { healthKit == true }
+    /// Schedule normalized to exactly 7 slots (Mon..Sun); missing -> all empty.
+    var weekSchedule: [String] {
+        guard let s = schedule, s.count == 7 else { return Array(repeating: "", count: 7) }
+        return s
+    }
+    /// True when at least one weekday has a real assignment (not "" / "rest").
+    var hasSchedule: Bool { weekSchedule.contains { !$0.isEmpty && $0 != "rest" } }
     /// +1 if the goal is to gain weight, -1 if to lose, 0 if maintain-ish.
     func goalDirection(current: Double) -> Int {
         let diff = goalWeight - current
