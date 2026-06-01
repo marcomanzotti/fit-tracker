@@ -202,45 +202,79 @@ class Store(app: Application) : AndroidViewModel(app) {
         return if (allDone) ex.maxWeight + 2.5 else null
     }
 
-    /** Energy spent in a session (kcal), always using the most precise formula the
-     *  available data allows: 1) manual override; 2) HR-based Keytel; 3) sport-
-     *  specific MET scaled by real speed (distance + duration); 4) sport-specific
-     *  fixed MET (duration only); 5) strength MET / volume heuristic. */
+    /** Energy spent in a session (kcal) as *active* energy (resting baseline
+     *  removed, so it's comparable to a sports watch). Each category has its own
+     *  formula: manual override wins; each aerobic sport has its own speed->MET
+     *  curve refined by avg HR; strength uses avg HR + duration + a small volume
+     *  bump; an unknown custom activity ("other", e.g. padel) uses a generic
+     *  HR + duration estimate. A new activity mapped to an existing sport inherits
+     *  that sport's formula via sportType. */
     fun estimateCalories(s: WorkoutSession): Int {
         s.caloriesManual?.let { if (it > 0) return it }
         val w = lastWeight
-        val hr = s.avgHR; val dur = s.durationMinutesD
-
-        // 2) HR-based (Keytel): most precise.
-        if (hr != null && hr > 0 && dur != null && dur > 0) {
-            val age = (prefs.age ?: 30).toDouble()
-            val perMin = if (prefs.sexCode == "f")
-                (-20.4022 + 0.4472 * hr - 0.1263 * w + 0.074 * age) / 4.184
-            else
-                (-55.0969 + 0.6309 * hr + 0.1988 * w + 0.2017 * age) / 4.184
-            return maxOf(0, (perMin * dur).roundToInt())
+        val dur = s.durationMinutesD
+        if (dur == null || dur <= 0) {
+            // No duration logged: fall back to a strength volume/sets heuristic.
+            return (s.volume * 0.022 + s.totalSets * 3 + 60).roundToInt()
         }
-
-        // 3 & 4) Cardio via per-sport METs, refined by speed when distance known.
-        if (s.sportType.isCardio && dur != null && dur > 0) {
-            val speed = s.distanceKm?.let { it / (dur / 60.0) }   // km/h
-            return (cardioMET(s.sportType, speed) * w * dur / 60).roundToInt()
-        }
-
-        // 5) Strength: MET-based when a duration is logged, else volume heuristic.
-        if (dur != null && dur > 0) return (5.0 * w * dur / 60).roundToInt()
-        return (s.volume * 0.022 + s.totalSets * 3 + 60).roundToInt()
+        val hours = dur / 60.0
+        val speed = s.distanceKm?.let { if (it > 0) it / hours else null }   // km/h
+        val hrr = hrReserve(s.avgHR, s)
+        val met = sportMET(s.sportType, speed, hrr)
+        var kcal = maxOf(1.0, met - 1.0) * w * hours   // active energy
+        if (s.sportType == Sport.STRENGTH) kcal += minOf(90.0, s.volume * 0.008)
+        return maxOf(1, kcal.roundToInt())
     }
 
-    /** Sport-specific MET. Cycling and walking at the same duration burn very
-     *  differently; speed (when a distance is logged) sharpens it further.
-     *  Values follow the Compendium of Physical Activities. */
-    private fun cardioMET(sport: Sport, speedKmh: Double?): Double = when (sport) {
-        Sport.RUNNING -> if (speedKmh != null && speedKmh > 0) maxOf(6.0, 0.95 * speedKmh) else 9.8
-        Sport.CYCLING -> if (speedKmh != null && speedKmh > 0) maxOf(4.0, 0.45 * speedKmh + 0.5) else 7.5
-        Sport.WALKING -> if (speedKmh != null && speedKmh > 0) maxOf(2.0, 0.65 * speedKmh + 1.0) else 3.5
-        Sport.SWIMMING -> if (speedKmh != null && speedKmh > 0) (if (speedKmh > 4) 10.0 else if (speedKmh < 2.5) 6.0 else 8.0) else 8.0
-        else -> 6.0
+    /** HR-reserve fraction (0..1) from profile resting/max HR, or null with no HR. */
+    private fun hrReserve(hr: Int?, s: WorkoutSession): Double? {
+        if (hr == null || hr <= 0) return null
+        val rest = prefs.restHRorDefault.toDouble()
+        val mx = (s.maxHRSes ?: prefs.estMaxHR).toDouble()
+        if (mx <= rest) return null
+        return ((hr - rest) / (mx - rest)).coerceIn(0.0, 1.0)
+    }
+
+    /** Per-category gross MET. Aerobic sports use a speed->MET curve calibrated so
+     *  the active energy stays close to a sports-watch reading (the old HR-only
+     *  Keytel equation badly overestimated, ~1200 kcal for a steady ride). Without
+     *  speed we fall back to an HR-driven estimate, then a moderate fixed MET. */
+    private fun sportMET(sport: Sport, speedKmh: Double?, hrr: Double?): Double = when (sport) {
+        Sport.RUNNING -> when {
+            speedKmh != null && speedKmh > 0 -> maxOf(6.0, 0.95 * speedKmh + 0.5)
+            hrr != null -> 3.0 + 9.0 * hrr
+            else -> 9.5
+        }
+        Sport.CYCLING -> when {
+            speedKmh != null && speedKmh > 0 -> when {
+                speedKmh < 16 -> 3.8
+                speedKmh < 20 -> 5.0      // ~17 km/h leisure -> ~500 kcal active for an 88-min ride
+                speedKmh < 24 -> 6.8
+                speedKmh < 28 -> 8.5
+                speedKmh < 33 -> 10.5
+                else -> 12.5
+            }
+            hrr != null -> 2.5 + 7.0 * hrr
+            else -> 6.0
+        }
+        Sport.WALKING -> when {
+            speedKmh != null && speedKmh > 0 -> when {
+                speedKmh < 3.2 -> 2.5
+                speedKmh < 4.8 -> 3.3
+                speedKmh < 6.4 -> 4.5
+                speedKmh < 8.0 -> 6.0
+                else -> 7.5
+            }
+            hrr != null -> 2.0 + 4.0 * hrr
+            else -> 3.5
+        }
+        Sport.SWIMMING -> when {
+            speedKmh != null && speedKmh > 0 -> if (speedKmh > 4) 10.0 else if (speedKmh < 2.5) 6.0 else 8.3
+            hrr != null -> 4.0 + 7.0 * hrr
+            else -> 8.0
+        }
+        Sport.STRENGTH -> if (hrr != null) 2.8 + 5.5 * hrr else 4.5
+        else -> if (hrr != null) 2.0 + 7.0 * hrr else 6.0
     }
 
     // MARK: Cardio types

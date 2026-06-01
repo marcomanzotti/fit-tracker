@@ -94,8 +94,10 @@ fun Store.loadDataStatus(): LoadDataStatus {
     val loaded = sessions.filter { measuredLoad(it) != null }
     val today = LocalDate.now()
     val dates = loaded.mapNotNull { runCatching { LocalDate.parse(it.date) }.getOrNull() }
+    // Inclusive day span: a single session logged today is 1 day of history, not
+    // 0. Internal load needs an avg HR, so HR-less strength days don't count.
     val span = dates.minOrNull()?.let {
-        java.time.temporal.ChronoUnit.DAYS.between(it, today).toInt()
+        java.time.temporal.ChronoUnit.DAYS.between(it, today).toInt() + 1
     } ?: 0
     val reliable = loaded.size >= needSessions && span >= needDays
     return LoadDataStatus(reliable, loaded.size, span, needSessions, needDays)

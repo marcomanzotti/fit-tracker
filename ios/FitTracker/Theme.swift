@@ -43,6 +43,14 @@ enum Theme {
     /// Separate palette for cardio activity types (kept visually distinct from
     /// the strength-day palette so cardio reads differently on the calendar).
     static let cardioColors = ["4fb8c4", "ff5a52", "7fc950", "b08fff", "ffb000", "53a8ff"]
+    /// Full swatch palette offered in the plan / cardio color pickers. Keeps the
+    /// loved defaults up front, then adds extra bright hues for customization.
+    /// Never includes black or the rest-day off-white, so a sport can't be
+    /// confused with an empty or rest slot.
+    static let sportColors = [
+        "ffe000", "ffb000", "ff8a3d", "ff5a52", "e0556b", "ff5da2", "c47cff",
+        "b08fff", "53a8ff", "4fb8c4", "3dd6c4", "7fc950", "b6e64a", "2ecc8f"
+    ]
 
     static let radius:  CGFloat = 18
     static let radiusS: CGFloat = 12

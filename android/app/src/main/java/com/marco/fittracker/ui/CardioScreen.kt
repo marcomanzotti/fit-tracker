@@ -190,15 +190,7 @@ fun CardioTypeEditorDialog(initial: CardioType, isNew: Boolean, onClose: () -> U
         Spacer(Modifier.height(14.dp))
         Lbl(t("pe.color"))
         Spacer(Modifier.height(8.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            T.cardioColors.forEach { c ->
-                Box(
-                    Modifier.size(30.dp).clip(CircleShape).background(hexColor(c))
-                        .border(if (type.color == c) 2.dp else 0.dp, T.txt, CircleShape)
-                        .clickable { type = type.copy(color = c) }
-                )
-            }
-        }
+        ColorSwatches(type.color) { type = type.copy(color = it) }
         Spacer(Modifier.height(18.dp))
         BigButton(if (isNew) t("add") else t("save")) {
             var ct = type

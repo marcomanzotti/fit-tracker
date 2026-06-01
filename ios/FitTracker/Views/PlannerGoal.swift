@@ -161,8 +161,15 @@ struct WeeklyPlanView: View {
                     }
                 }
             } label: {
-                HStack(spacing: 6) {
-                    Circle().fill(slotColor(cur)).frame(width: 9, height: 9)
+                HStack(spacing: 7) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 5, style: .continuous).fill(slotColor(cur)).frame(width: 18, height: 18)
+                        if cur == "rest" {
+                            Image(systemName: Theme.restIcon).font(.system(size: 9, weight: .bold)).foregroundColor(Theme.bg)
+                        } else if let icon = slotIcon(cur) {
+                            Image(systemName: icon).font(.system(size: 9, weight: .bold)).foregroundColor(Theme.bg)
+                        }
+                    }
                     Text(slotLabel(cur)).font(.system(size: 13, weight: .semibold)).foregroundColor(Theme.txt)
                     Image(systemName: "chevron.down").font(.system(size: 9)).foregroundColor(Theme.sub)
                 }
@@ -187,6 +194,12 @@ struct WeeklyPlanView: View {
         if let p = store.plans.first(where: { $0.id == id }) { return Color(hex: p.color) }
         if let c = store.cardioTypes.first(where: { $0.id == id }) { return Color(hex: c.color) }
         return Theme.brd2
+    }
+    private func slotIcon(_ id: String) -> String? {
+        if id.isEmpty || id == "rest" { return nil }
+        if store.plans.contains(where: { $0.id == id }) { return "dumbbell.fill" }
+        if let c = store.cardioTypes.first(where: { $0.id == id }) { return c.sportType.icon }
+        return nil
     }
 }
 
@@ -220,7 +233,14 @@ struct WeeklyPlanCard: View {
                                 .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous)
                                     .stroke(wd == todayMon ? Theme.acc : Color.clear, lineWidth: 1.5))
                                 .overlay {
+                                    // Colors alone can collide (e.g. swimming and a
+                                    // pull day sharing a hue); show the activity icon
+                                    // too, exactly like rest days show a moon.
                                     if sched[wd] == "rest" { RestChip(size: 11) }
+                                    else if let icon = slotIcon(sched[wd]) {
+                                        Image(systemName: icon).font(.system(size: 13, weight: .bold))
+                                            .foregroundColor(Theme.bg)
+                                    }
                                 }
                         }
                         .frame(maxWidth: .infinity)
@@ -238,5 +258,13 @@ struct WeeklyPlanCard: View {
         if let p = store.plans.first(where: { $0.id == id }) { return Color(hex: p.color) }
         if let c = store.cardioTypes.first(where: { $0.id == id }) { return Color(hex: c.color) }
         return Theme.c3
+    }
+    /// SF Symbol for an assigned slot: a dumbbell for strength plans, the sport
+    /// icon for cardio activities; nil for empty / rest (handled separately).
+    private func slotIcon(_ id: String) -> String? {
+        if id.isEmpty || id == "rest" { return nil }
+        if store.plans.contains(where: { $0.id == id }) { return "dumbbell.fill" }
+        if let c = store.cardioTypes.first(where: { $0.id == id }) { return c.sportType.icon }
+        return nil
     }
 }
