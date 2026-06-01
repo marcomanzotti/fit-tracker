@@ -138,6 +138,9 @@ object L {
         "wk.log_cardio" to ("Registra cardio" to "Log cardio"),
         "wk.est_calories" to ("Calorie stimate" to "Estimated calories"),
         "wk.est_cal_hint" to ("Calcolate dai tuoi dati (peso, età, sesso, FC)." to "Computed from your profile (weight, age, sex, HR)."),
+        "wk.calories" to ("Calorie bruciate" to "Calories burned"),
+        "wk.cal_override" to ("Modifica manuale" to "Manual override"),
+        "wk.cal_hint" to ("Stima dai tuoi dati: con FC più precisa, altrimenti da durata e tipo di attività. Puoi sovrascriverla." to "Estimated from your data: sharper with HR, otherwise from duration and activity type. You can override it."),
 
         "cal.title" to ("Calendario" to "Calendar"),
         "cal.no_sessions" to ("Nessuna sessione questo mese" to "No sessions this month"),
@@ -154,6 +157,11 @@ object L {
         "ob.act_mod" to ("Moderato" to "Moderate"),
         "ob.act_high" to ("Alto" to "High"),
         "ob.act_athlete" to ("Atleta" to "Athlete"),
+        "ob.act_sed_d" to ("Lavoro d'ufficio, nessun allenamento (×1.2)" to "Desk job, no training (×1.2)"),
+        "ob.act_light_d" to ("1-2 allenamenti a settimana (×1.375)" to "1-2 workouts per week (×1.375)"),
+        "ob.act_mod_d" to ("3-4 allenamenti a settimana (×1.55)" to "3-4 workouts per week (×1.55)"),
+        "ob.act_high_d" to ("5-6 allenamenti a settimana (×1.725)" to "5-6 workouts per week (×1.725)"),
+        "ob.act_athlete_d" to ("6-7 + lavoro fisico o doppie sedute (×1.9)" to "6-7 + physical job or 2x/day (×1.9)"),
         "ob.train_days" to ("Giorni/sett" to "Days/week"),
         "ob.rest_hr" to ("FC a riposo" to "Resting HR"),
         "ob.max_hr" to ("FC max" to "Max HR"),
@@ -245,8 +253,12 @@ object L {
             "Week's total load × monotony (Foster). Sums up overall stress: high when you train a lot and monotonously. Spikes often precede overreaching or dips: a good cue for a deload week."),
         "info.load.title" to ("Carico interno" to "Internal load"),
         "info.load.body" to (
-            "Misura lo stress dell'allenamento percepito dal corpo, non i kg sollevati. Lo calcoliamo come TRIMP dalla durata e dalla FC media della sessione. Da qui derivano ACWR, monotonia e strain. Senza durata + FC media una sessione non genera carico interno, quindi queste metriche restano vuote (serve un orologio o una fascia cardio)." to
-            "Measures the training stress your body experiences, not the kilos lifted. We compute it as TRIMP from the session's duration and average heart rate. ACWR, monotony and strain build on it. Without duration + average HR a session produces no internal load, so these stay empty (a watch or chest strap is needed)."),
+            "Misura lo stress dell'allenamento percepito dal corpo, non i kg sollevati. Lo calcoliamo come TRIMP dalla durata e dalla FC media della sessione. Da qui derivano ACWR, monotonia e strain. Senza durata + FC media una sessione non genera carico interno, quindi queste metriche restano vuote (serve un orologio o una fascia cardio). Se hai visto un carico altissimo senza FC, veniva da una vecchia sessione con la valutazione manuale dello sforzo: ora il carico interno si basa solo sulla frequenza cardiaca, quindi non può più gonfiarsi senza di essa." to
+            "Measures the training stress your body experiences, not the kilos lifted. We compute it as TRIMP from the session's duration and average heart rate. ACWR, monotony and strain build on it. Without duration + average HR a session produces no internal load, so these stay empty (a watch or chest strap is needed). If you ever saw a very high load with no HR, that came from an old session's manual effort rating: internal load is now based on heart rate alone, so it can no longer be inflated without it."),
+        "info.activity.title" to ("Livello di attività" to "Activity level"),
+        "info.activity.body" to (
+            "Il livello di attività moltiplica il metabolismo basale (BMR) per stimare le calorie bruciate ogni giorno (TDEE). Più ti muovi e ti alleni, più alto è il moltiplicatore.\n\nSedentario (×1.2): lavoro d'ufficio, nessun allenamento.\nLeggero (×1.375): 1-2 allenamenti a settimana.\nModerato (×1.55): 3-4 allenamenti a settimana.\nAlto (×1.725): 5-6 allenamenti a settimana.\nAtleta (×1.9): 6-7 allenamenti a settimana più lavoro fisico o doppie sedute.\n\nScegli in base ai giorni reali di allenamento: è la base per calorie e macro." to
+            "Your activity level multiplies your basal metabolism (BMR) to estimate how many calories you burn each day (TDEE). The more you move and train, the higher the multiplier.\n\nSedentary (×1.2): desk job, no training.\nLight (×1.375): 1-2 workouts per week.\nModerate (×1.55): 3-4 workouts per week.\nHigh (×1.725): 5-6 workouts per week.\nAthlete (×1.9): 6-7 workouts per week plus a physical job or twice-daily sessions.\n\nPick it from your real training days: it's the basis for your calories and macros."),
         "info.srpe.title" to ("sRPE (durata × RPE)" to "sRPE (duration × RPE)"),
         "info.srpe.body" to (
             "Session-RPE: durata in minuti × sforzo percepito (RPE 1-10, Borg CR10). È il modo più semplice e validato per quantificare il carico interno di qualsiasi allenamento. Inserisci durata e RPE a fine sessione." to
@@ -285,8 +297,8 @@ object L {
             "Double-progression hints for your next workout, comparing your last session to the rep range. Top of range on all sets → add load. Inside the range → chase more reps. Below → hold and refine technique."),
         "info.calories.title" to ("Calorie bruciate" to "Calories burned"),
         "info.calories.body" to (
-            "Stima dell'energia spesa dai tuoi dati (peso, età, sesso). Con FC media usiamo la formula di Keytel; per il cardio senza FC i MET × peso × durata; per la forza una stima da volume e serie. È un'approssimazione, non una misura da metabolimetro." to
-            "Estimate of energy spent from your profile (weight, age, sex). With avg HR we use the Keytel formula; for cardio without HR the activity METs × weight × duration; for strength a volume/sets estimate. It's an approximation, not a lab measurement."),
+            "Stima dell'energia spesa dai tuoi dati (peso, età, sesso). L'app usa sempre la formula più precisa che i dati permettono.\n\nCon FC media usiamo l'equazione di Keytel (più precisa). Per il cardio senza FC usiamo un MET specifico per sport — bici, corsa, camminata e nuoto hanno ciascuno la propria formula, affinata dalla velocità reale quando inserisci la distanza. Per la forza un MET da allenamento di resistenza sulla durata, oppure una stima da volume. Puoi sempre inserire il tuo numero per sovrascrivere la stima." to
+            "Estimate of energy spent from your profile (weight, age, sex). The app always uses the most precise formula your data allows.\n\nWith avg HR we use the Keytel equation (most precise). For cardio without HR we use a sport-specific MET — cycling, running, walking and swimming each have their own formula, refined by your real speed when a distance is logged. For strength a resistance-training MET over the duration, or a volume estimate. You can always type your own number to override the estimate."),
         "info.trimp.title" to ("TRIMP" to "TRIMP"),
         "info.trimp.body" to (
             "Training Impulse (Banister): pesa la durata con la frequenza cardiaca di riserva e un fattore esponenziale diverso per uomo e donna. Richiede FC media e durata, oltre a FC a riposo e massima del profilo. Più preciso dell'sRPE per il cardio." to

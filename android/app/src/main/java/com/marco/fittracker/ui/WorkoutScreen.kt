@@ -254,6 +254,7 @@ private fun LiveWorkout(plan: WorkoutPlan, log: SnapshotStateList<LoggedExercise
     var sessDuration by remember { mutableStateOf("") }
     var sessAvgHR by remember { mutableStateOf("") }
     var sessRMSSD by remember { mutableStateOf("") }
+    var sessCalManual by remember { mutableStateOf("") }
 
     DisposableEffect(Unit) { view.keepScreenOn = true; onDispose { view.keepScreenOn = false } }
 
@@ -355,7 +356,33 @@ private fun LiveWorkout(plan: WorkoutPlan, log: SnapshotStateList<LoggedExercise
             Badge(t("load.sensor"), T.blue, T.blue.copy(alpha = 0.12f))
         }
         Spacer(Modifier.height(9.dp))
-        LoadField(t("wk.rmssd"), sessRMSSD, "rmssd") { sessRMSSD = it }
+        LoadField(t("wk.rmssd"), sessRMSSD, "rmssd", KeyboardType.Decimal) { sessRMSSD = it }
+    }
+
+    // Calories burned (always shown; manual override wins)
+    val estCal = run {
+        val snap = WorkoutSession(date = today(), planId = plan.id, planName = plan.name, planColor = plan.color,
+            exercises = log.toList(), durationMin = sessDuration.toIntOrNull(), avgHR = sessAvgHR.toIntOrNull())
+        store.estimateCalories(snap)
+    }
+    Card(accent = T.acc) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Lbl(t("wk.calories"), T.acc2)
+            Spacer(Modifier.width(5.dp)); InfoButton("calories", T.acc2)
+            Spacer(Modifier.weight(1f))
+            Row(verticalAlignment = Alignment.Bottom) {
+                Text(if (sessCalManual.isEmpty()) "$estCal" else sessCalManual, color = T.acc, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.width(4.dp))
+                Text("kcal", color = T.sub, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(t("wk.cal_override").uppercase(), color = T.sub, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp, modifier = Modifier.weight(1f))
+            Box(Modifier.width(110.dp)) { InputField(sessCalManual, { sessCalManual = it }, "$estCal", KeyboardType.Number) }
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(t("wk.cal_hint"), color = T.sub, fontSize = 9.sp)
     }
 
     BigButton(if (saved) "Salvata" else "Salva sessione", color = if (saved) T.good else T.acc) {
@@ -365,7 +392,8 @@ private fun LiveWorkout(plan: WorkoutPlan, log: SnapshotStateList<LoggedExercise
                 store.addSession(WorkoutSession(
                     date = today(), planId = plan.id, planName = plan.name, planColor = plan.color, exercises = exercises,
                     durationMin = sessDuration.toIntOrNull(), avgHR = sessAvgHR.toIntOrNull(),
-                    rmssd = if (sessRMSSD.isEmpty()) null else pf(sessRMSSD)))
+                    rmssd = if (sessRMSSD.isEmpty()) null else pf(sessRMSSD),
+                    caloriesManual = sessCalManual.toIntOrNull()?.takeIf { it > 0 }))
                 saved = true; timer.stop()
                 view.performHapticFeedback(android.view.HapticFeedbackConstants.CONFIRM)
                 toast.show("Sessione salvata")
@@ -377,14 +405,15 @@ private fun LiveWorkout(plan: WorkoutPlan, log: SnapshotStateList<LoggedExercise
 
 // MARK: - Labeled numeric field with optional info popup (session-load capture)
 @Composable
-private fun LoadField(label: String, value: String, info: String? = null, onChange: (String) -> Unit) {
+private fun LoadField(label: String, value: String, info: String? = null,
+                      keyboard: KeyboardType = KeyboardType.Number, onChange: (String) -> Unit) {
     Column(Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Lbl(label)
             if (info != null) { Spacer(Modifier.width(4.dp)); InfoButton(info) }
         }
         Spacer(Modifier.height(6.dp))
-        InputField(value, onChange, "—", KeyboardType.Number)
+        InputField(value, onChange, "—", keyboard)
     }
 }
 

@@ -22,9 +22,13 @@ fun Store.trimp(s: WorkoutSession): Double? {
     return dur * hrr * 0.64 * exp(y * hrr)
 }
 
-/** Strictly measured internal load: sRPE or TRIMP. Null when no intensity was
- *  entered, so ACWR / monotony / strain never fabricate load from set counts. */
-fun Store.measuredLoad(s: WorkoutSession): Double? = s.sRPE ?: trimp(s)
+/** Strictly measured internal load = TRIMP (duration + avg HR). Null when no avg
+ *  HR was entered, so ACWR / monotony / strain never fabricate load from set
+ *  counts. We intentionally do NOT fall back to the old sRPE (duration × RPE):
+ *  the RPE input was removed in v4, so any sRPE today is legacy data that would
+ *  inflate load even with no HR — the "load looks extremely high without HR"
+ *  surprise. TRIMP is now the single source of internal load. */
+fun Store.measuredLoad(s: WorkoutSession): Double? = trimp(s)
 fun Store.hasMeasuredLoad(s: WorkoutSession): Boolean = measuredLoad(s) != null
 
 /** Sum of session TRIMP in a Monday-based week (offset 0 = current week). */

@@ -101,6 +101,18 @@ private func activityTitle(_ v: String) -> String {
     default:          return v
     }
 }
+/// One-line, day-quantified description of the selected activity level so the
+/// user understands exactly what each multiplier means for their calories.
+private func activityDesc(_ v: String) -> String {
+    switch v {
+    case "sedentary": return t("ob.act_sed_d")
+    case "light":     return t("ob.act_light_d")
+    case "moderate":  return t("ob.act_mod_d")
+    case "high":      return t("ob.act_high_d")
+    case "athlete":   return t("ob.act_athlete_d")
+    default:          return ""
+    }
+}
 private func goalTitle(_ v: String) -> String {
     switch v {
     case "cut":      return t("nut.cut")
@@ -147,9 +159,16 @@ struct ProfileFormBody: View {
                 FieldRow(label: t("ob.goal_weight")) { InputField(placeholder: "75", text: $f.goalWeight) }
                 FieldRow(label: t("ob.rate")) { InputField(placeholder: "-0.5", text: $f.rate) }
             }
-            FieldRow(label: t("ob.activity")) {
+            VStack(alignment: .leading, spacing: 7) {
+                HStack(spacing: 2) {
+                    Lbl(text: t("ob.activity"))
+                    InfoButton(id: "activity")
+                    Spacer()
+                }
                 PillSelect(options: ["sedentary", "light", "moderate", "high", "athlete"],
                            title: activityTitle, selection: $f.activity)
+                Text(activityDesc(f.activity)).font(.system(size: 11)).foregroundColor(Theme.sub)
+                    .padding(.top, 2)
             }
             HStack(spacing: 12) {
                 FieldRow(label: t("ob.train_days")) { InputField(placeholder: "4", text: $f.trainDays, keyboard: .numberPad) }

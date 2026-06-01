@@ -190,7 +190,6 @@ fun HomeScreen(onTab: (Tab) -> Unit) {
     TrimpCard()
     LoadCard()
     LoadTrendCard()
-    OverloadCard()
     NutritionCard()
     ReadinessCard()
 

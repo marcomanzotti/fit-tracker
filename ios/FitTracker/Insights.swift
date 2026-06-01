@@ -158,7 +158,7 @@ struct LoadTrendCard: View {
                     .padding(.bottom, 12)
                     Chart(series) { p in
                         BarMark(
-                            x: .value("day", fmtShort(p.date)),
+                            x: .value("day", fmtDM(p.date)),
                             y: .value("load", p.load),
                             width: .ratio(0.62)
                         )
@@ -452,7 +452,7 @@ struct SessionEditorView: View {
                         if session.sportType.isCardio {
                             Spacer().frame(height: 10)
                             HStack(spacing: 10) {
-                                metricField(t("wk.distance"), doubleBinding(\.distanceKm))
+                                metricField(t("wk.distance"), doubleBinding(\.distanceKm), keyboard: .decimalPad)
                                 Color.clear.frame(maxWidth: .infinity)
                             }
                         }
@@ -472,7 +472,22 @@ struct SessionEditorView: View {
                             Spacer()
                         }
                         .padding(.bottom, 9)
-                        metricField(t("wk.rmssd"), doubleBinding(\.rmssd), info: "rmssd")
+                        metricField(t("wk.rmssd"), doubleBinding(\.rmssd), info: "rmssd", keyboard: .decimalPad)
+                    }
+
+                    // Calories burned (estimate from data; manual override wins).
+                    Card(accent: Theme.acc) {
+                        HStack(spacing: 2) {
+                            Lbl(text: t("wk.calories"), color: Theme.acc2)
+                            InfoButton(id: "calories", color: Theme.acc2)
+                            Spacer()
+                            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                                Text("\(store.estimateCalories(session))").font(.num(26)).foregroundColor(Theme.acc)
+                                Text("kcal").font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.sub)
+                            }
+                        }
+                        .padding(.bottom, 10)
+                        metricField(t("wk.cal_override"), intBinding(\.caloriesManual), keyboard: .numberPad)
                     }
 
                     ForEach(session.exercises.indices, id: \.self) { i in
@@ -520,14 +535,15 @@ struct SessionEditorView: View {
         }
     }
 
-    private func metricField(_ label: String, _ binding: Binding<String>, info: String? = nil) -> some View {
+    private func metricField(_ label: String, _ binding: Binding<String>, info: String? = nil,
+                             keyboard: UIKeyboardType = .numberPad) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 2) {
                 Text(label.uppercased()).font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
                 if let info { InfoButton(id: info) }
                 Spacer()
             }
-            InputField(placeholder: "—", text: binding, keyboard: .numberPad)
+            InputField(placeholder: "—", text: binding, keyboard: keyboard)
         }
     }
     private func intBinding(_ kp: WritableKeyPath<WorkoutSession, Int?>) -> Binding<String> {

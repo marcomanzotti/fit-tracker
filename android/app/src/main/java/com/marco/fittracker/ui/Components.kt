@@ -103,13 +103,18 @@ fun RowScopeStatTile(
             .border(1.dp, T.brd, RoundedCornerShape(T.radiusS))
             .padding(vertical = 13.dp, horizontal = 12.dp)
     ) {
+        // Keep multi-word / long labels ("Weekly load", "Monotony") on a single
+        // line instead of breaking a letter ("y") onto the next row: no wrap +
+        // tighter letter spacing so the whole word fits the narrow tile.
         if (info != null) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Lbl(label)
+                Text(label.uppercase(), color = T.sub, fontSize = 10.sp, fontWeight = FontWeight.SemiBold,
+                    letterSpacing = 0.5.sp, maxLines = 1, softWrap = false, modifier = Modifier.weight(1f, fill = false))
                 Spacer(Modifier.width(4.dp))
                 InfoButton(info)
             }
-        } else Lbl(label)
+        } else Text(label.uppercase(), color = T.sub, fontSize = 10.sp, fontWeight = FontWeight.SemiBold,
+            letterSpacing = 0.5.sp, maxLines = 1, softWrap = false)
         Spacer(Modifier.height(8.dp))
         Row(verticalAlignment = Alignment.Bottom) {
             Text(value, color = valueColor, fontSize = 28.sp, fontWeight = FontWeight.Bold)

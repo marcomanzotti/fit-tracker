@@ -202,12 +202,16 @@ class Store(app: Application) : AndroidViewModel(app) {
         return if (allDone) ex.maxWeight + 2.5 else null
     }
 
-    /** Calories from the user's global data: Keytel (HR-based) when avg HR is
-     *  available, MET-based for cardio, else the original strength heuristic. */
+    /** Energy spent in a session (kcal), always using the most precise formula the
+     *  available data allows: 1) manual override; 2) HR-based Keytel; 3) sport-
+     *  specific MET scaled by real speed (distance + duration); 4) sport-specific
+     *  fixed MET (duration only); 5) strength MET / volume heuristic. */
     fun estimateCalories(s: WorkoutSession): Int {
         s.caloriesManual?.let { if (it > 0) return it }
         val w = lastWeight
         val hr = s.avgHR; val dur = s.durationMin
+
+        // 2) HR-based (Keytel): most precise.
         if (hr != null && hr > 0 && dur != null && dur > 0) {
             val age = (prefs.age ?: 30).toDouble()
             val perMin = if (prefs.sexCode == "f")
@@ -216,14 +220,27 @@ class Store(app: Application) : AndroidViewModel(app) {
                 (-55.0969 + 0.6309 * hr + 0.1988 * w + 0.2017 * age) / 4.184
             return maxOf(0, (perMin * dur).roundToInt())
         }
+
+        // 3 & 4) Cardio via per-sport METs, refined by speed when distance known.
         if (s.sportType.isCardio && dur != null && dur > 0) {
-            val met = when (s.sportType) {
-                Sport.RUNNING -> 9.8; Sport.SWIMMING -> 8.0; Sport.CYCLING -> 7.5
-                Sport.WALKING -> 3.5; else -> 6.0
-            }
-            return (met * w * dur / 60).roundToInt()
+            val speed = s.distanceKm?.let { it / (dur / 60.0) }   // km/h
+            return (cardioMET(s.sportType, speed) * w * dur / 60).roundToInt()
         }
+
+        // 5) Strength: MET-based when a duration is logged, else volume heuristic.
+        if (dur != null && dur > 0) return (5.0 * w * dur / 60).roundToInt()
         return (s.volume * 0.022 + s.totalSets * 3 + 60).roundToInt()
+    }
+
+    /** Sport-specific MET. Cycling and walking at the same duration burn very
+     *  differently; speed (when a distance is logged) sharpens it further.
+     *  Values follow the Compendium of Physical Activities. */
+    private fun cardioMET(sport: Sport, speedKmh: Double?): Double = when (sport) {
+        Sport.RUNNING -> if (speedKmh != null && speedKmh > 0) maxOf(6.0, 0.95 * speedKmh) else 9.8
+        Sport.CYCLING -> if (speedKmh != null && speedKmh > 0) maxOf(4.0, 0.45 * speedKmh + 0.5) else 7.5
+        Sport.WALKING -> if (speedKmh != null && speedKmh > 0) maxOf(2.0, 0.65 * speedKmh + 1.0) else 3.5
+        Sport.SWIMMING -> if (speedKmh != null && speedKmh > 0) (if (speedKmh > 4) 10.0 else if (speedKmh < 2.5) 6.0 else 8.0) else 8.0
+        else -> 6.0
     }
 
     // MARK: Cardio types

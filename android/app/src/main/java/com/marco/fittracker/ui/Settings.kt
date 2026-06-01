@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -39,6 +40,17 @@ import androidx.compose.ui.window.Dialog
 import com.marco.fittracker.data.pf
 import com.marco.fittracker.data.t
 import com.marco.fittracker.data.trimNum
+
+/** One-line, day-quantified description of the selected activity level so the
+ *  user understands exactly what each multiplier means for their calories. */
+private fun activityDesc(v: String): String = when (v) {
+    "sedentary" -> t("ob.act_sed_d")
+    "light" -> t("ob.act_light_d")
+    "moderate" -> t("ob.act_mod_d")
+    "high" -> t("ob.act_high_d")
+    "athlete" -> t("ob.act_athlete_d")
+    else -> ""
+}
 
 // Clean starting numbers per sex (height in meters, weights in kg).
 private data class SexDefaults(val height: String, val weight: String, val goal: String)
@@ -138,8 +150,13 @@ fun SettingsDialog(onClose: () -> Unit) {
             PillRow(listOf("cut" to t("nut.cut"), "maintain" to t("nut.maintain"), "bulk" to t("nut.bulk")), goalMode) { goalMode = it }
             Spacer(Modifier.height(14.dp))
 
-            Lbl(t("ob.activity")); Spacer(Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Lbl(t("ob.activity")); Spacer(Modifier.width(5.dp)); InfoButton("activity")
+            }
+            Spacer(Modifier.height(8.dp))
             PillRow(listOf("sedentary" to t("ob.act_sed"), "light" to t("ob.act_light"), "moderate" to t("ob.act_mod"), "high" to t("ob.act_high"), "athlete" to t("ob.act_athlete")), activity) { activity = it }
+            Spacer(Modifier.height(6.dp))
+            Text(activityDesc(activity), color = T.sub, fontSize = 11.sp)
             Spacer(Modifier.height(14.dp))
 
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {

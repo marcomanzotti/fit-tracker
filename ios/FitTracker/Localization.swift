@@ -187,6 +187,11 @@ enum L {
         "ob.act_high":       ("Alto", "High"),
         "ob.act_athlete":    ("Atleta", "Athlete"),
         "ob.train_days":     ("Giorni di allenamento", "Training days/week"),
+        "ob.act_sed_d":      ("Lavoro d'ufficio, nessun allenamento (×1.2)", "Desk job, no training (×1.2)"),
+        "ob.act_light_d":    ("1-2 allenamenti a settimana (×1.375)", "1-2 workouts per week (×1.375)"),
+        "ob.act_mod_d":      ("3-4 allenamenti a settimana (×1.55)", "3-4 workouts per week (×1.55)"),
+        "ob.act_high_d":     ("5-6 allenamenti a settimana (×1.725)", "5-6 workouts per week (×1.725)"),
+        "ob.act_athlete_d":  ("6-7 + lavoro fisico o doppie sedute (×1.9)", "6-7 + physical job or 2x/day (×1.9)"),
         "ob.rest_hr":        ("FC a riposo", "Resting HR"),
         "ob.max_hr":         ("FC max (opzionale)", "Max HR (optional)"),
         "ob.finish":         ("Inizia ad allenarti", "Start training"),
@@ -354,6 +359,10 @@ enum L {
         "wk.est_calories":   ("Calorie stimate", "Estimated calories"),
         "wk.est_cal_hint":   ("Calcolate dai tuoi dati (peso, età, sesso, FC).",
                               "Computed from your profile (weight, age, sex, HR)."),
+        "wk.calories":       ("Calorie bruciate", "Calories burned"),
+        "wk.cal_override":   ("Modifica manuale", "Manual override"),
+        "wk.cal_hint":       ("Stima dai tuoi dati: con FC più precisa, altrimenti da durata e tipo di attività. Puoi sovrascriverla.",
+                              "Estimated from your data: sharper with HR, otherwise from duration and activity type. You can override it."),
 
         // --- Goal editor ----------------------------------------------------
         "goal.change":       ("Cambia obiettivo", "Change goal"),
@@ -429,7 +438,11 @@ enum L {
         "info.load.title": ("Carico interno", "Internal load"),
         "info.load.body": (
             "Il carico interno misura lo stress dell'allenamento percepito dal tuo corpo, non i kg sollevati.\n\nLo calcoliamo come TRIMP a partire dalla durata e dalla frequenza cardiaca media della sessione. Da qui derivano ACWR, monotonia e strain.\n\nImportante: senza durata + FC media una sessione non genera carico interno, quindi queste metriche restano vuote finché non inserisci quei dati (serve un orologio o una fascia cardio).",
-            "Internal load measures the training stress your body actually experiences, not the kilos lifted.\n\nWe compute it as TRIMP from the session's duration and average heart rate. ACWR, monotony and strain all build on it.\n\nImportant: without duration + average HR a session produces no internal load, so these metrics stay empty until you enter that data (a watch or chest strap is needed)."),
+            "Internal load measures the training stress your body actually experiences, not the kilos lifted.\n\nWe compute it as TRIMP from the session's duration and average heart rate. ACWR, monotony and strain all build on it.\n\nImportant: without duration + average HR a session produces no internal load, so these metrics stay empty until you enter that data (a watch or chest strap is needed). If you ever saw a very high load with no HR, that came from an old session's manual effort rating: internal load is now based on heart rate alone, so it can no longer be inflated without it."),
+        "info.activity.title": ("Livello di attività", "Activity level"),
+        "info.activity.body": (
+            "Il livello di attività moltiplica il tuo metabolismo basale (BMR) per stimare quante calorie bruci ogni giorno (TDEE). Più ti muovi e ti alleni, più alto è il moltiplicatore.\n\nSedentario (×1.2): lavoro d'ufficio, nessun allenamento.\nLeggero (×1.375): 1-2 allenamenti a settimana.\nModerato (×1.55): 3-4 allenamenti a settimana.\nAlto (×1.725): 5-6 allenamenti a settimana.\nAtleta (×1.9): 6-7 allenamenti a settimana più un lavoro fisico o doppie sedute giornaliere.\n\nScegli in base ai giorni reali di allenamento: è il punto di partenza per calorie e macro.",
+            "Your activity level multiplies your basal metabolism (BMR) to estimate how many calories you burn each day (TDEE). The more you move and train, the higher the multiplier.\n\nSedentary (×1.2): desk job, no training.\nLight (×1.375): 1-2 workouts per week.\nModerate (×1.55): 3-4 workouts per week.\nHigh (×1.725): 5-6 workouts per week.\nAthlete (×1.9): 6-7 workouts per week plus a physical job or twice-daily sessions.\n\nPick it from your real training days: it's the basis for your calories and macros."),
         "info.srpe.title": ("sRPE (durata × RPE)", "sRPE (duration × RPE)"),
         "info.srpe.body": (
             "Session-RPE: durata della sessione in minuti moltiplicata per lo sforzo percepito (RPE 1-10, scala di Borg CR10).\n\nÈ il modo più semplice e validato per quantificare il carico interno di qualsiasi allenamento, di forza o cardio. Inserisci durata e RPE a fine sessione.",
@@ -473,7 +486,7 @@ enum L {
         "info.calories.title": ("Calorie bruciate", "Calories burned"),
         "info.calories.body": (
             "Stima dell'energia spesa nella sessione a partire dai tuoi dati (peso, età, sesso).\n\nSe hai inserito la FC media usiamo la formula di Keytel basata sulla frequenza cardiaca; per il cardio senza FC usiamo i MET dell'attività × peso × durata; per la forza una stima da volume e serie. È un'approssimazione, non una misura da metabolimetro.",
-            "An estimate of the energy spent in the session, derived from your profile (weight, age, sex).\n\nIf you entered average HR we use the Keytel heart-rate formula; for cardio without HR we use the activity's METs × weight × duration; for strength a volume/sets estimate. It's an approximation, not a lab measurement."),
+            "An estimate of the energy spent in the session, derived from your profile (weight, age, sex). The app always uses the most precise formula your data allows.\n\nWith average HR we use the Keytel heart-rate equation (most precise). For cardio without HR we use a sport-specific MET — cycling, running, walking and swimming each have their own formula, refined by your real speed when a distance is logged. For strength we use a resistance-training MET over the session duration, or a volume estimate. You can always type your own number to override the estimate. It's an approximation, not a lab measurement."),
         "info.rmssd.title": ("RMSSD (HRV)", "RMSSD (HRV)"),
         "info.rmssd.body": (
             "L'RMSSD è la principale misura della variabilità della frequenza cardiaca (HRV): la radice quadrata della media dei quadrati delle differenze tra battiti consecutivi (intervalli R-R), in millisecondi.\n\nRiflette l'attività del sistema nervoso parasimpatico (recupero). Valori più alti del tuo solito indicano buon recupero; valori bassi indicano stress o affaticamento. Misuralo al mattino, da sdraiato, sempre nello stesso modo, con un'app HRV o una fascia cardio, e inseriscilo qui. L'app lo trasforma poi nel punteggio di Prontezza.",
