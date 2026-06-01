@@ -48,6 +48,7 @@ import com.marco.fittracker.data.pf
 import com.marco.fittracker.data.t
 import com.marco.fittracker.data.today
 import com.marco.fittracker.data.trimNum
+import com.marco.fittracker.data.trimp
 
 @Composable
 private fun DialogShell(onClose: () -> Unit, content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
@@ -75,6 +76,16 @@ private fun Field(label: String, value: String, onChange: (String) -> Unit, ph: 
     }
 }
 
+/** "Recommended · HRV sensor" flag for the optional RMSSD field. */
+@Composable
+private fun RecommendedFlag() {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(t("load.recommended").uppercase(), color = T.sub, fontSize = 8.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
+        Spacer(Modifier.width(7.dp))
+        Badge(t("load.sensor"), T.blue, T.blue.copy(alpha = 0.12f))
+    }
+}
+
 // MARK: - Cardio logger
 @Composable
 fun CardioLoggerDialog(type: CardioType, onClose: () -> Unit) {
@@ -83,14 +94,13 @@ fun CardioLoggerDialog(type: CardioType, onClose: () -> Unit) {
     var duration by remember { mutableStateOf("") }
     var distance by remember { mutableStateOf("") }
     var avgHR by remember { mutableStateOf("") }
-    var rpe by remember { mutableStateOf("") }
     var rmssd by remember { mutableStateOf("") }
     val pc = hexColor(type.color)
 
     fun build(dur: Int) = WorkoutSession(
         date = today(), planId = "cardio-${type.id}", planName = type.name, planColor = type.color,
         exercises = emptyList(), sport = type.sport, durationMin = dur,
-        rpe = rpe.toIntOrNull(), avgHR = avgHR.toIntOrNull(),
+        avgHR = avgHR.toIntOrNull(),
         rmssd = if (rmssd.isEmpty()) null else pf(rmssd),
         distanceKm = if (distance.isEmpty()) null else pf(distance)
     )
@@ -110,11 +120,12 @@ fun CardioLoggerDialog(type: CardioType, onClose: () -> Unit) {
             Box(Modifier.weight(1f)) { Field(t("wk.distance"), distance, { distance = it }, "8", KeyboardType.Decimal) }
         }
         Spacer(Modifier.height(12.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Box(Modifier.weight(1f)) { Field(t("wk.avg_hr"), avgHR, { avgHR = it }, "150") }
-            Box(Modifier.weight(1f)) { Field(t("wk.rpe"), rpe, { rpe = it }, "6") }
-        }
-        Spacer(Modifier.height(12.dp))
+        Field(t("wk.avg_hr"), avgHR, { avgHR = it }, "150")
+        Spacer(Modifier.height(13.dp))
+        Box(Modifier.fillMaxWidth().height(1.dp).background(T.brd))
+        Spacer(Modifier.height(11.dp))
+        RecommendedFlag()
+        Spacer(Modifier.height(9.dp))
         Field(t("wk.rmssd"), rmssd, { rmssd = it }, "—", KeyboardType.Decimal)
         Spacer(Modifier.height(14.dp))
         Column(
@@ -224,17 +235,35 @@ fun SessionEditorDialog(initial: WorkoutSession, onClose: () -> Unit) {
             Icon(Icons.Filled.Close, null, tint = T.sub, modifier = Modifier.size(24.dp).clickable { onClose() })
         }
         Spacer(Modifier.height(14.dp))
-        // Internal-load fields
+        // Internal-load fields (TRIMP from duration + avg HR)
         Lbl(t("load.title")); Spacer(Modifier.height(10.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Box(Modifier.weight(1f)) { Field(t("wk.duration"), s.durationMin?.toString() ?: "", { s = s.copy(durationMin = it.toIntOrNull()) }, "—") }
-            Box(Modifier.weight(1f)) { Field(t("wk.rpe"), s.rpe?.toString() ?: "", { s = s.copy(rpe = it.toIntOrNull()) }, "—") }
-        }
-        Spacer(Modifier.height(10.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Box(Modifier.weight(1f)) { Field(t("wk.avg_hr"), s.avgHR?.toString() ?: "", { s = s.copy(avgHR = it.toIntOrNull()) }, "—") }
-            Box(Modifier.weight(1f)) { Field(t("wk.rmssd"), s.rmssd?.let { trimNum(it) } ?: "", { s = s.copy(rmssd = if (it.isEmpty()) null else pf(it)) }, "—", KeyboardType.Decimal) }
         }
+        if (s.sportType.isCardio) {
+            Spacer(Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Box(Modifier.weight(1f)) { Field(t("wk.distance"), s.distanceKm?.let { trimNum(it) } ?: "", { s = s.copy(distanceKm = if (it.isEmpty()) null else pf(it)) }, "—", KeyboardType.Decimal) }
+                Box(Modifier.weight(1f)) {}
+            }
+        }
+        store.trimp(s)?.let { v ->
+            Spacer(Modifier.height(12.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("TRIMP", color = T.sub, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp)
+                Spacer(Modifier.width(6.dp))
+                Text("${Math.round(v)}", color = T.acc2, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.weight(1f))
+                Text(t("load.trimp_hint"), color = T.sub, fontSize = 9.sp)
+            }
+        }
+        Spacer(Modifier.height(11.dp))
+        Box(Modifier.fillMaxWidth().height(1.dp).background(T.brd))
+        Spacer(Modifier.height(11.dp))
+        RecommendedFlag()
+        Spacer(Modifier.height(9.dp))
+        Field(t("wk.rmssd"), s.rmssd?.let { trimNum(it) } ?: "", { s = s.copy(rmssd = if (it.isEmpty()) null else pf(it)) }, "—", KeyboardType.Decimal)
         Spacer(Modifier.height(14.dp))
         // Per-exercise set editing
         s.exercises.forEachIndexed { ei, ex ->

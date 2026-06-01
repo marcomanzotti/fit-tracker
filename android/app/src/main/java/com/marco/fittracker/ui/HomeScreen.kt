@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -33,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.marco.fittracker.data.DailyEntry
 import com.marco.fittracker.data.L
+import com.marco.fittracker.data.WorkoutSession
 import com.marco.fittracker.data.pf
 import com.marco.fittracker.data.fmtShort
 import com.marco.fittracker.data.t
@@ -182,12 +184,15 @@ fun HomeScreen(onTab: (Tab) -> Unit) {
         }
     }
 
-    // Scientific dashboard (visual + data, with info popups)
-    ReadinessCard()
+    // Scientific dashboard (visual + data, with info popups). Headline metrics
+    // are computable from your data: TRIMP (avg HR) and ACWR (EWMA). Readiness
+    // only appears if you log HRV (optional sensor).
+    TrimpCard()
     LoadCard()
     LoadTrendCard()
     OverloadCard()
     NutritionCard()
+    ReadinessCard()
 
     if (editingGoal) GoalEditorDialog { editingGoal = false }
 
@@ -207,51 +212,65 @@ fun HomeScreen(onTab: (Tab) -> Unit) {
     }
 }
 
-// MARK: - Sporty week-activity strip (last 7 days colored by workout)
+// MARK: - Sporty week-activity strip (last 7 days, tap a day to log)
 @Composable
 fun WeekStrip() {
     val store = LocalStore.current
+    val tap = rememberTap()
+    var pickerDate by remember { mutableStateOf<String?>(null) }
+    var editingSession by remember { mutableStateOf<WorkoutSession?>(null) }
     val now = LocalDate.now()
     val days = (0..6).reversed().map { i ->
         val d = now.minusDays(i.toLong())
         Triple(L.days[(d.dayOfWeek.value - 1).coerceIn(0, 6)], d.toString(), d.toString() == today())
     }
-    val trained = days.count { d -> store.sessions.any { it.date == d.second } }
     Card {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Lbl(t("home.week_activity"), T.acc2)
             Spacer(Modifier.weight(1f))
-            Row(verticalAlignment = Alignment.Bottom) {
-                Text("$trained", color = T.acc, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.width(4.dp))
-                Text("/ 7", color = T.sub, fontSize = 10.sp)
-            }
+            Text(t("home.tap_to_log"), color = T.sub, fontSize = 9.sp, fontWeight = FontWeight.Medium)
         }
         Spacer(Modifier.height(12.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
             days.forEach { (label, ds, isToday) ->
                 val sess = store.sessions.filter { it.date == ds }
-                val color = sess.firstOrNull()?.let { hexColor(it.planColor) }
+                val trained = sess.isNotEmpty()
+                val rest = !trained && store.isRestDay(ds)
+                val fill = if (trained) hexColor(sess.first().planColor) else if (rest) T.restFill else T.c2
                 Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(label.uppercase(), color = if (isToday) T.acc else T.sub, fontSize = 9.sp, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.height(6.dp))
                     Box(
                         Modifier.fillMaxWidth().height(42.dp)
                             .clip(RoundedCornerShape(11.dp))
-                            .background(color ?: T.c2)
-                            .border(1.dp, if (isToday) T.acc else if (color != null) Color.Transparent else T.brd, RoundedCornerShape(11.dp)),
+                            .background(fill)
+                            .border(1.dp, if (isToday) T.acc else if (trained || rest) Color.Transparent else T.brd, RoundedCornerShape(11.dp))
+                            .clickable {
+                                tap()
+                                val first = sess.firstOrNull()
+                                if (first != null) editingSession = first else pickerDate = ds
+                            },
                         contentAlignment = Alignment.Center
                     ) {
-                        if (color != null) {
-                            Text(if (sess.size > 1) "${sess.size}" else "", color = T.bg, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                        } else {
-                            Box(Modifier.size(4.dp).clip(RoundedCornerShape(2.dp)).background(T.brd2))
+                        when {
+                            trained -> {
+                                Icon(sportIcon(sess.first().sportType), null, tint = T.bg, modifier = Modifier.size(16.dp))
+                                if (sess.size > 1)
+                                    Text("${sess.size}", color = T.bg, fontSize = 8.sp, fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.align(Alignment.TopEnd).padding(3.dp))
+                            }
+                            rest -> Icon(restIcon, null, tint = T.bg, modifier = Modifier.size(15.dp))
+                            else -> Icon(Icons.Filled.Add, null, tint = T.brd2, modifier = Modifier.size(14.dp))
                         }
                     }
                 }
             }
         }
     }
+    pickerDate?.let { d ->
+        DayPickerDialog(d, openEditor = { editingSession = it }, onClose = { pickerDate = null })
+    }
+    editingSession?.let { SessionEditorDialog(it) { editingSession = null } }
 }
 
 @Composable

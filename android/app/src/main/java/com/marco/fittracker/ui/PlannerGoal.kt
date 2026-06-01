@@ -216,7 +216,7 @@ private fun slotLabel(store: com.marco.fittracker.data.Store, id: String): Strin
 }
 private fun slotColor(store: com.marco.fittracker.data.Store, id: String): Color = when {
     id.isEmpty() -> T.brd2
-    id == "rest" -> T.sub
+    id == "rest" -> T.restFill
     else -> store.plans.firstOrNull { it.id == id }?.let { hexColor(it.color) }
         ?: store.cardioTypes.firstOrNull { it.id == id }?.let { hexColor(it.color) } ?: T.brd2
 }
@@ -248,8 +248,11 @@ fun WeeklyPlanCard() {
                     Box(
                         Modifier.fillMaxWidth().height(30.dp).clip(RoundedCornerShape(8.dp))
                             .background(slotChipColor(store, sched[wd]))
-                            .border(1.5.dp, if (wd == todayMon) T.acc else Color.Transparent, RoundedCornerShape(8.dp))
-                    )
+                            .border(1.5.dp, if (wd == todayMon) T.acc else Color.Transparent, RoundedCornerShape(8.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (sched[wd] == "rest") Icon(restIcon, null, tint = T.bg, modifier = Modifier.size(13.dp))
+                    }
                 }
             }
         }
@@ -259,7 +262,7 @@ fun WeeklyPlanCard() {
 
 private fun slotChipColor(store: com.marco.fittracker.data.Store, id: String): Color = when {
     id.isEmpty() -> T.c3
-    id == "rest" -> T.sub.copy(alpha = 0.6f)
+    id == "rest" -> T.restFill
     else -> store.plans.firstOrNull { it.id == id }?.let { hexColor(it.color) }
         ?: store.cardioTypes.firstOrNull { it.id == id }?.let { hexColor(it.color) } ?: T.c3
 }

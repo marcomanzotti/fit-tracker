@@ -233,8 +233,8 @@ object L {
             "Estimates how recovered you are from heart-rate variability (HRV), measured as the RMSSD you type each morning. We take the natural log of RMSSD (lnRMSSD) and compare it to your ~60-day average as a z-score. The 0-100 score is 50 + 20 × z. High = recovered, you can push. Low = below your norm, go easy. At least 5 readings are needed."),
         "info.acwr.title" to ("Carico acuto:cronico (ACWR)" to "Acute:Chronic load (ACWR)"),
         "info.acwr.body" to (
-            "Rapporto tra il carico recente (acuto, 7 giorni) e quello abituale (cronico, 28 giorni), con media mobile esponenziale (EWMA). Il carico viene da sRPE o TRIMP, quindi compare solo dopo durata + RPE (o FC media). Zona: 0,8-1,3 ottimale; sotto 0,8 detraining; sopra 1,3 picco e maggior rischio infortuni." to
-            "Ratio of recent load (acute, 7 days) to habitual load (chronic, 28 days), via an exponentially weighted moving average (EWMA). Load comes from sRPE or TRIMP, so it only appears after duration + RPE (or avg HR). Zone: 0.8-1.3 sweet spot; below 0.8 detraining; above 1.3 a spike with higher injury risk."),
+            "Rapporto tra il carico recente (acuto, 7 giorni) e quello abituale (cronico, 28 giorni), con media mobile esponenziale (EWMA). Il carico viene dal TRIMP, quindi compare solo dopo durata + FC media della sessione (serve un orologio o una fascia cardio). Zona: 0,8-1,3 ottimale; sotto 0,8 detraining; sopra 1,3 picco e maggior rischio infortuni." to
+            "Ratio of recent load (acute, 7 days) to habitual load (chronic, 28 days), via an exponentially weighted moving average (EWMA). Load comes from TRIMP, so it only appears after the session's duration + average HR (a watch or chest strap is needed). Zone: 0.8-1.3 sweet spot; below 0.8 detraining; above 1.3 a spike with higher injury risk."),
         "info.monotony.title" to ("Monotonia" to "Monotony"),
         "info.monotony.body" to (
             "Quanto è uniforme il carico nella settimana: media giornaliera divisa per la deviazione standard (Foster). Valori alti (sopra ~2) = allenamenti tutti simili, più affaticamento. Variare l'intensità abbassa la monotonia. Servono almeno 2 giorni di allenamento con RPE/FC." to
@@ -245,8 +245,8 @@ object L {
             "Week's total load × monotony (Foster). Sums up overall stress: high when you train a lot and monotonously. Spikes often precede overreaching or dips: a good cue for a deload week."),
         "info.load.title" to ("Carico interno" to "Internal load"),
         "info.load.body" to (
-            "Misura lo stress dell'allenamento percepito dal corpo, non i kg sollevati. È sRPE (durata × RPE) o, con FC media, TRIMP. Da qui derivano ACWR, monotonia e strain. Senza durata + RPE (o FC) una sessione non genera carico interno, quindi queste metriche restano vuote." to
-            "Measures the training stress your body experiences, not the kilos lifted. It's sRPE (duration × RPE) or, with avg HR, TRIMP. ACWR, monotony and strain build on it. Without duration + RPE (or HR) a session produces no internal load, so these stay empty."),
+            "Misura lo stress dell'allenamento percepito dal corpo, non i kg sollevati. Lo calcoliamo come TRIMP dalla durata e dalla FC media della sessione. Da qui derivano ACWR, monotonia e strain. Senza durata + FC media una sessione non genera carico interno, quindi queste metriche restano vuote (serve un orologio o una fascia cardio)." to
+            "Measures the training stress your body experiences, not the kilos lifted. We compute it as TRIMP from the session's duration and average heart rate. ACWR, monotony and strain build on it. Without duration + average HR a session produces no internal load, so these stay empty (a watch or chest strap is needed)."),
         "info.srpe.title" to ("sRPE (durata × RPE)" to "sRPE (duration × RPE)"),
         "info.srpe.body" to (
             "Session-RPE: durata in minuti × sforzo percepito (RPE 1-10, Borg CR10). È il modo più semplice e validato per quantificare il carico interno di qualsiasi allenamento. Inserisci durata e RPE a fine sessione." to
@@ -322,7 +322,26 @@ object L {
         "info.streak.title" to ("Striscia" to "Streak"),
         "info.streak.body" to (
             "I giorni consecutivi con un check-in o un allenamento. La striscia resta attiva per tutta la giornata di oggi: non si azzera solo perché non hai ancora fatto il check-in. Si interrompe solo quando passa un giorno intero senza check-in né allenamento." to
-            "The consecutive days you've done a check-in or workout. The streak stays active all of today: it doesn't reset just because you haven't checked in yet. It only breaks once a full day passes with no check-in and no workout.")
+            "The consecutive days you've done a check-in or workout. The streak stays active all of today: it doesn't reset just because you haven't checked in yet. It only breaks once a full day passes with no check-in and no workout."),
+
+        // --- Day logging / rest / recommended fields ------------------------
+        "home.tap_to_log" to ("Tocca un giorno per registrare" to "Tap a day to log"),
+        "day.title" to ("Registra giornata" to "Log day"),
+        "day.hint" to ("Scegli cosa hai fatto in questo giorno: un allenamento di forza, un'attività cardio o riposo. I dati partono dall'ultima volta e restano modificabili." to
+            "Choose what you did on this day: a strength workout, a cardio activity or rest. Data starts from last time and stays editable."),
+        "day.mark_rest" to ("Segna come riposo" to "Mark as rest"),
+        "day.clear_rest" to ("Rimuovi riposo" to "Remove rest"),
+        "load.recommended" to ("Consigliato" to "Recommended"),
+        "load.sensor" to ("Sensore HRV" to "HRV sensor"),
+        "load.trimp_hint" to ("Carico cardio della sessione" to "Session cardio load"),
+
+        // --- TRIMP card -----------------------------------------------------
+        "trimp.title" to ("Carico cardio (TRIMP)" to "Cardio load (TRIMP)"),
+        "trimp.this_week" to ("Questa settimana" to "This week"),
+        "trimp.last_week" to ("Settimana scorsa" to "Last week"),
+        "trimp.last" to ("Ultima:" to "Last:"),
+        "trimp.note" to ("Somma del TRIMP delle sessioni con FC media. Più alto = più stress cardiovascolare." to
+            "Sum of session TRIMP from average HR. Higher = more cardiovascular stress.")
     )
 }
 

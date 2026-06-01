@@ -48,6 +48,10 @@ object T {
     val planColors = listOf("ffe000", "ffb000", "ff5a52", "4fb8c4", "7fc950", "b08fff")
     val cardioColors = listOf("4fb8c4", "ff5a52", "7fc950", "b08fff", "ffb000", "53a8ff")
 
+    // Shared "rest day" identity: almost-white chip with a dark moon icon,
+    // used identically on the weekly plan, the week strip and the calendar.
+    val restFill = hexColor("ece7dc")
+
     val radius = 18.dp
     val radiusS = 12.dp
     val radiusXS = 9.dp

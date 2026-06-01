@@ -63,6 +63,7 @@ import com.marco.fittracker.data.pf
 import com.marco.fittracker.data.t
 import com.marco.fittracker.data.today
 import com.marco.fittracker.data.trimNum
+import com.marco.fittracker.data.trimp
 
 @Composable
 fun WorkoutScreen() {
@@ -250,6 +251,9 @@ private fun LiveWorkout(plan: WorkoutPlan, log: SnapshotStateList<LoggedExercise
     var addName by remember { mutableStateOf("") }
     val showNotes = remember { mutableStateListOf<String>() }
     var saved by remember { mutableStateOf(false) }
+    var sessDuration by remember { mutableStateOf("") }
+    var sessAvgHR by remember { mutableStateOf("") }
+    var sessRMSSD by remember { mutableStateOf("") }
 
     DisposableEffect(Unit) { view.keepScreenOn = true; onDispose { view.keepScreenOn = false } }
 
@@ -318,17 +322,69 @@ private fun LiveWorkout(plan: WorkoutPlan, log: SnapshotStateList<LoggedExercise
         Text("Aggiunto alla sessione e salvato nel giorno per le prossime volte.", color = T.sub, fontSize = 10.sp)
     }
 
+    // Session internal-load capture (TRIMP from duration + avg HR)
+    Card {
+        InfoLbl(t("load.title"), "load", T.acc2)
+        Spacer(Modifier.height(10.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Box(Modifier.weight(1f)) { LoadField(t("wk.duration"), sessDuration) { sessDuration = it } }
+            Box(Modifier.weight(1f)) { LoadField(t("wk.avg_hr"), sessAvgHR, "trimp") { sessAvgHR = it } }
+        }
+        val liveTrimp = run {
+            val d = sessDuration.toIntOrNull(); val hr = sessAvgHR.toIntOrNull()
+            if (d != null && d > 0 && hr != null && hr > 0)
+                store.trimp(WorkoutSession(date = today(), planId = plan.id, planName = plan.name, planColor = plan.color, durationMin = d, avgHR = hr))
+            else null
+        }
+        liveTrimp?.let { v ->
+            Spacer(Modifier.height(12.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("TRIMP", color = T.sub, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp)
+                Spacer(Modifier.width(6.dp))
+                Text("${Math.round(v)}", color = T.acc2, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.weight(1f))
+                Text(t("load.trimp_hint"), color = T.sub, fontSize = 9.sp)
+            }
+        }
+        Spacer(Modifier.height(11.dp))
+        Box(Modifier.fillMaxWidth().height(1.dp).background(T.brd))
+        Spacer(Modifier.height(11.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(t("load.recommended").uppercase(), color = T.sub, fontSize = 8.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
+            Spacer(Modifier.width(7.dp))
+            Badge(t("load.sensor"), T.blue, T.blue.copy(alpha = 0.12f))
+        }
+        Spacer(Modifier.height(9.dp))
+        LoadField(t("wk.rmssd"), sessRMSSD, "rmssd") { sessRMSSD = it }
+    }
+
     BigButton(if (saved) "Salvata" else "Salva sessione", color = if (saved) T.good else T.acc) {
         if (!saved) {
             val exercises = log.map { e -> e.copy(sets = e.sets.filter { it.filled }) }.filter { it.sets.isNotEmpty() }
             if (exercises.isEmpty()) { toast.show("Nessuna serie da salvare") } else {
-                store.addSession(WorkoutSession(date = today(), planId = plan.id, planName = plan.name, planColor = plan.color, exercises = exercises))
+                store.addSession(WorkoutSession(
+                    date = today(), planId = plan.id, planName = plan.name, planColor = plan.color, exercises = exercises,
+                    durationMin = sessDuration.toIntOrNull(), avgHR = sessAvgHR.toIntOrNull(),
+                    rmssd = if (sessRMSSD.isEmpty()) null else pf(sessRMSSD)))
                 saved = true; timer.stop()
                 view.performHapticFeedback(android.view.HapticFeedbackConstants.CONFIRM)
                 toast.show("Sessione salvata")
                 onSaved()
             }
         }
+    }
+}
+
+// MARK: - Labeled numeric field with optional info popup (session-load capture)
+@Composable
+private fun LoadField(label: String, value: String, info: String? = null, onChange: (String) -> Unit) {
+    Column(Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Lbl(label)
+            if (info != null) { Spacer(Modifier.width(4.dp)); InfoButton(info) }
+        }
+        Spacer(Modifier.height(6.dp))
+        InputField(value, onChange, "—", KeyboardType.Number)
     }
 }
 

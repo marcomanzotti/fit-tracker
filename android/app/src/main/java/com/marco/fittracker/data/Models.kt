@@ -236,10 +236,12 @@ enum class Activity(val raw: String, val multiplier: Double) {
 @Serializable
 data class Prefs(
     val timer: Int = 60,
-    val goalWeight: Double = 80.0,
+    // Clean, generic male defaults; onboarding swaps in female defaults when the
+    // user picks "Female". Existing users keep their saved values.
+    val goalWeight: Double = 75.0,
     val goalBF: Double = 15.0,
-    val startWeight: Double = 88.0,
-    val height: Double = 1.85,
+    val startWeight: Double = 80.0,
+    val height: Double = 1.80,
     // optional (backward-compatible) profile fields
     val language: String? = null,
     val onboarded: Boolean? = null,
@@ -255,7 +257,9 @@ data class Prefs(
     // Optional weekly schedule: 7 entries Mon..Sun, each a plan id / cardio id /
     // "rest" / "" (auto). When any slot is set, "next workout" follows the week.
     val schedule: List<String>? = null,
-    val healthKit: Boolean? = null
+    val healthKit: Boolean? = null,
+    // Days explicitly marked as rest (yyyy-MM-dd). A marker, not a session.
+    val restDays: List<String>? = null
 ) {
     val langCode: String get() = if (language == "it" || language == "en") language!! else "it"
     val didOnboard: Boolean get() = onboarded == true
@@ -276,6 +280,7 @@ data class Prefs(
         }
     val restHRorDefault: Int get() = restingHR?.takeIf { it > 0 } ?: 60
     val healthKitEnabled: Boolean get() = healthKit == true
+    val restDaySet: Set<String> get() = (restDays ?: emptyList()).toSet()
     /** Schedule normalized to exactly 7 slots (Mon..Sun); missing -> all empty. */
     val weekSchedule: List<String> get() = schedule?.takeIf { it.size == 7 } ?: List(7) { "" }
     val hasSchedule: Boolean get() = weekSchedule.any { it.isNotEmpty() && it != "rest" }
