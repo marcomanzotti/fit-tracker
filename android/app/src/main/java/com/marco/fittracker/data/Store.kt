@@ -241,6 +241,57 @@ class Store(app: Application) : AndroidViewModel(app) {
         if (i >= 0) { sessions[i] = s; save() }
     }
 
+    // MARK: Rest days (markers, not sessions)
+    fun isRestDay(date: String): Boolean = prefs.restDaySet.contains(date)
+    fun setRestDay(date: String, on: Boolean) {
+        val set = prefs.restDaySet.toMutableSet()
+        if (on) set.add(date) else set.remove(date)
+        updatePrefs(prefs.copy(restDays = if (set.isEmpty()) null else set.sorted()))
+    }
+    fun toggleRestDay(date: String) = setRestDay(date, !isRestDay(date))
+
+    // MARK: Quick insert (log a workout for another day from Home or Calendar)
+    /** Create a strength session for [date], prefilled from the last session of
+     *  that plan (sets/reps/weights/load), or the plan template when no history. */
+    fun quickInsertSession(plan: WorkoutPlan, date: String): WorkoutSession {
+        val last = sessions.filter { it.planId == plan.id }.sortedByDescending { it.date }.firstOrNull()
+        val exercises = if (last != null) {
+            last.exercises.map { e ->
+                LoggedExercise(name = e.name,
+                    sets = e.sets.map { SetEntry(reps = it.reps, weight = it.weight) },
+                    notes = "", target = e.target,
+                    supersetGroup = e.supersetGroup, method = e.method)
+            }
+        } else {
+            plan.exercises.map { pe ->
+                LoggedExercise(name = pe.name,
+                    sets = List(maxOf(1, pe.sets)) { SetEntry() },
+                    target = "${pe.sets}×${pe.reps}",
+                    supersetGroup = pe.supersetGroup, method = pe.method)
+            }
+        }
+        val s = WorkoutSession(date = date, planId = plan.id, planName = plan.name,
+            planColor = plan.color, exercises = exercises,
+            durationMin = last?.durationMin, avgHR = last?.avgHR, maxHRSes = last?.maxHRSes)
+        setRestDay(date, false)
+        sessions.add(s)
+        save()
+        return s
+    }
+
+    /** Create a cardio session for [date], prefilled from the last log. */
+    fun quickInsertCardio(type: CardioType, date: String): WorkoutSession {
+        val pid = "cardio-${type.id}"
+        val last = sessions.filter { it.planId == pid }.sortedByDescending { it.date }.firstOrNull()
+        val s = WorkoutSession(date = date, planId = pid, planName = type.name,
+            planColor = type.color, exercises = emptyList(), sport = type.sport,
+            durationMin = last?.durationMin, avgHR = last?.avgHR, distanceKm = last?.distanceKm)
+        setRestDay(date, false)
+        sessions.add(s)
+        save()
+        return s
+    }
+
     // MARK: Daily nutrition & recovery
     fun saveDailyExtras(
         kcal: Int? = null, protein: Double? = null, carbs: Double? = null,

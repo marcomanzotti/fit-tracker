@@ -416,8 +416,8 @@ enum L {
             "Estimates how recovered you are from heart-rate variability (HRV), measured as the RMSSD you type in each morning.\n\nWe take the natural log of RMSSD (lnRMSSD, which is more stable) and compare it to your ~60-day average as a z-score. The 0-100 score is 50 + 20 × z.\n\nHigh = nervous system recovered, you can push. Low = below your norm, better to go easy or rest. At least 5 readings are needed to build the baseline."),
         "info.acwr.title": ("Carico acuto:cronico (ACWR)", "Acute:Chronic load (ACWR)"),
         "info.acwr.body": (
-            "Rapporto tra il carico recente (acuto, ultimi 7 giorni) e quello abituale (cronico, ultimi 28 giorni), entrambi calcolati con una media mobile esponenziale (EWMA).\n\nIl carico viene da sRPE o TRIMP, quindi compare solo dopo che inserisci durata + RPE (o FC media).\n\nZona indicativa: 0,8-1,3 = ottimale; sotto 0,8 = stai scaricando (rischio detraining); sopra 1,3 = picco di carico e maggior rischio infortuni.",
-            "Ratio between recent load (acute, last 7 days) and habitual load (chronic, last 28 days), both computed with an exponentially weighted moving average (EWMA).\n\nLoad comes from sRPE or TRIMP, so it only appears once you enter duration + RPE (or average HR).\n\nGuide: 0.8-1.3 = sweet spot; below 0.8 = detraining/unloading; above 1.3 = a load spike and higher injury risk."),
+            "Rapporto tra il carico recente (acuto, ultimi 7 giorni) e quello abituale (cronico, ultimi 28 giorni), entrambi calcolati con una media mobile esponenziale (EWMA).\n\nIl carico viene dal TRIMP, quindi compare solo dopo che inserisci durata + FC media della sessione (serve un orologio o una fascia cardio).\n\nZona indicativa: 0,8-1,3 = ottimale; sotto 0,8 = stai scaricando (rischio detraining); sopra 1,3 = picco di carico e maggior rischio infortuni.",
+            "Ratio between recent load (acute, last 7 days) and habitual load (chronic, last 28 days), both computed with an exponentially weighted moving average (EWMA).\n\nLoad comes from TRIMP, so it only appears once you enter the session's duration + average HR (a watch or chest strap is needed).\n\nGuide: 0.8-1.3 = sweet spot; below 0.8 = detraining/unloading; above 1.3 = a load spike and higher injury risk."),
         "info.monotony.title": ("Monotonia", "Monotony"),
         "info.monotony.body": (
             "Quanto è uniforme il carico nei giorni della settimana: media giornaliera divisa per la sua deviazione standard (metodo di Foster).\n\nValori alti (sopra ~2) significano allenamenti tutti simili, senza alternanza tra giorni duri e leggeri: è associato a maggior affaticamento. Variare l'intensità abbassa la monotonia.\n\nServono almeno 2 giorni di allenamento con RPE/FC nella settimana per calcolarla.",
@@ -428,8 +428,8 @@ enum L {
             "The week's total load multiplied by monotony (Foster's method).\n\nIt sums up your overall accumulated stress in one number: high when you train a lot AND monotonously. Strain spikes often precede overreaching, illness or performance dips, so it's a good cue to schedule a deload week."),
         "info.load.title": ("Carico interno", "Internal load"),
         "info.load.body": (
-            "Il carico interno misura lo stress dell'allenamento percepito dal tuo corpo, non i kg sollevati.\n\nLo calcoliamo come sRPE (durata × RPE) oppure, se hai inserito la FC media, come TRIMP. Da qui derivano ACWR, monotonia e strain.\n\nImportante: senza durata + RPE (o FC) una sessione non genera carico interno, quindi queste metriche restano vuote finché non inserisci quei dati.",
-            "Internal load measures the training stress your body actually experiences, not the kilos lifted.\n\nWe compute it as sRPE (duration × RPE) or, if you entered average HR, as TRIMP. ACWR, monotony and strain all build on it.\n\nImportant: without duration + RPE (or HR) a session produces no internal load, so these metrics stay empty until you enter that data."),
+            "Il carico interno misura lo stress dell'allenamento percepito dal tuo corpo, non i kg sollevati.\n\nLo calcoliamo come TRIMP a partire dalla durata e dalla frequenza cardiaca media della sessione. Da qui derivano ACWR, monotonia e strain.\n\nImportante: senza durata + FC media una sessione non genera carico interno, quindi queste metriche restano vuote finché non inserisci quei dati (serve un orologio o una fascia cardio).",
+            "Internal load measures the training stress your body actually experiences, not the kilos lifted.\n\nWe compute it as TRIMP from the session's duration and average heart rate. ACWR, monotony and strain all build on it.\n\nImportant: without duration + average HR a session produces no internal load, so these metrics stay empty until you enter that data (a watch or chest strap is needed)."),
         "info.srpe.title": ("sRPE (durata × RPE)", "sRPE (duration × RPE)"),
         "info.srpe.body": (
             "Session-RPE: durata della sessione in minuti moltiplicata per lo sforzo percepito (RPE 1-10, scala di Borg CR10).\n\nÈ il modo più semplice e validato per quantificare il carico interno di qualsiasi allenamento, di forza o cardio. Inserisci durata e RPE a fine sessione.",
@@ -506,6 +506,26 @@ enum L {
         "info.streak.body": (
             "I giorni consecutivi in cui hai fatto un check-in o un allenamento. La striscia resta attiva per tutta la giornata di oggi: non si azzera solo perché non hai ancora fatto il check-in di oggi.\n\nSi interrompe soltanto quando passa un giorno intero senza alcun check-in né allenamento.",
             "The consecutive days you've done a check-in or a workout. The streak stays active for the whole of today: it doesn't reset just because you haven't checked in yet today.\n\nIt only breaks once a full day passes with no check-in and no workout."),
+
+        // --- Day logging / rest / recommended fields ------------------------
+        "home.tap_to_log":   ("Tocca un giorno per registrare", "Tap a day to log"),
+        "day.title":         ("Registra giornata", "Log day"),
+        "day.hint":          ("Scegli cosa hai fatto in questo giorno: un allenamento di forza, un'attività cardio o riposo. I dati partono dall'ultima volta e restano modificabili.",
+                              "Choose what you did on this day: a strength workout, a cardio activity or rest. Data starts from last time and stays editable."),
+        "day.mark_rest":     ("Segna come riposo", "Mark as rest"),
+        "day.clear_rest":    ("Rimuovi riposo", "Remove rest"),
+        "cal.tap_hint":      ("Tocca un giorno per registrare un allenamento o il riposo", "Tap a day to log a workout or rest"),
+        "load.recommended":  ("Consigliato", "Recommended"),
+        "load.sensor":       ("Sensore HRV", "HRV sensor"),
+        "load.trimp_hint":   ("Carico cardio della sessione", "Session cardio load"),
+
+        // --- TRIMP card -----------------------------------------------------
+        "trimp.title":       ("Carico cardio (TRIMP)", "Cardio load (TRIMP)"),
+        "trimp.this_week":   ("Questa settimana", "This week"),
+        "trimp.last_week":   ("Settimana scorsa", "Last week"),
+        "trimp.last":        ("Ultima:", "Last:"),
+        "trimp.note":        ("Somma del TRIMP delle sessioni con FC media. Più alto = più stress cardiovascolare.",
+                              "Sum of session TRIMP from average HR. Higher = more cardiovascular stress."),
     ]
 }
 

@@ -32,6 +32,32 @@ extension Store {
 
     /// Any session that carries a usable internal-load signal.
     func hasMeasuredLoad(_ s: WorkoutSession) -> Bool { measuredLoad(s) != nil }
+
+    /// Sum of session TRIMP in a Monday-based week (offset 0 = current week).
+    func weeklyTrimp(offset: Int = 0) -> Double {
+        let cal = Calendar.current
+        let now = Date()
+        let dow = (cal.component(.weekday, from: now) + 5) % 7   // Monday = 0
+        let mon = cal.startOfDay(for: cal.date(byAdding: .day, value: -dow - offset * 7, to: now)!)
+        let sun = cal.date(byAdding: .day, value: 7, to: mon)!
+        var total = 0.0
+        for s in sessions {
+            guard let v = trimp(s), let d = isoFormatter.date(from: s.date) else { continue }
+            if d >= mon && d < sun { total += v }
+        }
+        return total
+    }
+
+    /// TRIMP of the most recent session that has one (nil if no HR logged yet).
+    func lastSessionTrimp() -> (value: Double, date: String)? {
+        for s in sessions.sorted(by: { $0.date > $1.date }) {
+            if let v = trimp(s) { return (v, s.date) }
+        }
+        return nil
+    }
+
+    /// True once any session carries the avg-HR needed to compute TRIMP.
+    var hasAnyTrimp: Bool { sessions.contains { trimp($0) != nil } }
 }
 
 // MARK: - Daily load series + ACWR (EWMA method)

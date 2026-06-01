@@ -14,7 +14,6 @@ struct LiveWorkoutView: View {
     @State private var showNotes: Set<UUID> = []
     @State private var saved = false
     @State private var sessDuration = ""
-    @State private var sessRPE = ""
     @State private var sessAvgHR = ""
     @State private var sessRMSSD = ""
 
@@ -38,18 +37,39 @@ struct LiveWorkoutView: View {
         }
     }
 
-    // MARK: Session internal-load capture (sRPE / TRIMP inputs)
+    // MARK: Session internal-load capture (TRIMP from duration + avg HR)
+    private var liveTrimp: Double? {
+        guard let d = Int(sessDuration), d > 0, let hr = Int(sessAvgHR), hr > 0 else { return nil }
+        var s = WorkoutSession(date: today(), planId: plan.id, planName: plan.name, planColor: plan.color)
+        s.durationMin = d; s.avgHR = hr
+        return store.trimp(s)
+    }
+
     private var sessionLoadCard: some View {
         Card {
             InfoLbl(text: t("load.title"), info: "load", color: Theme.acc2).padding(.bottom, 10)
             HStack(spacing: 10) {
-                loadField(t("wk.duration"), $sessDuration, info: "srpe")
-                loadField(t("wk.rpe"), $sessRPE, info: "srpe")
-            }.padding(.bottom, 10)
-            HStack(spacing: 10) {
+                loadField(t("wk.duration"), $sessDuration)
                 loadField(t("wk.avg_hr"), $sessAvgHR, info: "trimp")
-                loadField(t("wk.rmssd"), $sessRMSSD, info: "rmssd")
             }
+            if let v = liveTrimp {
+                HStack(spacing: 6) {
+                    Text("TRIMP").font(.head(9, .semibold)).tracking(1.5).foregroundColor(Theme.sub)
+                    Text("\(Int(v.rounded()))").font(.num(16)).foregroundColor(Theme.acc2)
+                    Spacer()
+                    Text(t("load.trimp_hint")).font(.system(size: 9)).foregroundColor(Theme.sub)
+                }
+                .padding(.top, 12)
+            }
+            // Optional, sensor-only recovery metric — clearly flagged as recommended.
+            Rectangle().fill(Theme.brd).frame(height: 1).padding(.vertical, 11)
+            HStack(spacing: 7) {
+                Text(t("load.recommended").uppercased()).font(.head(8, .semibold)).tracking(1).foregroundColor(Theme.sub)
+                Badge(text: t("load.sensor"), color: Theme.blue, bg: Theme.blue.opacity(0.12))
+                Spacer()
+            }
+            .padding(.bottom, 9)
+            loadField(t("wk.rmssd"), $sessRMSSD, info: "rmssd")
         }
     }
 
@@ -284,7 +304,6 @@ struct LiveWorkoutView: View {
                                   planName: plan.name, planColor: plan.color,
                                   exercises: exercises)
         sess.durationMin = Int(sessDuration)
-        sess.rpe = Int(sessRPE)
         sess.avgHR = Int(sessAvgHR)
         sess.rmssd = sessRMSSD.isEmpty ? nil : pf(sessRMSSD)
         store.sessions.append(sess)

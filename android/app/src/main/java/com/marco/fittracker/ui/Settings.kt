@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -38,6 +39,11 @@ import androidx.compose.ui.window.Dialog
 import com.marco.fittracker.data.pf
 import com.marco.fittracker.data.t
 import com.marco.fittracker.data.trimNum
+
+// Clean starting numbers per sex (height in meters, weights in kg).
+private data class SexDefaults(val height: String, val weight: String, val goal: String)
+private val maleDefaults = SexDefaults("1.8", "80", "75")
+private val femaleDefaults = SexDefaults("1.65", "65", "60")
 
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
@@ -84,6 +90,16 @@ fun SettingsDialog(onClose: () -> Unit) {
     var maxHR by remember { mutableStateOf(p.maxHR?.toString() ?: "") }
     var sleepOn by remember { mutableStateOf(p.sleepEnabled) }
     var timer by remember { mutableStateOf(p.timer.toString()) }
+
+    // When the user flips sex and hasn't typed their own numbers yet (the fields
+    // still hold the other sex's clean defaults), swap in this sex's defaults.
+    LaunchedEffect(sex) {
+        val from = if (sex == "m") femaleDefaults else maleDefaults
+        val to = if (sex == "m") maleDefaults else femaleDefaults
+        if (height == from.height && startW == from.weight && goalW == from.goal) {
+            height = to.height; startW = to.weight; goalW = to.goal
+        }
+    }
 
     Dialog(onDismissRequest = onClose) {
         Column(

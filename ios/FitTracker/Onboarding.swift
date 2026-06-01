@@ -160,6 +160,11 @@ struct ProfileFormBody: View {
     }
 }
 
+// MARK: - Clean starting numbers per sex (round, generic placeholders)
+struct SexDefaults { let height: String; let weight: String; let goal: String }
+let maleDefaults   = SexDefaults(height: "180", weight: "80", goal: "75")
+let femaleDefaults = SexDefaults(height: "165", weight: "65", goal: "60")
+
 // MARK: - Onboarding (first launch)
 struct OnboardingView: View {
     @EnvironmentObject var store: Store
@@ -199,6 +204,16 @@ struct OnboardingView: View {
         }
         .preferredColorScheme(.dark)
         .onChange(of: f.lang) { _ in store.prefs.language = f.lang; store.syncLang() }
+        .onChange(of: f.sex) { newSex in
+            // Swap in the selected sex's clean defaults, but only if the user
+            // hasn't already typed their own numbers (i.e. the fields still hold
+            // the other sex's defaults).
+            let from = newSex == "m" ? femaleDefaults : maleDefaults
+            let to   = newSex == "m" ? maleDefaults   : femaleDefaults
+            if f.heightCm == from.height && f.weight == from.weight && f.goalWeight == from.goal {
+                f.heightCm = to.height; f.weight = to.weight; f.goalWeight = to.goal
+            }
+        }
         .onAppear { f = ProfileFields(store.prefs, currentWeight: store.lastWeight) }
     }
 

@@ -27,6 +27,31 @@ fun Store.trimp(s: WorkoutSession): Double? {
 fun Store.measuredLoad(s: WorkoutSession): Double? = s.sRPE ?: trimp(s)
 fun Store.hasMeasuredLoad(s: WorkoutSession): Boolean = measuredLoad(s) != null
 
+/** Sum of session TRIMP in a Monday-based week (offset 0 = current week). */
+fun Store.weeklyTrimp(offset: Int = 0): Double {
+    val now = LocalDate.now()
+    val mon = now.minusDays((now.dayOfWeek.value - 1).toLong()).minusDays(offset * 7L)
+    val sun = mon.plusDays(7)
+    var total = 0.0
+    for (s in sessions) {
+        val v = trimp(s) ?: continue
+        val d = runCatching { LocalDate.parse(s.date) }.getOrNull() ?: continue
+        if (!d.isBefore(mon) && d.isBefore(sun)) total += v
+    }
+    return total
+}
+
+/** TRIMP of the most recent session that has one (null until HR is logged). */
+fun Store.lastSessionTrimp(): Pair<Double, String>? {
+    for (s in sessions.sortedByDescending { it.date }) {
+        trimp(s)?.let { return it to s.date }
+    }
+    return null
+}
+
+/** True once any session carries the avg HR needed to compute TRIMP. */
+fun Store.hasAnyTrimp(): Boolean = sessions.any { trimp(it) != null }
+
 data class LoadPoint(val date: String, val load: Double)
 data class ACWRResult(val ratio: Double?, val acute: Double, val chronic: Double, val zone: String)
 

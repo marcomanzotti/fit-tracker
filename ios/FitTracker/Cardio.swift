@@ -14,7 +14,6 @@ struct CardioLoggerView: View {
     @State private var duration = ""
     @State private var distance = ""
     @State private var avgHR = ""
-    @State private var rpe = ""
     @State private var rmssd = ""
 
     var body: some View {
@@ -45,11 +44,14 @@ struct CardioLoggerView: View {
                             FieldRow(label: t("wk.distance")) { InputField(placeholder: "8", text: $distance) }
                         }
                         Spacer().frame(height: 14)
-                        HStack(spacing: 12) {
-                            FieldRow(label: t("wk.avg_hr")) { InputField(placeholder: "150", text: $avgHR, keyboard: .numberPad) }
-                            FieldRow(label: t("wk.rpe")) { InputField(placeholder: "6", text: $rpe, keyboard: .numberPad) }
+                        FieldRow(label: t("wk.avg_hr")) { InputField(placeholder: "150", text: $avgHR, keyboard: .numberPad) }
+                        Rectangle().fill(Theme.brd).frame(height: 1).padding(.vertical, 13)
+                        HStack(spacing: 7) {
+                            Text(t("load.recommended").uppercased()).font(.head(8, .semibold)).tracking(1).foregroundColor(Theme.sub)
+                            Badge(text: t("load.sensor"), color: Theme.blue, bg: Theme.blue.opacity(0.12))
+                            Spacer()
                         }
-                        Spacer().frame(height: 14)
+                        .padding(.bottom, 9)
                         FieldRow(label: t("wk.rmssd")) { InputField(placeholder: "—", text: $rmssd) }
                     }
 
@@ -81,7 +83,7 @@ struct CardioLoggerView: View {
         WorkoutSession(
             date: today(), planId: "cardio-\(type.id)", planName: type.name, planColor: type.color,
             exercises: [], sport: type.sport, durationMin: dur,
-            rpe: Int(rpe), avgHR: Int(avgHR),
+            avgHR: Int(avgHR),
             rmssd: rmssd.isEmpty ? nil : pf(rmssd),
             distanceKm: distance.isEmpty ? nil : pf(distance))
     }

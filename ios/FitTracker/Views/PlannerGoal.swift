@@ -183,7 +183,7 @@ struct WeeklyPlanView: View {
     }
     private func slotColor(_ id: String) -> Color {
         if id.isEmpty { return Theme.brd2 }
-        if id == "rest" { return Theme.sub }
+        if id == "rest" { return Theme.restFill }
         if let p = store.plans.first(where: { $0.id == id }) { return Color(hex: p.color) }
         if let c = store.cardioTypes.first(where: { $0.id == id }) { return Color(hex: c.color) }
         return Theme.brd2
@@ -220,9 +220,7 @@ struct WeeklyPlanCard: View {
                                 .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous)
                                     .stroke(wd == todayMon ? Theme.acc : Color.clear, lineWidth: 1.5))
                                 .overlay {
-                                    if sched[wd] == "rest" {
-                                        Image(systemName: "moon.fill").font(.system(size: 9)).foregroundColor(Theme.bg)
-                                    }
+                                    if sched[wd] == "rest" { RestChip(size: 11) }
                                 }
                         }
                         .frame(maxWidth: .infinity)
@@ -236,7 +234,7 @@ struct WeeklyPlanCard: View {
 
     private func slotColor(_ id: String) -> Color {
         if id.isEmpty { return Theme.c3 }
-        if id == "rest" { return Theme.sub.opacity(0.6) }
+        if id == "rest" { return Theme.restFill }
         if let p = store.plans.first(where: { $0.id == id }) { return Color(hex: p.color) }
         if let c = store.cardioTypes.first(where: { $0.id == id }) { return Color(hex: c.color) }
         return Theme.c3

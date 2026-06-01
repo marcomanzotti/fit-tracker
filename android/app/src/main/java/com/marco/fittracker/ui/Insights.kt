@@ -43,12 +43,15 @@ import com.marco.fittracker.data.dailyLoadSeries
 import com.marco.fittracker.data.energyAvailability
 import com.marco.fittracker.data.energyTargets
 import com.marco.fittracker.data.fmtShort
+import com.marco.fittracker.data.hasAnyTrimp
+import com.marco.fittracker.data.lastSessionTrimp
 import com.marco.fittracker.data.progression
 import com.marco.fittracker.data.readiness
 import com.marco.fittracker.data.t
 import com.marco.fittracker.data.trimNum
 import com.marco.fittracker.data.trimp
 import com.marco.fittracker.data.weekLoad
+import com.marco.fittracker.data.weeklyTrimp
 import com.marco.fittracker.data.weightTrend
 
 fun zoneColor(z: String): Color = when (z) {
@@ -127,17 +130,48 @@ fun ReadinessCard() {
         } else {
             Text(t("load.need_data"), color = T.sub, fontSize = 12.sp)
         }
-        // Advanced: DFA-alpha1 aerobic threshold (deferred, clearly labeled)
-        Spacer(Modifier.height(10.dp))
-        Box(Modifier.fillMaxWidth().height(1.dp).background(T.brd))
-        Spacer(Modifier.height(10.dp))
+    }
+}
+
+// MARK: - TRIMP card (cardio training load from avg HR)
+@Composable
+fun TrimpCard() {
+    val store = LocalStore.current
+    if (!store.hasAnyTrimp()) return
+    val week = store.weeklyTrimp(0)
+    val prev = store.weeklyTrimp(1)
+    val last = store.lastSessionTrimp()
+    Card(accent = T.acc2) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(t("metric.dfa"), color = T.sub, fontSize = 11.sp, fontWeight = FontWeight.Medium)
-            Spacer(Modifier.width(4.dp))
-            InfoButton("dfa")
+            Lbl(t("trimp.title"), T.acc2)
+            Spacer(Modifier.width(5.dp))
+            InfoButton("trimp", T.acc2)
             Spacer(Modifier.weight(1f))
-            Text(t("metric.dfa_soon"), color = T.sub, fontSize = 9.sp, textAlign = androidx.compose.ui.text.style.TextAlign.End)
+            last?.let { Text("${t("trimp.last")} ${Math.round(it.first)}", color = T.sub, fontSize = 10.sp, fontWeight = FontWeight.SemiBold) }
         }
+        Spacer(Modifier.height(12.dp))
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text("${Math.round(week)}", color = T.acc2, fontSize = 34.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.width(6.dp))
+            Text(t("trimp.this_week"), color = T.sub, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+        }
+        Spacer(Modifier.height(12.dp))
+        val mx = maxOf(week, prev, 1.0)
+        TrimpCmpRow(t("trimp.this_week"), week, mx, T.acc2)
+        Spacer(Modifier.height(7.dp))
+        TrimpCmpRow(t("trimp.last_week"), prev, mx, T.sub)
+        Spacer(Modifier.height(8.dp))
+        Text(t("trimp.note"), color = T.sub, fontSize = 9.sp)
+    }
+}
+
+@Composable
+private fun TrimpCmpRow(label: String, value: Double, mx: Double, color: Color) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text(label, color = T.sub, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(78.dp))
+        Bar(value / mx, gradient = listOf(color, color.copy(alpha = 0.6f)), height = 8, modifier = Modifier.weight(1f))
+        Text("${Math.round(value)}", color = T.txt, fontSize = 13.sp, fontWeight = FontWeight.Bold,
+            modifier = Modifier.width(38.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End)
     }
 }
 
@@ -191,7 +225,7 @@ fun LoadCard() {
             Spacer(Modifier.height(12.dp))
         }
         Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-            RowScopeStatTile(t("load.weekly"), "${wk.total.toInt()}", info = "srpe", modifier = Modifier.weight(1f))
+            RowScopeStatTile(t("load.weekly"), "${wk.total.toInt()}", info = "trimp", modifier = Modifier.weight(1f))
             RowScopeStatTile(t("load.monotony"), wk.monotony?.let { trimNum(Math.round(it * 10.0) / 10.0) } ?: "—",
                 valueColor = if ((wk.monotony ?: 0.0) > 2) T.acc2 else T.txt, info = "monotony", modifier = Modifier.weight(1f))
             RowScopeStatTile(t("load.strain"), wk.strain?.let { "${it.toInt()}" } ?: "—",

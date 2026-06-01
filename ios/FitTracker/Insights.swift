@@ -39,21 +39,58 @@ struct ReadinessCard: View {
                     } else {
                         Text(t("load.need_data")).font(.system(size: 12)).foregroundColor(Theme.sub)
                     }
-                    // Advanced: DFA-alpha1 aerobic threshold (deferred, clearly labeled)
-                    Rectangle().fill(Theme.brd).frame(height: 1).padding(.vertical, 10)
-                    HStack(spacing: 2) {
-                        Text(t("metric.dfa")).font(.system(size: 11, weight: .medium)).foregroundColor(Theme.sub)
-                        InfoButton(id: "dfa")
-                        Spacer()
-                        Text(t("metric.dfa_soon")).font(.system(size: 9)).foregroundColor(Theme.sub)
-                            .multilineTextAlignment(.trailing)
-                    }
                 }
             }
         }
     }
     private func adviceKey(_ a: String) -> String {
         switch a { case "ready": return "load.ready"; case "easy": return "load.easy"; case "rest": return "load.rest"; default: return "load.need_data" }
+    }
+}
+
+// MARK: - TRIMP card (cardio training load from avg HR)
+// Banister TRIMP per session, summed by week. Appears only once at least one
+// session carries an average HR, since that's what TRIMP is computed from.
+struct TrimpCard: View {
+    @EnvironmentObject var store: Store
+    var body: some View {
+        let week = store.weeklyTrimp()
+        let prev = store.weeklyTrimp(offset: 1)
+        let last = store.lastSessionTrimp()
+        Group {
+            if store.hasAnyTrimp {
+                Card(accent: Theme.acc2) {
+                    HStack(spacing: 2) {
+                        Lbl(text: t("trimp.title"), color: Theme.acc2)
+                        InfoButton(id: "trimp", color: Theme.acc2)
+                        Spacer()
+                        if let last {
+                            Text("\(t("trimp.last")) \(Int(last.value.rounded()))")
+                                .font(.head(10, .semibold)).tracking(0.3).foregroundColor(Theme.sub)
+                        }
+                    }
+                    .padding(.bottom, 12)
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text("\(Int(week.rounded()))").font(.num(34)).foregroundColor(Theme.acc2)
+                        Text(t("trimp.this_week")).font(.system(size: 12, weight: .semibold)).foregroundColor(Theme.sub)
+                        Spacer()
+                    }
+                    .padding(.bottom, 12)
+                    let mx = max(week, prev, 1)
+                    cmpRow(t("trimp.this_week"), week, mx, Theme.acc2)
+                    cmpRow(t("trimp.last_week"), prev, mx, Theme.sub).padding(.top, 7)
+                    Text(t("trimp.note")).font(.system(size: 9)).foregroundColor(Theme.sub).padding(.top, 8)
+                }
+            }
+        }
+    }
+
+    private func cmpRow(_ label: String, _ value: Double, _ mx: Double, _ color: Color) -> some View {
+        HStack(spacing: 10) {
+            Text(label).font(.system(size: 10, weight: .semibold)).foregroundColor(Theme.sub).frame(width: 78, alignment: .leading)
+            Bar(value: value / mx, gradient: [color, color.opacity(0.6)], height: 8)
+            Text("\(Int(value.rounded()))").font(.num(13)).foregroundColor(Theme.txt).frame(width: 38, alignment: .trailing)
+        }
     }
 }
 
@@ -80,7 +117,7 @@ struct LoadCard: View {
                             .padding(.top, 5).padding(.bottom, 12)
                     }
                     HStack(spacing: 9) {
-                        StatTile(label: t("load.weekly"), value: "\(Int(wk.total))", valueColor: Theme.txt, info: "srpe")
+                        StatTile(label: t("load.weekly"), value: "\(Int(wk.total))", valueColor: Theme.txt, info: "trimp")
                         StatTile(label: t("load.monotony"), value: wk.monotony.map { trimNum(($0 * 10).rounded() / 10) } ?? "—",
                                  valueColor: (wk.monotony ?? 0) > 2 ? Theme.acc2 : Theme.txt, info: "monotony")
                         StatTile(label: t("load.strain"), value: wk.strain.map { "\(Int($0))" } ?? "—",
@@ -277,6 +314,8 @@ struct CalendarCard: View {
     @EnvironmentObject var store: Store
     @State private var monthOffset = 0
     @State private var editing: WorkoutSession?
+    @State private var pickerDate: IdentDate?
+    @State private var pendingEdit: WorkoutSession?
 
     var body: some View {
         let cal = Calendar.current
@@ -327,11 +366,14 @@ struct CalendarCard: View {
                 }
             }
             if monthSessions.isEmpty {
-                Text(t("cal.no_sessions")).font(.system(size: 11)).foregroundColor(Theme.sub)
+                Text(t("cal.tap_hint")).font(.system(size: 11)).foregroundColor(Theme.sub)
                     .frame(maxWidth: .infinity).padding(.top, 10)
             }
         }
         .sheet(item: $editing) { s in SessionEditorView(session: s) }
+        .sheet(item: $pickerDate, onDismiss: { if let s = pendingEdit { pendingEdit = nil; editing = s } }) { d in
+            DayPickerSheet(date: d.date) { pendingEdit = $0 }
+        }
     }
 
     private func monthPrefix(_ d: Date) -> String {
@@ -345,24 +387,34 @@ struct CalendarCard: View {
         let ds = isoFormatter.string(from: date)
         let daySessions = sessions.filter { $0.date == ds }
         let color = daySessions.first.map { Color(hex: $0.planColor) }
+        let rest = daySessions.isEmpty && store.isRestDay(ds)
+        let dark = color != nil || rest
         let isToday = ds == today()
+        // Don't let future days be logged.
+        let future = ds > today()
         return Button {
-            if let first = daySessions.first { tap(); editing = first }
+            tap()
+            if let first = daySessions.first { editing = first }
+            else if !future { pickerDate = IdentDate(date: ds) }
         } label: {
-            VStack(spacing: 2) {
+            VStack(spacing: 1) {
                 Text("\(day)").font(.system(size: 12, weight: isToday ? .bold : .regular))
-                    .foregroundColor(color != nil ? Theme.bg : (isToday ? Theme.acc : Theme.txt))
+                    .foregroundColor(dark ? Theme.bg : (isToday ? Theme.acc : Theme.txt))
                 if daySessions.count > 1 {
                     Text("\(daySessions.count)").font(.system(size: 8, weight: .bold)).foregroundColor(Theme.bg)
+                } else if rest {
+                    Image(systemName: Theme.restIcon).font(.system(size: 8, weight: .bold)).foregroundColor(Theme.bg)
                 }
             }
             .frame(maxWidth: .infinity).frame(height: 38)
-            .background(color ?? Color.clear)
+            .background(color ?? (rest ? Theme.restFill : Color.clear))
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(isToday && color == nil ? Theme.acc : Color.clear, lineWidth: 1))
+                .stroke(isToday && !dark ? Theme.acc : Color.clear, lineWidth: 1))
+            .opacity(future ? 0.35 : 1)
         }
-        .disabled(daySessions.isEmpty)
+        .buttonStyle(.plain)
+        .disabled(future && daySessions.isEmpty)
     }
 }
 
@@ -390,18 +442,37 @@ struct SessionEditorView: View {
                     }
                     .padding(.top, 18)
 
-                    // Session-level internal load fields
+                    // Session-level internal load fields (TRIMP from duration + avg HR)
                     Card {
                         InfoLbl(text: t("load.title"), info: "load").padding(.bottom, 12)
                         HStack(spacing: 10) {
-                            metricField(t("wk.duration"), intBinding(\.durationMin), info: "srpe")
-                            metricField(t("wk.rpe"), intBinding(\.rpe), info: "srpe")
-                        }
-                        .padding(.bottom, 10)
-                        HStack(spacing: 10) {
+                            metricField(t("wk.duration"), intBinding(\.durationMin))
                             metricField(t("wk.avg_hr"), intBinding(\.avgHR), info: "trimp")
-                            metricField(t("wk.rmssd"), doubleBinding(\.rmssd), info: "rmssd")
                         }
+                        if session.sportType.isCardio {
+                            Spacer().frame(height: 10)
+                            HStack(spacing: 10) {
+                                metricField(t("wk.distance"), doubleBinding(\.distanceKm))
+                                Color.clear.frame(maxWidth: .infinity)
+                            }
+                        }
+                        if let v = store.trimp(session) {
+                            HStack(spacing: 6) {
+                                Text("TRIMP").font(.head(9, .semibold)).tracking(1.5).foregroundColor(Theme.sub)
+                                Text("\(Int(v.rounded()))").font(.num(16)).foregroundColor(Theme.acc2)
+                                Spacer()
+                                Text(t("load.trimp_hint")).font(.system(size: 9)).foregroundColor(Theme.sub)
+                            }
+                            .padding(.top, 12)
+                        }
+                        Rectangle().fill(Theme.brd).frame(height: 1).padding(.vertical, 11)
+                        HStack(spacing: 7) {
+                            Text(t("load.recommended").uppercased()).font(.head(8, .semibold)).tracking(1).foregroundColor(Theme.sub)
+                            Badge(text: t("load.sensor"), color: Theme.blue, bg: Theme.blue.opacity(0.12))
+                            Spacer()
+                        }
+                        .padding(.bottom, 9)
+                        metricField(t("wk.rmssd"), doubleBinding(\.rmssd), info: "rmssd")
                     }
 
                     ForEach(session.exercises.indices, id: \.self) { i in
