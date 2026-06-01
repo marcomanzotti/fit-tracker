@@ -96,7 +96,7 @@ struct LiveWorkoutView: View {
             metricsPage
             controlsPage
         }
-        .tabViewStyle(.verticalPage)
+        .tabViewStyle(.page)
     }
 
     private var metricsPage: some View {
