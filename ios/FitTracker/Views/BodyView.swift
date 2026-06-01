@@ -52,13 +52,15 @@ struct BodyView: View {
                 field("\(t("nut.fat")) (g)", "70", $fatInput)
             }.padding(.bottom, 10)
             HStack(spacing: 10) {
-                field("STEPS", "8000", $stepsInput)
-                field("\(t("wk.rmssd"))", "65", $rmssdInput)
+                fieldInfo(t("lbl.steps").uppercased(), "8000", $stepsInput, info: "steps")
+                fieldInfo(t("wk.rmssd"), "65", $rmssdInput, info: "rmssd")
             }.padding(.bottom, 10)
             HStack(spacing: 10) {
                 field("\(t("ob.rest_hr"))", "58", $restHRInput)
                 Spacer().frame(maxWidth: .infinity)
             }.padding(.bottom, 10)
+            Text(t("hk.optional_note")).font(.system(size: 10)).foregroundColor(Theme.sub).lineSpacing(2)
+                .padding(.bottom, 10)
             FilledButton(title: t("save")) {
                 store.saveDailyExtras(
                     kcal: Int(kcalInput), protein: dOrNil(proteinInput), carbs: dOrNil(carbsInput),
@@ -79,7 +81,7 @@ struct BodyView: View {
             HStack(spacing: 10) {
                 field("\(t("home.weight")) (KG)", "87,5", $weightInput)
                 if store.prefs.sleepEnabled {
-                    field("\(t("home.sleep")) (0-100)", "78", $sleepInput)
+                    fieldInfo("\(t("home.sleep")) (0-100)", "78", $sleepInput, info: "sleep")
                 }
             }.padding(.bottom, 10)
             FilledButton(title: t("home.save_checkin")) {
@@ -274,6 +276,18 @@ struct BodyView: View {
     private func field(_ label: String, _ ph: String, _ binding: Binding<String>) -> some View {
         VStack(alignment: .leading, spacing: 7) {
             Text(label).font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.sub)
+            InputField(placeholder: ph, text: binding)
+        }
+    }
+
+    /// Field with an inline info popup next to its label (for scientific inputs).
+    private func fieldInfo(_ label: String, _ ph: String, _ binding: Binding<String>, info: String) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(spacing: 2) {
+                Text(label).font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.sub)
+                InfoButton(id: info)
+                Spacer()
+            }
             InputField(placeholder: ph, text: binding)
         }
     }

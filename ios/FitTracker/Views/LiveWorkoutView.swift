@@ -41,21 +41,25 @@ struct LiveWorkoutView: View {
     // MARK: Session internal-load capture (sRPE / TRIMP inputs)
     private var sessionLoadCard: some View {
         Card {
-            Lbl(text: t("load.title"), color: Theme.acc2).padding(.bottom, 10)
+            InfoLbl(text: t("load.title"), info: "load", color: Theme.acc2).padding(.bottom, 10)
             HStack(spacing: 10) {
-                loadField(t("wk.duration"), $sessDuration)
-                loadField(t("wk.rpe"), $sessRPE)
+                loadField(t("wk.duration"), $sessDuration, info: "srpe")
+                loadField(t("wk.rpe"), $sessRPE, info: "srpe")
             }.padding(.bottom, 10)
             HStack(spacing: 10) {
-                loadField(t("wk.avg_hr"), $sessAvgHR)
-                loadField(t("wk.rmssd"), $sessRMSSD)
+                loadField(t("wk.avg_hr"), $sessAvgHR, info: "trimp")
+                loadField(t("wk.rmssd"), $sessRMSSD, info: "rmssd")
             }
         }
     }
 
-    private func loadField(_ label: String, _ binding: Binding<String>) -> some View {
+    private func loadField(_ label: String, _ binding: Binding<String>, info: String? = nil) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(label.uppercased()).font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
+            HStack(spacing: 2) {
+                Text(label.uppercased()).font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
+                if let info { InfoButton(id: info) }
+                Spacer()
+            }
             InputField(placeholder: "—", text: binding, keyboard: .numberPad)
         }
     }
