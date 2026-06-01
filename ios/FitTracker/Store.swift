@@ -329,6 +329,35 @@ extension Store {
         daily.append(e)
     }
 
+    // MARK: Apple Health import (optional, gap-fill only)
+    /// Merge Health samples into daily entries. Imported values only fill missing
+    /// fields so a manually typed number is never overwritten.
+    func applyHealthSamples(_ samples: [HealthDaySample]) {
+        for s in samples {
+            var e = daily.first(where: { $0.date == s.date }) ?? DailyEntry(date: s.date)
+            if e.steps == nil, let v = s.steps, v > 0 { e.steps = v }
+            if e.restHR == nil, let v = s.restHR, v > 0 { e.restHR = v }
+            if e.hrvSDNN == nil, let v = s.hrvSDNN, v > 0 { e.hrvSDNN = v }
+            daily.removeAll { $0.date == s.date }
+            daily.append(e)
+        }
+    }
+
+    /// Request authorization (if needed) and pull the last `days` days from Health.
+    func syncHealth(days: Int = 30, completion: ((Bool) -> Void)? = nil) {
+        let hk = HealthKitManager.shared
+        guard hk.isAvailable else { completion?(false); return }
+        hk.requestAuthorization { granted in
+            guard granted else { completion?(false); return }
+            hk.fetch(days: days) { samples in
+                self.applyHealthSamples(samples)
+                // Keep resting HR profile fresh from the most recent reading.
+                if let last = samples.compactMap({ $0.restHR }).last, last > 0 { self.prefs.restingHR = last }
+                completion?(true)
+            }
+        }
+    }
+
     // MARK: Session editing
     func deleteSession(_ id: UUID) { sessions.removeAll { $0.id == id } }
     func updateSession(_ s: WorkoutSession) {

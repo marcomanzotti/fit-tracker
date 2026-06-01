@@ -25,6 +25,7 @@ struct DailyEntry: Codable, Identifiable, Equatable {
     // Recovery (optional, manual entry)
     var rmssd: Double?        // HRV RMSSD typed from an external HRV app
     var restHR: Int?          // morning resting heart rate
+    var hrvSDNN: Double?      // HRV SDNN imported from Apple Health (ms)
     var id: String { date }
 }
 
