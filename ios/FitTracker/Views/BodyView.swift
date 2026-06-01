@@ -24,7 +24,7 @@ struct BodyView: View {
     var body: some View {
         let lw = store.lastWeight
         let bmi = store.bmi(lw)
-        let cat = store.bmiCategory(bmi)
+        let cat = store.bmiComment(weight: lw)
         let bl = store.bodyLatest
         let navy = store.bfNavy(waist: bl?.waist, neck: bl?.neck)
         let bf = bl?.bfManual ?? navy
@@ -79,13 +79,13 @@ struct BodyView: View {
         Card {
             Lbl(text: "\(t("home.checkin")) · \(today())", color: Theme.acc2).padding(.bottom, 10)
             HStack(spacing: 10) {
-                field("\(t("home.weight")) (KG)", "87,5", $weightInput)
+                field("\(t("home.weight")) (\(Units.wLabel.uppercased()))", Units.imperial ? "193" : "87,5", $weightInput)
                 if store.prefs.sleepEnabled {
                     fieldInfo("\(t("home.sleep")) (0-100)", "78", $sleepInput, info: "sleep")
                 }
             }.padding(.bottom, 10)
             FilledButton(title: t("home.save_checkin")) {
-                let w = pf(weightInput), s = pf(sleepInput)
+                let w = Units.wIn(pf(weightInput)), s = pf(sleepInput)
                 let hasW = w >= 30 && w <= 250, hasS = s > 0 && s <= 100
                 guard hasW || hasS else { return }
                 store.saveCheckIn(weight: hasW ? w : nil, sleep: hasS ? Int(s.rounded()) : nil)
@@ -95,26 +95,30 @@ struct BodyView: View {
     }
 
     // MARK: Body analysis
-    private func analysisCard(lw: Double, bmi: Double, cat: (String, Color),
+    private func analysisCard(lw: Double, bmi: Double, cat: (text: String, color: Color),
                               bl: BodyEntry?, navy: Double?, bf: Double?,
                               lean: Double?, fat: Double?) -> some View {
-        Card {
+        // Body-fat category (sex-specific) drives the BMI comment and the fat tile.
+        let bfCat = bf.map { store.bfCategory($0, sex: store.prefs.sex_) }
+        return Card {
             Lbl(text: t("body.analysis"), color: Theme.acc2).padding(.bottom, 12)
             HStack(spacing: 9) {
-                StatTile(label: "BMI", value: trimNum(bmi), valueColor: cat.1, note: cat.0, info: "bmi")
+                StatTile(label: "BMI", value: trimNum(bmi), valueColor: cat.color,
+                         note: cat.text.replacingOccurrences(of: "BMI \(trimNum(bmi)) · ", with: ""), info: "bmi")
                 StatTile(label: t("body.fat"), value: bf.map(trimNum) ?? "—", unit: bf != nil ? "%" : nil,
-                         valueColor: Theme.red, note: bf != nil ? "\(t("body.goal")) \(trimNum(store.prefs.goalBF))%" : "—", info: "bodyfat")
-                StatTile(label: t("body.lean"), value: lean.map(trimNum) ?? "—", unit: lean != nil ? "kg" : nil,
-                         valueColor: Theme.blue, note: fat != nil ? "\(trimNum(fat!))kg \(t("body.fat"))" : "—", info: "bodyfat")
+                         valueColor: bfCat?.color ?? Theme.red,
+                         note: bfCat.map { t($0.key) } ?? "\(t("body.goal")) \(trimNum(store.prefs.goalBF))%", info: "bodyfat")
+                StatTile(label: t("body.lean"), value: lean.map(dispW) ?? "—", unit: lean != nil ? Units.wLabel : nil,
+                         valueColor: Theme.blue, note: fat != nil ? "\(dispW(fat!))\(Units.wLabel) \(t("body.fat"))" : "—", info: "bodyfat")
             }
             .padding(.bottom, 12)
 
             if let bf, let lean, let fat {
                 VStack(spacing: 6) {
                     HStack {
-                        Text("\(t("body.fat")) \(trimNum(fat)) kg").font(.system(size: 10, weight: .semibold)).foregroundColor(Theme.sub)
+                        Text("\(t("body.fat")) \(dispW(fat)) \(Units.wLabel)").font(.system(size: 10, weight: .semibold)).foregroundColor(Theme.sub)
                         Spacer()
-                        Text("\(t("body.lean")) \(trimNum(lean)) kg").font(.system(size: 10, weight: .semibold)).foregroundColor(Theme.sub)
+                        Text("\(t("body.lean")) \(dispW(lean)) \(Units.wLabel)").font(.system(size: 10, weight: .semibold)).foregroundColor(Theme.sub)
                     }
                     Bar(value: min(1, bf / 100), gradient: [Theme.red, Theme.acc2], height: 9)
                 }
@@ -133,7 +137,7 @@ struct BodyView: View {
                 .frame(width: 90)
             }
             if let navy {
-                Text("Navy: \(trimNum(navy))% · \(t("body.neck")) \(bl?.neck.map(trimNum) ?? "?") · \(t("body.waist")) \(bl?.waist.map(trimNum) ?? "?") cm")
+                Text("Navy: \(trimNum(navy))% · \(t("body.neck")) \(bl?.neck.map(dispLen) ?? "?") · \(t("body.waist")) \(bl?.waist.map(dispLen) ?? "?") \(Units.lenLabel)")
                     .font(.system(size: 10)).foregroundColor(Theme.sub).padding(.top, 8)
             }
         }
@@ -153,7 +157,7 @@ struct BodyView: View {
             FilledButton(title: t("body.save_measures")) {
                 var vals: [String: Double] = [:]
                 for m in measureFields {
-                    let v = pf(measInputs[m.key] ?? "")
+                    let v = Units.lenIn(pf(measInputs[m.key] ?? ""))   // input → cm
                     if v > 0 { vals[m.key] = v }
                 }
                 guard !vals.isEmpty else { return }
@@ -172,11 +176,11 @@ struct BodyView: View {
             HStack {
                 Text(measLabel(m.key).uppercased()).font(.head(10, .semibold)).tracking(1.5).foregroundColor(Theme.sub)
                 Spacer()
-                if cur != nil { Text("cm").font(.system(size: 10)).foregroundColor(Theme.sub) }
+                if cur != nil { Text(Units.lenLabel).font(.system(size: 10)).foregroundColor(Theme.sub) }
             }
             .padding(.bottom, 8)
             TextField("", text: binding(for: m.key),
-                      prompt: Text(cur.map(trimNum) ?? "–").foregroundColor(Theme.sub))
+                      prompt: Text(cur.map(dispLen) ?? "–").foregroundColor(Theme.sub))
                 .keyboardType(.decimalPad)
                 .font(.system(size: 15, weight: .medium)).foregroundColor(Theme.txt)
                 .padding(.vertical, 9).padding(.horizontal, 11)
@@ -184,12 +188,12 @@ struct BodyView: View {
                 .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(Theme.brd, lineWidth: 1))
             if let cur {
                 HStack(alignment: .firstTextBaseline, spacing: 5) {
-                    Text(trimNum(cur)).font(.num(26)).foregroundColor(Theme.txt)
-                    Text("cm").font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.sub)
+                    Text(dispLen(cur)).font(.num(26)).foregroundColor(Theme.txt)
+                    Text(Units.lenLabel).font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.sub)
                 }
                 .padding(.top, 7)
                 if let diff {
-                    Text(diff == 0 ? t("body.stable") : "\(diff > 0 ? "+" : "")\(trimNum(diff)) cm")
+                    Text(diff == 0 ? t("body.stable") : "\(diff > 0 ? "+" : "")\(dispLen(diff)) \(Units.lenLabel)")
                         .font(.num(11)).foregroundColor(diff == 0 ? Theme.sub : (diff < 0 ? Theme.good : Theme.acc2))
                         .padding(.top, 4)
                 }
@@ -219,7 +223,7 @@ struct BodyView: View {
                         ForEach(measureFields) { m in
                             ForEach(bw.filter { $0.value(for: m.key) != nil }) { e in
                                 LineMark(x: .value("g", fmtShort(e.date)),
-                                         y: .value("cm", e.value(for: m.key) ?? 0),
+                                         y: .value("v", Units.lenOut(e.value(for: m.key) ?? 0)),
                                          series: .value("p", measLabel(m.key)))
                                     .foregroundStyle(Color(hex: m.color))
                                     .interpolationMethod(.catmullRom)
@@ -236,9 +240,9 @@ struct BodyView: View {
                     Card {
                         Lbl(text: measLabel(m.key), color: Color(hex: m.color)).padding(.bottom, 8)
                         Chart(bw.filter { $0.value(for: m.key) != nil }) { e in
-                            LineMark(x: .value("g", fmtShort(e.date)), y: .value("cm", e.value(for: m.key) ?? 0))
+                            LineMark(x: .value("g", fmtShort(e.date)), y: .value("v", Units.lenOut(e.value(for: m.key) ?? 0)))
                                 .foregroundStyle(Color(hex: m.color)).interpolationMethod(.catmullRom)
-                            AreaMark(x: .value("g", fmtShort(e.date)), y: .value("cm", e.value(for: m.key) ?? 0))
+                            AreaMark(x: .value("g", fmtShort(e.date)), y: .value("v", Units.lenOut(e.value(for: m.key) ?? 0)))
                                 .foregroundStyle(LinearGradient(colors: [Color(hex: m.color).opacity(0.25), .clear], startPoint: .top, endPoint: .bottom))
                                 .interpolationMethod(.catmullRom)
                         }

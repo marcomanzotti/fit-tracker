@@ -42,11 +42,12 @@ final class Store: ObservableObject {
         if plans.isEmpty { plans = Store.defaultPlans() }
         if cardioTypes.isEmpty { cardioTypes = Store.defaultCardioTypes() }
         L.lang = prefs.langCode
+        Units.imperial = prefs.imperial
         loaded = true
     }
 
-    /// Keep the global localization language in sync with the stored preference.
-    func syncLang() { L.lang = prefs.langCode }
+    /// Keep the global localization language + unit system in sync with prefs.
+    func syncLang() { L.lang = prefs.langCode; Units.imperial = prefs.imperial }
 
     func save() {
         guard loaded else { return }
@@ -153,6 +154,70 @@ extension Store {
         if b < 25   { return (L.t("bmi.normal"), Theme.good) }
         if b < 30   { return (L.t("bmi.over"), Theme.acc2) }
         return (L.t("bmi.obese"), Theme.red)
+    }
+
+    // MARK: - Body-fat categories (sex-specific, ACE/ACSM ranges)
+    // BMI stays the primary number, but because it can't tell muscle from fat,
+    // whenever a body-fat % is known we classify by body fat instead. The key
+    // rule: a man under 18% or a woman under 25% body fat is NOT clinically
+    // overweight even if BMI ≥ 25 (they're simply muscular).
+    enum BFCategory: String {
+        case essential, athlete, fitness, average, overweight, obese
+        var key: String { "bf." + rawValue }
+        var color: Color {
+            switch self {
+            case .essential:  return Theme.blue       // very low — caution
+            case .athlete:    return Theme.good
+            case .fitness:    return Theme.good
+            case .average:    return Theme.acc2
+            case .overweight: return Theme.acc2
+            case .obese:      return Theme.red
+            }
+        }
+    }
+
+    func bfCategory(_ bf: Double, sex: String) -> BFCategory {
+        if sex == "f" {
+            switch bf {
+            case ..<14:  return .essential   // 10–13
+            case ..<21:  return .athlete     // 14–20
+            case ..<25:  return .fitness     // 21–24
+            case ..<32:  return .average     // 25–31
+            case ..<37:  return .overweight  // 32–36
+            default:     return .obese       // 37+
+            }
+        } else {
+            switch bf {
+            case ..<6:   return .essential   // 2–5
+            case ..<14:  return .athlete     // 6–13
+            case ..<18:  return .fitness     // 14–17
+            case ..<25:  return .average     // 18–24
+            case ..<30:  return .overweight  // 25–29
+            default:     return .obese       // 30+
+            }
+        }
+    }
+
+    /// Threshold below which a high BMI is muscle, not fat: men <18%, women <25%.
+    private func notOverweightByFat(_ bf: Double) -> Bool {
+        prefs.sex_ == "f" ? bf < 25 : bf < 18
+    }
+
+    /// The comment shown under the weight/kg box. When body fat is known it
+    /// classifies by body fat (more accurate than BMI for muscular builds); the
+    /// key rule prevents a lean, muscular person reading as "overweight".
+    func bmiComment(weight: Double) -> (text: String, color: Color) {
+        let b = bmi(weight)
+        if let bf = currentBF {
+            let cat = bfCategory(bf, sex: prefs.sex_)
+            // High BMI but low fat → surface that it's muscle, not excess fat.
+            if b >= 25 && notOverweightByFat(bf) {
+                return ("BMI \(trimNum(b)) · \(L.t("bf.muscular"))", Theme.good)
+            }
+            return ("BMI \(trimNum(b)) · \(L.t(cat.key))", cat.color)
+        }
+        let std = bmiCategory(b)
+        return ("BMI \(trimNum(b)) · \(std.0)", std.1)
     }
 
     /// US-Navy body-fat estimate from neck & waist (cm).

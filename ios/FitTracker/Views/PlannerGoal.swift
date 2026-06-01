@@ -38,13 +38,13 @@ struct GoalEditorView: View {
                         }
                         Spacer().frame(height: 14)
                         HStack(spacing: 12) {
-                            FieldRow(label: t("goal.start_weight")) { InputField(placeholder: "88", text: $startWeight) }
-                            FieldRow(label: t("ob.goal_weight")) { InputField(placeholder: "80", text: $goalWeight) }
+                            FieldRow(label: "\(t("goal.start_weight")) (\(Units.wLabel))") { InputField(placeholder: "88", text: $startWeight) }
+                            FieldRow(label: "\(t("ob.goal_weight")) (\(Units.wLabel))") { InputField(placeholder: "80", text: $goalWeight) }
                         }
                         Spacer().frame(height: 14)
                         HStack(spacing: 12) {
                             FieldRow(label: t("pc.goal_bf")) { InputField(placeholder: "15", text: $goalBF) }
-                            FieldRow(label: t("ob.rate")) { InputField(placeholder: "-0.5", text: $rate) }
+                            FieldRow(label: "\(t("ob.rate")) (\(Units.wLabel)/\(t("ob.per_wk")))") { InputField(placeholder: "-0.5", text: $rate) }
                         }
                     }
 
@@ -58,11 +58,11 @@ struct GoalEditorView: View {
         .preferredColorScheme(.dark)
         .onAppear {
             let p = store.prefs
-            goalWeight = trimNum(p.goalWeight)
-            startWeight = trimNum(p.startWeight)
+            goalWeight = dispW(p.goalWeight)
+            startWeight = dispW(p.startWeight)
             goalBF = trimNum(p.goalBF)
             goalMode = p.goal.rawValue
-            rate = p.weeklyRate.map { trimNum($0) } ?? ""
+            rate = p.weeklyRate.map { dispW($0) } ?? ""
         }
     }
 
@@ -72,11 +72,11 @@ struct GoalEditorView: View {
 
     private func save() {
         var p = store.prefs
-        if pf(goalWeight) > 0 { p.goalWeight = pf(goalWeight) }
-        if pf(startWeight) > 0 { p.startWeight = pf(startWeight) }
+        if pf(goalWeight) > 0 { p.goalWeight = Units.wIn(pf(goalWeight)) }
+        if pf(startWeight) > 0 { p.startWeight = Units.wIn(pf(startWeight)) }
         if pf(goalBF) > 0 { p.goalBF = pf(goalBF) }
         p.goalMode = goalMode
-        p.weeklyRate = rate.isEmpty ? nil : pf(rate)
+        p.weeklyRate = rate.isEmpty ? nil : Units.wIn(pf(rate))
         store.prefs = p
         haptic(.success)
         toast.show(t("goal.saved"))

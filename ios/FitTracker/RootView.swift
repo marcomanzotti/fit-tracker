@@ -83,7 +83,7 @@ struct HeaderBar: View {
             VStack(alignment: .trailing, spacing: 2) {
                 Text(d.full).font(.num(16)).foregroundColor(Theme.txt)
                 Text(d.day.uppercased()).font(.system(size: 10, weight: .semibold)).tracking(1).foregroundColor(Theme.sub)
-                Text("\(trimNum(store.lastWeight)) kg").font(.num(15)).foregroundColor(Theme.acc)
+                Text("\(dispW(store.lastWeight)) \(Units.wLabel)").font(.num(15)).foregroundColor(Theme.acc)
             }
             Button { tap(); onSettings() } label: {
                 Image(systemName: "gearshape.fill").foregroundColor(Theme.sub).font(.system(size: 18))

@@ -154,7 +154,7 @@ enum L {
         "wk.superset":       ("Superset", "Superset"),
         "wk.method":         ("Metodo", "Method"),
         "wk.sport":          ("Sport", "Sport"),
-        "wk.distance":       ("Distanza (km)", "Distance (km)"),
+        "wk.distance":       ("Distanza", "Distance"),
         "wk.pace":           ("Ritmo", "Pace"),
         "wk.speed":          ("Velocità", "Speed"),
         "wk.pace_auto":      ("Auto da distanza e durata", "Auto from distance & duration"),
@@ -186,11 +186,12 @@ enum L {
         "ob.male":           ("Uomo", "Male"),
         "ob.female":         ("Donna", "Female"),
         "ob.birth":          ("Data di nascita", "Date of birth"),
-        "ob.height":         ("Altezza (cm)", "Height (cm)"),
-        "ob.weight":         ("Peso attuale (kg)", "Current weight (kg)"),
-        "ob.goal_weight":    ("Peso obiettivo (kg)", "Goal weight (kg)"),
+        "ob.height":         ("Altezza", "Height"),
+        "ob.weight":         ("Peso attuale", "Current weight"),
+        "ob.goal_weight":    ("Peso obiettivo", "Goal weight"),
         "ob.goal_mode":      ("Obiettivo", "Goal"),
-        "ob.rate":           ("Ritmo (kg/sett)", "Rate (kg/wk)"),
+        "ob.rate":           ("Ritmo", "Rate"),
+        "ob.per_wk":         ("sett", "wk"),
         "ob.activity":       ("Livello di attività", "Activity level"),
         "ob.act_sed":        ("Sedentario", "Sedentary"),
         "ob.act_light":      ("Leggero", "Light"),
@@ -214,6 +215,9 @@ enum L {
         "set.sleep_track":   ("Traccia il sonno", "Track sleep"),
         "set.timer":         ("Timer recupero (s)", "Rest timer (s)"),
         "set.edit_profile":  ("Modifica profilo", "Edit profile"),
+        "set.units":         ("Unità di misura", "Units"),
+        "set.metric":        ("Metrico (kg, cm, km)", "Metric (kg, cm, km)"),
+        "set.imperial":      ("Imperiale (lb, in, mi)", "Imperial (lb, in, mi)"),
 
         // --- Home (legacy) --------------------------------------------------
         "home.day":          ("giorno", "day"),
@@ -335,7 +339,7 @@ enum L {
         "pc.goal_weight":    ("Peso obiettivo", "Goal weight"),
         "pc.goal_bf":        ("Grasso obiettivo %", "Goal body fat %"),
         "pc.start_weight":   ("Peso iniziale", "Start weight"),
-        "pc.height":         ("Altezza (m)", "Height (m)"),
+        "pc.height":         ("Altezza", "Height"),
         "pc.timer":          ("Recupero timer (s)", "Rest timer (s)"),
         "pc.save":           ("Salva profilo", "Save profile"),
         "pc.saved":          ("Profilo salvato", "Profile saved"),
@@ -345,6 +349,16 @@ enum L {
         "bmi.normal":        ("Normopeso", "Normal"),
         "bmi.over":          ("Sovrappeso", "Overweight"),
         "bmi.obese":         ("Obeso", "Obese"),
+
+        // --- Body-fat categories (sex-specific) -----------------------------
+        "bf.essential":      ("Essenziale", "Essential"),
+        "bf.athlete":        ("Atleta", "Athlete"),
+        "bf.fitness":        ("Fitness", "Fitness"),
+        "bf.average":        ("Nella media", "Average"),
+        "bf.overweight":     ("Sovrappeso", "Overweight"),
+        "bf.obese":          ("Obeso", "Obese"),
+        "bf.muscular":       ("Muscoloso (BMI alto, grasso basso)", "Muscular (high BMI, low fat)"),
+        "bf.category":       ("Categoria grasso", "Body-fat category"),
 
         // --- Sports ---------------------------------------------------------
         "sport.strength":    ("Forza", "Strength"),
@@ -380,7 +394,7 @@ enum L {
         "goal.title":        ("Modifica obiettivo", "Edit goal"),
         "goal.hint":         ("L'obiettivo resta fisso finché non lo cambi qui. Il peso iniziale è il punto di partenza dei progressi.",
                               "Your goal stays fixed until you change it here. Start weight is the baseline your progress is measured from."),
-        "goal.start_weight": ("Peso iniziale (kg)", "Start weight (kg)"),
+        "goal.start_weight": ("Peso iniziale", "Start weight"),
         "goal.saved":        ("Obiettivo aggiornato", "Goal updated"),
 
         // --- Weekly plan / next workout -------------------------------------
@@ -464,8 +478,8 @@ enum L {
             "Training Impulse (Banister): weights duration by heart-rate reserve and a sex-specific exponential factor.\n\nIt needs average HR and session duration, plus your resting and max HR from the profile. It's more precise than sRPE for cardio because it accounts for real cardiovascular intensity."),
         "info.bmi.title": ("BMI", "BMI"),
         "info.bmi.body": (
-            "Indice di massa corporea: peso (kg) diviso per il quadrato dell'altezza (m). Categorie OMS: <18,5 sottopeso, 18,5-25 normopeso, 25-30 sovrappeso, >30 obeso.\n\nÈ un indicatore di massima: non distingue muscolo da grasso, quindi per chi è molto muscoloso può risultare alto pur con poco grasso. Per la composizione usa il grasso corporeo.",
-            "Body Mass Index: weight (kg) divided by height (m) squared. WHO categories: <18.5 underweight, 18.5-25 normal, 25-30 overweight, >30 obese.\n\nIt's a rough screen: it can't tell muscle from fat, so very muscular people can read high with little fat. Use body fat for composition."),
+            "Indice di massa corporea: peso (kg) diviso per il quadrato dell'altezza (m). Categorie OMS: <18,5 sottopeso, 18,5-25 normopeso, 25-30 sovrappeso, >30 obeso.\n\nÈ un indicatore di massima: non distingue muscolo da grasso, quindi per chi è molto muscoloso o per i bodybuilder può risultare alto pur con poco grasso. Per questo, quando inserisci il grasso corporeo, l'app classifica in base ad esso invece che al solo BMI.\n\nCategorie di grasso corporeo (Uomo / Donna):\n• Essenziale: 2-5% / 10-13%\n• Atleta: 6-13% / 14-20%\n• Fitness: 14-17% / 21-24%\n• Nella media: 18-24% / 25-31%\n• Sovrappeso: 25%+ / 32%+\n• Obeso: 30%+ / 37%+\n\nRegola chiave: un uomo sotto il 18% o una donna sotto il 25% di grasso NON è clinicamente sovrappeso, anche se il BMI supera 25.",
+            "Body Mass Index: weight (kg) divided by height (m) squared. WHO categories: <18.5 underweight, 18.5-25 normal, 25-30 overweight, >30 obese.\n\nIt's a rough screen: it can't tell muscle from fat, so very muscular people and bodybuilders can read high with little fat. That's why, once you log your body fat, the app classifies by body fat instead of BMI alone.\n\nBody-fat categories (Men / Women):\n• Essential: 2-5% / 10-13%\n• Competitive athlete: 6-13% / 14-20%\n• Fitness: 14-17% / 21-24%\n• Average: 18-24% / 25-31%\n• Overweight: 25%+ / 32%+\n• Obese: 30%+ / 37%+\n\nKey rule: a man below 18% or a woman below 25% body fat is NOT clinically overweight, even if BMI is above 25."),
         "info.bodyfat.title": ("Grasso corporeo", "Body fat"),
         "info.bodyfat.body": (
             "Percentuale di massa grassa sul peso totale. Puoi inserirla manualmente (da plicometro o bilancia) oppure lasciare la stima Navy, basata su circonferenze di collo e vita più l'altezza.\n\nLa stima Navy è comoda ma indicativa (±3-4%): l'importante è misurare sempre allo stesso modo e seguire il trend.",

@@ -509,7 +509,7 @@ struct SessionEditorView: View {
                         metricField(t("wk.avg_hr"), intBinding(\.avgHR), info: "trimp")
                         if session.sportType.isCardio {
                             Spacer().frame(height: 12)
-                            metricField(t("wk.distance"), doubleBinding(\.distanceKm), keyboard: .decimalPad)
+                            metricField("\(t("wk.distance")) (\(Units.distLabel))", distanceBinding, keyboard: .decimalPad)
                             Spacer().frame(height: 12)
                             PaceField(session: session, manual: $session.paceManual)
                         }
@@ -612,5 +612,10 @@ struct SessionEditorView: View {
     private func doubleBinding(_ kp: WritableKeyPath<WorkoutSession, Double?>) -> Binding<String> {
         Binding(get: { session[keyPath: kp].map { trimNum($0) } ?? "" },
                 set: { session[keyPath: kp] = $0.isEmpty ? nil : pf($0) })
+    }
+    /// Distance binding that displays/parses in the user's distance unit (km stored).
+    private var distanceBinding: Binding<String> {
+        Binding(get: { session.distanceKm.map(dispDist) ?? "" },
+                set: { session.distanceKm = $0.isEmpty ? nil : Units.distIn(pf($0)) })
     }
 }

@@ -17,8 +17,12 @@ struct HomeView: View {
 
     var body: some View {
         let lw = store.lastWeight
-        let bmi = store.bmi(lw)
-        let cat = store.bmiCategory(bmi)
+        let comment = store.bmiComment(weight: lw)
+        let bf = store.currentBF
+        let bfNote: String = bf != nil
+            ? t(store.bfCategory(bf!, sex: store.prefs.sex_).key)
+            : t("body.no_data")
+        let bfColor: Color = bf != nil ? store.bfCategory(bf!, sex: store.prefs.sex_).color : Theme.sub
 
         // Check-in
         if !store.hasCheckedIn() {
@@ -27,11 +31,17 @@ struct HomeView: View {
             checkedInCard
         }
 
-        // Key stats
-        HStack(spacing: 9) {
-            StatTile(label: t("home.weight"), value: trimNum(lw), unit: "kg", note: "BMI \(trimNum(bmi)) · \(cat.0)", info: "bmi")
-            StatTile(label: t("home.streak"), value: "\(store.streak)", valueColor: Theme.acc, note: store.streak == 1 ? t("home.day") : t("home.days"), info: "streak")
-            StatTile(label: t("home.sessions"), value: "\(store.sessions.count)", valueColor: Theme.blue, note: t("home.total"))
+        // Key stats — a uniform 2×2 grid: four equally-sized large cards that
+        // fill the same area (Weight · Body fat · Streak · Sessions).
+        LazyVGrid(columns: [GridItem(.flexible(), spacing: 9), GridItem(.flexible(), spacing: 9)], spacing: 9) {
+            StatTile(label: t("home.weight"), value: dispW(lw), unit: Units.wLabel,
+                     note: comment.text, info: "bmi")
+            StatTile(label: t("body.fat"), value: bf.map(trimNum) ?? "—", unit: bf != nil ? "%" : nil,
+                     valueColor: bfColor, note: bfNote, info: "bodyfat")
+            StatTile(label: t("home.streak"), value: "\(store.streak)", valueColor: Theme.acc,
+                     note: store.streak == 1 ? t("home.day") : t("home.days"), info: "streak")
+            StatTile(label: t("home.sessions"), value: "\(store.sessions.count)", valueColor: Theme.blue,
+                     note: t("home.total"))
         }
 
         weekStripCard
@@ -126,7 +136,7 @@ struct HomeView: View {
         Card(bg: Theme.c1) {
             Lbl(text: t("home.checkin"), color: Theme.acc2).padding(.bottom, 10)
             HStack(spacing: 10) {
-                labeledField("\(t("home.weight")) (KG)", "87,5", $weightInput)
+                labeledField("\(t("home.weight")) (\(Units.wLabel.uppercased()))", Units.imperial ? "193" : "87,5", $weightInput)
                 if store.prefs.sleepEnabled {
                     labeledField("\(t("home.sleep")) (0-100)", "78", $sleepInput)
                 }
@@ -143,7 +153,7 @@ struct HomeView: View {
             HStack {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(t("home.checkin_done").uppercased()).font(.head(12, .semibold)).tracking(1).foregroundColor(Theme.good)
-                    Text("\(t("home.weight")) \(trimNum(tw?.weight ?? store.lastWeight)) kg" + (tw?.sleep != nil ? " · \(t("home.sleep")) \(tw!.sleep!)/100" : ""))
+                    Text("\(t("home.weight")) \(dispW(tw?.weight ?? store.lastWeight)) \(Units.wLabel)" + (tw?.sleep != nil ? " · \(t("home.sleep")) \(tw!.sleep!)/100" : ""))
                         .font(.system(size: 11)).foregroundColor(Theme.sub)
                 }
                 Spacer()
@@ -163,7 +173,7 @@ struct HomeView: View {
     }
 
     private func saveCheckIn() {
-        let w = pf(weightInput), s = pf(sleepInput)
+        let w = Units.wIn(pf(weightInput)), s = pf(sleepInput)   // input → kg
         let hasW = w >= 30 && w <= 250
         let hasS = s > 0 && s <= 100
         guard hasW || hasS else { return }
@@ -203,7 +213,7 @@ struct HomeView: View {
                     HStack {
                         Text(t("home.weight")).font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.sub)
                         Spacer()
-                        Text("\(trimNum(lw)) → \(trimNum(p.goalWeight)) kg").font(.num(13)).foregroundColor(Theme.acc)
+                        Text("\(dispW(lw)) → \(dispW(p.goalWeight)) \(Units.wLabel)").font(.num(13)).foregroundColor(Theme.acc)
                     }.padding(.bottom, 5)
                     Bar(value: wtPct).padding(.bottom, bf != nil ? 12 : 0)
                     if let bf, let bfPct {
@@ -278,9 +288,11 @@ struct HomeView: View {
 extension View {
     func styledAxes() -> some View {
         self
+            // Vertical guide bands: faint lines in the same gray as the numeric
+            // labels (Theme.sub) so the eye can read a value back to its date.
             .chartXAxis {
                 AxisMarks { _ in
-                    AxisGridLine().foregroundStyle(Theme.mut)
+                    AxisGridLine().foregroundStyle(Theme.sub.opacity(0.18))
                     AxisValueLabel().font(.system(size: 8)).foregroundStyle(Theme.sub)
                 }
             }

@@ -49,9 +49,9 @@ struct StatsView: View {
                 Card {
                     Lbl(text: t("st.weight90")).padding(.bottom, 8)
                     Chart(withW) { e in
-                        LineMark(x: .value("g", fmtShort(e.date)), y: .value("kg", e.weight ?? 0))
+                        LineMark(x: .value("g", fmtShort(e.date)), y: .value("w", Units.wOut(e.weight ?? 0)))
                             .interpolationMethod(.catmullRom).foregroundStyle(Theme.acc)
-                        AreaMark(x: .value("g", fmtShort(e.date)), y: .value("kg", e.weight ?? 0))
+                        AreaMark(x: .value("g", fmtShort(e.date)), y: .value("w", Units.wOut(e.weight ?? 0)))
                             .interpolationMethod(.catmullRom)
                             .foregroundStyle(LinearGradient(colors: [Theme.acc.opacity(0.25), .clear], startPoint: .top, endPoint: .bottom))
                     }
@@ -77,6 +77,9 @@ struct StatsView: View {
                     Chart(withW) { e in
                         LineMark(x: .value("g", fmtShort(e.date)), y: .value("bmi", store.bmi(e.weight ?? 0)))
                             .interpolationMethod(.catmullRom).foregroundStyle(Color(hex: "b08fff"))
+                        AreaMark(x: .value("g", fmtShort(e.date)), y: .value("bmi", store.bmi(e.weight ?? 0)))
+                            .interpolationMethod(.catmullRom)
+                            .foregroundStyle(LinearGradient(colors: [Color(hex: "b08fff").opacity(0.25), .clear], startPoint: .top, endPoint: .bottom))
                     }
                     .chartYScale(domain: .automatic(includesZero: false)).styledAxes().frame(height: 120)
                 }
@@ -86,11 +89,11 @@ struct StatsView: View {
                         Chart {
                             ForEach(withW) { e in
                                 LineMark(x: .value("g", fmtShort(e.date)),
-                                         y: .value("kg", ((e.weight ?? 0) * (1 - bf / 100) * 10).rounded() / 10),
+                                         y: .value("w", Units.wOut(((e.weight ?? 0) * (1 - bf / 100) * 10).rounded() / 10)),
                                          series: .value("s", t("st.lean")))
                                     .foregroundStyle(Theme.blue).interpolationMethod(.catmullRom)
                                 LineMark(x: .value("g", fmtShort(e.date)),
-                                         y: .value("kg", ((e.weight ?? 0) * bf / 100 * 10).rounded() / 10),
+                                         y: .value("w", Units.wOut(((e.weight ?? 0) * bf / 100 * 10).rounded() / 10)),
                                          series: .value("s", t("st.fat")))
                                     .foregroundStyle(Theme.red).interpolationMethod(.catmullRom)
                             }
@@ -276,7 +279,7 @@ struct StatsView: View {
     private func cardioLine(_ s: WorkoutSession) -> String {
         var parts: [String] = [s.sportType.label]
         if let sec = s.durationSeconds { parts.append(fmtDuration(sec)) }
-        if let km = s.distanceKm { parts.append("\(trimNum(km)) km") }
+        if let km = s.distanceKm { parts.append("\(dispDist(km)) \(Units.distLabel)") }
         if let p = s.effectivePace {
             parts.append(s.paceIsSpeed ? "\(trimNum((p * 10).rounded() / 10)) \(s.paceUnit)" : paceStr(p) + s.paceUnit)
         }
@@ -301,20 +304,20 @@ struct ProfileCard: View {
         Card {
             Lbl(text: t("pc.title"), color: Theme.acc2).padding(.bottom, 10)
             HStack(spacing: 10) {
-                miniField(t("pc.goal_weight").uppercased(), "80", $goalW)
+                miniField("\(t("pc.goal_weight")) (\(Units.wLabel))".uppercased(), "80", $goalW)
                 miniField(t("pc.goal_bf").uppercased(), "15", $goalBF)
             }.padding(.bottom, 10)
             HStack(spacing: 10) {
-                miniField(t("pc.start_weight").uppercased(), "88", $startW)
-                miniField(t("pc.height").uppercased(), "1.85", $height)
+                miniField("\(t("pc.start_weight")) (\(Units.wLabel))".uppercased(), "88", $startW)
+                miniField("\(t("pc.height")) (\(Units.heightLabel))".uppercased(), Units.imperial ? "71" : "185", $height)
             }.padding(.bottom, 10)
             miniField(t("pc.timer").uppercased(), "60", $timer).padding(.bottom, 12)
             FilledButton(title: t("pc.save")) {
                 var p = store.prefs
-                if pf(goalW) > 0 { p.goalWeight = pf(goalW) }
+                if pf(goalW) > 0 { p.goalWeight = Units.wIn(pf(goalW)) }
                 if pf(goalBF) > 0 { p.goalBF = pf(goalBF) }
-                if pf(startW) > 0 { p.startWeight = pf(startW) }
-                if pf(height) > 0.5 { p.height = pf(height) }
+                if pf(startW) > 0 { p.startWeight = Units.wIn(pf(startW)) }
+                if pf(height) > 0 { p.height = Units.heightIn(pf(height)) }
                 if pf(timer) > 0 { p.timer = Int(pf(timer)) }
                 store.prefs = p
                 toast.show(t("pc.saved"))
@@ -323,10 +326,10 @@ struct ProfileCard: View {
         .onAppear {
             guard !loaded else { return }
             loaded = true
-            goalW = trimNum(store.prefs.goalWeight)
+            goalW = dispW(store.prefs.goalWeight)
             goalBF = trimNum(store.prefs.goalBF)
-            startW = trimNum(store.prefs.startWeight)
-            height = trimNum(store.prefs.height)
+            startW = dispW(store.prefs.startWeight)
+            height = trimNum((Units.heightOut(store.prefs.height) * 10).rounded() / 10)
             timer = "\(store.prefs.timer)"
         }
     }

@@ -315,6 +315,7 @@ struct Prefs: Codable, Equatable {
     /// falls back to simple rotation through the plan list.
     var schedule: [String]?
     var healthKit: Bool?       // user opted into Apple Health import
+    var units: String?         // "metric" | "imperial"; nil => metric
     /// Days explicitly marked as rest (yyyy-MM-dd). A rest day is not a session,
     /// just a marker shown with a dedicated icon/color on the week strip and
     /// calendar so missed days can be logged as intentional recovery.
@@ -344,6 +345,7 @@ struct Prefs: Codable, Equatable {
     }
     var restHRorDefault: Int { (restingHR ?? 0) > 0 ? restingHR! : 60 }
     var healthKitEnabled: Bool { healthKit == true }
+    var imperial: Bool { units == "imperial" }
     var restDaySet: Set<String> { Set(restDays ?? []) }
     /// Schedule normalized to exactly 7 slots (Mon..Sun); missing -> all empty.
     var weekSchedule: [String] {

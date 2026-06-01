@@ -68,11 +68,12 @@ struct ProfileFields {
         sex = p.sex_
         birth = p.birthDate.flatMap { isoFormatter.date(from: $0) }
             ?? Calendar.current.date(byAdding: .year, value: -30, to: Date())!
-        heightCm = trimNum(p.height * 100)
-        weight = trimNum(currentWeight)
-        goalWeight = trimNum(p.goalWeight)
+        // Height/weight are STORED in metric; show them in the active unit system.
+        heightCm = trimNum((Units.heightOut(p.height) * 10).rounded() / 10)
+        weight = dispW(currentWeight)
+        goalWeight = dispW(p.goalWeight)
         goalMode = p.goal.rawValue
-        rate = p.weeklyRate.map { trimNum($0) } ?? ""
+        rate = p.weeklyRate.map { dispW($0) } ?? ""
         activity = p.activityLevel.rawValue
         trainDays = p.trainingDays.map(String.init) ?? ""
         restHR = p.restingHR.map(String.init) ?? ""
@@ -83,10 +84,10 @@ struct ProfileFields {
         p.language = lang
         p.sex = sex
         p.birthDate = isoFormatter.string(from: birth)
-        if pf(heightCm) > 0 { p.height = pf(heightCm) / 100 }
-        if pf(goalWeight) > 0 { p.goalWeight = pf(goalWeight) }
+        if pf(heightCm) > 0 { p.height = Units.heightIn(pf(heightCm)) }
+        if pf(goalWeight) > 0 { p.goalWeight = Units.wIn(pf(goalWeight)) }
         p.goalMode = goalMode
-        p.weeklyRate = rate.isEmpty ? nil : pf(rate)
+        p.weeklyRate = rate.isEmpty ? nil : Units.wIn(pf(rate))
         p.activity = activity
         p.trainingDays = Int(trainDays)
         p.restingHR = Int(restHR)
@@ -152,15 +153,15 @@ struct ProfileFormBody: View {
                     .tint(Theme.acc)
             }
             HStack(spacing: 12) {
-                FieldRow(label: t("ob.height")) { InputField(placeholder: "180", text: $f.heightCm) }
-                FieldRow(label: t("ob.weight")) { InputField(placeholder: "80", text: $f.weight) }
+                FieldRow(label: "\(t("ob.height")) (\(Units.heightLabel))") { InputField(placeholder: Units.imperial ? "71" : "180", text: $f.heightCm) }
+                FieldRow(label: "\(t("ob.weight")) (\(Units.wLabel))") { InputField(placeholder: Units.imperial ? "176" : "80", text: $f.weight) }
             }
             FieldRow(label: t("ob.goal_mode")) {
                 PillSelect(options: ["cut", "maintain", "bulk"], title: goalTitle, selection: $f.goalMode)
             }
             HStack(spacing: 12) {
-                FieldRow(label: t("ob.goal_weight")) { InputField(placeholder: "75", text: $f.goalWeight) }
-                FieldRow(label: t("ob.rate")) { InputField(placeholder: "-0.5", text: $f.rate) }
+                FieldRow(label: "\(t("ob.goal_weight")) (\(Units.wLabel))") { InputField(placeholder: Units.imperial ? "165" : "75", text: $f.goalWeight) }
+                FieldRow(label: "\(t("ob.rate")) (\(Units.wLabel)/\(t("ob.per_wk")))") { InputField(placeholder: "-0.5", text: $f.rate) }
             }
             VStack(alignment: .leading, spacing: 7) {
                 HStack(spacing: 2) {
@@ -242,11 +243,12 @@ struct OnboardingView: View {
     private func finish() {
         var p = store.prefs
         f.apply(to: &p)
-        p.startWeight = pf(f.weight) > 0 ? pf(f.weight) : p.startWeight
+        let wKg = Units.wIn(pf(f.weight))    // input is in the active unit; store kg
+        p.startWeight = wKg > 0 ? wKg : p.startWeight
         p.onboarded = true
         store.prefs = p
         store.syncLang()
-        if pf(f.weight) > 0 { store.saveCheckIn(weight: pf(f.weight), sleep: nil) }
+        if wKg > 0 { store.saveCheckIn(weight: wKg, sleep: nil) }
         haptic(.success)
     }
 }
@@ -260,12 +262,14 @@ struct SettingsView: View {
     @State private var sleepTrack: Bool
     @State private var timerSec: String
     @State private var hkOn: Bool
+    @State private var unitSys: String
 
     init(store: Store) {
         _f = State(initialValue: ProfileFields(store.prefs, currentWeight: store.lastWeight))
         _sleepTrack = State(initialValue: store.prefs.sleepEnabled)
         _timerSec = State(initialValue: String(store.prefs.timer))
         _hkOn = State(initialValue: store.prefs.healthKitEnabled)
+        _unitSys = State(initialValue: store.prefs.imperial ? "imperial" : "metric")
     }
 
     var body: some View {
@@ -286,6 +290,14 @@ struct SettingsView: View {
                         Lbl(text: t("set.profile"))
                         Spacer().frame(height: 14)
                         ProfileFormBody(f: $f)
+                    }
+
+                    Card {
+                        FieldRow(label: t("set.units")) {
+                            PillSelect(options: ["metric", "imperial"],
+                                       title: { $0 == "metric" ? t("set.metric") : t("set.imperial") },
+                                       selection: $unitSys)
+                        }
                     }
 
                     Card {
@@ -345,6 +357,10 @@ struct SettingsView: View {
 
     private func save() {
         var p = store.prefs
+        // Apply the unit choice first so ProfileFields converts its height/weight
+        // inputs against the right system.
+        p.units = unitSys
+        Units.imperial = (unitSys == "imperial")
         f.apply(to: &p)
         p.sleepTracking = sleepTrack
         p.healthKit = hkOn

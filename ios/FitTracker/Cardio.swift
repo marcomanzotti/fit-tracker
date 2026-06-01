@@ -44,7 +44,7 @@ struct CardioLoggerView: View {
                         HMSField(label: t("wk.duration"), seconds: $durationSec)
                         Spacer().frame(height: 14)
                         HStack(alignment: .top, spacing: 12) {
-                            FieldRow(label: t("wk.distance")) { InputField(placeholder: "8", text: $distance) }
+                            FieldRow(label: "\(t("wk.distance")) (\(Units.distLabel))") { InputField(placeholder: "8", text: $distance) }
                             FieldRow(label: t("wk.avg_hr")) { InputField(placeholder: "150", text: $avgHR, keyboard: .numberPad) }
                         }
                         Spacer().frame(height: 14)
@@ -97,7 +97,7 @@ struct CardioLoggerView: View {
             exercises: [], sport: type.sport, durationSec: durationSec,
             avgHR: Int(avgHR),
             rmssd: rmssd.isEmpty ? nil : pf(rmssd),
-            distanceKm: distance.isEmpty ? nil : pf(distance),
+            distanceKm: distance.isEmpty ? nil : Units.distIn(pf(distance)),
             paceManual: paceManual,
             caloriesManual: Int(calManual).flatMap { $0 > 0 ? $0 : nil })
     }
