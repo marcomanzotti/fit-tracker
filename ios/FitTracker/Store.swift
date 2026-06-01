@@ -295,25 +295,25 @@ extension Store {
         let w = lastWeight
 
         // 2) HR-based (Keytel): most precise, accounts for real intensity.
-        if let hr = s.avgHR, hr > 0, let dur = s.durationMin, dur > 0 {
+        if let hr = s.avgHR, hr > 0, let dur = s.durationMinutesD, dur > 0 {
             let age = Double(prefs.age ?? 30)
             let perMin: Double = prefs.sex_ == "f"
                 ? (-20.4022 + 0.4472 * Double(hr) - 0.1263 * w + 0.074 * age) / 4.184
                 : (-55.0969 + 0.6309 * Double(hr) + 0.1988 * w + 0.2017 * age) / 4.184
-            return max(0, Int((perMin * Double(dur)).rounded()))
+            return max(0, Int((perMin * dur).rounded()))
         }
 
         // 3 & 4) Cardio via METs (per-sport), refined by speed when distance known.
-        if s.sportType.isCardio, let dur = s.durationMin, dur > 0 {
-            let speed: Double? = s.distanceKm.map { $0 / (Double(dur) / 60) }   // km/h
+        if s.sportType.isCardio, let dur = s.durationMinutesD, dur > 0 {
+            let speed: Double? = s.distanceKm.map { $0 / (dur / 60) }   // km/h
             let met = cardioMET(sport: s.sportType, speedKmh: speed)
-            return Int((met * w * Double(dur) / 60).rounded())
+            return Int((met * w * dur / 60).rounded())
         }
 
         // 5) Strength: MET-based when a duration is logged (~5 MET resistance
         // training), else fall back to the volume/sets heuristic.
-        if let dur = s.durationMin, dur > 0 {
-            return Int((5.0 * w * Double(dur) / 60).rounded())
+        if let dur = s.durationMinutesD, dur > 0 {
+            return Int((5.0 * w * dur / 60).rounded())
         }
         let vol = s.volume
         return Int((vol * 0.022 + Double(s.totalSets) * 3 + 60).rounded())
@@ -429,7 +429,7 @@ extension Store {
         }
         var s = WorkoutSession(date: date, planId: plan.id, planName: plan.name,
                                planColor: plan.color, exercises: exercises)
-        s.durationMin = last?.durationMin
+        s.durationSec = last?.durationSeconds
         s.avgHR = last?.avgHR
         s.maxHRSes = last?.maxHRSes
         setRestDay(date, on: false)
@@ -445,9 +445,10 @@ extension Store {
         let last = sessions.filter { $0.planId == pid }.sorted { $0.date > $1.date }.first
         var s = WorkoutSession(date: date, planId: pid, planName: type.name,
                                planColor: type.color, exercises: [], sport: type.sport)
-        s.durationMin = last?.durationMin
+        s.durationSec = last?.durationSeconds
         s.avgHR = last?.avgHR
         s.distanceKm = last?.distanceKm
+        s.paceManual = last?.paceManual
         setRestDay(date, on: false)
         sessions.append(s)
         return s

@@ -118,12 +118,14 @@ struct WorkoutSession: Codable, Identifiable, Equatable {
     var exercises: [LoggedExercise] = []
     // Internal-load / cardio fields (all optional, backward compatible)
     var sport: String?         // Sport raw value; nil => strength
-    var durationMin: Int?      // session duration in minutes (for sRPE / TRIMP / pace)
+    var durationMin: Int?      // legacy whole-minute duration (kept for old data)
+    var durationSec: Int?      // canonical duration in seconds (H/M/S input)
     var rpe: Int?              // session global RPE 1-10 (Borg CR10) for sRPE
     var avgHR: Int?            // average heart rate (manual) for TRIMP
     var maxHRSes: Int?         // max heart rate during session (manual)
     var rmssd: Double?         // RMSSD typed for this session (optional)
     var distanceKm: Double?    // running / cycling / walking
+    var paceManual: Double?    // user pace/speed override in the sport's native unit
     var elevationM: Double?    // optional climb
     var poolLengthM: Int?      // swimming pool length
     var caloriesManual: Int?   // user override of the calorie estimate
@@ -131,19 +133,50 @@ struct WorkoutSession: Codable, Identifiable, Equatable {
     var totalSets: Int { exercises.reduce(0) { $0 + $1.sets.count } }
     var volume: Double { exercises.reduce(0) { $0 + $1.volume } }
     var sportType: Sport { Sport(rawValue: sport ?? "strength") ?? .strength }
+
+    /// Canonical duration in seconds. Prefers the new H/M/S value, falling back to
+    /// the legacy whole-minute field so old sessions keep working.
+    var durationSeconds: Int? {
+        if let s = durationSec, s > 0 { return s }
+        if let m = durationMin, m > 0 { return m * 60 }
+        return nil
+    }
+    /// Duration in (possibly fractional) minutes for the science formulas.
+    var durationMinutesD: Double? { durationSeconds.map { Double($0) / 60.0 } }
+
     /// sRPE internal load = duration (min) × session RPE.
     var sRPE: Double? {
-        guard let d = durationMin, let r = rpe, d > 0, r > 0 else { return nil }
-        return Double(d * r)
+        guard let d = durationMinutesD, let r = rpe, d > 0, r > 0 else { return nil }
+        return d * Double(r)
     }
-    /// Average pace in min/km (running/walking) or min/100m (swimming).
-    var pace: Double? {
-        guard let d = durationMin, d > 0 else { return nil }
-        if sportType == .swimming, let dist = distanceKm, dist > 0 {
-            return Double(d) / (dist * 1000 / 100)   // min per 100 m
+
+    /// Pace/speed unit for this sport: cycling tracks speed (km/h), swimming
+    /// tracks min/100m, everything else min/km.
+    var paceIsSpeed: Bool { sportType == .cycling }
+    var paceUnit: String {
+        switch sportType {
+        case .cycling:  return "km/h"
+        case .swimming: return "/100m"
+        default:        return "/km"
         }
-        if let dist = distanceKm, dist > 0 { return Double(d) / dist }   // min per km
-        return nil
+    }
+    /// Auto pace/speed computed from distance + duration, in the native unit.
+    var autoPace: Double? {
+        guard let mins = durationMinutesD, mins > 0, let dist = distanceKm, dist > 0 else { return nil }
+        switch sportType {
+        case .cycling:  return dist / (mins / 60)            // km/h
+        case .swimming: return mins / (dist * 1000 / 100)    // min per 100 m
+        default:        return mins / dist                    // min per km
+        }
+    }
+    /// Effective pace: a manual override wins, otherwise the auto value.
+    var effectivePace: Double? { paceManual ?? autoPace }
+
+    /// Legacy: average pace in min/km (running/walking) or min/100m (swimming).
+    var pace: Double? {
+        guard let mins = durationMinutesD, mins > 0, let dist = distanceKm, dist > 0 else { return nil }
+        if sportType == .swimming { return mins / (dist * 1000 / 100) }
+        return mins / dist
     }
 }
 

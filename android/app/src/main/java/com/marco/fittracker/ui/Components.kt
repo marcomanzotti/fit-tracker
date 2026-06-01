@@ -21,6 +21,10 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -39,6 +43,11 @@ import androidx.compose.ui.unit.sp
 import android.view.HapticFeedbackConstants
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.ui.text.input.KeyboardType
+import com.marco.fittracker.data.WorkoutSession
+import com.marco.fittracker.data.paceStr
+import com.marco.fittracker.data.pf
+import com.marco.fittracker.data.t
+import com.marco.fittracker.data.trimNum
 
 // MARK: - Haptics
 @Composable
@@ -274,6 +283,88 @@ fun SmallNumField(
             }
         }
     )
+}
+
+// MARK: - Uniform field label (fixed height so adjacent input boxes align even
+// when only one of them carries an info button).
+@Composable
+fun FieldLabel(text: String, info: String? = null) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.height(18.dp)) {
+        Text(text.uppercase(), color = T.sub, fontSize = 9.sp, fontWeight = FontWeight.SemiBold,
+            letterSpacing = 1.sp, maxLines = 1, softWrap = false)
+        if (info != null) { Spacer(Modifier.width(3.dp)); InfoButton(info) }
+    }
+}
+
+// MARK: - Duration field (H / M / S) bound to a total-seconds value.
+@Composable
+fun HMSField(label: String, seconds: Int?, info: String? = null, onChange: (Int?) -> Unit) {
+    var h by remember { mutableStateOf(seconds?.takeIf { it >= 3600 }?.let { (it / 3600).toString() } ?: "") }
+    var m by remember { mutableStateOf(if (seconds != null) ((seconds % 3600) / 60).toString() else "") }
+    var s by remember { mutableStateOf(seconds?.takeIf { it % 60 != 0 }?.let { (it % 60).toString() } ?: "") }
+    fun emit() {
+        val total = (h.toIntOrNull() ?: 0) * 3600 + (m.toIntOrNull() ?: 0) * 60 + (s.toIntOrNull() ?: 0)
+        onChange(if (total > 0) total else null)
+    }
+    Column(Modifier.fillMaxWidth()) {
+        FieldLabel(label, info)
+        Spacer(Modifier.height(6.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Box(Modifier.weight(1f)) { HMSBox(h, "dur.h", "0") { h = it; emit() } }
+            Box(Modifier.weight(1f)) { HMSBox(m, "dur.m", "30") { m = it; emit() } }
+            Box(Modifier.weight(1f)) { HMSBox(s, "dur.s", "00") { s = it; emit() } }
+        }
+    }
+}
+
+@Composable
+private fun HMSBox(value: String, unitKey: String, ph: String, onChange: (String) -> Unit) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        BasicTextField(
+            value = value, onValueChange = onChange,
+            textStyle = TextStyle(color = T.txt, fontSize = 16.sp, fontWeight = FontWeight.Medium, textAlign = TextAlign.Center),
+            cursorBrush = SolidColor(T.acc),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(T.radiusS)).background(T.c2)
+                .border(1.dp, T.brd, RoundedCornerShape(T.radiusS)).padding(vertical = 13.dp),
+            decorationBox = { inner ->
+                Box(contentAlignment = Alignment.Center) {
+                    if (value.isEmpty()) Text(ph, color = T.sub, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                    inner()
+                }
+            }
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(t(unitKey), color = T.sub, fontSize = 8.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
+    }
+}
+
+// MARK: - Pace / speed field (per-sport unit; auto from distance + duration,
+// editable to override). The box always holds a plain decimal; the caption shows
+// the readable form (m:ss for min-based paces).
+@Composable
+fun PaceField(session: WorkoutSession, manual: Double?, onChange: (Double?) -> Unit) {
+    val auto = session.autoPace
+    fun dec(v: Double): String = trimNum(Math.round(v * 10) / 10.0)
+    fun readable(v: Double): String =
+        if (session.paceIsSpeed) "${dec(v)} ${session.paceUnit}" else "${paceStr(v)} ${session.paceUnit}"
+    var text by remember { mutableStateOf(manual?.let { dec(it) } ?: "") }
+    Column(Modifier.fillMaxWidth()) {
+        FieldLabel("${t(if (session.paceIsSpeed) "wk.speed" else "wk.pace")} (${session.paceUnit})", "pace")
+        Spacer(Modifier.height(6.dp))
+        InputField(text, {
+            text = it
+            val v = pf(it)
+            onChange(if (it.isEmpty() || v <= 0) null else v)
+        }, auto?.let { dec(it) } ?: "—", KeyboardType.Decimal)
+        val shown = if (pf(text) > 0) pf(text) else auto
+        if (shown != null) {
+            Spacer(Modifier.height(4.dp))
+            Text("${if (text.isEmpty()) t("wk.pace_auto") else t("wk.pace")} · ${readable(shown)}",
+                color = T.sub, fontSize = 9.sp)
+        }
+    }
 }
 
 // MARK: - Empty state

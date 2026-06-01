@@ -31,6 +31,14 @@ func headerDate() -> (full: String, day: String) {
     return ("\(d) \(L.months[max(0, min(11, m))]) \(y)", L.days[max(0, min(6, wd))])
 }
 
+/// Total seconds -> compact "1h 05m", "45m 30s" or "30s" for session summaries.
+func fmtDuration(_ seconds: Int) -> String {
+    let h = seconds / 3600, m = (seconds % 3600) / 60, s = seconds % 60
+    if h > 0 { return String(format: "%dh %02dm", h, m) }
+    if m > 0 { return s > 0 ? String(format: "%dm %02ds", m, s) : "\(m)m" }
+    return "\(s)s"
+}
+
 // MARK: - Number formatting
 func trimNum(_ v: Double) -> String {
     if v == v.rounded() { return String(Int(v)) }

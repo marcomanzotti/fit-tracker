@@ -279,7 +279,7 @@ struct WorkoutView: View {
 
     private func cardioSummary(_ s: WorkoutSession) -> String {
         var parts: [String] = []
-        if let d = s.durationMin { parts.append("\(d) min") }
+        if let sec = s.durationSeconds { parts.append(fmtDuration(sec)) }
         if let km = s.distanceKm { parts.append("\(trimNum(km)) km") }
         return parts.isEmpty ? s.sportType.label : parts.joined(separator: " · ")
     }

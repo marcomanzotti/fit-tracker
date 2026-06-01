@@ -45,6 +45,7 @@ import com.marco.fittracker.data.energyTargets
 import com.marco.fittracker.data.fmtDM
 import com.marco.fittracker.data.hasAnyTrimp
 import com.marco.fittracker.data.lastSessionTrimp
+import com.marco.fittracker.data.loadDataStatus
 import com.marco.fittracker.data.progression
 import com.marco.fittracker.data.readiness
 import com.marco.fittracker.data.t
@@ -203,9 +204,41 @@ fun LoadTrendCard() {
 @Composable
 fun LoadCard() {
     val store = LocalStore.current
+    val ds = store.loadDataStatus()
+    when {
+        ds.reliable -> FullLoadCard()
+        ds.sessions > 0 -> BuildingLoadCard(ds)
+    }
+}
+
+// Shown until there is enough load history for ACWR to be trustworthy.
+@Composable
+private fun BuildingLoadCard(ds: com.marco.fittracker.data.LoadDataStatus) {
+    Card(accent = T.acc2) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Lbl(t("load.title"), T.acc2)
+            Spacer(Modifier.width(5.dp)); InfoButton("load", T.acc2)
+            Spacer(Modifier.weight(1f))
+            Badge(t("load.building"), T.acc2, T.acc2.copy(alpha = 0.14f))
+        }
+        Spacer(Modifier.height(10.dp))
+        Text(t("load.building_body").format(ds.needSessions, ds.needDays),
+            color = T.txt, fontSize = 12.sp, lineHeight = 17.sp)
+        Spacer(Modifier.height(12.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+            RowScopeStatTile(t("load.sessions_logged"), "${ds.sessions}/${ds.needSessions}",
+                valueColor = if (ds.sessions >= ds.needSessions) T.good else T.txt, modifier = Modifier.weight(1f))
+            RowScopeStatTile(t("load.history_days"), "${ds.spanDays}/${ds.needDays}",
+                valueColor = if (ds.spanDays >= ds.needDays) T.good else T.txt, modifier = Modifier.weight(1f))
+        }
+    }
+}
+
+@Composable
+private fun FullLoadCard() {
+    val store = LocalStore.current
     val acwr = store.acwr()
     val wk = store.weekLoad(0)
-    if (acwr.ratio == null && wk.total <= 0) return
     Card {
         InfoLbl(t("load.title"), "load", T.acc2)
         Spacer(Modifier.height(12.dp))

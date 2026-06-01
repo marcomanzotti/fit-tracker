@@ -59,6 +59,7 @@ import com.marco.fittracker.data.PlanExercise
 import com.marco.fittracker.data.SetEntry
 import com.marco.fittracker.data.WorkoutPlan
 import com.marco.fittracker.data.WorkoutSession
+import com.marco.fittracker.data.fmtDuration
 import com.marco.fittracker.data.pf
 import com.marco.fittracker.data.t
 import com.marco.fittracker.data.today
@@ -167,7 +168,7 @@ private fun WorkoutGrid(onStart: (WorkoutPlan) -> Unit, onNew: () -> Unit, onEdi
                         Column(Modifier.weight(1f)) {
                             Text(s.planName.uppercase(), color = hexColor(s.planColor), fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                             Spacer(Modifier.height(3.dp))
-                            val detail = if (s.sportType.isCardio) (s.durationMin?.let { "$it min" } ?: s.sportType.label())
+                            val detail = if (s.sportType.isCardio) (s.durationSeconds?.let { fmtDuration(it) } ?: s.sportType.label())
                                          else "${s.exercises.size} ${t("home.exercises")}"
                             Text("${s.date} · $detail · ${store.estimateCalories(s)} kcal", color = T.sub, fontSize = 10.sp)
                         }
@@ -251,7 +252,7 @@ private fun LiveWorkout(plan: WorkoutPlan, log: SnapshotStateList<LoggedExercise
     var addName by remember { mutableStateOf("") }
     val showNotes = remember { mutableStateListOf<String>() }
     var saved by remember { mutableStateOf(false) }
-    var sessDuration by remember { mutableStateOf("") }
+    var sessDurationSec by remember { mutableStateOf<Int?>(null) }
     var sessAvgHR by remember { mutableStateOf("") }
     var sessRMSSD by remember { mutableStateOf("") }
     var sessCalManual by remember { mutableStateOf("") }
@@ -327,14 +328,13 @@ private fun LiveWorkout(plan: WorkoutPlan, log: SnapshotStateList<LoggedExercise
     Card {
         InfoLbl(t("load.title"), "load", T.acc2)
         Spacer(Modifier.height(10.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Box(Modifier.weight(1f)) { LoadField(t("wk.duration"), sessDuration) { sessDuration = it } }
-            Box(Modifier.weight(1f)) { LoadField(t("wk.avg_hr"), sessAvgHR, "trimp") { sessAvgHR = it } }
-        }
+        HMSField(t("wk.duration"), sessDurationSec) { sessDurationSec = it }
+        Spacer(Modifier.height(12.dp))
+        LoadField(t("wk.avg_hr"), sessAvgHR, "trimp") { sessAvgHR = it }
         val liveTrimp = run {
-            val d = sessDuration.toIntOrNull(); val hr = sessAvgHR.toIntOrNull()
+            val d = sessDurationSec; val hr = sessAvgHR.toIntOrNull()
             if (d != null && d > 0 && hr != null && hr > 0)
-                store.trimp(WorkoutSession(date = today(), planId = plan.id, planName = plan.name, planColor = plan.color, durationMin = d, avgHR = hr))
+                store.trimp(WorkoutSession(date = today(), planId = plan.id, planName = plan.name, planColor = plan.color, durationSec = d, avgHR = hr))
             else null
         }
         liveTrimp?.let { v ->
@@ -362,7 +362,7 @@ private fun LiveWorkout(plan: WorkoutPlan, log: SnapshotStateList<LoggedExercise
     // Calories burned (always shown; manual override wins)
     val estCal = run {
         val snap = WorkoutSession(date = today(), planId = plan.id, planName = plan.name, planColor = plan.color,
-            exercises = log.toList(), durationMin = sessDuration.toIntOrNull(), avgHR = sessAvgHR.toIntOrNull())
+            exercises = log.toList(), durationSec = sessDurationSec, avgHR = sessAvgHR.toIntOrNull())
         store.estimateCalories(snap)
     }
     Card(accent = T.acc) {
@@ -391,7 +391,7 @@ private fun LiveWorkout(plan: WorkoutPlan, log: SnapshotStateList<LoggedExercise
             if (exercises.isEmpty()) { toast.show("Nessuna serie da salvare") } else {
                 store.addSession(WorkoutSession(
                     date = today(), planId = plan.id, planName = plan.name, planColor = plan.color, exercises = exercises,
-                    durationMin = sessDuration.toIntOrNull(), avgHR = sessAvgHR.toIntOrNull(),
+                    durationSec = sessDurationSec, avgHR = sessAvgHR.toIntOrNull(),
                     rmssd = if (sessRMSSD.isEmpty()) null else pf(sessRMSSD),
                     caloriesManual = sessCalManual.toIntOrNull()?.takeIf { it > 0 }))
                 saved = true; timer.stop()

@@ -98,10 +98,45 @@ struct TrimpCard: View {
 struct LoadCard: View {
     @EnvironmentObject var store: Store
     var body: some View {
+        let ds = store.loadDataStatus()
         let acwr = store.acwr()
         let wk = store.weekLoad(offset: 0)
         Group {
-            if acwr.ratio != nil || wk.total > 0 {
+            if ds.reliable {
+                fullCard(acwr: acwr, wk: wk)
+            } else if ds.sessions > 0 {
+                buildingCard(ds)
+            }
+        }
+    }
+
+    // Shown until there is enough load history for ACWR to be trustworthy. With a
+    // couple of sessions the ratio is wildly out of scale, so we explain what's
+    // still needed instead of printing a meaningless number.
+    private func buildingCard(_ ds: Store.LoadDataStatus) -> some View {
+        Card(accent: Theme.acc2) {
+            HStack(spacing: 2) {
+                Lbl(text: t("load.title"), color: Theme.acc2)
+                InfoButton(id: "load", color: Theme.acc2)
+                Spacer()
+                Badge(text: t("load.building"), color: Theme.acc2, bg: Theme.acc2.opacity(0.14))
+            }
+            .padding(.bottom, 10)
+            Text(t("load.building_body", ds.needSessions, ds.needDays))
+                .font(.system(size: 12)).foregroundColor(Theme.txt).lineSpacing(4)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.bottom, 12)
+            HStack(spacing: 9) {
+                StatTile(label: t("load.sessions_logged"), value: "\(ds.sessions)/\(ds.needSessions)",
+                         valueColor: ds.sessions >= ds.needSessions ? Theme.good : Theme.txt)
+                StatTile(label: t("load.history_days"), value: "\(ds.spanDays)/\(ds.needDays)",
+                         valueColor: ds.spanDays >= ds.needDays ? Theme.good : Theme.txt)
+            }
+        }
+    }
+
+    private func fullCard(acwr: ACWRResult, wk: WeekLoad) -> some View {
+        Group {
                 Card {
                     InfoLbl(text: t("load.title"), info: "load", color: Theme.acc2).padding(.bottom, 12)
                     if let ratio = acwr.ratio {
@@ -128,7 +163,6 @@ struct LoadCard: View {
                             .foregroundColor(Theme.red).padding(.top, 10)
                     }
                 }
-            }
         }
     }
     private func acwrKey(_ z: String) -> String {
@@ -156,11 +190,13 @@ struct LoadTrendCard: View {
                         }
                     }
                     .padding(.bottom, 12)
+                    // Plot against real dates so the x-axis can thin its labels
+                    // (every 3rd day) instead of cramming 14 overlapping dates.
                     Chart(series) { p in
                         BarMark(
-                            x: .value("day", fmtDM(p.date)),
+                            x: .value("day", p.day, unit: .day),
                             y: .value("load", p.load),
-                            width: .ratio(0.62)
+                            width: .ratio(0.7)
                         )
                         .cornerRadius(3)
                         .foregroundStyle(LinearGradient(
@@ -168,7 +204,23 @@ struct LoadTrendCard: View {
                             startPoint: .top, endPoint: .bottom))
                     }
                     .chartYScale(domain: .automatic(includesZero: true))
-                    .styledAxes()
+                    .chartXAxis {
+                        AxisMarks(values: .stride(by: .day, count: 3)) { v in
+                            AxisGridLine().foregroundStyle(Theme.mut)
+                            AxisValueLabel(centered: false) {
+                                if let d = v.as(Date.self) {
+                                    Text(fmtDM(isoFormatter.string(from: d)))
+                                        .font(.system(size: 9)).foregroundColor(Theme.sub)
+                                }
+                            }
+                        }
+                    }
+                    .chartYAxis {
+                        AxisMarks { _ in
+                            AxisGridLine().foregroundStyle(Theme.mut)
+                            AxisValueLabel().font(.system(size: 8)).foregroundStyle(Theme.sub)
+                        }
+                    }
                     .frame(height: 120)
                 }
             }
@@ -445,16 +497,14 @@ struct SessionEditorView: View {
                     // Session-level internal load fields (TRIMP from duration + avg HR)
                     Card {
                         InfoLbl(text: t("load.title"), info: "load").padding(.bottom, 12)
-                        HStack(spacing: 10) {
-                            metricField(t("wk.duration"), intBinding(\.durationMin))
-                            metricField(t("wk.avg_hr"), intBinding(\.avgHR), info: "trimp")
-                        }
+                        HMSField(label: t("wk.duration"), seconds: durationBinding)
+                        Spacer().frame(height: 12)
+                        metricField(t("wk.avg_hr"), intBinding(\.avgHR), info: "trimp")
                         if session.sportType.isCardio {
-                            Spacer().frame(height: 10)
-                            HStack(spacing: 10) {
-                                metricField(t("wk.distance"), doubleBinding(\.distanceKm), keyboard: .decimalPad)
-                                Color.clear.frame(maxWidth: .infinity)
-                            }
+                            Spacer().frame(height: 12)
+                            metricField(t("wk.distance"), doubleBinding(\.distanceKm), keyboard: .decimalPad)
+                            Spacer().frame(height: 12)
+                            PaceField(session: session, manual: $session.paceManual)
                         }
                         if let v = store.trimp(session) {
                             HStack(spacing: 6) {
@@ -538,13 +588,15 @@ struct SessionEditorView: View {
     private func metricField(_ label: String, _ binding: Binding<String>, info: String? = nil,
                              keyboard: UIKeyboardType = .numberPad) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 2) {
-                Text(label.uppercased()).font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
-                if let info { InfoButton(id: info) }
-                Spacer()
-            }
+            FieldLabel(label, info: info)
             InputField(placeholder: "—", text: binding, keyboard: keyboard)
         }
+    }
+    /// Total-seconds binding for the H/M/S field, migrating any legacy
+    /// whole-minute value into the new seconds field on first edit.
+    private var durationBinding: Binding<Int?> {
+        Binding(get: { session.durationSeconds },
+                set: { session.durationSec = $0; session.durationMin = nil })
     }
     private func intBinding(_ kp: WritableKeyPath<WorkoutSession, Int?>) -> Binding<String> {
         Binding(get: { session[keyPath: kp].map(String.init) ?? "" },

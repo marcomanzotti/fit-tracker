@@ -91,22 +91,24 @@ private fun RecommendedFlag() {
 fun CardioLoggerDialog(type: CardioType, onClose: () -> Unit) {
     val store = LocalStore.current
     val toast = LocalToast.current
-    var duration by remember { mutableStateOf("") }
+    var durationSec by remember { mutableStateOf<Int?>(null) }
     var distance by remember { mutableStateOf("") }
     var avgHR by remember { mutableStateOf("") }
     var rmssd by remember { mutableStateOf("") }
     var calManual by remember { mutableStateOf("") }
+    var paceManual by remember { mutableStateOf<Double?>(null) }
     val pc = hexColor(type.color)
 
-    fun build(dur: Int) = WorkoutSession(
+    fun build() = WorkoutSession(
         date = today(), planId = "cardio-${type.id}", planName = type.name, planColor = type.color,
-        exercises = emptyList(), sport = type.sport, durationMin = dur,
+        exercises = emptyList(), sport = type.sport, durationSec = durationSec,
         avgHR = avgHR.toIntOrNull(),
         rmssd = if (rmssd.isEmpty()) null else pf(rmssd),
         distanceKm = if (distance.isEmpty()) null else pf(distance),
+        paceManual = paceManual,
         caloriesManual = calManual.toIntOrNull()?.takeIf { it > 0 }
     )
-    val est = duration.toIntOrNull()?.takeIf { it > 0 }?.let { store.estimateCalories(build(it)) }
+    val est = durationSec?.takeIf { it > 0 }?.let { store.estimateCalories(build()) }
 
     DialogShell(onClose) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -117,12 +119,14 @@ fun CardioLoggerDialog(type: CardioType, onClose: () -> Unit) {
             Icon(Icons.Filled.Close, null, tint = T.sub, modifier = Modifier.size(24.dp).clickable { onClose() })
         }
         Spacer(Modifier.height(14.dp))
+        HMSField(t("wk.duration"), durationSec) { durationSec = it }
+        Spacer(Modifier.height(14.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Box(Modifier.weight(1f)) { Field(t("wk.duration"), duration, { duration = it }, "40") }
             Box(Modifier.weight(1f)) { Field(t("wk.distance"), distance, { distance = it }, "8", KeyboardType.Decimal) }
+            Box(Modifier.weight(1f)) { Field(t("wk.avg_hr"), avgHR, { avgHR = it }, "150") }
         }
-        Spacer(Modifier.height(12.dp))
-        Field(t("wk.avg_hr"), avgHR, { avgHR = it }, "150")
+        Spacer(Modifier.height(14.dp))
+        PaceField(build(), paceManual) { paceManual = it }
         Spacer(Modifier.height(13.dp))
         Box(Modifier.fillMaxWidth().height(1.dp).background(T.brd))
         Spacer(Modifier.height(11.dp))
@@ -154,9 +158,9 @@ fun CardioLoggerDialog(type: CardioType, onClose: () -> Unit) {
         }
         Spacer(Modifier.height(16.dp))
         BigButton(t("save")) {
-            val dur = duration.toIntOrNull()
+            val dur = durationSec
             if (dur == null || dur <= 0) { toast.show(t("wk.duration")) } else {
-                store.addSession(build(dur)); toast.show(t("save")); onClose()
+                store.addSession(build()); toast.show(t("save")); onClose()
             }
         }
     }
@@ -244,16 +248,14 @@ fun SessionEditorDialog(initial: WorkoutSession, onClose: () -> Unit) {
         Spacer(Modifier.height(14.dp))
         // Internal-load fields (TRIMP from duration + avg HR)
         Lbl(t("load.title")); Spacer(Modifier.height(10.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Box(Modifier.weight(1f)) { Field(t("wk.duration"), s.durationMin?.toString() ?: "", { s = s.copy(durationMin = it.toIntOrNull()) }, "—") }
-            Box(Modifier.weight(1f)) { Field(t("wk.avg_hr"), s.avgHR?.toString() ?: "", { s = s.copy(avgHR = it.toIntOrNull()) }, "—") }
-        }
+        HMSField(t("wk.duration"), s.durationSeconds) { s = s.copy(durationSec = it, durationMin = null) }
+        Spacer(Modifier.height(12.dp))
+        Field(t("wk.avg_hr"), s.avgHR?.toString() ?: "", { s = s.copy(avgHR = it.toIntOrNull()) }, "—")
         if (s.sportType.isCardio) {
-            Spacer(Modifier.height(10.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Box(Modifier.weight(1f)) { Field(t("wk.distance"), s.distanceKm?.let { trimNum(it) } ?: "", { s = s.copy(distanceKm = if (it.isEmpty()) null else pf(it)) }, "—", KeyboardType.Decimal) }
-                Box(Modifier.weight(1f)) {}
-            }
+            Spacer(Modifier.height(12.dp))
+            Field(t("wk.distance"), s.distanceKm?.let { trimNum(it) } ?: "", { s = s.copy(distanceKm = if (it.isEmpty()) null else pf(it)) }, "—", KeyboardType.Decimal)
+            Spacer(Modifier.height(12.dp))
+            PaceField(s, s.paceManual) { s = s.copy(paceManual = it) }
         }
         store.trimp(s)?.let { v ->
             Spacer(Modifier.height(12.dp))

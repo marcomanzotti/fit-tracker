@@ -209,7 +209,7 @@ class Store(app: Application) : AndroidViewModel(app) {
     fun estimateCalories(s: WorkoutSession): Int {
         s.caloriesManual?.let { if (it > 0) return it }
         val w = lastWeight
-        val hr = s.avgHR; val dur = s.durationMin
+        val hr = s.avgHR; val dur = s.durationMinutesD
 
         // 2) HR-based (Keytel): most precise.
         if (hr != null && hr > 0 && dur != null && dur > 0) {
@@ -289,7 +289,7 @@ class Store(app: Application) : AndroidViewModel(app) {
         }
         val s = WorkoutSession(date = date, planId = plan.id, planName = plan.name,
             planColor = plan.color, exercises = exercises,
-            durationMin = last?.durationMin, avgHR = last?.avgHR, maxHRSes = last?.maxHRSes)
+            durationSec = last?.durationSeconds, avgHR = last?.avgHR, maxHRSes = last?.maxHRSes)
         setRestDay(date, false)
         sessions.add(s)
         save()
@@ -302,7 +302,8 @@ class Store(app: Application) : AndroidViewModel(app) {
         val last = sessions.filter { it.planId == pid }.sortedByDescending { it.date }.firstOrNull()
         val s = WorkoutSession(date = date, planId = pid, planName = type.name,
             planColor = type.color, exercises = emptyList(), sport = type.sport,
-            durationMin = last?.durationMin, avgHR = last?.avgHR, distanceKm = last?.distanceKm)
+            durationSec = last?.durationSeconds, avgHR = last?.avgHR,
+            distanceKm = last?.distanceKm, paceManual = last?.paceManual)
         setRestDay(date, false)
         sessions.add(s)
         save()
