@@ -1,0 +1,89 @@
+name: Build unsigned IPA (with Apple Watch)
+
+# Builds the iPhone app WITH the embedded watchOS companion and uploads an
+# UNSIGNED .ipa (phone app + Watch/FitTrackerWatch.app inside). This is a
+# separate artifact from the plain "Build unsigned IPA" workflow, which keeps
+# producing the watch-free phone IPA that sideloads exactly as before.
+#
+# Note: an embedded watch app needs real provisioning to actually install on a
+# paired Apple Watch, so this combined IPA may require a paid Apple Developer
+# account (or extra SideStore steps). The watch-free IPA remains the safe path.
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'ios/**'
+      - '.github/workflows/watch.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-15        # ships Xcode 16 (iOS 18 + watchOS 11 SDKs)
+    defaults:
+      run:
+        working-directory: ios
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Select latest stable Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Compile-check the watchOS app alone
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project FitTracker.xcodeproj \
+            -scheme FitTrackerWatch \
+            -configuration Release \
+            -sdk watchos \
+            -derivedDataPath build-watch \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            clean build
+
+      - name: Build the iPhone host with the watch embedded (Release, unsigned)
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project FitTracker.xcodeproj \
+            -scheme FitTrackerWatchHost \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            clean build
+
+      - name: Package into unsigned .ipa
+        run: |
+          APP_PATH="build/Build/Products/Release-iphoneos/FitTracker.app"
+          if [ ! -d "$APP_PATH" ]; then
+            echo "::error::Built .app not found at $APP_PATH"
+            ls -R build/Build/Products || true
+            exit 1
+          fi
+          echo "Watch content embedded:"
+          ls -lh "$APP_PATH/Watch" || echo "::warning::No Watch/ directory found inside the app"
+          mkdir -p Payload
+          cp -R "$APP_PATH" Payload/
+          zip -r FitTracker-watch.ipa Payload >/dev/null
+          rm -rf Payload
+          echo "Created FitTracker-watch.ipa:"
+          ls -lh FitTracker-watch.ipa
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: FitTracker-watch-ipa
+          path: ios/FitTracker-watch.ipa
+          if-no-files-found: error
