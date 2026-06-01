@@ -8,6 +8,9 @@ struct AppRootView: View {
             if store.prefs.didOnboard { RootView() }
             else { OnboardingView() }
         }
+        // Start the Apple Watch link (no-op without a paired watch) and keep the
+        // wrist's workout catalog in sync with the saved plans / cardio types.
+        .onAppear { WatchSync.shared.attach(store) }
     }
 }
 

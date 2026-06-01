@@ -114,3 +114,55 @@ SideStore signs the app on your phone with your own Apple ID, so we ship it **un
 ## Requirements
 - macOS with **Xcode** (iOS 16+ deployment target; uses Swift Charts).
 - An iPhone with **SideStore** set up (free Apple ID).
+
+---
+
+## Apple Watch companion
+
+A native **watchOS** app (`FitTrackerWatch/`) tracks workouts live on the wrist
+and sends the finished session to the iPhone — no manual HR/duration typing.
+
+- **Pick a workout on the watch:** it shows the same **strength plans** and
+  **cardio activities** you saved on the phone (pushed over WatchConnectivity),
+  in the same dark + yellow style.
+- **Live tracking:** `HKWorkoutSession` + `HKLiveWorkoutBuilder` stream **heart
+  rate, active calories and distance**; the right `HKWorkoutActivityType` is
+  chosen per sport (strength → traditional strength training, etc.).
+- **Sync back:** on finish the watch sends a compact summary
+  (`WatchResult`) straight into the phone's session store over the watch link
+  (`WatchSync.swift`). Strength sessions arrive pre-filled with the plan's
+  exercises so you only type the weights; cardio sessions carry distance and the
+  watch's measured active energy.
+
+### Code layout
+
+```
+ios/
+├── Shared/WatchBridge.swift        wire types shared by phone + watch (Foundation only)
+├── FitTracker/WatchSync.swift      phone side: push catalog, ingest finished workouts
+└── FitTrackerWatch/                the watchOS app (self-contained)
+    ├── FitTrackerWatchApp.swift     @main + routing
+    ├── WorkoutManager.swift         HealthKit live workout
+    ├── WatchLink.swift              WatchConnectivity (watch side)
+    ├── WatchViews.swift             picker / live / summary UI
+    ├── WatchTheme.swift, WatchL.swift
+    ├── Info.plist, FitTrackerWatch.entitlements (HealthKit)
+    └── Assets.xcassets
+```
+
+### Targets & builds
+
+| Target | Product | Built by |
+| --- | --- | --- |
+| `FitTracker` | watch-free phone IPA (`FitTracker-ipa`) | `.github/workflows/build.yml` — **unchanged, still sideloads as today** |
+| `FitTrackerWatch` | the watchOS app (embedded only) | — |
+| `FitTrackerWatchHost` | phone **+ embedded watch** IPA (`FitTracker-watch-ipa`) | `.github/workflows/watch.yml` |
+
+The HealthKit entitlement lives **only on the watch target**, so the plain phone
+IPA keeps its current free-Apple-ID SideStore re-signing untouched.
+
+> **Heads-up on sideloading the watch:** an embedded watch app needs real
+> provisioning to install on a paired Apple Watch, which a free Apple ID can't
+> reliably do via SideStore. The combined IPA builds and is provided as a
+> separate artifact; installing the watch app on-device may need a paid Apple
+> Developer account. The watch-free phone IPA remains the safe path for sharing.
