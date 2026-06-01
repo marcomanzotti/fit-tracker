@@ -9,12 +9,12 @@ struct HomeView: View {
     @State private var weightInput = ""
     @State private var sleepInput = ""
     @State private var shareURL: IdentURL?
+    @State private var editingGoal = false
 
     var body: some View {
         let lw = store.lastWeight
         let bmi = store.bmi(lw)
         let cat = store.bmiCategory(bmi)
-        let ws = store.sortedDaily.filter { $0.weight != nil }
 
         // Check-in
         if !store.hasCheckedIn() {
@@ -26,23 +26,24 @@ struct HomeView: View {
         // Key stats
         HStack(spacing: 9) {
             StatTile(label: t("home.weight"), value: trimNum(lw), unit: "kg", note: "BMI \(trimNum(bmi)) · \(cat.0)", info: "bmi")
-            StatTile(label: t("home.streak"), value: "\(store.streak)", valueColor: Theme.acc, note: store.streak == 1 ? t("home.day") : t("home.days"))
+            StatTile(label: t("home.streak"), value: "\(store.streak)", valueColor: Theme.acc, note: store.streak == 1 ? t("home.day") : t("home.days"), info: "streak")
             StatTile(label: t("home.sessions"), value: "\(store.sessions.count)", valueColor: Theme.blue, note: t("home.total"))
         }
 
         weekStripCard
-        goalsCard(lw: lw)
         nextWorkoutCard
+        WeeklyPlanCard()
+        goalsCard(lw: lw)
 
+        // Scientific dashboard (visual + data, with info popups)
         Group {
-            OverloadCard()
             ReadinessCard()
             LoadCard()
+            LoadTrendCard()
+            OverloadCard()
             NutritionCard()
         }
 
-        if ws.count > 1 { weightChartCard(ws) }
-        weekComparisonCard
         backupRow
     }
 
@@ -165,7 +166,23 @@ struct HomeView: View {
         let bf = store.currentBF
         let bfPct = bf.map { max(0, min(1, ($0 - p.goalBF) / max(0.1, 35 - p.goalBF))) }
         return Card {
-            Lbl(text: t("home.goals"), color: Theme.acc2).padding(.bottom, 12)
+            HStack(spacing: 2) {
+                Lbl(text: t("home.goals"), color: Theme.acc2)
+                InfoButton(id: "goal", color: Theme.acc2)
+                Spacer()
+                Button { tap(); editingGoal = true } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "target").font(.system(size: 10, weight: .bold))
+                        Text(t("goal.change").uppercased()).font(.head(9, .semibold)).tracking(0.8)
+                    }
+                    .foregroundColor(Theme.acc)
+                    .padding(.vertical, 6).padding(.horizontal, 10)
+                    .background(Theme.acc.opacity(0.10))
+                    .clipShape(Capsule())
+                    .overlay(Capsule().stroke(Theme.acc.opacity(0.5), lineWidth: 1))
+                }
+            }
+            .padding(.bottom, 12)
             HStack(spacing: 16) {
                 VStack(spacing: 0) {
                     HStack {
@@ -186,21 +203,32 @@ struct HomeView: View {
                 GoalRing(value: wtPct, color: Theme.acc, size: 64)
             }
         }
+        .sheet(isPresented: $editingGoal) { GoalEditorView() }
     }
 
-    // MARK: Next workout
+    // MARK: Next workout (schedule-aware: strength plan or cardio activity)
     private var nextWorkoutCard: some View {
         Group {
-            if let p = store.nextPlan() {
+            if let item = store.nextUp() {
                 Button { tap(); tab = .allena } label: {
-                    Card(accent: Color(hex: p.color)) {
+                    Card(accent: Color(hex: item.color)) {
                         HStack {
                             VStack(alignment: .leading, spacing: 0) {
-                                Lbl(text: t("home.next_workout")).padding(.bottom, 6)
-                                Text(p.name.uppercased()).font(.head(22, .bold)).tracking(0.5)
-                                    .foregroundColor(Color(hex: p.color))
-                                Text("\(p.sub) · \(p.exercises.count) \(t("home.exercises"))").font(.system(size: 11))
-                                    .foregroundColor(Theme.sub).padding(.top, 5)
+                                HStack(spacing: 6) {
+                                    Lbl(text: t("home.next_workout"))
+                                    Text("· " + (store.prefs.hasSchedule ? t("plan.scheduled") : t("plan.rotation")))
+                                        .font(.head(8, .semibold)).tracking(0.5).foregroundColor(Theme.sub)
+                                }
+                                .padding(.bottom, 6)
+                                HStack(spacing: 8) {
+                                    Image(systemName: item.icon).font(.system(size: 18, weight: .bold))
+                                        .foregroundColor(Color(hex: item.color))
+                                    Text(item.name.uppercased()).font(.head(22, .bold)).tracking(0.5)
+                                        .foregroundColor(Color(hex: item.color))
+                                }
+                                if !item.sub.isEmpty {
+                                    Text(item.sub).font(.system(size: 11)).foregroundColor(Theme.sub).padding(.top, 5)
+                                }
                             }
                             Spacer()
                             Image(systemName: "chevron.right").foregroundColor(Theme.sub)
@@ -209,51 +237,6 @@ struct HomeView: View {
                 }
             }
         }
-    }
-
-    // MARK: Weight chart
-    private func weightChartCard(_ ws: [DailyEntry]) -> some View {
-        let data = Array(ws.suffix(14))
-        return Card {
-            Lbl(text: t("home.weight14")).padding(.bottom, 8)
-            Chart(data) { e in
-                LineMark(x: .value("g", fmtShort(e.date)), y: .value("kg", e.weight ?? 0))
-                    .interpolationMethod(.catmullRom)
-                    .foregroundStyle(Theme.acc)
-                AreaMark(x: .value("g", fmtShort(e.date)), y: .value("kg", e.weight ?? 0))
-                    .interpolationMethod(.catmullRom)
-                    .foregroundStyle(LinearGradient(colors: [Theme.acc.opacity(0.25), .clear], startPoint: .top, endPoint: .bottom))
-                PointMark(x: .value("g", fmtShort(e.date)), y: .value("kg", e.weight ?? 0))
-                    .foregroundStyle(Theme.acc).symbolSize(18)
-            }
-            .chartYScale(domain: .automatic(includesZero: false))
-            .styledAxes()
-            .frame(height: 155)
-        }
-    }
-
-    // MARK: Week comparison
-    private var weekComparisonCard: some View {
-        let wk0 = store.weekStats(offset: 0)
-        let wk1 = store.weekStats(offset: 1)
-        let totalVol = store.sessions.reduce(0.0) { $0 + $1.volume }
-        return Card {
-            Lbl(text: t("home.week_cmp_title")).padding(.bottom, 4)
-            compRow(t("home.avg_weight"), wk0.avgWeight.map { "\(trimNum($0)) kg" } ?? "—", wk1.avgWeight.map { "\(trimNum($0)) \(t("home.prev"))" } ?? "—")
-            compRow(t("home.workouts"), "\(wk0.sessions)", "\(wk1.sessions) \(t("home.prev"))")
-            compRow(t("home.total_volume"), "\(Int(totalVol)) kg", t("home.lifetime"))
-        }
-    }
-
-    private func compRow(_ label: String, _ a: String, _ b: String) -> some View {
-        HStack {
-            Text(label).font(.system(size: 12, weight: .medium)).foregroundColor(Theme.sub)
-            Spacer()
-            Text(a).font(.num(16)).frame(width: 80, alignment: .trailing).foregroundColor(Theme.txt)
-            Text(b).font(.system(size: 11)).foregroundColor(Theme.sub).frame(width: 80, alignment: .trailing)
-        }
-        .padding(.vertical, 9)
-        .overlay(alignment: .bottom) { Rectangle().fill(Theme.brd).frame(height: 1) }
     }
 
     // MARK: Backup

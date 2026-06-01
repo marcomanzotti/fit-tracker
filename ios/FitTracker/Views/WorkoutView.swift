@@ -55,6 +55,9 @@ struct WorkoutView: View {
                 }
             }
 
+            Text(t("wk.edit_hint")).font(.system(size: 11)).foregroundColor(Theme.sub).lineSpacing(2)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
             LazyVGrid(columns: cols, spacing: 11) {
                 ForEach(store.plans) { p in
                     dayCard(p)
@@ -121,11 +124,17 @@ struct WorkoutView: View {
             .buttonStyle(.plain)
 
             Button { tap(); editCardio(ct) } label: {
-                Image(systemName: "slider.horizontal.3").font(.system(size: 13))
-                    .foregroundColor(Theme.sub).frame(width: 34, height: 30)
+                HStack(spacing: 3) {
+                    Image(systemName: "pencil").font(.system(size: 10, weight: .bold))
+                    Text(t("wk.edit").uppercased()).font(.head(8, .semibold)).tracking(0.5)
+                }
+                .foregroundColor(Theme.bg)
+                .padding(.vertical, 4).padding(.horizontal, 7)
+                .background(Color(hex: ct.color))
+                .clipShape(Capsule())
             }
             .buttonStyle(.plain)
-            .padding(6)
+            .padding(7)
         }
     }
 
@@ -179,11 +188,17 @@ struct WorkoutView: View {
             .buttonStyle(.plain)
 
             Button { tap(); editPlan(p) } label: {
-                Image(systemName: "slider.horizontal.3").font(.system(size: 13))
-                    .foregroundColor(Theme.sub).frame(width: 34, height: 30)
+                HStack(spacing: 3) {
+                    Image(systemName: "pencil").font(.system(size: 10, weight: .bold))
+                    Text(t("wk.edit").uppercased()).font(.head(8, .semibold)).tracking(0.5)
+                }
+                .foregroundColor(Theme.bg)
+                .padding(.vertical, 4).padding(.horizontal, 7)
+                .background(Color(hex: p.color))
+                .clipShape(Capsule())
             }
             .buttonStyle(.plain)
-            .padding(6)
+            .padding(7)
         }
     }
 

@@ -164,14 +164,22 @@ extension Store {
 
     func hasCheckedIn() -> Bool { daily.contains { $0.date == today() && $0.weight != nil } }
 
+    /// Consecutive days with a check-in or workout. The current day is a grace
+    /// period: the streak stays alive all day even before today's check-in, and
+    /// only breaks once a full day has passed with nothing logged. So if today is
+    /// not logged yet we start counting from yesterday rather than zeroing out.
     var streak: Int {
         var dates = Set<String>()
         daily.forEach { dates.insert($0.date) }
         sessions.forEach { dates.insert($0.date) }
-        var n = 0
-        var d = Date()
         let cal = Calendar.current
-        for _ in 0..<365 {
+        var d = cal.startOfDay(for: Date())
+        // Today still open: don't penalize until it actually elapses.
+        if !dates.contains(isoFormatter.string(from: d)) {
+            d = cal.date(byAdding: .day, value: -1, to: d)!
+        }
+        var n = 0
+        for _ in 0..<400 {
             let s = isoFormatter.string(from: d)
             if dates.contains(s) { n += 1; d = cal.date(byAdding: .day, value: -1, to: d)! }
             else { break }
@@ -179,13 +187,77 @@ extension Store {
         return n
     }
 
-    /// Next plan to train, cycling through the plan list after the most recent session.
-    func nextPlan() -> WorkoutPlan? {
+    // MARK: - Next workout (schedule-aware)
+    /// What the user should train next: a strength plan or a cardio activity.
+    enum NextItem {
+        case plan(WorkoutPlan)
+        case cardio(CardioType)
+        var name: String { switch self { case .plan(let p): return p.name; case .cardio(let c): return c.name } }
+        var color: String { switch self { case .plan(let p): return p.color; case .cardio(let c): return c.color } }
+        var sub: String {
+            switch self {
+            case .plan(let p): return p.sub
+            case .cardio(let c): return c.sportType.label
+            }
+        }
+        var icon: String {
+            switch self {
+            case .plan: return "dumbbell.fill"
+            case .cardio(let c): return c.sportType.icon
+            }
+        }
+    }
+
+    /// Resolve a schedule slot id to a concrete item (plan or cardio), if any.
+    private func scheduleItem(_ id: String) -> NextItem? {
+        if id.isEmpty || id == "rest" { return nil }
+        if let p = plans.first(where: { $0.id == id }) { return .plan(p) }
+        if let c = cardioTypes.first(where: { $0.id == id }) { return .cardio(c) }
+        return nil
+    }
+
+    /// The next thing to train. With a weekly schedule, walks forward from today
+    /// (Mon..Sun, looping to next week) to the next assigned, non-rest weekday,
+    /// skipping today if it's already been trained. Without a schedule, rotates
+    /// through the plan list after the most recent session.
+    func nextUp() -> NextItem? {
+        let cal = Calendar.current
+        if prefs.hasSchedule {
+            let sched = prefs.weekSchedule
+            let todayMon = (cal.component(.weekday, from: Date()) + 5) % 7   // Monday = 0
+            let trainedToday = sessions.contains { $0.date == today() }
+            for off in 0..<8 {
+                if off == 0 && trainedToday { continue }
+                if let item = scheduleItem(sched[(todayMon + off) % 7]) { return item }
+            }
+            return nil
+        }
+        return nextPlanRotation().map { .plan($0) }
+    }
+
+    /// Next strength plan only (used by progressive-overload suggestions).
+    func nextStrengthPlan() -> WorkoutPlan? {
+        if prefs.hasSchedule, case .plan(let p)? = nextUp() { return p }
+        return nextPlanRotation()
+    }
+
+    /// Rotation: the plan after the most recent session's plan, looping.
+    func nextPlanRotation() -> WorkoutPlan? {
         guard !plans.isEmpty else { return nil }
         guard let last = sessions.sorted(by: { $0.date > $1.date }).first,
               let idx = plans.firstIndex(where: { $0.id == last.planId }) else { return plans.first }
         return plans[(idx + 1) % plans.count]
     }
+
+    /// Set the assignment for a weekday (Mon=0..Sun=6) in the weekly schedule.
+    func setSchedule(weekday: Int, id: String) {
+        guard (0..<7).contains(weekday) else { return }
+        var s = prefs.weekSchedule
+        s[weekday] = id
+        // Drop the schedule entirely when nothing meaningful remains.
+        prefs.schedule = s.contains { !$0.isEmpty && $0 != "rest" } ? s : nil
+    }
+    func clearSchedule() { prefs.schedule = nil }
 
     func exercisePR(_ name: String) -> Double {
         var mx = 0.0

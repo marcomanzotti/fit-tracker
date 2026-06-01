@@ -1,4 +1,5 @@
 import SwiftUI
+import Charts
 
 // MARK: - Small helpers
 private func zoneColor(_ z: String) -> Color {
@@ -37,6 +38,15 @@ struct ReadinessCard: View {
                         Bar(value: Double(score) / 100, gradient: [zoneColor(r.advice), Theme.acc])
                     } else {
                         Text(t("load.need_data")).font(.system(size: 12)).foregroundColor(Theme.sub)
+                    }
+                    // Advanced: DFA-alpha1 aerobic threshold (deferred, clearly labeled)
+                    Rectangle().fill(Theme.brd).frame(height: 1).padding(.vertical, 10)
+                    HStack(spacing: 2) {
+                        Text(t("metric.dfa")).font(.system(size: 11, weight: .medium)).foregroundColor(Theme.sub)
+                        InfoButton(id: "dfa")
+                        Spacer()
+                        Text(t("metric.dfa_soon")).font(.system(size: 9)).foregroundColor(Theme.sub)
+                            .multilineTextAlignment(.trailing)
                     }
                 }
             }
@@ -89,6 +99,46 @@ struct LoadCard: View {
     }
 }
 
+// MARK: - Internal-load trend (visual bar chart of daily sRPE/TRIMP)
+struct LoadTrendCard: View {
+    @EnvironmentObject var store: Store
+    var body: some View {
+        let series = store.dailyLoadSeries(days: 14)
+        let acwr = store.acwr()
+        let hasLoad = series.contains { $0.load > 0 }
+        Group {
+            if hasLoad {
+                Card {
+                    HStack(spacing: 2) {
+                        Lbl(text: t("load.trend_title"), color: Theme.acc2)
+                        InfoButton(id: "load", color: Theme.acc2)
+                        Spacer()
+                        if let r = acwr.ratio {
+                            Text("ACWR \(trimNum(r))").font(.head(11, .semibold)).tracking(0.3)
+                                .foregroundColor(zoneColor(acwr.zone))
+                        }
+                    }
+                    .padding(.bottom, 12)
+                    Chart(series) { p in
+                        BarMark(
+                            x: .value("day", fmtShort(p.date)),
+                            y: .value("load", p.load),
+                            width: .ratio(0.62)
+                        )
+                        .cornerRadius(3)
+                        .foregroundStyle(LinearGradient(
+                            colors: [zoneColor(acwr.zone), zoneColor(acwr.zone).opacity(0.55)],
+                            startPoint: .top, endPoint: .bottom))
+                    }
+                    .chartYScale(domain: .automatic(includesZero: true))
+                    .styledAxes()
+                    .frame(height: 120)
+                }
+            }
+        }
+    }
+}
+
 // MARK: - Nutrition targets card
 struct NutritionCard: View {
     @EnvironmentObject var store: Store
@@ -96,11 +146,13 @@ struct NutritionCard: View {
         let e = store.energyTargets()
         let trend = store.weightTrend()
         let lea = store.energyAvailability()
+        let adh = store.adherence()
         Card(accent: Theme.acc) {
-            HStack(spacing: 2) {
+            HStack(spacing: 6) {
                 Lbl(text: t("nut.title"), color: Theme.acc2)
                 InfoButton(id: "tdee", color: Theme.acc2)
                 Spacer()
+                if e.adaptive { Badge(text: t("nut.adaptive"), color: Theme.good, bg: Theme.good.opacity(0.14)) }
                 Text(modeLabel(e.mode).uppercased()).font(.head(11, .semibold)).tracking(1).foregroundColor(Theme.acc)
             }
             .padding(.bottom, 12)
@@ -149,6 +201,25 @@ struct NutritionCard: View {
                 }
                 .padding(.top, 8)
             }
+            // Adherence (2-3 week consistency that drives the adaptive target)
+            if adh.status != "none" {
+                Rectangle().fill(Theme.brd).frame(height: 1).padding(.vertical, 10)
+                HStack(spacing: 2) {
+                    Text(t("nut.adherence")).font(.system(size: 12, weight: .medium)).foregroundColor(Theme.sub)
+                    InfoButton(id: "adherence")
+                    Spacer()
+                }
+                HStack(spacing: 9) {
+                    StatTile(label: t("nut.logging"), value: "\(Int((adh.loggingPct * 100).rounded()))", unit: "%",
+                             valueColor: adh.status == "low_logging" ? Theme.acc2 : Theme.good)
+                    StatTile(label: t("nut.steps_avg"), value: adh.avgSteps.map { "\($0)" } ?? "—",
+                             valueColor: Theme.blue, info: "steps")
+                    StatTile(label: t("nut.vol_sessions"), value: "\(adh.sessions)", valueColor: Theme.txt)
+                }
+                if adh.status == "low_logging" {
+                    Text(t("nut.low_logging")).font(.system(size: 10)).foregroundColor(Theme.acc2).padding(.top, 8)
+                }
+            }
             Text(t("nut.who_note")).font(.system(size: 9)).foregroundColor(Theme.sub).padding(.top, 8)
         }
     }
@@ -173,7 +244,7 @@ struct NutritionCard: View {
 struct OverloadCard: View {
     @EnvironmentObject var store: Store
     var body: some View {
-        let plan = store.nextPlan()
+        let plan = store.nextStrengthPlan()
         let items: [(String, ProgKind)] = plan.map { p in
             p.exercises.compactMap { ex in
                 store.progression(planId: p.id, exercise: ex.name).map { (ex.name, $0) }
@@ -321,15 +392,15 @@ struct SessionEditorView: View {
 
                     // Session-level internal load fields
                     Card {
-                        Lbl(text: t("load.title")).padding(.bottom, 12)
+                        InfoLbl(text: t("load.title"), info: "load").padding(.bottom, 12)
                         HStack(spacing: 10) {
-                            metricField(t("wk.duration"), intBinding(\.durationMin))
-                            metricField(t("wk.rpe"), intBinding(\.rpe))
+                            metricField(t("wk.duration"), intBinding(\.durationMin), info: "srpe")
+                            metricField(t("wk.rpe"), intBinding(\.rpe), info: "srpe")
                         }
                         .padding(.bottom, 10)
                         HStack(spacing: 10) {
-                            metricField(t("wk.avg_hr"), intBinding(\.avgHR))
-                            metricField(t("wk.rmssd"), doubleBinding(\.rmssd))
+                            metricField(t("wk.avg_hr"), intBinding(\.avgHR), info: "trimp")
+                            metricField(t("wk.rmssd"), doubleBinding(\.rmssd), info: "rmssd")
                         }
                     }
 
@@ -378,9 +449,13 @@ struct SessionEditorView: View {
         }
     }
 
-    private func metricField(_ label: String, _ binding: Binding<String>) -> some View {
+    private func metricField(_ label: String, _ binding: Binding<String>, info: String? = nil) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(label.uppercased()).font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
+            HStack(spacing: 2) {
+                Text(label.uppercased()).font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
+                if let info { InfoButton(id: info) }
+                Spacer()
+            }
             InputField(placeholder: "—", text: binding, keyboard: .numberPad)
         }
     }
