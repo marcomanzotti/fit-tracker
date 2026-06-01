@@ -35,7 +35,7 @@ object T {
     val c3 = hexColor("2a2a30")
     val brd = hexColor("2a2a30")
     val brd2 = hexColor("3a3a42")
-    val acc = hexColor("ff6a00")
+    val acc = hexColor("ffe000")   // Lamborghini-bright yellow (was orange ff6a00)
     val acc2 = hexColor("ffb000")
     val accDim = hexColor("c25200")
     val txt = hexColor("f4efe6")
@@ -45,7 +45,8 @@ object T {
     val blue = hexColor("4fb8c4")
     val good = hexColor("7fc950")
 
-    val planColors = listOf("ff6a00", "ffb000", "ff5a52", "4fb8c4", "7fc950", "b08fff")
+    val planColors = listOf("ffe000", "ffb000", "ff5a52", "4fb8c4", "7fc950", "b08fff")
+    val cardioColors = listOf("4fb8c4", "ff5a52", "7fc950", "b08fff", "ffb000", "53a8ff")
 
     val radius = 18.dp
     val radiusS = 12.dp

@@ -93,6 +93,7 @@ fun RowScopeStatTile(
     unit: String? = null,
     valueColor: Color = T.txt,
     note: String? = null,
+    info: String? = null,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -102,7 +103,13 @@ fun RowScopeStatTile(
             .border(1.dp, T.brd, RoundedCornerShape(T.radiusS))
             .padding(vertical = 13.dp, horizontal = 12.dp)
     ) {
-        Lbl(label)
+        if (info != null) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Lbl(label)
+                Spacer(Modifier.width(4.dp))
+                InfoButton(info)
+            }
+        } else Lbl(label)
         Spacer(Modifier.height(8.dp))
         Row(verticalAlignment = Alignment.Bottom) {
             Text(value, color = valueColor, fontSize = 28.sp, fontWeight = FontWeight.Bold)

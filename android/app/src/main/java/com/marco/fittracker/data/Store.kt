@@ -32,6 +32,7 @@ class Store(app: Application) : AndroidViewModel(app) {
     val sessions = mutableStateListOf<WorkoutSession>()
     val body = mutableStateListOf<BodyEntry>()
     val plans = mutableStateListOf<WorkoutPlan>()
+    val cardioTypes = mutableStateListOf<CardioType>()
     var prefs by mutableStateOf(Prefs())
 
     private val dataFile: File get() = File(getApplication<Application>().filesDir, "fittracker.json")
@@ -46,14 +47,19 @@ class Store(app: Application) : AndroidViewModel(app) {
                 val a = json.decodeFromString<AppData>(dataFile.readText())
                 daily.addAll(a.daily); sessions.addAll(a.sessions)
                 body.addAll(a.body); plans.addAll(a.plans); prefs = a.prefs
+                cardioTypes.addAll(a.cardioTypes)
             }
         }
         if (plans.isEmpty()) plans.addAll(defaultPlans())
+        if (cardioTypes.isEmpty()) cardioTypes.addAll(defaultCardioTypes())
+        L.lang = prefs.langCode
         loaded = true
         save()
     }
 
-    private fun snapshot() = AppData(daily.toList(), sessions.toList(), body.toList(), plans.toList(), prefs)
+    fun syncLang() { L.lang = prefs.langCode }
+
+    private fun snapshot() = AppData(daily.toList(), sessions.toList(), body.toList(), plans.toList(), prefs, cardioTypes.toList())
 
     private fun save() {
         if (!loaded) return
@@ -75,7 +81,9 @@ class Store(app: Application) : AndroidViewModel(app) {
         sessions.clear(); sessions.addAll(a.sessions)
         body.clear(); body.addAll(a.body)
         plans.clear(); plans.addAll(if (a.plans.isEmpty()) defaultPlans() else a.plans)
+        cardioTypes.clear(); cardioTypes.addAll(if (a.cardioTypes.isEmpty()) defaultCardioTypes() else a.cardioTypes)
         prefs = a.prefs
+        L.lang = prefs.langCode
         save()
         true
     }.getOrDefault(false)
@@ -99,28 +107,81 @@ class Store(app: Application) : AndroidViewModel(app) {
 
     fun hasCheckedIn(): Boolean = daily.any { it.date == today() && it.weight != null }
 
+    /** Consecutive days with a check-in or workout. Today is a grace period: the
+     *  streak stays alive all day even before today's check-in, and only breaks
+     *  after a full day has passed with nothing logged. */
     val streak: Int
         get() {
             val dates = HashSet<String>()
             daily.forEach { dates.add(it.date) }
             sessions.forEach { dates.add(it.date) }
-            var n = 0
             var d = LocalDate.now()
-            repeat(365) {
+            if (!dates.contains(d.toString())) d = d.minusDays(1)   // today still open
+            var n = 0
+            repeat(400) {
                 val s = d.toString()
                 if (dates.contains(s)) { n += 1; d = d.minusDays(1) } else return n
             }
             return n
         }
 
-    /** Next plan to train, cycling through the plan list after the most recent session. */
-    fun nextPlan(): WorkoutPlan? {
+    // MARK: - Next workout (schedule-aware)
+    /** What to train next: a strength plan or a cardio activity. */
+    sealed class NextItem {
+        data class Plan(val plan: WorkoutPlan) : NextItem()
+        data class Cardio(val cardio: CardioType) : NextItem()
+        val name: String get() = when (this) { is Plan -> plan.name; is Cardio -> cardio.name }
+        val color: String get() = when (this) { is Plan -> plan.color; is Cardio -> cardio.color }
+        val sub: String get() = when (this) { is Plan -> plan.sub; is Cardio -> cardio.sportType.label() }
+        val isCardio: Boolean get() = this is Cardio
+    }
+
+    private fun scheduleItem(id: String): NextItem? {
+        if (id.isEmpty() || id == "rest") return null
+        plans.firstOrNull { it.id == id }?.let { return NextItem.Plan(it) }
+        cardioTypes.firstOrNull { it.id == id }?.let { return NextItem.Cardio(it) }
+        return null
+    }
+
+    /** The next thing to train (schedule first, else rotation). */
+    fun nextUp(): NextItem? {
+        if (prefs.hasSchedule) {
+            val sched = prefs.weekSchedule
+            val now = LocalDate.now()
+            val todayMon = (now.dayOfWeek.value - 1).coerceIn(0, 6)   // Monday = 0
+            val trainedToday = sessions.any { it.date == today() }
+            for (off in 0 until 8) {
+                if (off == 0 && trainedToday) continue
+                scheduleItem(sched[(todayMon + off) % 7])?.let { return it }
+            }
+            return null
+        }
+        return nextPlanRotation()?.let { NextItem.Plan(it) }
+    }
+
+    /** Next strength plan only (used by progressive-overload suggestions). */
+    fun nextStrengthPlan(): WorkoutPlan? {
+        if (prefs.hasSchedule) (nextUp() as? NextItem.Plan)?.let { return it.plan }
+        return nextPlanRotation()
+    }
+
+    /** Rotation: the plan after the most recent session's plan, looping. */
+    fun nextPlanRotation(): WorkoutPlan? {
         if (plans.isEmpty()) return null
         val last = sessions.sortedByDescending { it.date }.firstOrNull() ?: return plans.first()
         val idx = plans.indexOfFirst { it.id == last.planId }
         if (idx < 0) return plans.first()
         return plans[(idx + 1) % plans.size]
     }
+
+    fun setSchedule(weekday: Int, id: String) {
+        if (weekday !in 0..6) return
+        val s = prefs.weekSchedule.toMutableList()
+        s[weekday] = id
+        val keep = s.any { it.isNotEmpty() && it != "rest" }
+        updatePrefs(prefs.copy(schedule = if (keep) s else null))
+    }
+    fun clearSchedule() { updatePrefs(prefs.copy(schedule = null)) }
 
     fun exercisePR(name: String): Double {
         var mx = 0.0
@@ -141,8 +202,62 @@ class Store(app: Application) : AndroidViewModel(app) {
         return if (allDone) ex.maxWeight + 2.5 else null
     }
 
-    fun estimateCalories(s: WorkoutSession): Int =
-        (s.volume * 0.022 + s.totalSets * 3 + 60).roundToInt()
+    /** Calories from the user's global data: Keytel (HR-based) when avg HR is
+     *  available, MET-based for cardio, else the original strength heuristic. */
+    fun estimateCalories(s: WorkoutSession): Int {
+        s.caloriesManual?.let { if (it > 0) return it }
+        val w = lastWeight
+        val hr = s.avgHR; val dur = s.durationMin
+        if (hr != null && hr > 0 && dur != null && dur > 0) {
+            val age = (prefs.age ?: 30).toDouble()
+            val perMin = if (prefs.sexCode == "f")
+                (-20.4022 + 0.4472 * hr - 0.1263 * w + 0.074 * age) / 4.184
+            else
+                (-55.0969 + 0.6309 * hr + 0.1988 * w + 0.2017 * age) / 4.184
+            return maxOf(0, (perMin * dur).roundToInt())
+        }
+        if (s.sportType.isCardio && dur != null && dur > 0) {
+            val met = when (s.sportType) {
+                Sport.RUNNING -> 9.8; Sport.SWIMMING -> 8.0; Sport.CYCLING -> 7.5
+                Sport.WALKING -> 3.5; else -> 6.0
+            }
+            return (met * w * dur / 60).roundToInt()
+        }
+        return (s.volume * 0.022 + s.totalSets * 3 + 60).roundToInt()
+    }
+
+    // MARK: Cardio types
+    fun commitCardioType(ct: CardioType) {
+        val i = cardioTypes.indexOfFirst { it.id == ct.id }
+        if (i >= 0) cardioTypes[i] = ct else cardioTypes.add(ct)
+        save()
+    }
+    fun deleteCardioType(id: String) { cardioTypes.removeAll { it.id == id }; save() }
+
+    // MARK: Session editing
+    fun deleteSession(id: String) { sessions.removeAll { it.id == id }; save() }
+    fun updateSession(s: WorkoutSession) {
+        val i = sessions.indexOfFirst { it.id == s.id }
+        if (i >= 0) { sessions[i] = s; save() }
+    }
+
+    // MARK: Daily nutrition & recovery
+    fun saveDailyExtras(
+        kcal: Int? = null, protein: Double? = null, carbs: Double? = null,
+        fat: Double? = null, salt: Double? = null, steps: Int? = null,
+        rmssd: Double? = null, restHR: Int? = null, hrvSDNN: Double? = null
+    ) {
+        val t = today()
+        val e = daily.firstOrNull { it.date == t } ?: DailyEntry(date = t)
+        val ne = e.copy(
+            kcal = kcal ?: e.kcal, protein = protein ?: e.protein, carbs = carbs ?: e.carbs,
+            fat = fat ?: e.fat, salt = salt ?: e.salt, steps = steps ?: e.steps,
+            rmssd = rmssd ?: e.rmssd, restHR = restHR ?: e.restHR, hrvSDNN = hrvSDNN ?: e.hrvSDNN
+        )
+        daily.removeAll { it.date == t }
+        daily.add(ne)
+        save()
+    }
 
     data class WeekStat(val avgWeight: Double?, val sessions: Int)
     fun weekStats(offset: Int): WeekStat {
@@ -253,38 +368,37 @@ class Store(app: Application) : AndroidViewModel(app) {
 
     companion object {
         fun defaultPlans(): List<WorkoutPlan> = listOf(
-            WorkoutPlan(id = "p1", name = "Push", sub = "Spalle + Petto", color = "ff5a52", exercises = listOf(
-                PlanExercise(name = "Military press bilanciere", sets = 4, reps = "8-10"),
-                PlanExercise(name = "Shoulder press manubri seduto", sets = 3, reps = "10"),
-                PlanExercise(name = "Lateral raise al cavo", sets = 3, reps = "12"),
-                PlanExercise(name = "Panca inclinata manubri", sets = 3, reps = "10"),
-                PlanExercise(name = "Cavi incrociati bassi", sets = 3, reps = "12"),
-                PlanExercise(name = "Triceps pushdown al cavo", sets = 3, reps = "12")
+            WorkoutPlan(id = "p1", name = "Push", sub = "Chest + Shoulders + Triceps", color = "ff5a52", exercises = listOf(
+                PlanExercise(name = "Barbell bench press", sets = 4, reps = "6-8"),
+                PlanExercise(name = "Incline dumbbell press", sets = 3, reps = "8-10"),
+                PlanExercise(name = "Seated dumbbell shoulder press", sets = 3, reps = "10"),
+                PlanExercise(name = "Cable lateral raise", sets = 3, reps = "12-15"),
+                PlanExercise(name = "Cable chest fly", sets = 3, reps = "12"),
+                PlanExercise(name = "Triceps rope pushdown", sets = 3, reps = "12")
             )),
-            WorkoutPlan(id = "p2", name = "Pull", sub = "Schiena + Bicipiti", color = "4fb8c4", exercises = listOf(
-                PlanExercise(name = "Lat machine presa larga", sets = 4, reps = "10-12"),
-                PlanExercise(name = "Pulley presa stretta", sets = 3, reps = "12"),
-                PlanExercise(name = "Rematore manubrio 1 braccio", sets = 3, reps = "10"),
-                PlanExercise(name = "Face pull al cavo", sets = 3, reps = "15"),
-                PlanExercise(name = "Curl bilanciere EZ", sets = 3, reps = "10"),
-                PlanExercise(name = "Curl a martello manubri", sets = 3, reps = "12")
+            WorkoutPlan(id = "p2", name = "Pull", sub = "Back + Biceps + Rear Delts", color = "4fb8c4", exercises = listOf(
+                PlanExercise(name = "Pull-up", sets = 4, reps = "6-10"),
+                PlanExercise(name = "Barbell row", sets = 3, reps = "8-10"),
+                PlanExercise(name = "Lat pulldown", sets = 3, reps = "10-12"),
+                PlanExercise(name = "Seated cable row", sets = 3, reps = "12"),
+                PlanExercise(name = "Face pull", sets = 3, reps = "15"),
+                PlanExercise(name = "EZ-bar biceps curl", sets = 3, reps = "10-12")
             )),
-            WorkoutPlan(id = "p3", name = "Gambe", sub = "Quad + Posteriori", color = "ffb000", exercises = listOf(
-                PlanExercise(name = "Leg press", sets = 4, reps = "12"),
-                PlanExercise(name = "RDL singola gamba", sets = 3, reps = "10/lato"),
-                PlanExercise(name = "Leg curl seduto", sets = 3, reps = "12"),
-                PlanExercise(name = "Adductor machine", sets = 3, reps = "15"),
-                PlanExercise(name = "Abductor machine", sets = 3, reps = "15"),
-                PlanExercise(name = "Calf raise in piedi", sets = 3, reps = "15")
-            )),
-            WorkoutPlan(id = "p4", name = "Spalle & Core", sub = "Postura + V-Shape", color = "ff6a00", exercises = listOf(
-                PlanExercise(name = "Arnold press manubri", sets = 4, reps = "10"),
-                PlanExercise(name = "Lateral raise cavo", sets = 3, reps = "12"),
-                PlanExercise(name = "Rear delt fly manubri", sets = 3, reps = "12"),
-                PlanExercise(name = "Shrug manubri", sets = 3, reps = "15"),
-                PlanExercise(name = "Plank laterale", sets = 3, reps = "30s/lato"),
-                PlanExercise(name = "Crunch al cavo", sets = 3, reps = "15")
+            WorkoutPlan(id = "p3", name = "Legs", sub = "Quads + Hamstrings + Calves", color = "ffb000", exercises = listOf(
+                PlanExercise(name = "Barbell back squat", sets = 4, reps = "6-8"),
+                PlanExercise(name = "Romanian deadlift", sets = 3, reps = "8-10"),
+                PlanExercise(name = "Leg press", sets = 3, reps = "12"),
+                PlanExercise(name = "Seated leg curl", sets = 3, reps = "12"),
+                PlanExercise(name = "Leg extension", sets = 3, reps = "15"),
+                PlanExercise(name = "Standing calf raise", sets = 4, reps = "15")
             ))
+        )
+
+        fun defaultCardioTypes(): List<CardioType> = listOf(
+            CardioType(id = "c-run", name = "Running", sport = "running", color = "ff5a52"),
+            CardioType(id = "c-swim", name = "Swimming", sport = "swimming", color = "4fb8c4"),
+            CardioType(id = "c-bike", name = "Cycling", sport = "cycling", color = "7fc950"),
+            CardioType(id = "c-walk", name = "Walking", sport = "walking", color = "b08fff")
         )
     }
 }
