@@ -257,10 +257,13 @@ enum Activity: String, Codable, CaseIterable {
 // MARK: - User preferences / goals / profile
 struct Prefs: Codable, Equatable {
     var timer: Int = 60
-    var goalWeight: Double = 80
+    // Clean, generic starting numbers (male defaults); the onboarding swaps in
+    // female defaults when the user picks "Female". Existing users keep their
+    // saved values — these only seed a brand-new install.
+    var goalWeight: Double = 75
     var goalBF: Double = 15
-    var startWeight: Double = 88
-    var height: Double = 1.85
+    var startWeight: Double = 80
+    var height: Double = 1.80
     // --- everything below is optional for backward-compatible decoding ---
     var language: String?      // "it" | "en"; nil => follow the device
     var onboarded: Bool?       // has the first-launch onboarding completed
@@ -279,6 +282,10 @@ struct Prefs: Codable, Equatable {
     /// falls back to simple rotation through the plan list.
     var schedule: [String]?
     var healthKit: Bool?       // user opted into Apple Health import
+    /// Days explicitly marked as rest (yyyy-MM-dd). A rest day is not a session,
+    /// just a marker shown with a dedicated icon/color on the week strip and
+    /// calendar so missed days can be logged as intentional recovery.
+    var restDays: [String]?
 
     // Convenience accessors -----------------------------------------------
     var langCode: String {
@@ -304,6 +311,7 @@ struct Prefs: Codable, Equatable {
     }
     var restHRorDefault: Int { (restingHR ?? 0) > 0 ? restingHR! : 60 }
     var healthKitEnabled: Bool { healthKit == true }
+    var restDaySet: Set<String> { Set(restDays ?? []) }
     /// Schedule normalized to exactly 7 slots (Mon..Sun); missing -> all empty.
     var weekSchedule: [String] {
         guard let s = schedule, s.count == 7 else { return Array(repeating: "", count: 7) }

@@ -10,6 +10,10 @@ struct HomeView: View {
     @State private var sleepInput = ""
     @State private var shareURL: IdentURL?
     @State private var editingGoal = false
+    // "This week" day logging: a picker for empty days, then the session editor.
+    @State private var pickerDate: IdentDate?
+    @State private var editingSession: WorkoutSession?
+    @State private var pendingEdit: WorkoutSession?
 
     var body: some View {
         let lw = store.lastWeight
@@ -35,19 +39,22 @@ struct HomeView: View {
         WeeklyPlanCard()
         goalsCard(lw: lw)
 
-        // Scientific dashboard (visual + data, with info popups)
+        // Scientific dashboard (visual + data, with info popups).
+        // Headline metrics are computable from your data: TRIMP (avg HR) and
+        // ACWR (EWMA). Readiness only appears if you log HRV (optional sensor).
         Group {
-            ReadinessCard()
+            TrimpCard()
             LoadCard()
             LoadTrendCard()
             OverloadCard()
             NutritionCard()
+            ReadinessCard()
         }
 
         backupRow
     }
 
-    // MARK: Week activity strip (sporty 7-day overview)
+    // MARK: Week activity strip (sporty 7-day overview, tap a day to log)
     private var weekStripCard: some View {
         let cal = Calendar.current
         let now = Date()
@@ -57,15 +64,11 @@ struct HomeView: View {
             let ds = isoFormatter.string(from: d)
             return (L.days[cal.component(.weekday, from: d) - 1], ds, ds == today())
         }
-        let trainedDays = days.filter { d in store.sessions.contains { $0.date == d.ds } }.count
         return Card {
             HStack {
                 Lbl(text: t("home.week_activity"), color: Theme.acc2)
                 Spacer()
-                HStack(alignment: .firstTextBaseline, spacing: 4) {
-                    Text("\(trainedDays)").font(.num(18)).foregroundColor(Theme.acc)
-                    Text("/ 7 \(t("home.workouts").lowercased())").font(.system(size: 10)).foregroundColor(Theme.sub)
-                }
+                Text(t("home.tap_to_log")).font(.system(size: 9, weight: .medium)).foregroundColor(Theme.sub)
             }
             .padding(.bottom, 12)
             HStack(spacing: 7) {
@@ -74,34 +77,47 @@ struct HomeView: View {
                 }
             }
         }
+        .sheet(item: $pickerDate, onDismiss: { if let s = pendingEdit { pendingEdit = nil; editingSession = s } }) { d in
+            DayPickerSheet(date: d.date) { pendingEdit = $0 }
+        }
+        .sheet(item: $editingSession) { s in SessionEditorView(session: s) }
     }
 
     private func dayPip(_ label: String, ds: String, isToday: Bool) -> some View {
         let sess = store.sessions.filter { $0.date == ds }
-        let color = sess.first.map { Color(hex: $0.planColor) }
-        let trained = color != nil
+        let trained = !sess.isEmpty
+        let rest = !trained && store.isRestDay(ds)
+        let fill: Color = trained ? Color(hex: sess.first!.planColor) : (rest ? Theme.restFill : Theme.c2)
         return VStack(spacing: 6) {
             Text(label.uppercased()).font(.head(9, .semibold)).tracking(0.5)
                 .foregroundColor(isToday ? Theme.acc : Theme.sub)
-            ZStack {
-                RoundedRectangle(cornerRadius: 11, style: .continuous)
-                    .fill(trained ? (color ?? Theme.acc) : Theme.c2)
-                RoundedRectangle(cornerRadius: 11, style: .continuous)
-                    .stroke(isToday ? Theme.acc : (trained ? Color.clear : Theme.brd),
-                            lineWidth: isToday ? 2 : 1)
-                if trained {
-                    Image(systemName: sess.first!.sportType.isCardio ? sess.first!.sportType.icon : "dumbbell.fill")
-                        .font(.system(size: 13, weight: .bold)).foregroundColor(Theme.bg)
-                    if sess.count > 1 {
-                        Text("\(sess.count)").font(.system(size: 8, weight: .bold)).foregroundColor(Theme.bg)
-                            .frame(width: 13, height: 13).background(Theme.bg.opacity(0.001))
-                            .offset(x: 13, y: -13)
+            Button {
+                tap()
+                if let first = sess.first { editingSession = first }
+                else { pickerDate = IdentDate(date: ds) }
+            } label: {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 11, style: .continuous).fill(fill)
+                    RoundedRectangle(cornerRadius: 11, style: .continuous)
+                        .stroke(isToday ? Theme.acc : ((trained || rest) ? Color.clear : Theme.brd),
+                                lineWidth: isToday ? 2 : 1)
+                    if trained {
+                        Image(systemName: sess.first!.sportType.isCardio ? sess.first!.sportType.icon : "dumbbell.fill")
+                            .font(.system(size: 13, weight: .bold)).foregroundColor(Theme.bg)
+                        if sess.count > 1 {
+                            Text("\(sess.count)").font(.system(size: 8, weight: .bold)).foregroundColor(Theme.bg)
+                                .frame(width: 13, height: 13).background(Theme.bg.opacity(0.001))
+                                .offset(x: 13, y: -13)
+                        }
+                    } else if rest {
+                        RestChip()
+                    } else {
+                        Image(systemName: "plus").font(.system(size: 12, weight: .bold)).foregroundColor(Theme.brd2)
                     }
-                } else {
-                    Circle().fill(Theme.brd2).frame(width: 4, height: 4)
                 }
+                .frame(height: 42)
             }
-            .frame(height: 42)
+            .buttonStyle(.plain)
         }
         .frame(maxWidth: .infinity)
     }

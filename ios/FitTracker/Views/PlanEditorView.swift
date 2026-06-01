@@ -57,8 +57,11 @@ struct PlanEditorView: View {
                         .padding(.vertical, 8)
                 }
 
-                ForEach(plan.exercises.indices, id: \.self) { i in
-                    exerciseRow(i)
+                // Iterate over stable element ids (not indices): removing an
+                // exercise must never leave a stale index that gets subscripted
+                // during the SwiftUI diff — that was an out-of-bounds crash.
+                ForEach(plan.exercises) { ex in
+                    exerciseRow(ex.id)
                 }
 
                 Button { tap(); plan.exercises.append(PlanExercise(name: "")) } label: {
@@ -93,60 +96,63 @@ struct PlanEditorView: View {
         }
     }
 
-    private func exerciseRow(_ i: Int) -> some View {
-        VStack(spacing: 9) {
-            HStack(spacing: 8) {
-                TextField("", text: $plan.exercises[i].name,
-                          prompt: Text(t("pe.ex_name_ph")).foregroundColor(Theme.sub))
-                    .font(.system(size: 14, weight: .medium)).foregroundColor(Theme.txt)
-                Button { tap(); plan.exercises.remove(at: i) } label: {
-                    Image(systemName: "xmark").font(.system(size: 13)).foregroundColor(Theme.red.opacity(0.7))
-                        .frame(width: 30, height: 34)
-                }.buttonStyle(.plain)
-            }
-            HStack(spacing: 10) {
-                // Sets stepper
+    @ViewBuilder
+    private func exerciseRow(_ id: UUID) -> some View {
+        if let i = plan.exercises.firstIndex(where: { $0.id == id }) {
+            VStack(spacing: 9) {
                 HStack(spacing: 8) {
-                    Text(t("pe.sets").uppercased()).font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
-                    Button { tap(); if plan.exercises[i].sets > 1 { plan.exercises[i].sets -= 1 } } label: {
-                        Image(systemName: "minus").font(.system(size: 11, weight: .bold)).foregroundColor(Theme.txt)
-                            .frame(width: 26, height: 26).background(Theme.c3).clipShape(Circle())
-                    }.buttonStyle(.plain)
-                    Text("\(plan.exercises[i].sets)").font(.num(16)).frame(minWidth: 16)
-                    Button { tap(); plan.exercises[i].sets += 1 } label: {
-                        Image(systemName: "plus").font(.system(size: 11, weight: .bold)).foregroundColor(Theme.txt)
-                            .frame(width: 26, height: 26).background(Theme.c3).clipShape(Circle())
+                    TextField("", text: $plan.exercises[i].name,
+                              prompt: Text(t("pe.ex_name_ph")).foregroundColor(Theme.sub))
+                        .font(.system(size: 14, weight: .medium)).foregroundColor(Theme.txt)
+                    Button { tap(); plan.exercises.removeAll { $0.id == id } } label: {
+                        Image(systemName: "xmark").font(.system(size: 13)).foregroundColor(Theme.red.opacity(0.7))
+                            .frame(width: 30, height: 34)
                     }.buttonStyle(.plain)
                 }
-                Spacer()
-                // Reps
-                Text(t("wk.reps").uppercased()).font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
-                TextField("", text: $plan.exercises[i].reps,
-                          prompt: Text("10").foregroundColor(Theme.sub))
-                    .multilineTextAlignment(.center)
-                    .font(.system(size: 14, weight: .semibold)).foregroundColor(Theme.txt)
-                    .frame(width: 64).padding(.vertical, 7)
-                    .background(Theme.c2).clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(Theme.brd, lineWidth: 1))
-                // Reorder
-                VStack(spacing: 2) {
-                    Button { tap(); if i > 0 { plan.exercises.swapAt(i, i - 1) } } label: {
-                        Image(systemName: "chevron.up").font(.system(size: 11)).foregroundColor(i > 0 ? Theme.sub : Theme.brd)
-                            .frame(width: 26, height: 18)
-                    }.buttonStyle(.plain).disabled(i == 0)
-                    Button { tap(); if i < plan.exercises.count - 1 { plan.exercises.swapAt(i, i + 1) } } label: {
-                        Image(systemName: "chevron.down").font(.system(size: 11)).foregroundColor(i < plan.exercises.count - 1 ? Theme.sub : Theme.brd)
-                            .frame(width: 26, height: 18)
-                    }.buttonStyle(.plain).disabled(i == plan.exercises.count - 1)
+                HStack(spacing: 10) {
+                    // Sets stepper
+                    HStack(spacing: 8) {
+                        Text(t("pe.sets").uppercased()).font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
+                        Button { tap(); if plan.exercises[i].sets > 1 { plan.exercises[i].sets -= 1 } } label: {
+                            Image(systemName: "minus").font(.system(size: 11, weight: .bold)).foregroundColor(Theme.txt)
+                                .frame(width: 26, height: 26).background(Theme.c3).clipShape(Circle())
+                        }.buttonStyle(.plain)
+                        Text("\(plan.exercises[i].sets)").font(.num(16)).frame(minWidth: 16)
+                        Button { tap(); plan.exercises[i].sets += 1 } label: {
+                            Image(systemName: "plus").font(.system(size: 11, weight: .bold)).foregroundColor(Theme.txt)
+                                .frame(width: 26, height: 26).background(Theme.c3).clipShape(Circle())
+                        }.buttonStyle(.plain)
+                    }
+                    Spacer()
+                    // Reps
+                    Text(t("wk.reps").uppercased()).font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
+                    TextField("", text: $plan.exercises[i].reps,
+                              prompt: Text("10").foregroundColor(Theme.sub))
+                        .multilineTextAlignment(.center)
+                        .font(.system(size: 14, weight: .semibold)).foregroundColor(Theme.txt)
+                        .frame(width: 64).padding(.vertical, 7)
+                        .background(Theme.c2).clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(Theme.brd, lineWidth: 1))
+                    // Reorder
+                    VStack(spacing: 2) {
+                        Button { tap(); if i > 0 { plan.exercises.swapAt(i, i - 1) } } label: {
+                            Image(systemName: "chevron.up").font(.system(size: 11)).foregroundColor(i > 0 ? Theme.sub : Theme.brd)
+                                .frame(width: 26, height: 18)
+                        }.buttonStyle(.plain).disabled(i == 0)
+                        Button { tap(); if i < plan.exercises.count - 1 { plan.exercises.swapAt(i, i + 1) } } label: {
+                            Image(systemName: "chevron.down").font(.system(size: 11)).foregroundColor(i < plan.exercises.count - 1 ? Theme.sub : Theme.brd)
+                                .frame(width: 26, height: 18)
+                        }.buttonStyle(.plain).disabled(i == plan.exercises.count - 1)
+                    }
                 }
+                methodRow(i)
             }
-            methodRow(i)
+            .padding(.vertical, 11).padding(.horizontal, 12)
+            .background(Theme.c2)
+            .clipShape(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous).stroke(Theme.brd, lineWidth: 1))
+            .padding(.bottom, 8)
         }
-        .padding(.vertical, 11).padding(.horizontal, 12)
-        .background(Theme.c2)
-        .clipShape(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous).stroke(Theme.brd, lineWidth: 1))
-        .padding(.bottom, 8)
     }
 
     private func methodRow(_ i: Int) -> some View {

@@ -47,6 +47,12 @@ enum Theme {
     static let radius:  CGFloat = 18
     static let radiusS: CGFloat = 12
     static let radiusXS: CGFloat = 9
+
+    /// Shared visual identity for a "rest" day, used identically on the weekly
+    /// plan and the "this week" strip and calendar: an almost-white chip with a
+    /// dark moon/zzz icon (mirrors how a trained day shows a dark dumbbell).
+    static let restFill = Color(hex: "ece7dc")     // almost white
+    static let restIcon = "moon.zzz.fill"
 }
 
 // MARK: - Fonts (system fonts emulating the original Oswald / Archivo look)

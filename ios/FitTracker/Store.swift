@@ -364,6 +364,64 @@ extension Store {
         if let i = sessions.firstIndex(where: { $0.id == s.id }) { sessions[i] = s }
     }
 
+    // MARK: Rest days (markers, not sessions)
+    func isRestDay(_ date: String) -> Bool { prefs.restDaySet.contains(date) }
+    func setRestDay(_ date: String, on: Bool) {
+        var set = prefs.restDaySet
+        if on { set.insert(date) } else { set.remove(date) }
+        prefs.restDays = set.isEmpty ? nil : Array(set).sorted()
+    }
+    func toggleRestDay(_ date: String) { setRestDay(date, on: !isRestDay(date)) }
+
+    // MARK: Quick insert (log a workout for a past/other day from Home or Calendar)
+    /// Create a strength session for `date`, prefilled from the most recent
+    /// session of that plan (its sets, reps, weights, load), or from the plan
+    /// template when there's no history. Marking the day clears any rest flag.
+    @discardableResult
+    func quickInsertSession(plan: WorkoutPlan, date: String) -> WorkoutSession {
+        let last = sessions.filter { $0.planId == plan.id }.sorted { $0.date > $1.date }.first
+        let exercises: [LoggedExercise]
+        if let last {
+            exercises = last.exercises.map { e in
+                LoggedExercise(name: e.name,
+                               sets: e.sets.map { SetEntry(reps: $0.reps, weight: $0.weight) },
+                               notes: "", target: e.target,
+                               supersetGroup: e.supersetGroup, method: e.method)
+            }
+        } else {
+            exercises = plan.exercises.map { pe in
+                LoggedExercise(name: pe.name,
+                               sets: (0..<max(1, pe.sets)).map { _ in SetEntry() },
+                               target: "\(pe.sets)×\(pe.reps)",
+                               supersetGroup: pe.supersetGroup, method: pe.method)
+            }
+        }
+        var s = WorkoutSession(date: date, planId: plan.id, planName: plan.name,
+                               planColor: plan.color, exercises: exercises)
+        s.durationMin = last?.durationMin
+        s.avgHR = last?.avgHR
+        s.maxHRSes = last?.maxHRSes
+        setRestDay(date, on: false)
+        sessions.append(s)
+        return s
+    }
+
+    /// Create a cardio session for `date`, prefilled from the most recent log of
+    /// that activity. Returns it so the caller can open the editor to adjust.
+    @discardableResult
+    func quickInsertCardio(type: CardioType, date: String) -> WorkoutSession {
+        let pid = "cardio-\(type.id)"
+        let last = sessions.filter { $0.planId == pid }.sorted { $0.date > $1.date }.first
+        var s = WorkoutSession(date: date, planId: pid, planName: type.name,
+                               planColor: type.color, exercises: [], sport: type.sport)
+        s.durationMin = last?.durationMin
+        s.avgHR = last?.avgHR
+        s.distanceKm = last?.distanceKm
+        setRestDay(date, on: false)
+        sessions.append(s)
+        return s
+    }
+
     struct WeekStat { var avgWeight: Double?; var sessions: Int }
     func weekStats(offset: Int) -> WeekStat {
         let cal = Calendar.current

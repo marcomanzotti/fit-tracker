@@ -22,9 +22,12 @@ struct WorkoutView: View {
                 onBack: { endWorkout() },
                 onSaved: { endWorkout() }
             )
-        } else if let _ = editing {
+        } else if editing != nil {
+            // editing != nil is guaranteed here, but never force-unwrap: during
+            // the teardown that follows save/delete (editing := nil) SwiftUI can
+            // re-evaluate this binding's getter, and `editing!` would crash.
             PlanEditorView(
-                plan: Binding(get: { editing! }, set: { editing = $0 }),
+                plan: Binding(get: { editing ?? WorkoutPlan(name: "") }, set: { editing = $0 }),
                 isNew: isNew,
                 onSave: { commitPlan() },
                 onDelete: { deletePlan() },
@@ -35,10 +38,19 @@ struct WorkoutView: View {
         }
     }
 
+    // A cell in the eager 2-column day grid (a real day or the trailing +add).
+    private enum DayCell: Identifiable {
+        case plan(WorkoutPlan), add
+        var id: String { if case .plan(let p) = self { return p.id } else { return "+add" } }
+    }
+    private enum CardioCell: Identifiable {
+        case type(CardioType), add
+        var id: String { if case .type(let c) = self { return c.id } else { return "+add" } }
+    }
+
     // MARK: Grid of workout days
     private var grid: some View {
-        let cols = [GridItem(.flexible(), spacing: 11), GridItem(.flexible(), spacing: 11)]
-        return VStack(spacing: 11) {
+        VStack(spacing: 11) {
             HStack(spacing: 8) {
                 Lbl(text: t("wk.select_day"))
                 Spacer()
@@ -58,11 +70,14 @@ struct WorkoutView: View {
             Text(t("wk.edit_hint")).font(.system(size: 11)).foregroundColor(Theme.sub).lineSpacing(2)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-            LazyVGrid(columns: cols, spacing: 11) {
-                ForEach(store.plans) { p in
-                    dayCard(p)
+            // Eager (non-lazy) grid: with only a handful of days a LazyVGrid's
+            // height estimate is wrong, which made the page jitter and let the
+            // calendar below overlap the cards while scrolling.
+            eagerGrid(store.plans.map { DayCell.plan($0) } + [.add]) { cell in
+                switch cell {
+                case .plan(let p): dayCard(p)
+                case .add:         addCard
                 }
-                addCard
             }
 
             cardioSection
@@ -74,10 +89,24 @@ struct WorkoutView: View {
         .sheet(item: $editingCardio) { ct in CardioTypeEditorView(type: ct, isNew: isNewCardio) }
     }
 
+    /// Eager two-column grid. Lays out cells in fixed rows so the container
+    /// reports its true height (no lazy estimation -> no scroll jitter/overlap).
+    @ViewBuilder
+    private func eagerGrid<C: Identifiable, V: View>(_ cells: [C], @ViewBuilder _ cell: @escaping (C) -> V) -> some View {
+        let rows = stride(from: 0, to: cells.count, by: 2).map { Array(cells[$0..<min($0 + 2, cells.count)]) }
+        VStack(spacing: 11) {
+            ForEach(rows.indices, id: \.self) { r in
+                HStack(alignment: .top, spacing: 11) {
+                    ForEach(rows[r]) { cell($0) }
+                    if rows[r].count == 1 { Color.clear.frame(maxWidth: .infinity) }
+                }
+            }
+        }
+    }
+
     // MARK: Cardio activities (saveable, customizable like strength days)
     private var cardioSection: some View {
-        let cols = [GridItem(.flexible(), spacing: 11), GridItem(.flexible(), spacing: 11)]
-        return VStack(spacing: 11) {
+        VStack(spacing: 11) {
             HStack(spacing: 8) {
                 Lbl(text: t("wk.cardio_types"))
                 Spacer()
@@ -93,9 +122,11 @@ struct WorkoutView: View {
                     .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Theme.blue, lineWidth: 1))
                 }
             }
-            LazyVGrid(columns: cols, spacing: 11) {
-                ForEach(store.cardioTypes) { ct in cardioTile(ct) }
-                addCardioTile
+            eagerGrid(store.cardioTypes.map { CardioCell.type($0) } + [.add]) { cell in
+                switch cell {
+                case .type(let ct): cardioTile(ct)
+                case .add:          addCardioTile
+                }
             }
         }
     }
