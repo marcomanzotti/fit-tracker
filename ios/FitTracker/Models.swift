@@ -26,7 +26,69 @@ struct DailyEntry: Codable, Identifiable, Equatable {
     var rmssd: Double?        // HRV RMSSD typed from an external HRV app
     var restHR: Int?          // morning resting heart rate
     var hrvSDNN: Double?      // HRV SDNN imported from Apple Health (ms)
+    // Per-meal nutrition breakdown (optional, backward compatible). When present,
+    // its kcal sum is authoritative for the day; the quick one-tap total above
+    // (`kcal`) is used when no meals are logged. `meals` keys are MealSlot raw
+    // values ("breakfast"/"lunch"/"dinner"/"snacks").
+    var meals: [String: MealEntry]?
     var id: String { date }
+
+    /// True when this day carries any nutrition data (quick total or per-meal).
+    var hasNutrition: Bool {
+        (kcal ?? 0) > 0 || (meals?.values.contains { $0.kcal > 0 } ?? false)
+    }
+    /// Effective day total kcal: the per-meal sum when meals exist, else the
+    /// quick one-tap total.
+    var totalKcal: Int {
+        if let meals, !meals.isEmpty {
+            let s = meals.values.reduce(0) { $0 + $1.kcal }
+            if s > 0 { return s }
+        }
+        return kcal ?? 0
+    }
+    /// Effective macro totals (per-meal sum wins over the quick totals).
+    func macro(_ kp: KeyPath<MealEntry, Double>) -> Double {
+        if let meals, !meals.isEmpty {
+            let s = meals.values.reduce(0.0) { $0 + $1[keyPath: kp] }
+            if s > 0 { return s }
+        }
+        return 0
+    }
+    var totalProtein: Double { let m = macro(\.protein); return m > 0 ? m : (protein ?? 0) }
+    var totalCarbs: Double { let m = macro(\.carbs); return m > 0 ? m : (carbs ?? 0) }
+    var totalFat: Double { let m = macro(\.fat); return m > 0 ? m : (fat ?? 0) }
+}
+
+// MARK: - Per-meal nutrition entry
+struct MealEntry: Codable, Equatable {
+    var kcal: Int = 0
+    var protein: Double = 0
+    var carbs: Double = 0
+    var fat: Double = 0
+    var isEmpty: Bool { kcal == 0 && protein == 0 && carbs == 0 && fat == 0 }
+}
+
+// MARK: - The four meal slots (breakfast / lunch / dinner / snacks)
+enum MealSlot: String, CaseIterable, Identifiable {
+    case breakfast, lunch, dinner, snacks
+    var id: String { rawValue }
+    var labelKey: String { "meal." + rawValue }
+    var icon: String {
+        switch self {
+        case .breakfast: return "sunrise.fill"
+        case .lunch:     return "sun.max.fill"
+        case .dinner:    return "moon.stars.fill"
+        case .snacks:    return "carrot.fill"
+        }
+    }
+    var color: String {
+        switch self {
+        case .breakfast: return "ffb000"
+        case .lunch:     return "ffe000"
+        case .dinner:    return "b08fff"
+        case .snacks:    return "7fc950"
+        }
+    }
 }
 
 // MARK: - A single logged set

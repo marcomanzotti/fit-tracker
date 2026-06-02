@@ -13,6 +13,19 @@ final class WorkoutManager: NSObject, ObservableObject {
 
     @Published var phase: Phase = .idle
     @Published var paused = false
+    @Published var locked = false                 // screen lock (Apple Workout / Strava style)
+
+    // Strength logging (per exercise, per set). Built from the activity's pushed
+    // exercises on start; nil entries mean "use the gray placeholder".
+    struct ExLog: Identifiable, Equatable {
+        let id = UUID()
+        var name: String
+        var setReps: [Double?]
+        var setWeight: [Double?]
+        var phReps: [Double]      // placeholder reps (last session, else plan default)
+        var phWeight: [Double]    // placeholder weight (last session, else 0)
+    }
+    @Published var exLogs: [ExLog] = []
 
     // Live metrics
     @Published var heartRate: Double = 0          // current bpm
@@ -31,6 +44,7 @@ final class WorkoutManager: NSObject, ObservableObject {
     private var activity: WatchActivity?
     private var startDate = Date()
     private var ticker: AnyCancellable?
+    private var discarding = false                 // restart/discard: skip the summary
 
     var available: Bool { HKHealthStore.isHealthDataAvailable() }
 
@@ -56,6 +70,8 @@ final class WorkoutManager: NSObject, ObservableObject {
     func start(_ activity: WatchActivity) async {
         guard available else { return }
         self.activity = activity
+        buildExLogs(activity)
+        locked = false
         phase = .requesting
         guard await requestAuthorization() else { phase = .idle; return }
 
@@ -98,10 +114,45 @@ final class WorkoutManager: NSObject, ObservableObject {
         if paused { session.resume() } else { session.pause() }
     }
 
+    func toggleLock() { locked.toggle() }
+
     func end() {
         guard let session else { phase = .ended; return }
         session.end()   // -> stateDidChange(.ended) finalizes & builds the result
     }
+
+    /// Discard the current session and go back to the picker (the "restart"
+    /// control). Sets a flag so the .ended transition skips the summary.
+    func restart() {
+        discarding = true
+        if let session { session.end() } else { reset() }
+    }
+
+    // MARK: Strength logging
+    private func buildExLogs(_ a: WatchActivity) {
+        guard a.kindValue == .strength, let exs = a.exercises, !exs.isEmpty else { exLogs = []; return }
+        exLogs = exs.map { e in
+            let n = max(1, e.sets)
+            let def = firstNumber(e.reps) ?? 10
+            var phR: [Double] = [], phW: [Double] = []
+            for i in 0..<n {
+                phR.append(i < e.lastReps.count ? (parseNum(e.lastReps[i]) ?? def) : def)
+                phW.append(i < e.lastWeight.count ? (parseNum(e.lastWeight[i]) ?? 0) : 0)
+            }
+            return ExLog(name: e.name,
+                         setReps: Array(repeating: nil, count: n),
+                         setWeight: Array(repeating: nil, count: n),
+                         phReps: phR, phWeight: phW)
+        }
+    }
+
+    /// Effective value shown/saved for a set field: entered value, else placeholder.
+    func effReps(_ ex: Int, _ set: Int) -> Double { exLogs[ex].setReps[set] ?? exLogs[ex].phReps[set] }
+    func effWeight(_ ex: Int, _ set: Int) -> Double { exLogs[ex].setWeight[set] ?? exLogs[ex].phWeight[set] }
+    func isRepsEntered(_ ex: Int, _ set: Int) -> Bool { exLogs[ex].setReps[set] != nil }
+    func isWeightEntered(_ ex: Int, _ set: Int) -> Bool { exLogs[ex].setWeight[set] != nil }
+    func setReps(_ ex: Int, _ set: Int, _ v: Double) { exLogs[ex].setReps[set] = max(0, v) }
+    func setWeight(_ ex: Int, _ set: Int, _ v: Double) { exLogs[ex].setWeight[set] = max(0, v) }
 
     // MARK: Finalize
     private func finish() async {
@@ -117,6 +168,18 @@ final class WorkoutManager: NSObject, ObservableObject {
         let kcal = Int(activeCalories.rounded())
         let km = distanceMeters > 0 ? (distanceMeters / 1000 * 100).rounded() / 100 : nil
         let a = activity
+        // Strength: package the per-set reps/weight (entered value or placeholder).
+        var resultEx: [WatchResultExercise]? = nil
+        if a?.kindValue == .strength, !exLogs.isEmpty {
+            resultEx = exLogs.map { ex in
+                var reps: [String] = [], wt: [String] = []
+                for i in 0..<ex.setReps.count {
+                    reps.append(fmtNum(ex.setReps[i] ?? ex.phReps[i]))
+                    wt.append(fmtNum(ex.setWeight[i] ?? ex.phWeight[i]))
+                }
+                return WatchResultExercise(name: ex.name, reps: reps, weight: wt)
+            }
+        }
         let r = WatchResult(
             id: UUID().uuidString,
             date: wkToday(),
@@ -129,7 +192,8 @@ final class WorkoutManager: NSObject, ObservableObject {
             avgHR: avgHR > 0 ? avgHR : nil,
             maxHR: maxHR > 0 ? maxHR : nil,
             activeKcal: kcal > 0 ? kcal : nil,
-            distanceKm: km
+            distanceKm: km,
+            exercises: resultEx
         )
         result = r
         phase = .ended
@@ -143,7 +207,8 @@ final class WorkoutManager: NSObject, ObservableObject {
     func reset() {
         session = nil; builder = nil; activity = nil; result = nil
         heartRate = 0; activeCalories = 0; distanceMeters = 0; elapsed = 0
-        avgHR = 0; maxHR = 0; paused = false; phase = .idle
+        avgHR = 0; maxHR = 0; paused = false; locked = false; discarding = false
+        exLogs = []; phase = .idle
         ticker?.cancel()
     }
 
@@ -180,7 +245,9 @@ extension WorkoutManager: HKWorkoutSessionDelegate {
             switch toState {
             case .paused:  self.paused = true
             case .running: self.paused = false
-            case .ended:   await self.finish()
+            case .ended:
+                if self.discarding { self.discarding = false; self.ticker?.cancel(); self.reset() }
+                else { await self.finish() }
             default:       break
             }
         }

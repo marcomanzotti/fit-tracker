@@ -453,6 +453,50 @@ extension Store {
         daily.append(e)
     }
 
+    // MARK: Nutrition (quick total OR per-meal, for any date)
+    /// Look up a day's entry (nil if never logged).
+    func dailyEntry(_ date: String) -> DailyEntry? { daily.first { $0.date == date } }
+
+    /// Upsert a day's entry by mutation, for an arbitrary (past) date.
+    func upsertDaily(_ date: String, _ mutate: (inout DailyEntry) -> Void) {
+        var e = daily.first(where: { $0.date == date }) ?? DailyEntry(date: date)
+        mutate(&e)
+        daily.removeAll { $0.date == date }
+        daily.append(e)
+    }
+
+    /// Quick one-tap mode: a single daily total (clears any per-meal breakdown so
+    /// the total is unambiguous).
+    func saveNutritionTotal(date: String, kcal: Int?, protein: Double?, carbs: Double?, fat: Double?) {
+        upsertDaily(date) { e in
+            e.kcal = kcal; e.protein = protein; e.carbs = carbs; e.fat = fat
+            e.meals = nil
+        }
+    }
+
+    /// Per-meal mode: individual meals that auto-sum to the day total. Empty meals
+    /// are dropped; the quick-total fields are cleared so `totalKcal` uses the sum.
+    func saveNutritionMeals(date: String, meals: [String: MealEntry]) {
+        let clean = meals.filter { !$0.value.isEmpty }
+        upsertDaily(date) { e in
+            e.meals = clean.isEmpty ? nil : clean
+            e.kcal = nil; e.protein = nil; e.carbs = nil; e.fat = nil
+        }
+    }
+
+    /// Series of logged-intake days for the nutrition charts (most recent `days`).
+    struct NutPoint: Identifiable {
+        var date: String; var kcal: Int
+        var protein: Double; var carbs: Double; var fat: Double
+        var id: String { date }
+    }
+    func nutritionSeries(days: Int = 90) -> [NutPoint] {
+        Array(sortedDaily.filter { $0.hasNutrition }.suffix(days)).map {
+            NutPoint(date: $0.date, kcal: $0.totalKcal,
+                     protein: $0.totalProtein, carbs: $0.totalCarbs, fat: $0.totalFat)
+        }
+    }
+
     // MARK: Apple Health import (optional, gap-fill only)
     /// Merge Health samples into daily entries. Imported values only fill missing
     /// fields so a manually typed number is never overwritten.

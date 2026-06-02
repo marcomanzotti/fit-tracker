@@ -41,6 +41,15 @@ enum WL {
         "auth_needed":  ("Consenti l'accesso a Salute per tracciare l'allenamento.",
                          "Allow Health access to track the workout."),
         "preparing":    ("Preparazione…", "Preparing…"),
+        "lock":         ("Blocca", "Lock"),
+        "unlock":       ("Sblocca", "Unlock"),
+        "swipe_unlock": ("Scorri per sbloccare", "Swipe to unlock"),
+        "restart":      ("Ricomincia", "Restart"),
+        "reps":         ("Rip", "Reps"),
+        "weight":       ("Peso", "Weight"),
+        "set":          ("Serie", "Set"),
+        "done":         ("Fatto", "Done"),
+        "controls":     ("Controlli", "Controls"),
 
         // Sport labels (match the phone's sport.* keys)
         "sport.strength": ("Forza", "Strength"),

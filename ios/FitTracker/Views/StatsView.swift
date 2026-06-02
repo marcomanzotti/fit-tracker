@@ -205,6 +205,9 @@ struct StatsView: View {
     private var history: some View {
         let sorted = store.sessions.sorted { $0.date > $1.date }
         return Group {
+            // Workout section: calendar of sessions + the session list. Workouts
+            // themselves are logged from the Train page; here it's history.
+            SectionHeader(text: t("st.section_workout"), icon: "dumbbell.fill")
             CalendarCard()
             if sorted.isEmpty {
                 Card { EmptyBox(title: t("st.empty_history"), text: t("st.no_workouts")) }
@@ -213,6 +216,12 @@ struct StatsView: View {
                     historyCard(s)
                 }
             }
+
+            // Nutrition section: a calendar of daily intake (tap any day to edit)
+            // plus calorie/macro charts in the same style as every other metric.
+            SectionHeader(text: t("st.section_nutrition"), icon: "fork.knife")
+            NutritionCalendarCard()
+            NutritionChartsSection()
         }
         .sheet(item: $editingSession) { s in SessionEditorView(session: s) }
     }

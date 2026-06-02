@@ -35,6 +35,7 @@ enum T {
     static let txt  = Color(hex: "f4efe6")
     static let sub  = Color(hex: "8a857d")
     static let red  = Color(hex: "ff5a52")
+    static let blue = Color(hex: "4fb8c4")
     static let good = Color(hex: "7fc950")
     static let radius: CGFloat = 14
 }
@@ -88,4 +89,20 @@ func wkToday() -> String { wkISO.string(from: Date()) }
 func wkClock(_ seconds: Int) -> String {
     let h = seconds / 3600, m = (seconds % 3600) / 60, s = seconds % 60
     return h > 0 ? String(format: "%d:%02d:%02d", h, m, s) : String(format: "%d:%02d", m, s)
+}
+
+// MARK: - Number parsing / formatting (for strength logging)
+/// Parse a number from a free-text field, accepting "," or ".".
+func parseNum(_ s: String) -> Double? {
+    Double(s.replacingOccurrences(of: ",", with: ".").trimmingCharacters(in: .whitespaces))
+}
+/// First number in a string like "8-10" or "12" -> 8 / 12.
+func firstNumber(_ s: String) -> Double? {
+    var out = ""
+    for ch in s { if ch.isNumber || ch == "." || ch == "," { out.append(ch) } else if !out.isEmpty { break } }
+    return parseNum(out)
+}
+/// Compact numeric string: integer when whole, else one decimal.
+func fmtNum(_ v: Double) -> String {
+    v == v.rounded() ? String(Int(v)) : String(format: "%g", (v * 10).rounded() / 10)
 }

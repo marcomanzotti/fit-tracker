@@ -22,12 +22,36 @@ public struct WatchActivity: Codable, Identifiable, Equatable {
     public var color: String     // hex (same palette as the phone)
     public var sub: String       // subtitle: plan.sub, or the sport label for cardio
     public var sport: String?    // Sport raw value for cardio (drives the HK activity type)
+    // Strength only: the plan's exercises, each carrying the plan's default reps
+    // and the per-set reps/weight from the last logged session (shown as gray
+    // placeholders on the wrist). Optional + backward-compatible.
+    public var exercises: [WatchExercise]?
 
-    public init(id: String, kind: String, name: String, color: String, sub: String, sport: String?) {
-        self.id = id; self.kind = kind; self.name = name; self.color = color; self.sub = sub; self.sport = sport
+    public init(id: String, kind: String, name: String, color: String, sub: String,
+                sport: String?, exercises: [WatchExercise]? = nil) {
+        self.id = id; self.kind = kind; self.name = name; self.color = color
+        self.sub = sub; self.sport = sport; self.exercises = exercises
     }
 
     public var kindValue: WatchKind { WatchKind(rawValue: kind) ?? .cardio }
+}
+
+/// One exercise pushed to the watch for a strength plan. `reps` is the plan
+/// default; `lastReps`/`lastWeight` are the previous session's per-set values
+/// (empty when the exercise has never been logged) used as gray placeholders.
+public struct WatchExercise: Codable, Equatable, Identifiable {
+    public var id: String
+    public var name: String
+    public var sets: Int
+    public var reps: String
+    public var lastReps: [String]
+    public var lastWeight: [String]
+
+    public init(id: String, name: String, sets: Int, reps: String,
+                lastReps: [String], lastWeight: [String]) {
+        self.id = id; self.name = name; self.sets = sets; self.reps = reps
+        self.lastReps = lastReps; self.lastWeight = lastWeight
+    }
 }
 
 /// Phone -> watch sync payload: the catalog of startable activities plus a bit
@@ -58,13 +82,27 @@ public struct WatchResult: Codable, Equatable {
     public var maxHR: Int?
     public var activeKcal: Int?  // active energy from HealthKit (authoritative)
     public var distanceKm: Double?
+    // Strength only: the per-exercise sets logged on the wrist (reps × weight).
+    public var exercises: [WatchResultExercise]?
 
     public init(id: String, date: String, kind: String, activityId: String, name: String,
                 color: String, sport: String?, durationSec: Int, avgHR: Int?, maxHR: Int?,
-                activeKcal: Int?, distanceKm: Double?) {
+                activeKcal: Int?, distanceKm: Double?, exercises: [WatchResultExercise]? = nil) {
         self.id = id; self.date = date; self.kind = kind; self.activityId = activityId
         self.name = name; self.color = color; self.sport = sport; self.durationSec = durationSec
         self.avgHR = avgHR; self.maxHR = maxHR; self.activeKcal = activeKcal; self.distanceKm = distanceKm
+        self.exercises = exercises
+    }
+}
+
+/// One exercise's logged sets coming back from the watch (parallel reps/weight
+/// arrays, strings to match the phone's free-text set fields).
+public struct WatchResultExercise: Codable, Equatable {
+    public var name: String
+    public var reps: [String]
+    public var weight: [String]
+    public init(name: String, reps: [String], weight: [String]) {
+        self.name = name; self.reps = reps; self.weight = weight
     }
 }
 

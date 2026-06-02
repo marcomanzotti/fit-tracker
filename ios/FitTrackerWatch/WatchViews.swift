@@ -85,84 +85,274 @@ struct ActivityPickerView: View {
     }
 }
 
-// MARK: - Live workout (paged: metrics / controls)
+// MARK: - Live workout router (strength logging vs. cardio metrics)
 struct LiveWorkoutView: View {
     @EnvironmentObject var workout: WorkoutManager
+    var body: some View {
+        ZStack {
+            if workout.exLogs.isEmpty {
+                CardioLiveView()
+            } else {
+                StrengthLiveView()
+            }
+            if workout.locked { LockOverlay() }
+        }
+    }
+}
 
-    private var accent: Color { Color(hex: workout.result?.color ?? "ffe000") }
+// MARK: - Shared live metric pill
+private func liveMetric(icon: String, color: Color, value: String, unit: String) -> some View {
+    HStack(alignment: .firstTextBaseline, spacing: 8) {
+        Image(systemName: icon).font(.system(size: 13)).foregroundColor(color).frame(width: 18)
+        Text(value).font(.num(26)).foregroundColor(T.txt)
+        Text(unit).font(.system(size: 11, weight: .semibold)).foregroundColor(T.sub)
+        Spacer(minLength: 0)
+    }
+    .padding(.vertical, 8).padding(.horizontal, 10)
+    .frame(maxWidth: .infinity)
+    .background(T.c1)
+    .clipShape(RoundedRectangle(cornerRadius: T.radius, style: .continuous))
+}
 
+// MARK: - Workout controls (pause/resume · lock · restart · end)
+struct ControlsPage: View {
+    @EnvironmentObject var workout: WorkoutManager
+    @State private var confirmRestart = false
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 10) {
+                Button { wkTap(); workout.togglePause() } label: {
+                    Label(workout.paused ? wt("resume") : wt("pause"),
+                          systemImage: workout.paused ? "play.fill" : "pause.fill")
+                        .font(.head(15, .bold)).foregroundColor(T.bg)
+                        .frame(maxWidth: .infinity, minHeight: 46)
+                        .background(T.acc)
+                        .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+                }
+                .buttonStyle(.plain)
+
+                HStack(spacing: 10) {
+                    smallControl(wt("lock"), "lock.fill", T.blue) { wkTap(); workout.toggleLock() }
+                    smallControl(wt("restart"), "arrow.counterclockwise", T.acc2) { wkTap(); confirmRestart = true }
+                }
+
+                Button { wkSuccess(); workout.end() } label: {
+                    Label(wt("end"), systemImage: "stop.fill")
+                        .font(.head(15, .bold)).foregroundColor(T.red)
+                        .frame(maxWidth: .infinity, minHeight: 46)
+                        .background(T.red.opacity(0.14))
+                        .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 13, style: .continuous).stroke(T.red.opacity(0.5), lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 6)
+        }
+        .alert(wt("restart"), isPresented: $confirmRestart) {
+            Button(wt("end"), role: .destructive) { workout.restart() }
+            Button(wt("done"), role: .cancel) {}
+        }
+    }
+    private func smallControl(_ title: String, _ icon: String, _ color: Color, _ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(spacing: 3) {
+                Image(systemName: icon).font(.system(size: 16, weight: .bold)).foregroundColor(color)
+                Text(title).font(.system(size: 10, weight: .semibold)).foregroundColor(T.sub)
+            }
+            .frame(maxWidth: .infinity, minHeight: 46)
+            .background(T.c1)
+            .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Cardio live (paged: metrics / controls)
+struct CardioLiveView: View {
+    @EnvironmentObject var workout: WorkoutManager
     var body: some View {
         TabView {
-            metricsPage
-            controlsPage
+            ScrollView {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text(wkClock(Int(workout.elapsed)))
+                        .font(.num(34)).foregroundColor(workout.paused ? T.sub : T.acc)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    liveMetric(icon: "heart.fill", color: T.red,
+                               value: workout.heartRate > 0 ? "\(Int(workout.heartRate))" : "—", unit: wt("bpm"))
+                    liveMetric(icon: "flame.fill", color: T.acc2,
+                               value: "\(Int(workout.activeCalories.rounded()))", unit: wt("kcal"))
+                    if workout.distanceMeters > 0 {
+                        liveMetric(icon: "location.fill", color: T.good,
+                                   value: String(format: "%.2f", workout.distanceMeters / 1000), unit: wt("km"))
+                    }
+                }
+                .padding(.horizontal, 4)
+            }
+            ControlsPage()
         }
         .tabViewStyle(.page)
     }
+}
 
-    private var metricsPage: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 10) {
-                Text(wkClock(Int(workout.elapsed)))
-                    .font(.num(34)).foregroundColor(T.acc)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+// MARK: - Strength live (scroll exercises · tap a number · edit with the Crown)
+struct StrengthLiveView: View {
+    @EnvironmentObject var workout: WorkoutManager
+    @State private var edit: EditTarget?
 
-                metric(icon: "heart.fill", color: T.red,
-                       value: workout.heartRate > 0 ? "\(Int(workout.heartRate))" : "—", unit: wt("bpm"))
-                metric(icon: "flame.fill", color: T.acc2,
-                       value: "\(Int(workout.activeCalories.rounded()))", unit: wt("kcal"))
-                if workout.distanceMeters > 0 {
-                    metric(icon: "location.fill", color: T.good,
-                           value: trimKm(workout.distanceMeters / 1000), unit: wt("km"))
+    var body: some View {
+        TabView {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 10) {
+                    metricsHeader
+                    ForEach(workout.exLogs.indices, id: \.self) { ex in
+                        exerciseCard(ex)
+                    }
+                }
+                .padding(.horizontal, 4).padding(.bottom, 6)
+            }
+            ControlsPage()
+        }
+        .tabViewStyle(.page)
+        .sheet(item: $edit) { target in
+            NumberCrownEditor(
+                title: "\(target.exName) · \(wt("set")) \(target.set + 1)",
+                subtitle: target.field == .reps ? wt("reps") : "\(wt("weight")) (kg)",
+                value: target.current,
+                step: target.field == .reps ? 1 : 0.5
+            ) { v in
+                if target.field == .reps { workout.setReps(target.ex, target.set, v) }
+                else { workout.setWeight(target.ex, target.set, v) }
+            }
+        }
+    }
+
+    private var metricsHeader: some View {
+        HStack(spacing: 8) {
+            Text(wkClock(Int(workout.elapsed))).font(.num(20)).foregroundColor(workout.paused ? T.sub : T.acc)
+            Spacer()
+            Image(systemName: "heart.fill").font(.system(size: 11)).foregroundColor(T.red)
+            Text(workout.heartRate > 0 ? "\(Int(workout.heartRate))" : "—").font(.num(16)).foregroundColor(T.txt)
+            Image(systemName: "flame.fill").font(.system(size: 11)).foregroundColor(T.acc2)
+            Text("\(Int(workout.activeCalories.rounded()))").font(.num(16)).foregroundColor(T.txt)
+        }
+        .padding(.vertical, 6).padding(.horizontal, 8)
+        .frame(maxWidth: .infinity)
+        .background(T.c1).clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+
+    private func exerciseCard(_ ex: Int) -> some View {
+        let log = workout.exLogs[ex]
+        return VStack(alignment: .leading, spacing: 7) {
+            Text(log.name).font(.system(size: 14, weight: .bold)).foregroundColor(T.txt).lineLimit(2)
+            ForEach(log.setReps.indices, id: \.self) { s in
+                HStack(spacing: 6) {
+                    Text("\(s + 1)").font(.system(size: 11, weight: .bold)).foregroundColor(T.sub).frame(width: 16)
+                    numberPill(value: workout.effReps(ex, s), entered: workout.isRepsEntered(ex, s)) {
+                        edit = EditTarget(ex: ex, set: s, field: .reps, exName: log.name, current: workout.effReps(ex, s))
+                    }
+                    Text("×").font(.system(size: 13)).foregroundColor(T.sub)
+                    numberPill(value: workout.effWeight(ex, s), entered: workout.isWeightEntered(ex, s)) {
+                        edit = EditTarget(ex: ex, set: s, field: .weight, exName: log.name, current: workout.effWeight(ex, s))
+                    }
+                    Text("kg").font(.system(size: 10)).foregroundColor(T.sub)
+                    Spacer(minLength: 0)
                 }
             }
-            .padding(.horizontal, 4)
         }
-    }
-
-    private func metric(icon: String, color: Color, value: String, unit: String) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Image(systemName: icon).font(.system(size: 13)).foregroundColor(color)
-                .frame(width: 18)
-            Text(value).font(.num(26)).foregroundColor(T.txt)
-            Text(unit).font(.system(size: 11, weight: .semibold)).foregroundColor(T.sub)
-            Spacer(minLength: 0)
-        }
-        .padding(.vertical, 8).padding(.horizontal, 10)
-        .frame(maxWidth: .infinity)
+        .padding(.vertical, 10).padding(.horizontal, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(T.c1)
         .clipShape(RoundedRectangle(cornerRadius: T.radius, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: T.radius, style: .continuous).stroke(T.brd, lineWidth: 1))
     }
 
-    private var controlsPage: some View {
-        VStack(spacing: 12) {
-            Button {
-                wkTap(); workout.togglePause()
-            } label: {
-                Label(workout.paused ? wt("resume") : wt("pause"),
-                      systemImage: workout.paused ? "play.fill" : "pause.fill")
-                    .font(.head(15, .bold)).foregroundColor(T.bg)
-                    .frame(maxWidth: .infinity, minHeight: 46)
-                    .background(T.acc)
-                    .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
-            }
-            .buttonStyle(.plain)
+    private func numberPill(value: Double, entered: Bool, _ tapAction: @escaping () -> Void) -> some View {
+        Button { wkTap(); tapAction() } label: {
+            Text(fmtNum(value))
+                .font(.num(17)).foregroundColor(entered ? T.txt : T.sub)
+                .frame(minWidth: 44, minHeight: 34)
+                .background(entered ? T.acc.opacity(0.14) : T.c2)
+                .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).stroke(entered ? T.acc : T.brd, lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+    }
+}
 
-            Button {
-                wkSuccess(); workout.end()
-            } label: {
-                Label(wt("end"), systemImage: "stop.fill")
-                    .font(.head(15, .bold)).foregroundColor(T.red)
-                    .frame(maxWidth: .infinity, minHeight: 46)
-                    .background(T.red.opacity(0.14))
-                    .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 13, style: .continuous).stroke(T.red.opacity(0.5), lineWidth: 1))
+// MARK: - Crown number editor (sheet)
+enum EditField { case reps, weight }
+struct EditTarget: Identifiable {
+    let id = UUID()
+    let ex: Int; let set: Int; let field: EditField
+    let exName: String; let current: Double
+}
+
+struct NumberCrownEditor: View {
+    let title: String
+    let subtitle: String
+    @State var value: Double
+    let step: Double
+    var onDone: (Double) -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(spacing: 8) {
+            Text(title).font(.system(size: 12, weight: .semibold)).foregroundColor(T.sub)
+                .multilineTextAlignment(.center).lineLimit(2)
+            Text(subtitle.uppercased()).font(.head(9, .semibold)).tracking(1).foregroundColor(T.sub)
+            Text(fmtNum(value)).font(.num(44)).foregroundColor(T.acc)
+                .focusable(true)
+                .digitalCrownRotation($value, from: 0, through: 2000, by: step,
+                                      sensitivity: .medium, isContinuous: false, isHapticFeedbackEnabled: true)
+            HStack(spacing: 10) {
+                stepButton("minus") { value = max(0, value - step) }
+                stepButton("plus") { value += step }
+            }
+            Button { wkSuccess(); onDone(value); dismiss() } label: {
+                Text(wt("done").uppercased()).font(.head(13, .bold)).tracking(1).foregroundColor(T.bg)
+                    .frame(maxWidth: .infinity, minHeight: 42).background(T.acc)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
             .buttonStyle(.plain)
         }
-        .padding(.horizontal, 6)
+        .padding(.horizontal, 8)
     }
+    private func stepButton(_ icon: String, _ action: @escaping () -> Void) -> some View {
+        Button { wkTap(); action() } label: {
+            Image(systemName: icon).font(.system(size: 16, weight: .bold)).foregroundColor(T.txt)
+                .frame(width: 52, height: 40).background(T.c2)
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+}
 
-    private func trimKm(_ v: Double) -> String { String(format: "%.2f", v) }
+// MARK: - Lock overlay (swipe to unlock, Apple-Workout style)
+struct LockOverlay: View {
+    @EnvironmentObject var workout: WorkoutManager
+    @State private var drag: CGFloat = 0
+    var body: some View {
+        ZStack {
+            T.bg.opacity(0.96).ignoresSafeArea()
+            VStack(spacing: 10) {
+                Image(systemName: "lock.fill").font(.system(size: 30)).foregroundColor(T.acc)
+                Text(wt("swipe_unlock")).font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(T.sub).multilineTextAlignment(.center)
+                Image(systemName: "arrow.right").font(.system(size: 18, weight: .bold)).foregroundColor(T.acc2)
+                    .offset(x: drag)
+            }
+            .padding()
+        }
+        .contentShape(Rectangle())
+        .gesture(
+            DragGesture()
+                .onChanged { v in drag = max(0, min(90, v.translation.width)) }
+                .onEnded { v in
+                    if v.translation.width > 70 { wkSuccess(); workout.toggleLock() }
+                    drag = 0
+                }
+        )
+    }
 }
 
 // MARK: - Summary (auto-sends to the phone, then dismisses)

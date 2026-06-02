@@ -57,9 +57,19 @@ final class WatchSync: NSObject, ObservableObject {
         let session = WCSession.default
         guard session.activationState == .activated else { return }
 
-        var activities: [WatchActivity] = store.plans.map {
-            WatchActivity(id: $0.id, kind: WatchKind.strength.rawValue, name: $0.name,
-                          color: $0.color, sub: $0.sub, sport: nil)
+        var activities: [WatchActivity] = store.plans.map { plan in
+            // For each exercise, attach the plan default reps + the last logged
+            // session's per-set reps/weight, used as gray placeholders on the wrist.
+            let last = store.lastSession(forPlan: plan.id)
+            let exs = plan.exercises.map { pe -> WatchExercise in
+                let logged = last?.exercises.first { $0.name == pe.name }
+                return WatchExercise(id: pe.id.uuidString, name: pe.name, sets: max(1, pe.sets),
+                                     reps: pe.reps,
+                                     lastReps: logged?.sets.map { $0.reps } ?? [],
+                                     lastWeight: logged?.sets.map { $0.weight } ?? [])
+            }
+            return WatchActivity(id: plan.id, kind: WatchKind.strength.rawValue, name: plan.name,
+                                 color: plan.color, sub: plan.sub, sport: nil, exercises: exs)
         }
         activities += store.cardioTypes.map {
             WatchActivity(id: "cardio-\($0.id)", kind: WatchKind.cardio.rawValue, name: $0.name,
@@ -115,12 +125,30 @@ extension Store {
         if let rid = UUID(uuidString: r.id), sessions.contains(where: { $0.id == rid }) { return }
 
         var exercises: [LoggedExercise] = []
-        if r.kind == WatchKind.strength.rawValue, let plan = plans.first(where: { $0.id == r.activityId }) {
-            exercises = plan.exercises.map { pe in
-                LoggedExercise(name: pe.name,
-                               sets: (0..<max(1, pe.sets)).map { _ in SetEntry() },
-                               target: "\(pe.sets)×\(pe.reps)",
-                               supersetGroup: pe.supersetGroup, method: pe.method)
+        if r.kind == WatchKind.strength.rawValue {
+            let plan = plans.first(where: { $0.id == r.activityId })
+            if let rex = r.exercises, !rex.isEmpty {
+                // Use the sets actually logged on the wrist, keeping the plan's
+                // target/superset/method metadata when the exercise is known.
+                exercises = rex.map { e in
+                    let pe = plan?.exercises.first { $0.name == e.name }
+                    let n = max(e.reps.count, e.weight.count)
+                    let sets = (0..<max(1, n)).map { i in
+                        SetEntry(reps: i < e.reps.count ? e.reps[i] : "",
+                                 weight: i < e.weight.count ? e.weight[i] : "")
+                    }
+                    return LoggedExercise(name: e.name, sets: sets,
+                                          target: pe.map { "\($0.sets)×\($0.reps)" } ?? "",
+                                          supersetGroup: pe?.supersetGroup, method: pe?.method)
+                }
+            } else if let plan {
+                // Fallback (older watch builds): empty sets from the plan template.
+                exercises = plan.exercises.map { pe in
+                    LoggedExercise(name: pe.name,
+                                   sets: (0..<max(1, pe.sets)).map { _ in SetEntry() },
+                                   target: "\(pe.sets)×\(pe.reps)",
+                                   supersetGroup: pe.supersetGroup, method: pe.method)
+                }
             }
         }
 

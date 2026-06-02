@@ -136,6 +136,27 @@ enum L {
         "nut.intake_today":  ("Assunzione di oggi", "Today's intake"),
         "nut.who_note":      ("Range basati su linee guida WHO / ISSN", "Ranges based on WHO / ISSN guidance"),
 
+        // --- Nutrition calendar & per-meal logging --------------------------
+        "meal.breakfast":    ("Colazione", "Breakfast"),
+        "meal.lunch":        ("Pranzo", "Lunch"),
+        "meal.dinner":       ("Cena", "Dinner"),
+        "meal.snacks":       ("Spuntini", "Snacks"),
+        "nut.calendar":      ("Calendario nutrizione", "Nutrition calendar"),
+        "nut.cal_hint_tap":  ("Tocca un giorno per inserire o modificare le calorie", "Tap a day to add or edit calories"),
+        "nut.edit_day":      ("Modifica nutrizione", "Edit nutrition"),
+        "nut.quick":         ("Totale rapido", "Quick total"),
+        "nut.per_meal":      ("Per pasto", "Per meal"),
+        "nut.entry_mode":    ("Modalità di inserimento", "Entry mode"),
+        "nut.day_total":     ("Totale giornaliero", "Daily total"),
+        "nut.kcal":          ("Calorie", "Calories"),
+        "nut.no_log":        ("Nessun dato nutrizionale", "No nutrition logged"),
+        "nut.charts":        ("Grafici nutrizione", "Nutrition charts"),
+        "nut.charts_hint":   ("Registra le calorie per 2+ giorni per vedere i grafici.", "Log calories for 2+ days to see charts."),
+        "nut.saved":         ("Nutrizione salvata", "Nutrition saved"),
+        "nut.cleared":       ("Dati nutrizionali rimossi", "Nutrition cleared"),
+        "st.section_workout":("Allenamento", "Workout"),
+        "st.section_nutrition":("Nutrizione", "Nutrition"),
+
         // --- Workout / methods / sports ------------------------------------
         "wk.live":           ("Allenamento live", "Live workout"),
         "wk.add_ex":         ("Aggiungi esercizio", "Add exercise"),
