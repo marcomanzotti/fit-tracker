@@ -58,13 +58,21 @@ struct RootView: View {
         }
         .animation(.spring(response: 0.4, dampingFraction: 0.75), value: toast.message)
         .sheet(isPresented: $showSettings) { SettingsView(store: store) }
-        .onAppear { if store.prefs.healthKitEnabled { store.syncHealth() } }
+        .onAppear { if store.prefs.healthKitEnabled { store.syncHealth(completion: healthToast) } }
         // Re-sync Health (daily metrics + workouts from any paired watch) every
         // time the app returns to the foreground, so a session recorded on a
         // Garmin/Fitbit/etc. shows up without a manual refresh.
         .onChange(of: scenePhase) { phase in
-            if phase == .active, store.prefs.healthKitEnabled { store.syncHealth() }
+            if phase == .active, store.prefs.healthKitEnabled { store.syncHealth(completion: healthToast) }
         }
+    }
+
+    /// Quietly confirm only when new workouts actually came in from a watch, so
+    /// a routine foreground sync with nothing new stays silent.
+    private func healthToast(ok: Bool, imported: Int, sources: [String]) {
+        guard ok, imported > 0 else { return }
+        let src = sources.isEmpty ? "" : " · " + sources.joined(separator: ", ")
+        toast.show("\(imported) \(t("hk.imported_n"))\(src)")
     }
 }
 

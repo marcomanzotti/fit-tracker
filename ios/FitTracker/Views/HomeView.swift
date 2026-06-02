@@ -18,11 +18,6 @@ struct HomeView: View {
     var body: some View {
         let lw = store.lastWeight
         let comment = store.bmiComment(weight: lw)
-        let bf = store.currentBF
-        let bfNote: String = bf != nil
-            ? t(store.bfCategory(bf!, sex: store.prefs.sex_).key)
-            : t("body.no_data")
-        let bfColor: Color = bf != nil ? store.bfCategory(bf!, sex: store.prefs.sex_).color : Theme.sub
 
         // Check-in
         if !store.hasCheckedIn() {
@@ -31,13 +26,11 @@ struct HomeView: View {
             checkedInCard
         }
 
-        // Key stats — a uniform 2×2 grid: four equally-sized large cards that
-        // fill the same area (Weight · Body fat · Streak · Sessions).
-        LazyVGrid(columns: [GridItem(.flexible(), spacing: 9), GridItem(.flexible(), spacing: 9)], spacing: 9) {
+        // Key stats — three equally-sized tiles in a row (Weight · Streak ·
+        // Sessions). Body fat lives in the goals section, so it's not repeated here.
+        HStack(spacing: 9) {
             StatTile(label: t("home.weight"), value: dispW(lw), unit: Units.wLabel,
                      note: comment.text, info: "bmi")
-            StatTile(label: t("body.fat"), value: bf.map(trimNum) ?? "—", unit: bf != nil ? "%" : nil,
-                     valueColor: bfColor, note: bfNote, info: "bodyfat")
             StatTile(label: t("home.streak"), value: "\(store.streak)", valueColor: Theme.acc,
                      note: store.streak == 1 ? t("home.day") : t("home.days"), info: "streak")
             StatTile(label: t("home.sessions"), value: "\(store.sessions.count)", valueColor: Theme.blue,

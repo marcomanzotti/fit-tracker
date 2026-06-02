@@ -198,6 +198,10 @@ struct WorkoutSession: Codable, Identifiable, Equatable {
     /// Garmin/Fitbit/Polar/Huawei watch that synced to Health). Used to dedupe
     /// re-imports and to badge the session as externally sourced.
     var healthUUID: String?
+    /// Human-readable origin of an imported session: the Health source app name
+    /// ("Garmin Connect", "Polar Flow") or an imported file name. nil = logged in
+    /// the app. Drives the "imported" badge.
+    var source: String?
 
     var totalSets: Int { exercises.reduce(0) { $0 + $1.sets.count } }
     var volume: Double { exercises.reduce(0) { $0 + $1.volume } }

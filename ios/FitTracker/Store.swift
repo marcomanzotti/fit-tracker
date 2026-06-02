@@ -522,7 +522,10 @@ extension Store {
     ///      companion already delivered it over WatchConnectivity;
     ///   3. a workout that overlaps an existing session (same day + same sport +
     ///      duration within 2 min) is skipped, covering manually logged sessions.
-    func applyHealthWorkouts(_ workouts: [HealthWorkout]) {
+    @discardableResult
+    func applyHealthWorkouts(_ workouts: [HealthWorkout]) -> (count: Int, sources: [String]) {
+        var imported = 0
+        var srcs = Set<String>()
         for w in workouts {
             if w.fromThisApp { continue }
             if sessions.contains(where: { $0.healthUUID == w.uuid }) { continue }
@@ -546,24 +549,57 @@ extension Store {
             s.distanceKm = (w.distanceKm ?? 0) > 0 ? w.distanceKm : nil
             if let k = w.kcal, k > 0 { s.caloriesManual = k }
             s.healthUUID = w.uuid
+            s.source = w.sourceName.isEmpty ? nil : w.sourceName
             sessions.append(s)
+            imported += 1
+            if !w.sourceName.isEmpty { srcs.insert(w.sourceName) }
         }
+        return (imported, srcs.sorted())
+    }
+
+    // MARK: Workout file import (GPX / TCX — any device that can export a file)
+    /// Parse a GPX/TCX file the user exported from a watch app that does NOT sync
+    /// to Apple Health (e.g. Huawei Health) and turn it into a session. Returns
+    /// the created session on success so the caller can confirm / let the user edit.
+    @discardableResult
+    func importWorkoutFile(_ url: URL) -> WorkoutSession? {
+        let access = url.startAccessingSecurityScopedResource()
+        defer { if access { url.stopAccessingSecurityScopedResource() } }
+        guard let data = try? Data(contentsOf: url),
+              let p = WorkoutFileParser.parse(data: data) else { return nil }
+
+        let sportType = Sport(rawValue: p.sport) ?? .other
+        let isStrength = p.sport == "strength"
+        var s = WorkoutSession(date: p.date, planId: "file-\(p.sport)",
+                               planName: sportType.label, planColor: sportType.color)
+        s.sport = isStrength ? nil : p.sport
+        s.durationSec = p.durationSec > 0 ? p.durationSec : nil
+        s.avgHR = (p.avgHR ?? 0) > 0 ? p.avgHR : nil
+        s.maxHRSes = (p.maxHR ?? 0) > 0 ? p.maxHR : nil
+        s.distanceKm = (p.distanceKm ?? 0) > 0 ? p.distanceKm : nil
+        if let k = p.kcal, k > 0 { s.caloriesManual = k }
+        s.source = url.lastPathComponent
+        sessions.append(s)
+        return s
     }
 
     /// Request authorization (if needed) and pull the last `days` days from Health.
-    func syncHealth(days: Int = 90, completion: ((Bool) -> Void)? = nil) {
+    /// Sync Apple Health. The completion reports success plus how many workouts
+    /// were newly imported and from which source apps, so the UI can confirm to
+    /// the user that their watch is feeding the app.
+    func syncHealth(days: Int = 90, completion: ((_ ok: Bool, _ imported: Int, _ sources: [String]) -> Void)? = nil) {
         let hk = HealthKitManager.shared
-        guard hk.isAvailable else { completion?(false); return }
+        guard hk.isAvailable else { completion?(false, 0, []); return }
         hk.requestAuthorization { granted in
-            guard granted else { completion?(false); return }
+            guard granted else { completion?(false, 0, []); return }
             hk.fetch(days: days) { samples in
                 self.applyHealthSamples(samples)
                 // Keep resting HR profile fresh from the most recent reading.
                 if let last = samples.compactMap({ $0.restHR }).last, last > 0 { self.prefs.restingHR = last }
                 // Import workouts from any paired watch (Garmin/Fitbit/Polar/…).
                 hk.fetchWorkouts(days: days) { workouts in
-                    self.applyHealthWorkouts(workouts)
-                    completion?(true)
+                    let r = self.applyHealthWorkouts(workouts)
+                    completion?(true, r.count, r.sources)
                 }
             }
         }

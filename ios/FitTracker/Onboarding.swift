@@ -192,6 +192,7 @@ let femaleDefaults = SexDefaults(height: "165", weight: "65", goal: "60")
 struct OnboardingView: View {
     @EnvironmentObject var store: Store
     @State private var f: ProfileFields
+    @State private var showGuide = false
 
     init() {
         // Store isn't available at init time; seed with defaults, refresh on appear.
@@ -218,6 +219,16 @@ struct OnboardingView: View {
 
                     Card { ProfileFormBody(f: $f) }
 
+                    // Optional: point new users at the watch-setup guide so any
+                    // wearable (Apple Watch, Garmin, Polar, Huawei via file…) can
+                    // feed the app from day one.
+                    Card {
+                        Lbl(text: t("guide.open"), color: Theme.acc2).padding(.bottom, 6)
+                        Text(t("guide.intro")).font(.system(size: 11)).foregroundColor(Theme.sub).lineSpacing(3)
+                            .padding(.bottom, 10)
+                        GhostButton(title: t("guide.open"), color: Theme.blue) { showGuide = true }
+                    }
+
                     BigButton(title: t("ob.finish")) { finish() }
                         .padding(.bottom, 30)
                 }
@@ -226,6 +237,7 @@ struct OnboardingView: View {
             .scrollDismissesKeyboard(.interactively)
         }
         .preferredColorScheme(.dark)
+        .sheet(isPresented: $showGuide) { WatchSetupGuide() }
         .onChange(of: f.lang) { _ in store.prefs.language = f.lang; store.syncLang() }
         .onChange(of: f.sex) { newSex in
             // Swap in the selected sex's clean defaults, but only if the user
@@ -263,6 +275,7 @@ struct SettingsView: View {
     @State private var timerSec: String
     @State private var hkOn: Bool
     @State private var unitSys: String
+    @State private var showGuide = false
 
     init(store: Store) {
         _f = State(initialValue: ProfileFields(store.prefs, currentWeight: store.lastWeight))
@@ -321,6 +334,7 @@ struct SettingsView: View {
             .scrollDismissesKeyboard(.interactively)
         }
         .preferredColorScheme(.dark)
+        .sheet(isPresented: $showGuide) { WatchSetupGuide() }
     }
 
     // MARK: Apple Health (optional data source)
@@ -339,20 +353,31 @@ struct SettingsView: View {
                         Text(t("hk.connected").uppercased()).font(.head(11, .semibold)).tracking(0.5).foregroundColor(Theme.good)
                         Spacer()
                         GhostButton(title: t("hk.sync"), color: Theme.acc) {
-                            store.syncHealth { ok in if ok { toast.show(t("hk.synced")) } }
+                            store.syncHealth { ok, n, sources in if ok { toast.show(syncMsg(n, sources)) } }
                         }
                     }
                 } else {
                     FilledButton(title: t("hk.connect")) {
-                        store.syncHealth { ok in
-                            if ok { hkOn = true; store.prefs.healthKit = true; toast.show(t("hk.synced")) }
+                        store.syncHealth { ok, n, sources in
+                            if ok { hkOn = true; store.prefs.healthKit = true; toast.show(syncMsg(n, sources)) }
                         }
                     }
                 }
+                // Per-watch setup guide (Garmin/Polar/… toggles + GPX/TCX import).
+                Spacer().frame(height: 10)
+                GhostButton(title: t("guide.open"), color: Theme.blue) { showGuide = true }
             } else {
                 Text(t("hk.unavailable")).font(.system(size: 12)).foregroundColor(Theme.sub)
             }
         }
+    }
+
+    /// Build the post-sync toast: a count + the source apps when workouts were
+    /// imported, otherwise the plain "synced" confirmation.
+    private func syncMsg(_ n: Int, _ sources: [String]) -> String {
+        guard n > 0 else { return t("hk.synced") }
+        let src = sources.isEmpty ? "" : " · " + sources.joined(separator: ", ")
+        return "\(n) \(t("hk.imported_n"))\(src)"
     }
 
     private func save() {

@@ -32,6 +32,7 @@ struct HealthWorkout {
     var avgHR: Int?
     var maxHR: Int?
     var fromThisApp: Bool     // recorded by FitTracker itself (our Apple Watch app)
+    var sourceName: String    // origin app name ("Garmin Connect", "Polar Flow", …)
 }
 
 final class HealthKitManager {
@@ -193,7 +194,8 @@ final class HealthKitManager {
             sport: Self.sport(for: w.workoutActivityType),
             durationSec: Int(w.duration.rounded()),
             kcal: kcal, distanceKm: km, avgHR: avg, maxHR: mx,
-            fromThisApp: src == appBundle || src.hasPrefix("com.marco.manzotti.fittracker"))
+            fromThisApp: src == appBundle || src.hasPrefix("com.marco.manzotti.fittracker"),
+            sourceName: w.sourceRevision.source.name)
     }
 
     /// Map an HKWorkoutActivityType to the app's Sport raw value.

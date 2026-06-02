@@ -261,7 +261,7 @@ struct WorkoutView: View {
                                     HStack(spacing: 5) {
                                         Text("\(s.planName)".uppercased()).font(.head(14, .semibold)).tracking(0.5)
                                             .foregroundColor(Color(hex: s.planColor))
-                                        if s.healthUUID != nil {
+                                        if s.source != nil {
                                             Image(systemName: "heart.fill").font(.system(size: 9))
                                                 .foregroundColor(Theme.red)
                                         }
