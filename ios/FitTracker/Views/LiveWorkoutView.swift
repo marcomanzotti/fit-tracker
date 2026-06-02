@@ -314,7 +314,7 @@ struct LiveWorkoutView: View {
             }
             .padding(.bottom, 6)
 
-            ForEach($exB.sets) { $set in
+            ForEach(exB.sets) { $set in
                 setRow($set, in: exB, pr: pr, bw: bw, effortScale: effortScale)
             }
 
