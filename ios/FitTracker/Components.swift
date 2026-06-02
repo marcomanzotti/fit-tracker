@@ -405,6 +405,92 @@ struct SmallNumField: View {
     }
 }
 
+// MARK: - Exercise setting controls (shared by every exercise editor)
+// One implementation of the bodyweight chip, the effort-mode selector and the
+// per-set effort field, reused identically in the plan editor, the live workout
+// and the session editor. Keeping a single source avoids the three editors
+// drifting apart and shrinks the surface where a stale-index bug can hide.
+
+/// Capsule toggle that flips an exercise between weighted and bodyweight.
+struct BodyweightChip: View {
+    @Binding var isBodyweight: Bool?
+    var body: some View {
+        let bw = isBodyweight == true
+        Button {
+            tap()
+            isBodyweight = bw ? nil : true
+        } label: {
+            Text(t("wk.bodyweight")).font(.head(9, .semibold)).tracking(0.5)
+                .foregroundColor(bw ? Theme.bg : Theme.sub)
+                .padding(.vertical, 4).padding(.horizontal, 7)
+                .background(bw ? Theme.good : Theme.c3)
+                .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// The — / RIR / RPE / FAIL chooser for an exercise's per-set effort scale.
+struct EffortModeSelector: View {
+    @Binding var effortMode: String?
+    var body: some View {
+        let cur = effortMode.flatMap { EffortMode(rawValue: $0) }
+        HStack(spacing: 6) {
+            Text(t("wk.effort").uppercased()).font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
+            Spacer()
+            ForEach([EffortMode?.none] + EffortMode.allCases.map { Optional($0) }, id: \.?.rawValue) { mode in
+                let label = mode?.label ?? t("wk.effort.off")
+                let active = cur == mode
+                Button {
+                    tap()
+                    effortMode = mode?.rawValue
+                } label: {
+                    Text(label).font(.head(10, .semibold)).tracking(0.5)
+                        .foregroundColor(active ? Theme.bg : Theme.sub)
+                        .padding(.vertical, 5).padding(.horizontal, 9)
+                        .background(active ? Theme.acc2 : Theme.c2)
+                        .clipShape(Capsule())
+                        .overlay(Capsule().stroke(active ? Theme.acc2 : Theme.brd, lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+}
+
+/// One set's effort entry: a number box for RIR/RPE, a bolt toggle for failure.
+struct EffortField: View {
+    let scale: EffortMode
+    @Binding var value: Int?
+    @ViewBuilder var body: some View {
+        switch scale {
+        case .rir, .rpe:
+            SmallNumField(text: Binding(
+                get: { value.map { "\($0)" } ?? "" },
+                set: { value = Int($0) }))
+                .frame(width: 48)
+        case .fail:
+            let isOn = value == 1
+            Button {
+                tap()
+                value = isOn ? 0 : 1
+            } label: {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(isOn ? Theme.red.opacity(0.18) : Theme.c2)
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(isOn ? Theme.red.opacity(0.5) : Theme.brd, lineWidth: 1)
+                    Image(systemName: isOn ? "bolt.fill" : "bolt")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(isOn ? Theme.red : Theme.sub)
+                }
+                .frame(width: 48, height: 42)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+}
+
 // MARK: - Empty state
 struct EmptyBox: View {
     let title: String

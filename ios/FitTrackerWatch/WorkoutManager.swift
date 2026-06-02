@@ -45,6 +45,7 @@ final class WorkoutManager: NSObject, ObservableObject {
     private var startDate = Date()
     private var ticker: AnyCancellable?
     private var discarding = false                 // restart/discard: skip the summary
+    private var liveTick = 0                        // throttles live streaming to the phone
 
     var available: Bool { HKHealthStore.isHealthDataAvailable() }
 
@@ -105,7 +106,39 @@ final class WorkoutManager: NSObject, ObservableObject {
             .sink { [weak self] _ in
                 guard let self, let b = self.builder else { return }
                 self.elapsed = b.elapsedTime
+                // Stream live telemetry to the phone every 3 s so it can mirror the
+                // session (HR / calories / distance) without re-entry at the end.
+                self.liveTick += 1
+                if self.liveTick % 3 == 0 { self.sendLive(ended: false) }
             }
+    }
+
+    /// Per-set reps/weight as strings (entered value, else the gray placeholder),
+    /// shared by the live stream and the final result.
+    func resultExercises() -> [WatchResultExercise]? {
+        guard activity?.kindValue == .strength, !exLogs.isEmpty else { return nil }
+        return exLogs.map { ex in
+            var reps: [String] = [], wt: [String] = []
+            for i in 0..<ex.setReps.count {
+                reps.append(fmtNum(ex.setReps[i] ?? ex.phReps[i]))
+                wt.append(fmtNum(ex.setWeight[i] ?? ex.phWeight[i]))
+            }
+            return WatchResultExercise(name: ex.name, reps: reps, weight: wt)
+        }
+    }
+
+    /// Best-effort live telemetry push (no-op unless a workout is active or it's
+    /// the final `ended` sample).
+    private func sendLive(ended: Bool) {
+        guard ended || phase == .active, let a = activity else { return }
+        let km = distanceMeters > 0 ? (distanceMeters / 1000 * 100).rounded() / 100 : nil
+        let sample = WatchLiveSample(
+            activityId: a.id, kind: a.kind,
+            hr: Int(heartRate.rounded()), avgHR: avgHR, maxHR: maxHR,
+            kcal: Int(activeCalories.rounded()), distanceKm: km,
+            elapsedSec: Int(elapsed.rounded()),
+            exercises: resultExercises(), ended: ended)
+        WatchLink.shared.sendLive(sample)
     }
 
     // MARK: Controls
@@ -151,8 +184,8 @@ final class WorkoutManager: NSObject, ObservableObject {
     func effWeight(_ ex: Int, _ set: Int) -> Double { exLogs[ex].setWeight[set] ?? exLogs[ex].phWeight[set] }
     func isRepsEntered(_ ex: Int, _ set: Int) -> Bool { exLogs[ex].setReps[set] != nil }
     func isWeightEntered(_ ex: Int, _ set: Int) -> Bool { exLogs[ex].setWeight[set] != nil }
-    func setReps(_ ex: Int, _ set: Int, _ v: Double) { exLogs[ex].setReps[set] = max(0, v) }
-    func setWeight(_ ex: Int, _ set: Int, _ v: Double) { exLogs[ex].setWeight[set] = max(0, v) }
+    func setReps(_ ex: Int, _ set: Int, _ v: Double) { exLogs[ex].setReps[set] = max(0, v); sendLive(ended: false) }
+    func setWeight(_ ex: Int, _ set: Int, _ v: Double) { exLogs[ex].setWeight[set] = max(0, v); sendLive(ended: false) }
 
     // MARK: Finalize
     private func finish() async {
@@ -169,17 +202,7 @@ final class WorkoutManager: NSObject, ObservableObject {
         let km = distanceMeters > 0 ? (distanceMeters / 1000 * 100).rounded() / 100 : nil
         let a = activity
         // Strength: package the per-set reps/weight (entered value or placeholder).
-        var resultEx: [WatchResultExercise]? = nil
-        if a?.kindValue == .strength, !exLogs.isEmpty {
-            resultEx = exLogs.map { ex in
-                var reps: [String] = [], wt: [String] = []
-                for i in 0..<ex.setReps.count {
-                    reps.append(fmtNum(ex.setReps[i] ?? ex.phReps[i]))
-                    wt.append(fmtNum(ex.setWeight[i] ?? ex.phWeight[i]))
-                }
-                return WatchResultExercise(name: ex.name, reps: reps, weight: wt)
-            }
-        }
+        let resultEx = resultExercises()
         let r = WatchResult(
             id: UUID().uuidString,
             date: wkToday(),
@@ -196,6 +219,9 @@ final class WorkoutManager: NSObject, ObservableObject {
             exercises: resultEx
         )
         result = r
+        // Final live sample (ended) so the phone clears its live banner; the full
+        // result follows reliably over transferUserInfo and is what gets merged.
+        sendLive(ended: true)
         phase = .ended
     }
 

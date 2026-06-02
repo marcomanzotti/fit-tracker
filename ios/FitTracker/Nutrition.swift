@@ -132,7 +132,7 @@ extension Store {
         // fat ~0.8 g/kg floor, carbs fill the remainder.
         let proteinPerKg: Double = mode == .cut ? 2.2 : (mode == .bulk ? 1.8 : 2.0)
         let protein = (proteinPerKg * w).rounded()
-        let fat = max(0.6 * w, 0.8 * w).rounded()
+        let fat = (0.8 * w).rounded()              // ~0.8 g/kg essential-fat floor
         let carbsKcal = max(0, target - protein * 4 - fat * 9)
         let carbs = (carbsKcal / 4).rounded()
 

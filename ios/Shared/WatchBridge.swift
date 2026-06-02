@@ -106,13 +106,42 @@ public struct WatchResultExercise: Codable, Equatable {
     }
 }
 
+/// Watch -> phone LIVE telemetry, streamed every few seconds while a workout is
+/// running on the wrist (best-effort `sendMessage`, only when the phone is
+/// reachable). It lets the phone mirror the session in real time — show live HR /
+/// calories / distance and auto-fill those fields — so when the workout stops the
+/// user never has to re-enter what the watch already tracked. `ended` marks the
+/// final sample sent at stop.
+public struct WatchLiveSample: Codable, Equatable {
+    public var activityId: String
+    public var kind: String              // WatchKind raw value
+    public var hr: Int                   // current bpm
+    public var avgHR: Int
+    public var maxHR: Int
+    public var kcal: Int                 // active energy so far
+    public var distanceKm: Double?
+    public var elapsedSec: Int
+    public var exercises: [WatchResultExercise]?   // per-set values logged so far
+    public var ended: Bool
+
+    public init(activityId: String, kind: String, hr: Int, avgHR: Int, maxHR: Int,
+                kcal: Int, distanceKm: Double?, elapsedSec: Int,
+                exercises: [WatchResultExercise]?, ended: Bool) {
+        self.activityId = activityId; self.kind = kind; self.hr = hr; self.avgHR = avgHR
+        self.maxHR = maxHR; self.kcal = kcal; self.distanceKm = distanceKm
+        self.elapsedSec = elapsedSec; self.exercises = exercises; self.ended = ended
+    }
+}
+
 // MARK: - Transport helpers
 // Both ends wrap a Codable payload in a `[String: Any]` dictionary under a known
 // key so the same dictionary works for sendMessage / transferUserInfo /
 // updateApplicationContext.
 public enum WatchWire {
-    public static let contextKey = "fittracker.ctx"   // phone -> watch
-    public static let resultKey  = "fittracker.result" // watch -> phone
+    public static let contextKey = "fittracker.ctx"    // phone -> watch (catalog)
+    public static let resultKey  = "fittracker.result" // watch -> phone (finished)
+    public static let liveKey    = "fittracker.live"   // watch -> phone (live telemetry)
+    public static let startKey   = "fittracker.start"  // phone -> watch (start activity id)
 
     public static func encode<T: Encodable>(_ value: T, key: String) -> [String: Any] {
         guard let data = try? JSONEncoder().encode(value) else { return [:] }

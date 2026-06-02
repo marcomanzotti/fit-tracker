@@ -20,6 +20,7 @@ struct FitTrackerWatchApp: App {
 // MARK: - Root: routes between the activity picker, the live workout and summary
 struct WatchRootView: View {
     @EnvironmentObject var workout: WorkoutManager
+    @EnvironmentObject var link: WatchLink
 
     var body: some View {
         ZStack {
@@ -32,6 +33,14 @@ struct WatchRootView: View {
             }
         }
         .animation(.easeInOut(duration: 0.2), value: workout.phase)
+        // The phone can ask the wrist to start a workout: launch the matching
+        // activity when we're idle, then clear the request.
+        .onReceive(link.$startRequest) { id in
+            guard let id, workout.phase == .idle,
+                  let a = link.activities.first(where: { $0.id == id }) else { return }
+            link.startRequest = nil
+            Task { await workout.start(a) }
+        }
     }
 }
 

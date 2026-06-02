@@ -230,10 +230,20 @@ extension Store {
         return ("BMI \(trimNum(b)) · \(std.0)", std.1)
     }
 
-    /// US-Navy body-fat estimate from neck & waist (cm).
-    func bfNavy(waist: Double?, neck: Double?) -> Double? {
-        guard let waist, let neck, waist > neck else { return nil }
-        let v = 86.010 * log10(waist - neck) - 70.041 * log10(prefs.height * 100) + 36.76
+    /// US-Navy body-fat estimate (cm). The men's and women's equations are
+    /// genuinely different: men use waist−neck; women use waist+hip−neck (the hip
+    /// term is required, so a woman with no hip measurement returns nil rather than
+    /// a wrong male-formula number). This was previously male-only for everyone.
+    func bfNavy(waist: Double?, neck: Double?, hip: Double? = nil) -> Double? {
+        let h = prefs.height * 100                       // height in cm
+        guard let waist, let neck, waist > neck, h > 0 else { return nil }
+        let v: Double
+        if prefs.sex_ == "f" {
+            guard let hip, (waist + hip) > neck else { return nil }
+            v = 163.205 * log10(waist + hip - neck) - 97.684 * log10(h) - 78.387
+        } else {
+            v = 86.010 * log10(waist - neck) - 70.041 * log10(h) + 36.76
+        }
         return (v * 10).rounded() / 10
     }
 
@@ -468,7 +478,7 @@ extension Store {
     // MARK: Daily nutrition & recovery
     func saveDailyExtras(kcal: Int? = nil, protein: Double? = nil, carbs: Double? = nil,
                          fat: Double? = nil, salt: Double? = nil, steps: Int? = nil,
-                         rmssd: Double? = nil, restHR: Int? = nil) {
+                         rmssd: Double? = nil, restHR: Int? = nil, sleepHR: Int? = nil) {
         let day = today()
         var e = daily.first(where: { $0.date == day }) ?? DailyEntry(date: day)
         if let kcal { e.kcal = kcal }
@@ -479,6 +489,7 @@ extension Store {
         if let steps { e.steps = steps }
         if let rmssd { e.rmssd = rmssd }
         if let restHR { e.restHR = restHR }
+        if let sleepHR { e.sleepHR = sleepHR }
         daily.removeAll { $0.date == day }
         daily.append(e)
     }
@@ -580,6 +591,8 @@ extension Store {
             if e.hrvSDNN == nil, let v = s.hrvSDNN, v > 0 { e.hrvSDNN = v }
             if e.activeKcal == nil, let v = s.activeKcal, v > 0 { e.activeKcal = v }
             if e.exerciseMin == nil, let v = s.exerciseMin, v > 0 { e.exerciseMin = v }
+            if e.sleepHours == nil, let v = s.sleepHours, v > 0 { e.sleepHours = v }
+            if e.sleepHR == nil, let v = s.sleepHR, v > 0 { e.sleepHR = v }
             daily.removeAll { $0.date == s.date }
             daily.append(e)
         }
@@ -612,8 +625,11 @@ extension Store {
             if overlaps { continue }
 
             let sportType = Sport(rawValue: w.sport) ?? .other
+            // Imported Health workouts are normal sessions but get Apple's workout
+            // green so they read as "from Apple Health" on the calendar. They never
+            // create Train-page cards (those come from plans/cardio types only).
             var s = WorkoutSession(date: w.date, planId: "health-\(w.sport)",
-                                   planName: sportType.label, planColor: sportType.color)
+                                   planName: sportType.label, planColor: Theme.appleGreen)
             s.sport = isStrength ? nil : w.sport
             s.durationSec = w.durationSec > 0 ? w.durationSec : nil
             s.avgHR = (w.avgHR ?? 0) > 0 ? w.avgHR : nil
@@ -643,7 +659,7 @@ extension Store {
         let sportType = Sport(rawValue: p.sport) ?? .other
         let isStrength = p.sport == "strength"
         var s = WorkoutSession(date: p.date, planId: "file-\(p.sport)",
-                               planName: sportType.label, planColor: sportType.color)
+                               planName: sportType.label, planColor: Theme.appleGreen)
         s.sport = isStrength ? nil : p.sport
         s.durationSec = p.durationSec > 0 ? p.durationSec : nil
         s.avgHR = (p.avgHR ?? 0) > 0 ? p.avgHR : nil
@@ -664,11 +680,13 @@ extension Store {
         guard hk.isAvailable else { completion?(false, 0, []); return }
         hk.requestAuthorization { granted in
             guard granted else { completion?(false, 0, []); return }
-            hk.fetch(days: days) { samples in
+            hk.fetch(days: days, categories: self.prefs.healthCategories) { samples in
                 self.applyHealthSamples(samples)
                 // Keep resting HR profile fresh from the most recent reading.
                 if let last = samples.compactMap({ $0.restHR }).last, last > 0 { self.prefs.restingHR = last }
-                // Import workouts from any paired watch (Garmin/Fitbit/Polar/…).
+                // Importing past workouts from other watches is opt-in (formats
+                // don't always translate cleanly), so honor the user's choice.
+                guard self.prefs.importWorkoutsEnabled else { completion?(true, 0, []); return }
                 hk.fetchWorkouts(days: days) { workouts in
                     let r = self.applyHealthWorkouts(workouts)
                     completion?(true, r.count, r.sources)
@@ -801,14 +819,19 @@ extension Store {
     }
 
     /// Auto-save an exercise the first time it is used; update its bodyweight flag.
+    /// On first save it also gets a suggested movement family (base) and a guessed
+    /// muscle-group category, both of which the user can later override.
     @discardableResult
     func touchExerciseInLibrary(_ name: String, isBodyweight: Bool = false) -> ExerciseItem {
         if let i = exerciseItems.firstIndex(where: { $0.name == name }) {
             exerciseItems[i].lastUsed = today()
             if isBodyweight { exerciseItems[i].isBodyweight = true }
+            if exerciseItems[i].base == nil { exerciseItems[i].base = Store.normalizedBase(name) }
+            if exerciseItems[i].category == nil { exerciseItems[i].category = Store.guessCategory(name).rawValue }
             return exerciseItems[i]
         }
-        let item = ExerciseItem(name: name, isBodyweight: isBodyweight, lastUsed: today())
+        let item = ExerciseItem(name: name, isBodyweight: isBodyweight, lastUsed: today(),
+                                base: Store.normalizedBase(name), category: Store.guessCategory(name).rawValue)
         exerciseItems.append(item)
         return item
     }
@@ -822,6 +845,85 @@ extension Store {
         }
     }
 
+    /// Set the movement family + muscle-group for an exercise (creates the library
+    /// entry if needed). Empty base => the exercise is its own family.
+    func setExerciseFamily(_ name: String, base: String?, category: String?) {
+        let cleanBase = base?.trimmingCharacters(in: .whitespaces)
+        if let i = exerciseItems.firstIndex(where: { $0.name == name }) {
+            exerciseItems[i].base = (cleanBase?.isEmpty ?? true) ? Store.normalizedBase(name) : cleanBase
+            if let category { exerciseItems[i].category = category }
+        } else {
+            exerciseItems.append(ExerciseItem(name: name, lastUsed: today(),
+                                              base: (cleanBase?.isEmpty ?? true) ? Store.normalizedBase(name) : cleanBase,
+                                              category: category ?? Store.guessCategory(name).rawValue))
+        }
+    }
+
+    /// The movement family an exercise rolls up to (its saved base, else a
+    /// normalized form of the name).
+    func exerciseBase(_ name: String) -> String {
+        if let item = exerciseItems.first(where: { $0.name == name }), let b = item.base, !b.isEmpty { return b }
+        return Store.normalizedBase(name)
+    }
+
+    /// The muscle-group key for an exercise (saved category, else a guess).
+    func exerciseCategory(_ name: String) -> String {
+        if let item = exerciseItems.first(where: { $0.name == name }), let c = item.category, !c.isEmpty { return c }
+        return Store.guessCategory(name).rawValue
+    }
+
+    /// Strip common grip / variation qualifiers so variants of one movement share a
+    /// family by default (e.g. "Wide-grip lat pulldown" -> "Lat pulldown"). The
+    /// result is title-cased; the user can always edit the family afterwards.
+    static func normalizedBase(_ name: String) -> String {
+        var s = " " + name.lowercased() + " "
+        let qualifiers = ["wide-grip", "wide grip", "close-grip", "close grip", "narrow-grip",
+                          "narrow grip", "neutral-grip", "neutral grip", "reverse-grip", "reverse grip",
+                          "rear-delt", "rear delt", "single-arm", "single arm", "one-arm", "one arm",
+                          "wide", "close", "narrow"]
+        for q in qualifiers { s = s.replacingOccurrences(of: " \(q) ", with: " ") }
+        let cleaned = s.replacingOccurrences(of: "  ", with: " ").trimmingCharacters(in: .whitespaces)
+        guard !cleaned.isEmpty else { return name }
+        return cleaned.prefix(1).uppercased() + cleaned.dropFirst()
+    }
+
+    /// Best-effort muscle-group from the exercise name's keywords.
+    static func guessCategory(_ name: String) -> MuscleGroup {
+        let n = name.lowercased()
+        func has(_ ks: [String]) -> Bool { ks.contains { n.contains($0) } }
+        if has(["squat", "leg press", "leg curl", "leg extension", "lunge", "calf", "hamstring",
+                "quad", "glute", "rdl", "romanian", "hip thrust"]) { return .legs }
+        if has(["bench", "chest", "fly", "pec", "push-up", "push up", "dip"]) { return .chest }
+        if has(["row", "pulldown", "pull-up", "pull up", "chin-up", "lat ", "deadlift", "pull-over", "back extension"]) { return .back }
+        if has(["shoulder", "lateral raise", "delt", "overhead press", "ohp", "upright row", "face pull", "shrug"]) { return .shoulders }
+        if has(["curl", "triceps", "biceps", "pushdown", "skull", "preacher", "hammer", "forearm"]) { return .arms }
+        if has(["plank", "crunch", "ab ", "abs", "core", "sit-up", "sit up", "leg raise", "russian twist"]) { return .core }
+        if has(["run", "cycl", "bike", "swim", "walk", "row erg", "rowing", "elliptical", "jump rope"]) { return .cardio }
+        return .other
+    }
+
+    /// A movement family (base) grouping all of its variant exercise names.
+    struct ExFamily: Identifiable {
+        var base: String
+        var category: String       // MuscleGroup raw value
+        var names: [String]
+        var id: String { base }
+    }
+
+    /// Every known exercise (plans + library) grouped into movement families,
+    /// each tagged with a muscle-group, sorted by most-recently-used name.
+    func exerciseFamilies() -> [ExFamily] {
+        var byBase: [String: (cat: String, names: [String])] = [:]
+        for (_, name) in allExerciseNames() where !name.isEmpty {
+            let base = exerciseBase(name)
+            var entry = byBase[base] ?? (exerciseCategory(name), [])
+            if !entry.names.contains(name) { entry.names.append(name) }
+            byBase[base] = entry
+        }
+        return byBase.map { ExFamily(base: $0.key, category: $0.value.cat, names: $0.value.names) }
+            .sorted { $0.base.localizedCaseInsensitiveCompare($1.base) == .orderedAscending }
+    }
+
     struct ExPoint { var date: String; var maxW: Double; var vol: Double }
     func exerciseHistory(_ name: String) -> [ExPoint] {
         sessions.filter { s in s.exercises.contains { $0.name == name } }
@@ -829,6 +931,21 @@ extension Store {
             .map { s in
                 let ex = s.exercises.first { $0.name == name }!
                 return ExPoint(date: fmtShort(s.date), maxW: ex.maxWeight, vol: ex.volume.rounded())
+            }
+    }
+
+    /// History aggregated over every variant in a movement family: per session the
+    /// max weight across variants and the summed volume.
+    func exerciseHistory(family base: String) -> [ExPoint] {
+        let names = Set(exerciseItems.filter { exerciseBase($0.name) == base }.map { $0.name })
+            .union(plans.flatMap { $0.exercises.map { $0.name } }.filter { exerciseBase($0) == base })
+        return sessions.filter { s in s.exercises.contains { names.contains($0.name) } }
+            .sorted { $0.date < $1.date }
+            .map { s in
+                let exs = s.exercises.filter { names.contains($0.name) }
+                let maxW = exs.map { $0.maxWeight }.max() ?? 0
+                let vol = exs.reduce(0.0) { $0 + $1.volume }
+                return ExPoint(date: fmtShort(s.date), maxW: maxW, vol: vol.rounded())
             }
     }
 
@@ -841,15 +958,17 @@ extension Store {
     /// Effective body-fat %: manual override wins, otherwise Navy estimate.
     var currentBF: Double? {
         guard let bl = bodyLatest else { return nil }
-        return bl.bfManual ?? bfNavy(waist: bl.waist, neck: bl.neck)
+        return bl.bfManual ?? bfNavy(waist: bl.waist, neck: bl.neck, hip: bl.hips)
     }
 
     // MARK: Mutations
-    func saveCheckIn(weight: Double?, sleep: Int?) {
+    func saveCheckIn(weight: Double?, sleep: Int?, restHR: Int? = nil, sleepHR: Int? = nil) {
         let t = today()
         var entry = daily.first(where: { $0.date == t }) ?? DailyEntry(date: t)
         if let weight { entry.weight = weight }
         if let sleep { entry.sleep = sleep }
+        if let restHR { entry.restHR = restHR }
+        if let sleepHR { entry.sleepHR = sleepHR }
         daily.removeAll { $0.date == t }
         daily.append(entry)
     }

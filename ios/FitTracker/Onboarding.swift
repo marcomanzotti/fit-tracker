@@ -280,6 +280,8 @@ struct SettingsView: View {
     @State private var hkOn: Bool
     @State private var unitSys: String
     @State private var showGuide = false
+    @State private var healthCats: Set<String>
+    @State private var importWk: Bool
 
     init(store: Store) {
         _f = State(initialValue: ProfileFields(store.prefs, currentWeight: store.lastWeight))
@@ -287,6 +289,8 @@ struct SettingsView: View {
         _timerSec = State(initialValue: String(store.prefs.timer))
         _hkOn = State(initialValue: store.prefs.healthKitEnabled)
         _unitSys = State(initialValue: store.prefs.imperial ? "imperial" : "metric")
+        _healthCats = State(initialValue: store.prefs.healthCategories)
+        _importWk = State(initialValue: store.prefs.importWorkoutsEnabled)
     }
 
     var body: some View {
@@ -357,9 +361,36 @@ struct SettingsView: View {
                         Text(t("hk.connected").uppercased()).font(.head(11, .semibold)).tracking(0.5).foregroundColor(Theme.good)
                         Spacer()
                         GhostButton(title: t("hk.sync"), color: Theme.acc) {
+                            // Persist the current selection before syncing so the
+                            // pull respects exactly what's toggled on right now.
+                            store.prefs.healthImport = Array(healthCats)
+                            store.prefs.importWorkouts = importWk
                             store.syncHealth { ok, n, sources in if ok { toast.show(syncMsg(n, sources)) } }
                         }
                     }
+                    Spacer().frame(height: 12)
+                    Text(t("hk.choose").uppercased()).font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
+                        .padding(.bottom, 8)
+                    ForEach(HealthCategory.allCases) { cat in
+                        Toggle(isOn: Binding(
+                            get: { healthCats.contains(cat.rawValue) },
+                            set: { on in if on { healthCats.insert(cat.rawValue) } else { healthCats.remove(cat.rawValue) } }
+                        )) {
+                            HStack(spacing: 8) {
+                                Image(systemName: cat.icon).font(.system(size: 12)).foregroundColor(Theme.acc2).frame(width: 18)
+                                Text(t(cat.labelKey)).font(.system(size: 13)).foregroundColor(Theme.txt)
+                            }
+                        }
+                        .tint(Theme.acc)
+                    }
+                    Rectangle().fill(Theme.brd).frame(height: 1).padding(.vertical, 10)
+                    Toggle(isOn: $importWk) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(t("hk.import_workouts")).font(.system(size: 13, weight: .medium)).foregroundColor(Theme.txt)
+                            Text(t("hk.import_workouts_hint")).font(.system(size: 10)).foregroundColor(Theme.sub)
+                        }
+                    }
+                    .tint(Theme.acc)
                 } else {
                     FilledButton(title: t("hk.connect")) {
                         store.syncHealth { ok, n, sources in
@@ -394,6 +425,8 @@ struct SettingsView: View {
         f.apply(to: &p)
         p.sleepTracking = sleepTrack
         p.healthKit = hkOn
+        p.healthImport = Array(healthCats)
+        p.importWorkouts = importWk
         if let ts = Int(timerSec), ts > 0 { p.timer = ts }
         store.prefs = p
         store.syncLang()

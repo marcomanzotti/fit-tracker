@@ -8,6 +8,7 @@ struct HomeView: View {
 
     @State private var weightInput = ""
     @State private var sleepInput = ""
+    @State private var hrInput = ""
     @State private var shareURL: IdentURL?
     @State private var editingGoal = false
     // "This week" day logging: a picker for empty days, then the session editor.
@@ -135,9 +136,31 @@ struct HomeView: View {
                 }
             }
             .padding(.bottom, 10)
+            HStack(spacing: 10) {
+                labeledFieldInfo(t("home.wake_hr").uppercased(), "58", $hrInput, info: "rmssd")
+                Spacer().frame(maxWidth: .infinity)
+            }
+            .padding(.bottom, 4)
+            if store.prefs.healthKitEnabled {
+                Text(t("home.health_autofill")).font(.system(size: 9)).foregroundColor(Theme.sub).padding(.bottom, 8)
+            } else {
+                Spacer().frame(height: 6)
+            }
             FilledButton(title: t("home.save_checkin")) { saveCheckIn() }
         }
         .overlay(RoundedRectangle(cornerRadius: Theme.radius).stroke(Theme.acc.opacity(0.3), lineWidth: 1))
+        .onAppear { prefillRecovery() }
+        .onReceive(store.$daily) { _ in prefillRecovery() }
+    }
+
+    /// Fill the recovery inputs (resting HR, sleep score) from today's entry —
+    /// which Apple Health gap-fills on launch — but only when a field is still
+    /// empty, so it never overwrites something the user is typing. Editable + the
+    /// user can re-save to override.
+    private func prefillRecovery() {
+        guard let e = store.daily.first(where: { $0.date == today() }) else { return }
+        if hrInput.isEmpty, let hr = e.restHR, hr > 0 { hrInput = "\(hr)" }
+        if sleepInput.isEmpty, let s = e.sleep, s > 0 { sleepInput = "\(s)" }
     }
 
     private var checkedInCard: some View {
@@ -165,13 +188,23 @@ struct HomeView: View {
         }
     }
 
+    private func labeledFieldInfo(_ label: String, _ ph: String, _ binding: Binding<String>, info: String) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            FieldLabel(label, info: info)
+            InputField(placeholder: ph, text: binding, keyboard: .numberPad)
+        }
+    }
+
     private func saveCheckIn() {
         let w = Units.wIn(pf(weightInput)), s = pf(sleepInput)   // input → kg
+        let hr = Int(hrInput) ?? 0
         let hasW = w >= 30 && w <= 250
         let hasS = s > 0 && s <= 100
-        guard hasW || hasS else { return }
-        store.saveCheckIn(weight: hasW ? w : nil, sleep: hasS ? Int(s.rounded()) : nil)
-        weightInput = ""; sleepInput = ""
+        let hasHR = hr >= 30 && hr <= 120
+        guard hasW || hasS || hasHR else { return }
+        store.saveCheckIn(weight: hasW ? w : nil, sleep: hasS ? Int(s.rounded()) : nil,
+                          restHR: hasHR ? hr : nil)
+        weightInput = ""; sleepInput = ""; hrInput = ""
         toast.show(t("home.checkin_saved"))
     }
 

@@ -16,6 +16,16 @@ import WatchConnectivity
 final class WatchSync: NSObject, ObservableObject {
     static let shared = WatchSync()
 
+    /// Latest live telemetry from a workout running on the watch (nil when none).
+    @Published var live: WatchLiveSample?
+    /// True while a watch workout is actively streaming.
+    @Published var liveActive = false
+    /// A finished watch workout for an activity whose phone live view is open, so
+    /// that view can fold it into the session it's about to save (no duplicate).
+    @Published var pendingResult: WatchResult?
+    /// Set by an open LiveWorkoutView to claim incoming watch data for its activity.
+    var openActivityId: String?
+
     private weak var store: Store?
     private var bag = Set<AnyCancellable>()
     private var activated = false
@@ -84,10 +94,62 @@ final class WatchSync: NSObject, ObservableObject {
         #endif
     }
 
-    /// Ingest a finished watch workout on the main thread.
+    /// Ask a reachable watch to start an activity (its plan/cardio id).
+    func startOnWatch(activityId: String) {
+        #if canImport(WatchConnectivity)
+        guard WCSession.isSupported() else { return }
+        let s = WCSession.default
+        guard s.activationState == .activated, s.isReachable else { return }
+        s.sendMessage([WatchWire.startKey: activityId], replyHandler: nil, errorHandler: nil)
+        #endif
+    }
+
+    /// Whether a reachable watch is available to receive a start command.
+    var watchReachable: Bool {
+        #if canImport(WatchConnectivity)
+        return WCSession.isSupported() && WCSession.default.isReachable
+        #else
+        return false
+        #endif
+    }
+
+    /// Whether a paired watch has the FitTracker companion installed (drives the
+    /// "Start on Watch" affordance). Stable enough to read at render time.
+    var watchAppAvailable: Bool {
+        #if canImport(WatchConnectivity)
+        guard WCSession.isSupported() else { return false }
+        let s = WCSession.default
+        return s.activationState == .activated && s.isPaired && s.isWatchAppInstalled
+        #else
+        return false
+        #endif
+    }
+
+    /// Route an inbound message: live telemetry updates the published sample; a
+    /// finished result is either handed to an open phone live view (to merge and
+    /// save once) or ingested straight into the store.
     private func handle(_ dict: [String: Any]) {
+        if let sample = WatchWire.decode(WatchLiveSample.self, from: dict, key: WatchWire.liveKey) {
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.live = sample
+                self.liveActive = !sample.ended
+            }
+            return
+        }
         guard let result = WatchWire.decode(WatchResult.self, from: dict, key: WatchWire.resultKey) else { return }
-        DispatchQueue.main.async { [weak self] in self?.store?.ingestWatchResult(result) }
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.live = nil
+            self.liveActive = false
+            if self.openActivityId == result.activityId {
+                // The phone is mid-session for this activity: let that view absorb
+                // the watch's numbers and save, so there's exactly one session.
+                self.pendingResult = result
+            } else {
+                self.store?.ingestWatchResult(result)
+            }
+        }
     }
 }
 

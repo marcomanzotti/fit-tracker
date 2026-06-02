@@ -508,10 +508,10 @@ enum L {
         "load.no_load_yet":  ("Inserisci durata + RPE (o FC) per vedere il carico", "Enter duration + RPE (or HR) to see load"),
 
         // --- Info popups (scientific metrics) -------------------------------
-        "info.readiness.title": ("Prontezza (HRV)", "Readiness (HRV)"),
+        "info.readiness.title": ("Prontezza", "Readiness"),
         "info.readiness.body": (
-            "Stima il recupero dalla variabilità della frequenza cardiaca (RMSSD) che inserisci ogni mattina. Lo confrontiamo con la tua media degli ultimi 60 giorni e calcoliamo uno z-score.\n\nPunteggio 0-100: 50 = nella tua norma. Sopra 70 puoi spingere, sotto 30 meglio andare leggero o riposare. Servono almeno 5 misurazioni per attivare la metrica.",
-            "Estimates recovery from the RMSSD heart-rate variability you log each morning. We compare it to your 60-day average as a z-score.\n\nScore 0-100: 50 = normal for you. Above 70 you can push hard, below 30 take it easy or rest. Needs at least 5 readings to activate."),
+            "Combina i tuoi segnali del mattino: HRV (RMSSD o SDNN, peso maggiore), frequenza a riposo/al risveglio (più bassa = meglio) e qualità del sonno. Ogni segnale viene confrontato con la tua media di ~60 giorni; usa solo quelli disponibili, quindi funziona anche con un dato solo.\n\nPunteggio 0-100: 50 = nella tua norma. Sopra 70 puoi spingere, sotto 30 meglio leggero o riposo. Più dati inserisci (o importi da Salute), più è affidabile.",
+            "Combines your morning signals: HRV (RMSSD or SDNN, weighted most), resting/waking heart rate (lower = better) and sleep. Each is compared to your ~60-day average, using only what's available — so it works even with a single signal.\n\nScore 0-100: 50 = normal for you. Above 70 you can push, below 30 go easy or rest. The more you log (or import from Health), the more reliable it gets."),
         "info.acwr.title": ("Carico acuto:cronico (ACWR)", "Acute:Chronic load (ACWR)"),
         "info.acwr.body": (
             "Confronta il carico recente (ultimi ~7 giorni) con quello abituale (ultimi ~28 giorni), entrambi con media mobile esponenziale. Il carico viene dal TRIMP, quindi serve FC media + durata.\n\nZona ottimale: 0,8–1,3. Sotto 0,8 stai detraining. Sopra 1,3 il rischio infortuni aumenta.",
@@ -666,6 +666,62 @@ enum L {
         // --- Stats / exercise search ----------------------------------------
         "st.search_ex":       ("Cerca esercizio", "Search exercise"),
         "st.all_exercises":   ("Tutti gli esercizi", "All exercises"),
+
+        // --- v8.1: recovery inputs, daily-metric history --------------------
+        "home.wake_hr":       ("FC riposo/risveglio", "Resting/waking HR"),
+        "home.health_autofill": ("Compilato da Apple Salute quando disponibile · modificabile",
+                                 "Filled from Apple Health when available · editable"),
+        "body.sleep_hr":      ("FC nel sonno", "Sleeping HR"),
+        "body.hips":          ("Fianchi", "Hips"),
+        "body.navy_need_hips": ("Aggiungi la misura dei fianchi per stimare il grasso (formula femminile Navy).",
+                                "Add your hip measurement to estimate body fat (women's Navy formula)."),
+        "st.steps_time":      ("Passi", "Steps"),
+        "st.hr_time":         ("Frequenza cardiaca", "Heart rate"),
+        "st.hrv_time":        ("HRV", "HRV"),
+        "st.rest_hr":         ("Riposo", "Resting"),
+        "st.sleep_hr":        ("Sonno", "Sleep"),
+
+        // --- v8.1: readiness factor chips -----------------------------------
+        "load.from":          ("Da", "From"),
+        "load.sig.hrv":       ("HRV", "HRV"),
+        "load.sig.hr":        ("FC", "HR"),
+        "load.sig.sleep":     ("Sonno", "Sleep"),
+
+        // --- v8.1: Apple Health categories ----------------------------------
+        "hk.choose":          ("Cosa importare", "What to import"),
+        "hk.import_workouts": ("Importa allenamenti passati", "Import past workouts"),
+        "hk.import_workouts_hint": ("Allenamenti registrati da altri orologi (Garmin, ecc.). I formati non sempre si convertono perfettamente.",
+                                    "Workouts recorded by other watches (Garmin, etc.). Formats don't always convert cleanly."),
+        "hk.cat.steps":       ("Passi", "Steps"),
+        "hk.cat.restHR":      ("FC a riposo", "Resting heart rate"),
+        "hk.cat.hrv":         ("HRV (SDNN)", "HRV (SDNN)"),
+        "hk.cat.sleep":       ("Sonno", "Sleep"),
+        "hk.cat.sleepHR":     ("FC nel sonno", "Sleeping heart rate"),
+        "hk.cat.activeKcal":  ("Energia attiva", "Active energy"),
+        "hk.cat.exerciseMin": ("Minuti di attività", "Exercise minutes"),
+
+        // --- v8.1: Apple Watch live sync ------------------------------------
+        "wk.watch_live":      ("In diretta da Apple Watch", "Live from Apple Watch"),
+        "wk.watch_synced":    ("Allenamento sincronizzato dall'orologio", "Workout synced from your watch"),
+        "wk.started_on_watch": ("Avviato su Apple Watch", "Started on Apple Watch"),
+        "wk.watch_unreachable": ("Apple Watch non raggiungibile", "Apple Watch not reachable"),
+
+        // --- v8.1: muscle groups + exercise families ------------------------
+        "mg.chest":           ("Petto", "Chest"),
+        "mg.back":            ("Schiena", "Back"),
+        "mg.legs":            ("Gambe", "Legs"),
+        "mg.shoulders":       ("Spalle", "Shoulders"),
+        "mg.arms":            ("Braccia", "Arms"),
+        "mg.core":            ("Core", "Core"),
+        "mg.fullbody":        ("Tutto il corpo", "Full body"),
+        "mg.cardio":          ("Cardio", "Cardio"),
+        "mg.other":           ("Altro", "Other"),
+        "st.variants":        ("varianti", "variants"),
+        "st.edit_family":     ("Famiglia esercizio", "Exercise family"),
+        "st.family_hint":     ("Le varianti che condividono la stessa famiglia hanno una sola linea di progressi. Cambia famiglia per unirle o separarle.",
+                               "Variants sharing a family share one progress line. Change the family to merge or split them."),
+        "st.family":          ("Famiglia (movimento base)", "Family (base movement)"),
+        "st.muscle":          ("Muscolo", "Muscle"),
     ]
 }
 

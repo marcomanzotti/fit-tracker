@@ -16,13 +16,14 @@ struct BodyView: View {
     @State private var stepsInput = ""
     @State private var rmssdInput = ""
     @State private var restHRInput = ""
+    @State private var sleepHRInput = ""
 
     var body: some View {
         let lw = store.lastWeight
         let bmi = store.bmi(lw)
         let cat = store.bmiComment(weight: lw)
         let bl = store.bodyLatest
-        let navy = store.bfNavy(waist: bl?.waist, neck: bl?.neck)
+        let navy = store.bfNavy(waist: bl?.waist, neck: bl?.neck, hip: bl?.hips)
         let bf = bl?.bfManual ?? navy
         let lean = bf.map { ((lw * (1 - $0 / 100)) * 10).rounded() / 10 }
         let fat = bf.map { ((lw * $0 / 100) * 10).rounded() / 10 }
@@ -47,18 +48,31 @@ struct BodyView: View {
             }.padding(.bottom, 10)
             HStack(spacing: 10) {
                 field("\(t("ob.rest_hr"))", "58", $restHRInput)
-                Spacer().frame(maxWidth: .infinity)
+                field(t("body.sleep_hr"), "52", $sleepHRInput)
             }.padding(.bottom, 10)
             Text(t("hk.optional_note")).font(.system(size: 10)).foregroundColor(Theme.sub).lineSpacing(2)
                 .padding(.bottom, 10)
             FilledButton(title: t("save")) {
                 store.saveDailyExtras(
                     kcal: nil, protein: nil, carbs: nil, fat: nil,
-                    steps: Int(stepsInput), rmssd: dOrNil(rmssdInput), restHR: Int(restHRInput))
-                stepsInput = ""; rmssdInput = ""; restHRInput = ""
+                    steps: Int(stepsInput), rmssd: dOrNil(rmssdInput),
+                    restHR: Int(restHRInput), sleepHR: Int(sleepHRInput))
+                stepsInput = ""; rmssdInput = ""; restHRInput = ""; sleepHRInput = ""
                 toast.show(t("save"))
             }
         }
+        .onAppear { prefillRecovery() }
+        .onReceive(store.$daily) { _ in prefillRecovery() }
+    }
+
+    /// Prefill recovery inputs from today's entry (Apple Health gap-fills these on
+    /// launch). Only fills empty fields, so it never clobbers what the user types.
+    private func prefillRecovery() {
+        guard let e = store.daily.first(where: { $0.date == today() }) else { return }
+        if stepsInput.isEmpty, let v = e.steps, v > 0 { stepsInput = "\(v)" }
+        if rmssdInput.isEmpty, let v = e.rmssd, v > 0 { rmssdInput = trimNum(v) }
+        if restHRInput.isEmpty, let v = e.restHR, v > 0 { restHRInput = "\(v)" }
+        if sleepHRInput.isEmpty, let v = e.sleepHR, v > 0 { sleepHRInput = "\(v)" }
     }
 
     private func dOrNil(_ s: String) -> Double? { s.isEmpty ? nil : pf(s) }
@@ -95,7 +109,7 @@ struct BodyView: View {
                 StatTile(label: "BMI", value: trimNum(bmi), valueColor: cat.color,
                          note: cat.text.replacingOccurrences(of: "BMI \(trimNum(bmi)) · ", with: ""), info: "bmi")
                 StatTile(label: t("body.fat"), value: bf.map(trimNum) ?? "—", unit: bf != nil ? "%" : nil,
-                         valueColor: bfCat?.color ?? Theme.red,
+                         valueColor: Theme.fat,
                          note: bfCat.map { t($0.key) } ?? "\(t("body.goal")) \(trimNum(store.prefs.goalBF))%", info: "bodyfat")
                 StatTile(label: t("body.lean"), value: lean.map(dispW) ?? "—", unit: lean != nil ? Units.wLabel : nil,
                          valueColor: Theme.blue, note: fat != nil ? "\(dispW(fat!))\(Units.wLabel) \(t("body.fat"))" : "—", info: "bodyfat")
@@ -109,7 +123,7 @@ struct BodyView: View {
                         Spacer()
                         Text("\(t("body.lean")) \(dispW(lean)) \(Units.wLabel)").font(.system(size: 10, weight: .semibold)).foregroundColor(Theme.sub)
                     }
-                    Bar(value: min(1, bf / 100), gradient: [Theme.red, Theme.acc2], height: 9)
+                    Bar(value: min(1, bf / 100), gradient: [Theme.fat, Theme.fat.opacity(0.6)], height: 9)
                 }
                 .padding(.bottom, 12)
             }
@@ -126,8 +140,12 @@ struct BodyView: View {
                 .frame(width: 90)
             }
             if let navy {
-                Text("Navy: \(trimNum(navy))% · \(t("body.neck")) \(bl?.neck.map(dispLen) ?? "?") · \(t("body.waist")) \(bl?.waist.map(dispLen) ?? "?") \(Units.lenLabel)")
+                let hipPart = store.prefs.sex_ == "f" ? " · \(t("body.hips")) \(bl?.hips.map(dispLen) ?? "?")" : ""
+                Text("Navy: \(trimNum(navy))% · \(t("body.neck")) \(bl?.neck.map(dispLen) ?? "?") · \(t("body.waist")) \(bl?.waist.map(dispLen) ?? "?")\(hipPart) \(Units.lenLabel)")
                     .font(.system(size: 10)).foregroundColor(Theme.sub).padding(.top, 8)
+            } else if store.prefs.sex_ == "f", bl?.waist != nil, bl?.neck != nil, bl?.hips == nil {
+                // Women's Navy estimate needs the hip measurement — tell the user.
+                Text(t("body.navy_need_hips")).font(.system(size: 10)).foregroundColor(Theme.acc2).padding(.top, 8)
             }
         }
     }

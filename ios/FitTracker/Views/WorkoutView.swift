@@ -72,8 +72,10 @@ struct WorkoutView: View {
 
             // Eager (non-lazy) grid: with only a handful of days a LazyVGrid's
             // height estimate is wrong, which made the page jitter and let the
-            // calendar below overlap the cards while scrolling.
-            eagerGrid(store.plans.map { DayCell.plan($0) } + [.add]) { cell in
+            // calendar below overlap the cards while scrolling. Past 6 cells it
+            // becomes a horizontally swipeable pager (3 rows × 2 cols per page) so
+            // the page never grows into endless vertical scrolling.
+            pagedGrid(store.plans.map { DayCell.plan($0) } + [.add], rowHeight: 130) { cell in
                 switch cell {
                 case .plan(let p): dayCard(p)
                 case .add:         addCard
@@ -104,6 +106,32 @@ struct WorkoutView: View {
         }
     }
 
+    /// Up to 6 cells (3 rows × 2 cols) shown at once. With more, it becomes a
+    /// horizontally swipeable pager so the Train page never scrolls endlessly.
+    @ViewBuilder
+    private func pagedGrid<C: Identifiable, V: View>(_ cells: [C], rowHeight: CGFloat,
+                                                     @ViewBuilder _ cell: @escaping (C) -> V) -> some View {
+        if cells.count <= 6 {
+            eagerGrid(cells, cell)
+        } else {
+            let pages = stride(from: 0, to: cells.count, by: 6).map { Array(cells[$0..<min($0 + 6, cells.count)]) }
+            // Fixed page height (3 rows + gaps) so the page-style TabView lays out
+            // correctly inside the outer vertical ScrollView; +28 leaves room for
+            // the page dots.
+            let pageHeight = rowHeight * 3 + 11 * 2
+            TabView {
+                ForEach(pages.indices, id: \.self) { p in
+                    VStack(spacing: 0) {
+                        eagerGrid(pages[p], cell)
+                        Spacer(minLength: 0)
+                    }
+                }
+            }
+            .tabViewStyle(.page(indexDisplayMode: .always))
+            .frame(height: pageHeight + 28)
+        }
+    }
+
     // MARK: Cardio activities (saveable, customizable like strength days)
     private var cardioSection: some View {
         VStack(spacing: 11) {
@@ -122,7 +150,7 @@ struct WorkoutView: View {
                     .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Theme.blue, lineWidth: 1))
                 }
             }
-            eagerGrid(store.cardioTypes.map { CardioCell.type($0) } + [.add]) { cell in
+            pagedGrid(store.cardioTypes.map { CardioCell.type($0) } + [.add], rowHeight: 112) { cell in
                 switch cell {
                 case .type(let ct): cardioTile(ct)
                 case .add:          addCardioTile
@@ -218,18 +246,43 @@ struct WorkoutView: View {
             }
             .buttonStyle(.plain)
 
-            Button { tap(); editPlan(p) } label: {
-                HStack(spacing: 3) {
-                    Image(systemName: "pencil").font(.system(size: 10, weight: .bold))
-                    Text(t("wk.edit").uppercased()).font(.head(8, .semibold)).tracking(0.5)
+            HStack(spacing: 6) {
+                // Start this workout on a paired Apple Watch (it then tracks live
+                // and streams back to the phone — no manual re-entry at the end).
+                if WatchSync.shared.watchAppAvailable {
+                    Button { tap(); startOnWatch(p) } label: {
+                        Image(systemName: "applewatch")
+                            .font(.system(size: 11, weight: .bold)).foregroundColor(Theme.bg)
+                            .frame(width: 28, height: 22)
+                            .background(Color(hex: p.color)).clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
                 }
-                .foregroundColor(Theme.bg)
-                .padding(.vertical, 4).padding(.horizontal, 7)
-                .background(Color(hex: p.color))
-                .clipShape(Capsule())
+                Button { tap(); editPlan(p) } label: {
+                    HStack(spacing: 3) {
+                        Image(systemName: "pencil").font(.system(size: 10, weight: .bold))
+                        Text(t("wk.edit").uppercased()).font(.head(8, .semibold)).tracking(0.5)
+                    }
+                    .foregroundColor(Theme.bg)
+                    .padding(.vertical, 4).padding(.horizontal, 7)
+                    .background(Color(hex: p.color))
+                    .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
             .padding(7)
+        }
+    }
+
+    /// Ask a paired watch to start this workout; the user then trains on the wrist
+    /// while the phone mirrors it live.
+    private func startOnWatch(_ p: WorkoutPlan) {
+        if WatchSync.shared.watchReachable {
+            WatchSync.shared.startOnWatch(activityId: p.id)
+            start(p)                                    // open the phone mirror too
+            toast.show(t("wk.started_on_watch"))
+        } else {
+            toast.show(t("wk.watch_unreachable"))
         }
     }
 
@@ -330,14 +383,22 @@ struct WorkoutView: View {
         } else {
             store.plans.append(p)
         }
-        editing = nil
-        toast.show(isNew ? t("wk.day_created") : t("wk.day_updated"))
+        let created = isNew
+        // Tear the editor down on the next runloop tick: clearing `editing` (which
+        // swaps PlanEditorView out for the grid) synchronously inside the Save
+        // action mutates state mid-render and can crash the editor's bindings.
+        DispatchQueue.main.async {
+            editing = nil
+            toast.show(created ? t("wk.day_created") : t("wk.day_updated"))
+        }
     }
 
     private func deletePlan() {
         guard let p = editing else { return }
         store.plans.removeAll { $0.id == p.id }
-        editing = nil
-        toast.show(t("wk.day_deleted"))
+        DispatchQueue.main.async {
+            editing = nil
+            toast.show(t("wk.day_deleted"))
+        }
     }
 }

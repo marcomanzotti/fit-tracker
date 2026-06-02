@@ -9,6 +9,7 @@ struct LiveWorkoutView: View {
     @EnvironmentObject var store: Store
     @EnvironmentObject var timer: RestTimer
     @EnvironmentObject var toast: ToastCenter
+    @ObservedObject private var watch = WatchSync.shared
 
     @State private var addName = ""
     @State private var showNotes: Set<UUID> = []
@@ -23,10 +24,11 @@ struct LiveWorkoutView: View {
     var body: some View {
         VStack(spacing: 11) {
             backRow
+            if isWatchLive { watchLiveBanner }
             if let last = lastSess { lastSessionBlock(last) }
 
-            ForEach(log.indices, id: \.self) { i in
-                exerciseCard(i)
+            ForEach($log) { $ex in
+                exerciseCard($ex)
             }
 
             addExerciseCard
@@ -35,6 +37,77 @@ struct LiveWorkoutView: View {
 
             BigButton(title: saved ? t("wk.saved") : t("wk.save_session"), color: saved ? Theme.good : Theme.acc) {
                 saveSession()
+            }
+        }
+        // Claim this activity so a workout finished on the watch folds into THIS
+        // session instead of creating a duplicate, and stream-fill live as it runs.
+        .onAppear { watch.openActivityId = plan.id; if let s = watch.live { applyLive(s) } }
+        .onDisappear { if watch.openActivityId == plan.id { watch.openActivityId = nil } }
+        .onReceive(watch.$live) { if let s = $0 { applyLive(s) } }
+        .onReceive(watch.$pendingResult) { if let r = $0 { applyResult(r) } }
+    }
+
+    // MARK: Live-from-watch mirroring
+    private var isWatchLive: Bool { watch.liveActive && watch.live?.activityId == plan.id }
+
+    private var watchLiveBanner: some View {
+        let s = watch.live
+        return HStack(spacing: 14) {
+            HStack(spacing: 6) {
+                Circle().fill(Theme.red).frame(width: 7, height: 7)
+                Text(t("wk.watch_live").uppercased()).font(.head(10, .bold)).tracking(1).foregroundColor(Theme.txt)
+            }
+            Spacer()
+            if let s {
+                if s.hr > 0 { liveStat("\(s.hr)", "bpm", Theme.red) }
+                liveStat(fmtDuration(s.elapsedSec), "", Theme.txt)
+                if s.kcal > 0 { liveStat("\(s.kcal)", "kcal", Theme.acc) }
+            }
+        }
+        .padding(.vertical, 11).padding(.horizontal, 14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Theme.red.opacity(0.07))
+        .overlay(alignment: .leading) { Rectangle().fill(Theme.red).frame(width: 2) }
+        .clipShape(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous))
+    }
+
+    private func liveStat(_ v: String, _ unit: String, _ color: Color) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 3) {
+            Text(v).font(.num(16)).foregroundColor(color)
+            if !unit.isEmpty { Text(unit).font(.system(size: 9, weight: .semibold)).foregroundColor(Theme.sub) }
+        }
+    }
+
+    /// Mirror live telemetry into the session fields — only filling values the user
+    /// hasn't typed, so manual edits always win.
+    private func applyLive(_ s: WatchLiveSample) {
+        guard s.activityId == plan.id else { return }
+        if sessAvgHR.isEmpty, s.avgHR > 0 { sessAvgHR = "\(s.avgHR)" }
+        if (sessDurationSec ?? 0) == 0, s.elapsedSec > 0 { sessDurationSec = s.elapsedSec }
+        if let exs = s.exercises { mergeWatchExercises(exs) }
+    }
+
+    /// Fold the finished watch workout into this open session, then let the user
+    /// review and save — no manual re-entry of what the wrist already tracked.
+    private func applyResult(_ r: WatchResult) {
+        guard r.activityId == plan.id else { return }
+        if sessAvgHR.isEmpty, let hr = r.avgHR, hr > 0 { sessAvgHR = "\(hr)" }
+        if (sessDurationSec ?? 0) == 0, r.durationSec > 0 { sessDurationSec = r.durationSec }
+        if sessCalManual.isEmpty, let k = r.activeKcal, k > 0 { sessCalManual = "\(k)" }
+        if let exs = r.exercises { mergeWatchExercises(exs) }
+        watch.pendingResult = nil
+        toast.show(t("wk.watch_synced"))
+    }
+
+    /// Fill empty set fields from the wrist's per-set values (never overwrites).
+    private func mergeWatchExercises(_ exs: [WatchResultExercise]) {
+        for we in exs {
+            guard let li = log.firstIndex(where: { $0.name == we.name }) else { continue }
+            let n = max(we.reps.count, we.weight.count)
+            while log[li].sets.count < n { log[li].sets.append(SetEntry()) }
+            for j in 0..<n where j < log[li].sets.count {
+                if log[li].sets[j].reps.isEmpty, j < we.reps.count, pf(we.reps[j]) > 0 { log[li].sets[j].reps = we.reps[j] }
+                if log[li].sets[j].weight.isEmpty, j < we.weight.count, pf(we.weight[j]) > 0 { log[li].sets[j].weight = we.weight[j] }
             }
         }
     }
@@ -152,8 +225,8 @@ struct LiveWorkoutView: View {
     }
 
     // MARK: Exercise card
-    private func exerciseCard(_ i: Int) -> some View {
-        let ex = log[i]
+    private func exerciseCard(_ exB: Binding<LoggedExercise>) -> some View {
+        let ex = exB.wrappedValue
         let bw = ex.bodyweight
         let pr = store.exercisePR(ex.name)
         let prevEx = lastSess?.exercises.first { $0.name == ex.name }
@@ -226,7 +299,7 @@ struct LiveWorkoutView: View {
             }
 
             // Effort scale selector
-            effortSelector(i)
+            EffortModeSelector(effortMode: exB.effortMode)
                 .padding(.bottom, 8)
 
             // Column headers
@@ -241,8 +314,8 @@ struct LiveWorkoutView: View {
             }
             .padding(.bottom, 6)
 
-            ForEach(log[i].sets.indices, id: \.self) { j in
-                setRow(i, j, pr: pr, bw: bw, effortScale: effortScale)
+            ForEach($exB.sets) { $set in
+                setRow($set, in: exB, pr: pr, bw: bw, effortScale: effortScale)
             }
 
             // Bodyweight hint
@@ -253,14 +326,14 @@ struct LiveWorkoutView: View {
             // Footer controls
             HStack {
                 HStack(spacing: 8) {
-                    GhostButton(title: t("wk.add_set")) { log[i].sets.append(SetEntry()) }
+                    GhostButton(title: t("wk.add_set")) { exB.wrappedValue.sets.append(SetEntry()) }
                     GhostButton(title: "\(t("wk.timer")) \(store.prefs.timer)s", color: Theme.blue) { timer.start(store.prefs.timer) }
                 }
                 Spacer()
-                if log[i].volume > 0 {
+                if ex.volume > 0 {
                     let volLabel = bw
-                        ? "\(t("wk.max")) +\(trimNum(log[i].maxWeight)) kg"
-                        : "\(t("wk.vol")) \(Int(log[i].volume)) · \(t("wk.max")) \(trimNum(log[i].maxWeight)) kg"
+                        ? "\(t("wk.max")) +\(trimNum(ex.maxWeight)) kg"
+                        : "\(t("wk.vol")) \(Int(ex.volume)) · \(t("wk.max")) \(trimNum(ex.maxWeight)) kg"
                     Text(volLabel).font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.sub)
                 }
             }
@@ -268,7 +341,7 @@ struct LiveWorkoutView: View {
 
             // Notes
             if showNotes.contains(ex.id) {
-                TextField("", text: $log[i].notes, prompt: Text(t("wk.note_ph")).foregroundColor(Theme.sub), axis: .vertical)
+                TextField("", text: exB.notes, prompt: Text(t("wk.note_ph")).foregroundColor(Theme.sub), axis: .vertical)
                     .lineLimit(2...4)
                     .font(.system(size: 13)).foregroundColor(Theme.txt)
                     .padding(.vertical, 10).padding(.horizontal, 14)
@@ -288,24 +361,23 @@ struct LiveWorkoutView: View {
         }
     }
 
-    private func setRow(_ i: Int, _ j: Int, pr: Double, bw: Bool, effortScale: EffortMode?) -> some View {
-        let w = pf(log[i].sets[j].weight)
+    private func setRow(_ set: Binding<SetEntry>, in exB: Binding<LoggedExercise>,
+                        pr: Double, bw: Bool, effortScale: EffortMode?) -> some View {
+        let id = set.wrappedValue.id
+        let idx = exB.wrappedValue.sets.firstIndex(where: { $0.id == id }) ?? 0
+        let w = pf(set.wrappedValue.weight)
         let isPR = w > pr && w > 0
-        let effortVal = Binding<String>(
-            get: { log[i].sets[j].effortVal.map { "\($0)" } ?? "" },
-            set: { log[i].sets[j].effortVal = Int($0) }
-        )
         return HStack(spacing: 9) {
-            Text("S\(j + 1)").font(.num(11)).foregroundColor(Theme.sub).frame(width: 28)
-            SmallNumField(text: $log[i].sets[j].reps, highlight: isPR)
-            SmallNumField(text: $log[i].sets[j].weight, highlight: isPR && !bw)
+            Text("S\(idx + 1)").font(.num(11)).foregroundColor(Theme.sub).frame(width: 28)
+            SmallNumField(text: set.reps, highlight: isPR)
+            SmallNumField(text: set.weight, highlight: isPR && !bw)
             if let scale = effortScale {
-                effortField(scale, binding: effortVal)
+                EffortField(scale: scale, value: set.effortVal)
             }
             if isPR && !bw {
                 Text("PR").font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.acc)
             } else {
-                Button { tap(); log[i].sets.remove(at: j) } label: {
+                Button { tap(); exB.wrappedValue.sets.removeAll { $0.id == id } } label: {
                     Image(systemName: "xmark").font(.system(size: 13)).foregroundColor(Theme.red.opacity(0.5))
                         .frame(width: 34, height: 42)
                 }.buttonStyle(.plain)
@@ -315,57 +387,6 @@ struct LiveWorkoutView: View {
         .padding(.vertical, 2)
         .background(isPR && !bw ? Theme.acc.opacity(0.05) : .clear)
         .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-    }
-
-    @ViewBuilder
-    private func effortField(_ scale: EffortMode, binding: Binding<String>) -> some View {
-        switch scale {
-        case .rir, .rpe:
-            SmallNumField(text: binding, highlight: false)
-                .frame(width: 48)
-        case .fail:
-            let isOn = binding.wrappedValue == "1"
-            Button {
-                tap()
-                binding.wrappedValue = isOn ? "0" : "1"
-            } label: {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(isOn ? Theme.red.opacity(0.18) : Theme.c2)
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(isOn ? Theme.red.opacity(0.5) : Theme.brd, lineWidth: 1)
-                    Image(systemName: isOn ? "bolt.fill" : "bolt")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(isOn ? Theme.red : Theme.sub)
-                }
-                .frame(width: 48, height: 42)
-            }
-            .buttonStyle(.plain)
-        }
-    }
-
-    private func effortSelector(_ i: Int) -> some View {
-        let cur = log[i].effortScale
-        return HStack(spacing: 6) {
-            Text(t("wk.effort").uppercased()).font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
-            Spacer()
-            ForEach([EffortMode?.none] + EffortMode.allCases.map { Optional($0) }, id: \.?.rawValue) { mode in
-                let label = mode?.label ?? t("wk.effort.off")
-                let active = cur == mode
-                Button {
-                    tap()
-                    log[i].effortMode = mode?.rawValue
-                } label: {
-                    Text(label).font(.head(10, .semibold)).tracking(0.5)
-                        .foregroundColor(active ? Theme.bg : Theme.sub)
-                        .padding(.vertical, 5).padding(.horizontal, 9)
-                        .background(active ? Theme.acc2 : Theme.c2)
-                        .clipShape(Capsule())
-                        .overlay(Capsule().stroke(active ? Theme.acc2 : Theme.brd, lineWidth: 1))
-                }
-                .buttonStyle(.plain)
-            }
-        }
     }
 
     // MARK: Add exercise on the fly

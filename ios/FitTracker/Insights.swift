@@ -36,6 +36,19 @@ struct ReadinessCard: View {
                         }
                         .padding(.bottom, 8)
                         Bar(value: Double(score) / 100, gradient: [zoneColor(r.advice), Theme.acc])
+                        if !r.usedSignals.isEmpty {
+                            HStack(spacing: 5) {
+                                Text(t("load.from").uppercased()).font(.head(8, .semibold)).tracking(1).foregroundColor(Theme.sub)
+                                ForEach(r.usedSignals, id: \.self) { sig in
+                                    Text(t("load.sig." + sig)).font(.head(9, .semibold)).tracking(0.3)
+                                        .foregroundColor(Theme.sub)
+                                        .padding(.vertical, 2).padding(.horizontal, 7)
+                                        .background(Theme.c2).clipShape(Capsule())
+                                }
+                                Spacer()
+                            }
+                            .padding(.top, 8)
+                        }
                     } else {
                         Text(t("load.need_data")).font(.system(size: 12)).foregroundColor(Theme.sub)
                     }
@@ -547,8 +560,8 @@ struct SessionEditorView: View {
                         metricField(t("wk.cal_override"), intBinding(\.caloriesManual), keyboard: .numberPad)
                     }
 
-                    ForEach(session.exercises.indices, id: \.self) { i in
-                        exerciseEditor(i)
+                    ForEach($session.exercises) { $ex in
+                        exerciseEditor($ex)
                     }
 
                     BigButton(title: t("save")) {
@@ -571,24 +584,82 @@ struct SessionEditorView: View {
         } message: { Text(t("confirm_delete")) }
     }
 
-    private func exerciseEditor(_ i: Int) -> some View {
-        Card {
-            Text(session.exercises[i].name).font(.system(size: 14, weight: .semibold)).foregroundColor(Theme.txt)
-                .padding(.bottom, 10)
-            ForEach(session.exercises[i].sets.indices, id: \.self) { j in
+    private func exerciseEditor(_ exB: Binding<LoggedExercise>) -> some View {
+        let ex = exB.wrappedValue
+        let bw = ex.bodyweight
+        let scale = ex.effortScale
+        let cur = ex.trainMethod
+        let isGrouped = cur == .superset || cur == .giant
+        return Card {
+            // Name + bodyweight toggle
+            HStack(spacing: 8) {
+                Text(ex.name).font(.system(size: 14, weight: .semibold)).foregroundColor(Theme.txt)
+                Spacer()
+                BodyweightChip(isBodyweight: exB.isBodyweight)
+            }
+            .padding(.bottom, 10)
+
+            // Training method (superset / drop / rest-pause / giant) + group
+            HStack(spacing: 10) {
+                Text(t("wk.method").uppercased()).font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
+                Menu {
+                    ForEach(TrainMethod.allCases, id: \.self) { m in
+                        Button(methodLabel(m)) { tap(); exB.wrappedValue.method = m == .normal ? nil : m.rawValue }
+                    }
+                } label: {
+                    HStack(spacing: 5) {
+                        Text(methodLabel(cur)).font(.system(size: 12, weight: .semibold)).foregroundColor(Theme.txt)
+                        Image(systemName: "chevron.down").font(.system(size: 9)).foregroundColor(Theme.sub)
+                    }
+                    .padding(.vertical, 6).padding(.horizontal, 10)
+                    .background(Theme.c2).clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(Theme.brd, lineWidth: 1))
+                }
+                Spacer()
+                if isGrouped {
+                    Text(t("pe.group").uppercased()).font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
+                    Button { tap(); let g = (exB.wrappedValue.supersetGroup ?? 1); exB.wrappedValue.supersetGroup = max(1, g - 1) } label: {
+                        Image(systemName: "minus").font(.system(size: 10, weight: .bold)).foregroundColor(Theme.txt)
+                            .frame(width: 24, height: 24).background(Theme.c3).clipShape(Circle())
+                    }.buttonStyle(.plain)
+                    Text("\(exB.wrappedValue.supersetGroup ?? 1)").font(.num(15)).frame(minWidth: 14)
+                    Button { tap(); exB.wrappedValue.supersetGroup = (exB.wrappedValue.supersetGroup ?? 0) + 1 } label: {
+                        Image(systemName: "plus").font(.system(size: 10, weight: .bold)).foregroundColor(Theme.txt)
+                            .frame(width: 24, height: 24).background(Theme.c3).clipShape(Circle())
+                    }.buttonStyle(.plain)
+                }
+            }
+            .padding(.bottom, 10)
+
+            // Effort scale chooser
+            EffortModeSelector(effortMode: exB.effortMode).padding(.bottom, 10)
+
+            // Per-set reps × weight (+ effort when a scale is set)
+            ForEach($exB.sets) { $set in
+                let n = (exB.wrappedValue.sets.firstIndex { $0.id == set.wrappedValue.id } ?? 0) + 1
                 HStack(spacing: 10) {
-                    Text("\(t("wk.set")) \(j + 1)").font(.system(size: 11)).foregroundColor(Theme.sub).frame(width: 54, alignment: .leading)
-                    SmallNumField(text: Binding(
-                        get: { session.exercises[i].sets[j].reps },
-                        set: { session.exercises[i].sets[j].reps = $0 }), placeholder: t("wk.reps"))
+                    Text("\(t("wk.set")) \(n)").font(.system(size: 11)).foregroundColor(Theme.sub).frame(width: 54, alignment: .leading)
+                    SmallNumField(text: $set.reps, placeholder: t("wk.reps"))
                     Text("×").foregroundColor(Theme.sub)
-                    SmallNumField(text: Binding(
-                        get: { session.exercises[i].sets[j].weight },
-                        set: { session.exercises[i].sets[j].weight = $0 }), placeholder: "kg")
+                    SmallNumField(text: $set.weight, placeholder: bw ? "+kg" : "kg")
+                    if let scale { EffortField(scale: scale, value: $set.effortVal) }
                     Spacer()
                 }
                 .padding(.vertical, 4)
             }
+            if bw {
+                Text(t("wk.bw_hint")).font(.system(size: 9)).foregroundColor(Theme.sub).padding(.top, 4)
+            }
+        }
+    }
+
+    private func methodLabel(_ m: TrainMethod) -> String {
+        switch m {
+        case .normal:    return t("none")
+        case .superset:  return t("wk.superset")
+        case .dropset:   return "Drop set"
+        case .restpause: return "Rest-pause"
+        case .giant:     return "Giant set"
         }
     }
 

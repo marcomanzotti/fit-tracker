@@ -136,6 +136,9 @@ struct WatchSetupGuide: View {
 
     private func syncNow() {
         store.prefs.healthKit = true
+        // This guide is explicitly about pulling in workouts from a paired watch,
+        // so opt the user into workout import here (Settings can turn it back off).
+        store.prefs.importWorkouts = true
         store.syncHealth { ok, n, sources in
             if !ok { toast.show(t("hk.unavailable")); return }
             if n > 0 {

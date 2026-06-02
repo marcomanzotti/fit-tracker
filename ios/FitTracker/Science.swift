@@ -191,47 +191,75 @@ extension Store {
     }
 }
 
-// MARK: - Readiness from HRV (lnRMSSD vs rolling baseline)
+// MARK: - Readiness (multi-factor: HRV + resting HR + sleep)
 struct ReadinessResult {
     var score: Int?            // 0-100
-    var lnToday: Double?
-    var baseline: Double?      // mean lnRMSSD
+    var lnToday: Double?       // today's lnHRV (kept for the HRV detail line)
+    var baseline: Double?      // mean lnHRV baseline
     var sd: Double?
-    var samples: Int
+    var samples: Int           // HRV baseline sample count (drives the "building" card)
     /// "rest", "easy", "ready", or "none".
     var advice: String
+    /// Which signals contributed today (e.g. ["hrv","hr","sleep"]) — for the card.
+    var usedSignals: [String] = []
 }
 
 extension Store {
-    /// Reads RMSSD typed into daily check-ins (and sessions), builds a ~60-day
-    /// lnRMSSD baseline, returns today's reading as a 0-100 readiness score.
+    /// Multi-factor morning readiness. Each available signal is turned into a
+    /// personal-baseline z-score (positive = more recovered than usual), then the
+    /// signals are combined with fixed weights, renormalized over whatever exists
+    /// that day so it degrades gracefully:
+    ///   • HRV (lnRMSSD, or SDNN from Health) — primary, weight 0.50, higher = better
+    ///   • resting / waking HR (or sleeping HR) — weight 0.30, lower = better
+    ///   • sleep score — weight 0.20, higher = better (absolute anchor until there
+    ///     is enough history for a personal baseline)
+    /// The composite z maps to 0-100 as 50 + 20·z (so ±2.5 SD spans the full range)
+    /// and to the rest/easy/ready advice bands.
     func readiness() -> ReadinessResult {
-        // Collect a single, consistent HRV source. Manual RMSSD is preferred; if
-        // there isn't enough of it, fall back to SDNN imported from Apple Health.
-        // The readiness math is a personal-baseline z-score of ln(HRV), so it works
-        // on either metric as long as one source is used consistently.
+        // HRV: prefer manually typed RMSSD, fall back to Health SDNN — whichever
+        // has more days, used consistently (the z-score works on either).
         var rmssdMap: [String: Double] = [:]
         for s in sessions { if let r = s.rmssd, r > 0 { rmssdMap[s.date] = r } }
         for d in daily { if let r = d.rmssd, r > 0 { rmssdMap[d.date] = r } }
         var sdnnMap: [String: Double] = [:]
         for d in daily { if let h = d.hrvSDNN, h > 0 { sdnnMap[d.date] = h } }
-        let map = rmssdMap.count >= sdnnMap.count ? rmssdMap : sdnnMap
-        let pairs = map.filter { $0.value > 0 }.sorted { $0.key < $1.key }
-        guard pairs.count >= 1 else {
-            return ReadinessResult(score: nil, lnToday: nil, baseline: nil, sd: nil, samples: 0, advice: "none")
+        let hrvMap = rmssdMap.count >= sdnnMap.count ? rmssdMap : sdnnMap
+
+        var factors: [(name: String, z: Double, w: Double)] = []
+        var hrvSamples = 0
+        var lnToday: Double? = nil, hrvBase: Double? = nil, hrvSD: Double? = nil
+
+        if let f = zFactor(map: hrvMap, transform: { log($0) }, higherIsBetter: true, minN: 5) {
+            factors.append((name: "hrv", z: f.z, w: 0.50))
+            hrvSamples = f.baseCount; lnToday = f.today; hrvBase = f.mean; hrvSD = f.sd
         }
-        let lns = pairs.map { log($0.value) }
-        let lnToday = lns.last!
-        // baseline excludes today's point when we have enough history
-        let history = lns.count > 1 ? Array(lns.dropLast()) : lns
-        let base = Array(history.suffix(60))
-        let mean = base.reduce(0, +) / Double(base.count)
-        let variance = base.reduce(0) { $0 + ($1 - mean) * ($1 - mean) } / Double(base.count)
-        let sd = variance.squareRoot()
-        guard base.count >= 5, sd > 0 else {
-            return ReadinessResult(score: nil, lnToday: lnToday, baseline: mean, sd: sd, samples: base.count, advice: "none")
+
+        // Resting / waking HR (fall back to sleeping HR). Lower than baseline = better.
+        var hrMap: [String: Double] = [:]
+        for d in daily {
+            if let v = d.restHR, v > 0 { hrMap[d.date] = Double(v) }
+            else if let v = d.sleepHR, v > 0 { hrMap[d.date] = Double(v) }
         }
-        let z = (lnToday - mean) / sd
+        if let f = zFactor(map: hrMap, transform: { $0 }, higherIsBetter: false, minN: 5) {
+            factors.append((name: "hr", z: f.z, w: 0.30))
+        }
+
+        // Sleep score. Use a personal baseline once there's enough history, else an
+        // absolute anchor (≈72/100 a decent night, ±12 spread) so it still counts.
+        var sleepMap: [String: Double] = [:]
+        for d in daily { if let v = d.sleep, v > 0 { sleepMap[d.date] = Double(v) } }
+        if let f = zFactor(map: sleepMap, transform: { $0 }, higherIsBetter: true, minN: 5) {
+            factors.append((name: "sleep", z: f.z, w: 0.20))
+        } else if let latestKey = sleepMap.keys.max(), let todayScore = sleepMap[latestKey] {
+            factors.append((name: "sleep", z: max(-3, min(3, (todayScore - 72) / 12)), w: 0.20))
+        }
+
+        guard !factors.isEmpty else {
+            return ReadinessResult(score: nil, lnToday: lnToday, baseline: hrvBase, sd: hrvSD,
+                                   samples: hrvSamples, advice: "none", usedSignals: [])
+        }
+        let wSum = factors.reduce(0) { $0 + $1.w }
+        let z = factors.reduce(0) { $0 + $1.z * $1.w } / wSum
         let score = Int(max(0, min(100, (50 + 20 * z).rounded())))
         let advice: String
         switch z {
@@ -239,7 +267,30 @@ extension Store {
         case (-1.0)..<(-0.3): advice = "easy"
         default: advice = "ready"
         }
-        return ReadinessResult(score: score, lnToday: lnToday, baseline: mean, sd: sd, samples: base.count, advice: advice)
+        return ReadinessResult(score: score, lnToday: lnToday, baseline: hrvBase, sd: hrvSD,
+                               samples: hrvSamples, advice: advice, usedSignals: factors.map { $0.name })
+    }
+
+    /// Standardize the latest reading of a daily metric against a personal baseline
+    /// of the prior ~60 days. Returns today's z (sign flipped when lower is better,
+    /// clamped to ±3 so one freak reading can't dominate), plus baseline stats.
+    private func zFactor(map: [String: Double], transform: (Double) -> Double,
+                         higherIsBetter: Bool, minN: Int)
+        -> (z: Double, today: Double, mean: Double, sd: Double, baseCount: Int)? {
+        let pairs = map.filter { $0.value > 0 }.sorted { $0.key < $1.key }
+        guard !pairs.isEmpty else { return nil }
+        let vals = pairs.map { transform($0.value) }
+        let today = vals.last!
+        let history = vals.count > 1 ? Array(vals.dropLast()) : vals
+        let base = Array(history.suffix(60))
+        guard base.count >= minN else { return nil }
+        let mean = base.reduce(0, +) / Double(base.count)
+        let variance = base.reduce(0) { $0 + ($1 - mean) * ($1 - mean) } / Double(base.count)
+        let sd = variance.squareRoot()
+        guard sd > 0 else { return nil }
+        var z = (today - mean) / sd
+        if !higherIsBetter { z = -z }
+        return (max(-3, min(3, z)), today, mean, sd, base.count)
     }
 
     /// DFA-alpha1 aerobic-threshold estimation requires a continuous R-R interval

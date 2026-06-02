@@ -24,8 +24,10 @@ struct DailyEntry: Codable, Identifiable, Equatable {
     var steps: Int?
     // Recovery (optional, manual entry)
     var rmssd: Double?        // HRV RMSSD typed from an external HRV app
-    var restHR: Int?          // morning resting heart rate
+    var restHR: Int?          // morning resting / waking heart rate
     var hrvSDNN: Double?      // HRV SDNN imported from Apple Health (ms)
+    var sleepHR: Int?         // average heart rate during sleep (Health / manual)
+    var sleepHours: Double?   // sleep duration in hours (Health asleep total)
     // Daily activity, imported from Apple Health (gap-fill, any paired watch)
     var activeKcal: Int?      // active energy burned during the day
     var exerciseMin: Int?     // exercise minutes (Apple "Move" equivalent)
@@ -139,7 +141,9 @@ enum MealSlot: String, CaseIterable, Identifiable {
         case .breakfast: return "sunrise.fill"
         case .lunch:     return "sun.max.fill"
         case .dinner:    return "moon.stars.fill"
-        case .snacks:    return "carrot.fill"
+        // carrot.fill stays reserved for the Nutrition tab; snacks uses a distinct
+        // filled glyph so the two never read as the same thing.
+        case .snacks:    return "popcorn.fill"
         }
     }
     var color: String {
@@ -474,6 +478,13 @@ struct Prefs: Codable, Equatable {
     /// falls back to simple rotation through the plan list.
     var schedule: [String]?
     var healthKit: Bool?       // user opted into Apple Health import
+    /// Which Health categories to import (keys in HealthCategory.allKeys). nil =>
+    /// all daily metrics on (the long-standing default). Lets the user pick exactly
+    /// what flows in from Apple Health.
+    var healthImport: [String]?
+    /// Import past workouts recorded by other watches (Garmin/Fitbit/…). Default
+    /// OFF: different watch formats don't always translate cleanly into the app.
+    var importWorkouts: Bool?
     var units: String?         // "metric" | "imperial"; nil => metric
     /// Days explicitly marked as rest (yyyy-MM-dd). A rest day is not a session,
     /// just a marker shown with a dedicated icon/color on the week strip and
@@ -504,6 +515,10 @@ struct Prefs: Codable, Equatable {
     }
     var restHRorDefault: Int { (restingHR ?? 0) > 0 ? restingHR! : 60 }
     var healthKitEnabled: Bool { healthKit == true }
+    /// Selected Health import categories — defaults to every daily metric on.
+    var healthCategories: Set<String> { Set(healthImport ?? HealthCategory.allKeys) }
+    func importsHealth(_ key: String) -> Bool { healthCategories.contains(key) }
+    var importWorkoutsEnabled: Bool { importWorkouts == true }
     var imperial: Bool { units == "imperial" }
     var restDaySet: Set<String> { Set(restDays ?? []) }
     /// Schedule normalized to exactly 7 slots (Mon..Sun); missing -> all empty.
@@ -521,6 +536,27 @@ struct Prefs: Codable, Equatable {
     }
 }
 
+// MARK: - Apple Health import categories (user-selectable)
+/// The daily Health metrics the app can pull in. The user toggles these in
+/// Settings; only selected ones are read and gap-filled into daily entries.
+enum HealthCategory: String, CaseIterable, Identifiable {
+    case steps, restHR, hrv, sleep, sleepHR, activeKcal, exerciseMin
+    var id: String { rawValue }
+    static var allKeys: [String] { allCases.map { $0.rawValue } }
+    var labelKey: String { "hk.cat." + rawValue }
+    var icon: String {
+        switch self {
+        case .steps:       return "figure.walk"
+        case .restHR:      return "heart.fill"
+        case .hrv:         return "waveform.path.ecg"
+        case .sleep:       return "bed.double.fill"
+        case .sleepHR:     return "heart.text.square.fill"
+        case .activeKcal:  return "flame.fill"
+        case .exerciseMin: return "timer"
+        }
+    }
+}
+
 // MARK: - Saved exercise entry (exercise library)
 // Auto-populated the first time any exercise is logged, so a user who drops an
 // exercise for months can still find it (with its full history) in the library.
@@ -529,6 +565,32 @@ struct ExerciseItem: Codable, Identifiable, Equatable {
     var name: String
     var isBodyweight: Bool = false
     var lastUsed: String?      // yyyy-MM-dd, for ordering
+    /// Movement family this exercise rolls up to for progress/PRs. Variants of the
+    /// same movement (e.g. "Wide-grip lat pulldown", a rear-delt variation) share a
+    /// base so their progress reads as one line. nil => its own name is the base.
+    var base: String?
+    /// Muscle-group key (MuscleGroup raw value) for browsing the Progress picker.
+    var category: String?
+}
+
+// MARK: - Muscle-group categories (for browsing exercises by area)
+enum MuscleGroup: String, CaseIterable, Identifiable {
+    case chest, back, legs, shoulders, arms, core, fullbody, cardio, other
+    var id: String { rawValue }
+    var labelKey: String { "mg." + rawValue }
+    var color: String {
+        switch self {
+        case .chest:     return "ff5a52"
+        case .back:      return "4fb8c4"
+        case .legs:      return "ffb000"
+        case .shoulders: return "b08fff"
+        case .arms:      return "7fc950"
+        case .core:      return "ff5da2"
+        case .fullbody:  return "ffe000"
+        case .cardio:    return "53a8ff"
+        case .other:     return "8a857d"
+        }
+    }
 }
 
 // MARK: - The whole persisted document

@@ -37,6 +37,12 @@ enum Theme {
     static let red    = Color(hex: "ff5a52")
     static let blue   = Color(hex: "4fb8c4")
     static let good   = Color(hex: "7fc950")
+    /// Body-fat accent — a distinct magenta so fat never reads as BMI (purple)
+    /// or lean mass (blue) in the body-composition views.
+    static let fat    = Color(hex: "ff5da2")
+    /// Apple's workout/exercise-ring green, used to mark sessions imported from
+    /// Apple Health (e.g. a watch hike) so they read as "from Apple Health".
+    static let appleGreen = "92e82a"
 
     /// Swatches offered when creating / editing a workout day.
     static let planColors = ["ffe000", "ffb000", "ff5a52", "4fb8c4", "7fc950", "b08fff"]

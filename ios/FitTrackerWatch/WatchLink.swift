@@ -13,6 +13,9 @@ final class WatchLink: NSObject, ObservableObject {
 
     @Published var activities: [WatchActivity] = []
     @Published var hasContext = false
+    /// Set when the phone asks the wrist to start an activity (its id). The root
+    /// view observes this and launches the matching workout.
+    @Published var startRequest: String?
 
     func activate() {
         guard WCSession.isSupported() else { return }
@@ -28,6 +31,17 @@ final class WatchLink: NSObject, ObservableObject {
         let s = WCSession.default
         s.transferUserInfo(payload)                 // reliable, queued
         if s.isReachable { s.sendMessage(payload, replyHandler: nil, errorHandler: nil) }
+    }
+
+    /// Best-effort live telemetry — only when the phone is reachable. Dropping a
+    /// sample is fine; the next one (or the final result) corrects the picture.
+    func sendLive(_ sample: WatchLiveSample) {
+        guard WCSession.isSupported() else { return }
+        let s = WCSession.default
+        guard s.isReachable else { return }
+        let payload = WatchWire.encode(sample, key: WatchWire.liveKey)
+        guard !payload.isEmpty else { return }
+        s.sendMessage(payload, replyHandler: nil, errorHandler: nil)
     }
 
     fileprivate func ingest(_ dict: [String: Any]) {
@@ -50,6 +64,11 @@ extension WatchLink: WCSessionDelegate {
         Task { @MainActor in self.ingest(applicationContext) }
     }
     nonisolated func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
+        // A "start this activity" command from the phone arrives as a plain string.
+        if let actId = message[WatchWire.startKey] as? String {
+            Task { @MainActor in self.startRequest = actId }
+            return
+        }
         Task { @MainActor in self.ingest(message) }
     }
 }
