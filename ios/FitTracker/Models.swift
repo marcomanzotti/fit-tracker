@@ -157,6 +157,9 @@ struct SetEntry: Codable, Identifiable, Equatable {
     var id: UUID = UUID()
     var reps: String = ""
     var weight: String = ""
+    /// Effort value for this set. Meaning depends on the parent exercise's effortMode:
+    /// "rir" = reps in reserve (0-10), "rpe" = perceived exertion (1-10), "fail" = 1 if hit failure.
+    var effortVal: Int? = nil
 
     var filled: Bool { pf(reps) > 0 || pf(weight) > 0 }
 }
@@ -175,6 +178,19 @@ enum TrainMethod: String, Codable, CaseIterable {
     }
 }
 
+// MARK: - Effort tracking scale for per-set feedback
+/// "rir" = reps in reserve (buffer), "rpe" = rating of perceived exertion, "fail" = hit failure
+enum EffortMode: String, Codable, CaseIterable {
+    case rir, rpe, fail
+    var label: String {
+        switch self {
+        case .rir:  return "RIR"
+        case .rpe:  return "RPE"
+        case .fail: return "FAIL"
+        }
+    }
+}
+
 // MARK: - An exercise as logged inside a session
 struct LoggedExercise: Codable, Identifiable, Equatable {
     var id: UUID = UUID()
@@ -186,10 +202,16 @@ struct LoggedExercise: Codable, Identifiable, Equatable {
     // Superset / method (optional, backward compatible)
     var supersetGroup: Int?           // exercises with the same group id form a superset
     var method: String?               // TrainMethod raw value
+    /// Per-set effort tracking scale: EffortMode raw value, or nil (disabled).
+    var effortMode: String? = nil
+    /// True when this is a bodyweight exercise: weight field means additional load.
+    var isBodyweight: Bool? = nil
 
     var volume: Double { sets.reduce(0) { $0 + pf($1.reps) * pf($1.weight) } }
     var maxWeight: Double { sets.map { pf($0.weight) }.max() ?? 0 }
     var trainMethod: TrainMethod { TrainMethod(rawValue: method ?? "normal") ?? .normal }
+    var effortScale: EffortMode? { effortMode.flatMap { EffortMode(rawValue: $0) } }
+    var bodyweight: Bool { isBodyweight == true }
 }
 
 // MARK: - Sport kinds
@@ -372,8 +394,14 @@ struct PlanExercise: Codable, Identifiable, Equatable {
     // Superset / method (optional)
     var supersetGroup: Int?
     var method: String?
+    /// Per-set effort tracking scale for this exercise (EffortMode raw value, or nil = off).
+    var effortMode: String? = nil
+    /// True when this is a bodyweight exercise.
+    var isBodyweight: Bool? = nil
 
     var trainMethod: TrainMethod { TrainMethod(rawValue: method ?? "normal") ?? .normal }
+    var effortScale: EffortMode? { effortMode.flatMap { EffortMode(rawValue: $0) } }
+    var bodyweight: Bool { isBodyweight == true }
 }
 
 struct WorkoutPlan: Codable, Identifiable, Equatable {
@@ -493,6 +521,16 @@ struct Prefs: Codable, Equatable {
     }
 }
 
+// MARK: - Saved exercise entry (exercise library)
+// Auto-populated the first time any exercise is logged, so a user who drops an
+// exercise for months can still find it (with its full history) in the library.
+struct ExerciseItem: Codable, Identifiable, Equatable {
+    var id: UUID = UUID()
+    var name: String
+    var isBodyweight: Bool = false
+    var lastUsed: String?      // yyyy-MM-dd, for ordering
+}
+
 // MARK: - The whole persisted document
 struct AppData: Codable {
     var daily: [DailyEntry] = []
@@ -500,6 +538,7 @@ struct AppData: Codable {
     var body: [BodyEntry] = []
     var plans: [WorkoutPlan] = []
     var prefs: Prefs = Prefs()
-    var cardioTypes: [CardioType]? = nil   // optional for backward-compatible decoding
-    var foods: [FoodItem]? = nil           // saved local food list (per-100 macros)
+    var cardioTypes: [CardioType]? = nil       // optional for backward-compatible decoding
+    var foods: [FoodItem]? = nil               // saved local food list (per-100 macros)
+    var exerciseItems: [ExerciseItem]? = nil   // saved exercise library (auto-populated)
 }

@@ -154,10 +154,12 @@ struct LiveWorkoutView: View {
     // MARK: Exercise card
     private func exerciseCard(_ i: Int) -> some View {
         let ex = log[i]
+        let bw = ex.bodyweight
         let pr = store.exercisePR(ex.name)
         let prevEx = lastSess?.exercises.first { $0.name == ex.name }
         let sug = store.suggested(planId: plan.id, exercise: ex.name)
         let prog = store.progression(planId: plan.id, exercise: ex.name)
+        let effortScale = ex.effortScale
 
         return Card {
             HStack(alignment: .top) {
@@ -165,9 +167,13 @@ struct LiveWorkoutView: View {
                     Text(ex.name).font(.system(size: 14, weight: .semibold)).foregroundColor(Theme.txt)
                     HStack(spacing: 6) {
                         if !ex.target.isEmpty { Tag(text: ex.target) }
+                        if bw { Badge(text: t("wk.bodyweight"), color: Theme.good, bg: Theme.good.opacity(0.14)) }
                         if ex.trainMethod != .normal {
                             Badge(text: ex.trainMethod.short + (ex.supersetGroup.map { " \($0)" } ?? ""),
                                   color: Theme.blue, bg: Theme.blue.opacity(0.14))
+                        }
+                        if let scale = effortScale {
+                            Badge(text: scale.label, color: Theme.acc2, bg: Theme.acc2.opacity(0.14))
                         }
                     }
                 }
@@ -175,7 +181,7 @@ struct LiveWorkoutView: View {
                 if pr > 0 {
                     VStack(alignment: .trailing, spacing: 3) {
                         Text("PR").font(.head(9, .semibold)).tracking(1.5).foregroundColor(Theme.sub)
-                        Text("\(trimNum(pr)) kg").font(.num(20)).foregroundColor(Theme.acc)
+                        Text(bw && pr == 0 ? "BW" : "\(trimNum(pr)) kg").font(.num(20)).foregroundColor(Theme.acc)
                     }
                 }
             }
@@ -219,17 +225,29 @@ struct LiveWorkoutView: View {
                 .padding(.bottom, 11)
             }
 
+            // Effort scale selector
+            effortSelector(i)
+                .padding(.bottom, 8)
+
             // Column headers
             HStack(spacing: 9) {
                 Spacer().frame(width: 28)
                 Text(t("wk.reps").uppercased()).font(.head(9, .semibold)).tracking(1.5).foregroundColor(Theme.sub).frame(width: 66)
-                Text("KG").font(.head(9, .semibold)).tracking(1.5).foregroundColor(Theme.sub).frame(width: 66)
+                Text(bw ? "+KG" : "KG").font(.head(9, .semibold)).tracking(1.5).foregroundColor(bw ? Theme.good : Theme.sub).frame(width: 66)
+                if effortScale != nil {
+                    Text(effortScale!.label).font(.head(9, .semibold)).tracking(1.5).foregroundColor(Theme.acc2).frame(width: 48)
+                }
                 Spacer()
             }
             .padding(.bottom, 6)
 
             ForEach(log[i].sets.indices, id: \.self) { j in
-                setRow(i, j, pr: pr)
+                setRow(i, j, pr: pr, bw: bw, effortScale: effortScale)
+            }
+
+            // Bodyweight hint
+            if bw {
+                Text(t("wk.bw_hint")).font(.system(size: 9)).foregroundColor(Theme.sub).padding(.top, 4)
             }
 
             // Footer controls
@@ -240,8 +258,10 @@ struct LiveWorkoutView: View {
                 }
                 Spacer()
                 if log[i].volume > 0 {
-                    Text("\(t("wk.vol")) \(Int(log[i].volume)) · \(t("wk.max")) \(trimNum(log[i].maxWeight)) kg")
-                        .font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.sub)
+                    let volLabel = bw
+                        ? "\(t("wk.max")) +\(trimNum(log[i].maxWeight)) kg"
+                        : "\(t("wk.vol")) \(Int(log[i].volume)) · \(t("wk.max")) \(trimNum(log[i].maxWeight)) kg"
+                    Text(volLabel).font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.sub)
                 }
             }
             .padding(.top, 9)
@@ -268,14 +288,21 @@ struct LiveWorkoutView: View {
         }
     }
 
-    private func setRow(_ i: Int, _ j: Int, pr: Double) -> some View {
+    private func setRow(_ i: Int, _ j: Int, pr: Double, bw: Bool, effortScale: EffortMode?) -> some View {
         let w = pf(log[i].sets[j].weight)
         let isPR = w > pr && w > 0
+        let effortVal = Binding<String>(
+            get: { log[i].sets[j].effortVal.map { "\($0)" } ?? "" },
+            set: { log[i].sets[j].effortVal = Int($0) }
+        )
         return HStack(spacing: 9) {
             Text("S\(j + 1)").font(.num(11)).foregroundColor(Theme.sub).frame(width: 28)
             SmallNumField(text: $log[i].sets[j].reps, highlight: isPR)
-            SmallNumField(text: $log[i].sets[j].weight, highlight: isPR)
-            if isPR {
+            SmallNumField(text: $log[i].sets[j].weight, highlight: isPR && !bw)
+            if let scale = effortScale {
+                effortField(scale, binding: effortVal)
+            }
+            if isPR && !bw {
                 Text("PR").font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.acc)
             } else {
                 Button { tap(); log[i].sets.remove(at: j) } label: {
@@ -286,8 +313,59 @@ struct LiveWorkoutView: View {
             Spacer(minLength: 0)
         }
         .padding(.vertical, 2)
-        .background(isPR ? Theme.acc.opacity(0.05) : .clear)
+        .background(isPR && !bw ? Theme.acc.opacity(0.05) : .clear)
         .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+    }
+
+    @ViewBuilder
+    private func effortField(_ scale: EffortMode, binding: Binding<String>) -> some View {
+        switch scale {
+        case .rir, .rpe:
+            SmallNumField(text: binding, highlight: false)
+                .frame(width: 48)
+        case .fail:
+            let isOn = binding.wrappedValue == "1"
+            Button {
+                tap()
+                binding.wrappedValue = isOn ? "0" : "1"
+            } label: {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(isOn ? Theme.red.opacity(0.18) : Theme.c2)
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(isOn ? Theme.red.opacity(0.5) : Theme.brd, lineWidth: 1)
+                    Image(systemName: isOn ? "bolt.fill" : "bolt")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(isOn ? Theme.red : Theme.sub)
+                }
+                .frame(width: 48, height: 42)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private func effortSelector(_ i: Int) -> some View {
+        let cur = log[i].effortScale
+        return HStack(spacing: 6) {
+            Text(t("wk.effort").uppercased()).font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
+            Spacer()
+            ForEach([EffortMode?.none] + EffortMode.allCases.map { Optional($0) }, id: \.?.rawValue) { mode in
+                let label = mode?.label ?? t("wk.effort.off")
+                let active = cur == mode
+                Button {
+                    tap()
+                    log[i].effortMode = mode?.rawValue
+                } label: {
+                    Text(label).font(.head(10, .semibold)).tracking(0.5)
+                        .foregroundColor(active ? Theme.bg : Theme.sub)
+                        .padding(.vertical, 5).padding(.horizontal, 9)
+                        .background(active ? Theme.acc2 : Theme.c2)
+                        .clipShape(Capsule())
+                        .overlay(Capsule().stroke(active ? Theme.acc2 : Theme.brd, lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+            }
+        }
     }
 
     // MARK: Add exercise on the fly
@@ -315,11 +393,17 @@ struct LiveWorkoutView: View {
         let name = addName.trimmingCharacters(in: .whitespaces)
         guard !name.isEmpty else { return }
         tap()
-        log.append(LoggedExercise(name: name, sets: (0..<3).map { _ in SetEntry() }, notes: "", target: "3×10"))
+        let isBW = store.isBodyweightExercise(name)
+        var ex = LoggedExercise(name: name, sets: (0..<3).map { _ in SetEntry() }, notes: "", target: "3×10")
+        ex.isBodyweight = isBW ? true : nil
+        log.append(ex)
         // Persist to the plan template so it appears next time.
         if let idx = store.plans.firstIndex(where: { $0.id == plan.id }) {
-            store.plans[idx].exercises.append(PlanExercise(name: name, sets: 3, reps: "10"))
+            store.plans[idx].exercises.append(PlanExercise(name: name, sets: 3, reps: "10",
+                                                           isBodyweight: isBW ? true : nil))
         }
+        // Auto-save to the exercise library on first use.
+        store.touchExerciseInLibrary(name, isBodyweight: isBW)
         addName = ""
         toast.show(t("wk.ex_added"))
     }
@@ -333,6 +417,11 @@ struct LiveWorkoutView: View {
             return copy
         }.filter { !$0.sets.isEmpty }
         guard !exercises.isEmpty else { toast.show(t("wk.nothing_save")); return }
+
+        // Auto-save every exercise to the library and update their bodyweight flag.
+        for ex in exercises {
+            store.touchExerciseInLibrary(ex.name, isBodyweight: ex.bodyweight)
+        }
 
         var sess = WorkoutSession(date: today(), planId: plan.id,
                                   planName: plan.name, planColor: plan.color,

@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 77;
+	objectVersion = 70;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -40,35 +40,19 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		FT00000000000000000040 /* Exceptions for "FitTrackerWatch" folder in "FitTrackerWatch" target */ = {
+		FT00000000000000000040 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
-				FitTrackerWatch.entitlements,
 			);
 			target = FT00000000000000000020 /* FitTrackerWatch */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		FT00000000000000000009 /* FitTracker */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = FitTracker;
-			sourceTree = "<group>";
-		};
-		FT00000000000000000010 /* Shared */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = Shared;
-			sourceTree = "<group>";
-		};
-		FT00000000000000000011 /* FitTrackerWatch */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				FT00000000000000000040 /* Exceptions for "FitTrackerWatch" folder in "FitTrackerWatch" target */,
-			);
-			path = FitTrackerWatch;
-			sourceTree = "<group>";
-		};
+		FT00000000000000000009 /* FitTracker */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = FitTracker; sourceTree = "<group>"; };
+		FT00000000000000000010 /* Shared */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Shared; sourceTree = "<group>"; };
+		FT00000000000000000011 /* FitTrackerWatch */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (FT00000000000000000040 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = FitTrackerWatch; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -109,7 +93,6 @@
 		FT00000000000000000003 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				FT00000000000000000004 /* FitTracker.app */,
 				FT00000000000000000021 /* FitTrackerWatch.app */,
 				FT00000000000000000031 /* FitTracker.app */,
 			);
@@ -137,7 +120,6 @@
 			);
 			name = FitTracker;
 			productName = FitTracker;
-			productReference = FT00000000000000000004 /* FitTracker.app */;
 			productType = "com.apple.product-type.application";
 		};
 		FT00000000000000000020 /* FitTrackerWatch */ = {
@@ -153,8 +135,8 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				FT00000000000000000011 /* FitTrackerWatch */,
 				FT00000000000000000010 /* Shared */,
+				FT00000000000000000011 /* FitTrackerWatch */,
 			);
 			name = FitTrackerWatch;
 			productName = FitTrackerWatch;
@@ -215,7 +197,6 @@
 			);
 			mainGroup = FT00000000000000000002;
 			minimizedProjectReferenceProxies = 1;
-			preferredProjectObjectVersion = 77;
 			productRefGroup = FT00000000000000000003 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -342,14 +323,16 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = FitTracker/FitTracker.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = Y63UKFMUPH;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Fit Tracker";
-				INFOPLIST_KEY_NSHealthShareUsageDescription = "Fit Tracker can optionally read your steps, resting heart rate and HRV to improve readiness, training-load and nutrition estimates. You can always enter these by hand instead.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Fit Tracker uses the camera to scan food barcodes so it can look up and save their nutrition values.";
-				CODE_SIGN_ENTITLEMENTS = FitTracker/FitTracker.entitlements;
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "Fit Tracker can optionally read your steps, resting heart rate and HRV to improve readiness, training-load and nutrition estimates. You can always enter these by hand instead.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -362,8 +345,9 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.marco.fittracker;
+				PRODUCT_BUNDLE_IDENTIFIER = com.marco.manzotti.fittracker;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 1;
@@ -375,14 +359,16 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = FitTracker/FitTracker.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = Y63UKFMUPH;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Fit Tracker";
-				INFOPLIST_KEY_NSHealthShareUsageDescription = "Fit Tracker can optionally read your steps, resting heart rate and HRV to improve readiness, training-load and nutrition estimates. You can always enter these by hand instead.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Fit Tracker uses the camera to scan food barcodes so it can look up and save their nutrition values.";
-				CODE_SIGN_ENTITLEMENTS = FitTracker/FitTracker.entitlements;
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "Fit Tracker can optionally read your steps, resting heart rate and HRV to improve readiness, training-load and nutrition estimates. You can always enter these by hand instead.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -395,8 +381,9 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.marco.fittracker;
+				PRODUCT_BUNDLE_IDENTIFIER = com.marco.manzotti.fittracker;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 1;
@@ -406,9 +393,11 @@
 		FT00000000000000000026 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
 				CODE_SIGN_ENTITLEMENTS = FitTrackerWatch/FitTrackerWatch.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = Y63UKFMUPH;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = FitTrackerWatch/Info.plist;
@@ -417,7 +406,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.marco.fittracker.watchkitapp;
+				PRODUCT_BUNDLE_IDENTIFIER = com.marco.manzotti.fittracker.watchkitapp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = watchos;
 				SKIP_INSTALL = YES;
@@ -432,9 +421,11 @@
 		FT00000000000000000027 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
 				CODE_SIGN_ENTITLEMENTS = FitTrackerWatch/FitTrackerWatch.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = Y63UKFMUPH;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = FitTrackerWatch/Info.plist;
@@ -443,7 +434,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.marco.fittracker.watchkitapp;
+				PRODUCT_BUNDLE_IDENTIFIER = com.marco.manzotti.fittracker.watchkitapp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = watchos;
 				SKIP_INSTALL = YES;
@@ -460,14 +451,15 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = FitTracker/FitTracker.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = Y63UKFMUPH;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Fit Tracker";
-				INFOPLIST_KEY_NSHealthShareUsageDescription = "Fit Tracker can optionally read your steps, resting heart rate and HRV to improve readiness, training-load and nutrition estimates. You can always enter these by hand instead.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Fit Tracker uses the camera to scan food barcodes so it can look up and save their nutrition values.";
-				CODE_SIGN_ENTITLEMENTS = FitTracker/FitTracker.entitlements;
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "Fit Tracker can optionally read your steps, resting heart rate and HRV to improve readiness, training-load and nutrition estimates. You can always enter these by hand instead.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -480,7 +472,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.marco.fittracker;
+				PRODUCT_BUNDLE_IDENTIFIER = com.marco.manzotti.fittracker;
 				PRODUCT_NAME = FitTracker;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -493,14 +485,15 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = FitTracker/FitTracker.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = Y63UKFMUPH;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Fit Tracker";
-				INFOPLIST_KEY_NSHealthShareUsageDescription = "Fit Tracker can optionally read your steps, resting heart rate and HRV to improve readiness, training-load and nutrition estimates. You can always enter these by hand instead.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Fit Tracker uses the camera to scan food barcodes so it can look up and save their nutrition values.";
-				CODE_SIGN_ENTITLEMENTS = FitTracker/FitTracker.entitlements;
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "Fit Tracker can optionally read your steps, resting heart rate and HRV to improve readiness, training-load and nutrition estimates. You can always enter these by hand instead.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -513,7 +506,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.marco.fittracker;
+				PRODUCT_BUNDLE_IDENTIFIER = com.marco.manzotti.fittracker;
 				PRODUCT_NAME = FitTracker;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;

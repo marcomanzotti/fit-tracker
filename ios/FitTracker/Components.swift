@@ -115,8 +115,15 @@ struct StatTile: View {
                     .layoutPriority(1)
                 if let info { InfoButton(id: info) }
             }
+            // Reserve 26px for the info-button row so tiles without a button
+            // keep the same top-to-number distance as those that have one.
+            .frame(minHeight: 26, alignment: .leading)
             HStack(alignment: .firstTextBaseline, spacing: 2) {
+                // Pin the big number to one line at a fixed size: a value with a
+                // unit ("87,5") and a bare value ("12", Sessions) then render at the
+                // same size and baseline across all tiles in a row.
                 Text(value).font(.num(30)).foregroundColor(valueColor)
+                    .lineLimit(1).minimumScaleFactor(0.5)
                 if let unit { Text(unit).font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.sub) }
             }
             if let note {

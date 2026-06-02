@@ -54,14 +54,23 @@ enum L {
         "confirm_delete": ("Confermi l'eliminazione?", "Confirm deletion?"),
 
         // --- Navigation -----------------------------------------------------
-        "nav.home":    ("Home", "Home"),
-        "nav.train":   ("Allena", "Train"),
-        "nav.body":    ("Corpo", "Body"),
-        "nav.stats":   ("Stats", "Stats"),
-        "sub.home":    ("Dashboard", "Dashboard"),
-        "sub.train":   ("Log allenamento", "Workout log"),
-        "sub.body":    ("Misurazioni & Check-in", "Measurements & Check-in"),
-        "sub.stats":   ("Statistiche", "Statistics"),
+        "nav.home":      ("Home", "Home"),
+        "nav.train":     ("Allena", "Train"),
+        "nav.body":      ("Corpo", "Body"),
+        "nav.nutrition": ("Nutrizione", "Nutrition"),
+        "nav.stats":     ("Stats", "Stats"),
+        "sub.home":      ("Dashboard", "Dashboard"),
+        "sub.train":     ("Log allenamento", "Workout log"),
+        "sub.body":      ("Misurazioni & Check-in", "Measurements & Check-in"),
+        "sub.nutrition": ("Alimentazione", "Nutrition"),
+        "sub.stats":     ("Statistiche", "Statistics"),
+        // Nutrition page + body recovery
+        "body.recovery":  ("Recupero", "Recovery"),
+        "nutp.today":     ("Oggi", "Today"),
+        "nutp.log_today": ("Registra oggi", "Log today"),
+        "nutp.edit_today":("Modifica oggi", "Edit today"),
+        "nutp.my_foods":  ("I miei alimenti", "My foods"),
+        "nutp.no_foods":  ("Nessun alimento salvato. Scansiona o crea il primo.", "No foods saved yet. Scan or create your first one."),
 
         // --- Home -----------------------------------------------------------
         "home.checkin":      ("Check-in di oggi", "Today's check-in"),
@@ -501,108 +510,108 @@ enum L {
         // --- Info popups (scientific metrics) -------------------------------
         "info.readiness.title": ("Prontezza (HRV)", "Readiness (HRV)"),
         "info.readiness.body": (
-            "Stima quanto sei recuperato a partire dalla variabilità della frequenza cardiaca (HRV), misurata come RMSSD che inserisci al mattino.\n\nUsiamo il logaritmo naturale dell'RMSSD (lnRMSSD), più stabile, e lo confrontiamo con la tua media degli ultimi ~60 giorni calcolando uno z-score. Il punteggio 0-100 è 50 + 20 × z.\n\nAlto = sistema nervoso recuperato, puoi spingere. Basso = sotto la tua norma, meglio andare leggeri o recuperare. Servono almeno 5 misurazioni per costruire la baseline.",
-            "Estimates how recovered you are from heart-rate variability (HRV), measured as the RMSSD you type in each morning.\n\nWe take the natural log of RMSSD (lnRMSSD, which is more stable) and compare it to your ~60-day average as a z-score. The 0-100 score is 50 + 20 × z.\n\nHigh = nervous system recovered, you can push. Low = below your norm, better to go easy or rest. At least 5 readings are needed to build the baseline."),
+            "Stima il recupero dalla variabilità della frequenza cardiaca (RMSSD) che inserisci ogni mattina. Lo confrontiamo con la tua media degli ultimi 60 giorni e calcoliamo uno z-score.\n\nPunteggio 0-100: 50 = nella tua norma. Sopra 70 puoi spingere, sotto 30 meglio andare leggero o riposare. Servono almeno 5 misurazioni per attivare la metrica.",
+            "Estimates recovery from the RMSSD heart-rate variability you log each morning. We compare it to your 60-day average as a z-score.\n\nScore 0-100: 50 = normal for you. Above 70 you can push hard, below 30 take it easy or rest. Needs at least 5 readings to activate."),
         "info.acwr.title": ("Carico acuto:cronico (ACWR)", "Acute:Chronic load (ACWR)"),
         "info.acwr.body": (
-            "Rapporto tra il carico recente (acuto, ultimi 7 giorni) e quello abituale (cronico, ultimi 28 giorni), entrambi calcolati con una media mobile esponenziale (EWMA).\n\nIl carico viene dal TRIMP, quindi compare solo dopo che inserisci durata + FC media della sessione (serve un orologio o una fascia cardio).\n\nZona indicativa: 0,8-1,3 = ottimale; sotto 0,8 = stai scaricando (rischio detraining); sopra 1,3 = picco di carico e maggior rischio infortuni.",
-            "Ratio between recent load (acute, last 7 days) and habitual load (chronic, last 28 days), both computed with an exponentially weighted moving average (EWMA).\n\nLoad comes from TRIMP, so it only appears once you enter the session's duration + average HR (a watch or chest strap is needed).\n\nGuide: 0.8-1.3 = sweet spot; below 0.8 = detraining/unloading; above 1.3 = a load spike and higher injury risk."),
+            "Confronta il carico recente (ultimi ~7 giorni) con quello abituale (ultimi ~28 giorni), entrambi con media mobile esponenziale. Il carico viene dal TRIMP, quindi serve FC media + durata.\n\nZona ottimale: 0,8–1,3. Sotto 0,8 stai detraining. Sopra 1,3 il rischio infortuni aumenta.",
+            "Compares recent load (last ~7 days) to habitual load (last ~28 days), both via exponential moving average. Load comes from TRIMP, so you need average HR + session duration.\n\nOptimal zone: 0.8–1.3. Below 0.8 you're detraining. Above 1.3 injury risk goes up."),
         "info.monotony.title": ("Monotonia", "Monotony"),
         "info.monotony.body": (
-            "Quanto è uniforme il carico nei giorni della settimana: media giornaliera divisa per la sua deviazione standard (metodo di Foster).\n\nValori alti (sopra ~2) significano allenamenti tutti simili, senza alternanza tra giorni duri e leggeri: è associato a maggior affaticamento. Variare l'intensità abbassa la monotonia.\n\nServono almeno 2 giorni di allenamento con RPE/FC nella settimana per calcolarla.",
-            "How even your load is across the week: mean daily load divided by its standard deviation (Foster's method).\n\nHigh values (above ~2) mean every session looks the same, with no hard/easy alternation, which is linked to more fatigue. Varying intensity lowers monotony.\n\nNeeds at least 2 training days with RPE/HR in the week to be computed."),
+            "Media del carico giornaliero divisa per la deviazione standard della settimana (metodo Foster). Più è alta, più tutti i tuoi allenamenti si somigliano.\n\nSopra ~2 non stai alternando giorni duri e leggeri, il che aumenta l'affaticamento. Varia l'intensità per tenerla sotto controllo.",
+            "Mean daily load divided by its standard deviation for the week (Foster method). The higher it is, the more similar your sessions look.\n\nAbove ~2 you're not alternating hard and easy days, which increases fatigue. Vary intensity to keep it in check."),
         "info.strain.title": ("Strain", "Strain"),
         "info.strain.body": (
-            "Carico totale della settimana moltiplicato per la monotonia (metodo di Foster).\n\nRiassume in un solo numero quanto stress complessivo stai accumulando: alto quando alleni molto E in modo monotono. Picchi di strain precedono spesso sovraccarico, malanni o cali di forma, quindi è un buon segnale per inserire una settimana di scarico.",
-            "The week's total load multiplied by monotony (Foster's method).\n\nIt sums up your overall accumulated stress in one number: high when you train a lot AND monotonously. Strain spikes often precede overreaching, illness or performance dips, so it's a good cue to schedule a deload week."),
+            "Carico settimanale totale × monotonia (metodo Foster). In un numero solo: quanto stress hai accumulato questa settimana.\n\nI picchi di strain precedono spesso sovraccarico o malanni. Usalo come segnale per pianificare una settimana di scarico.",
+            "Total weekly load × monotony (Foster method). One number for how much stress you've stacked this week.\n\nStrain spikes often come before overreaching or illness — use it as a cue to schedule a deload week."),
         "info.load.title": ("Carico interno", "Internal load"),
         "info.load.body": (
-            "Il carico interno misura lo stress dell'allenamento percepito dal tuo corpo, non i kg sollevati.\n\nLo calcoliamo come TRIMP a partire dalla durata e dalla frequenza cardiaca media della sessione. Da qui derivano ACWR, monotonia e strain.\n\nImportante: senza durata + FC media una sessione non genera carico interno, quindi queste metriche restano vuote finché non inserisci quei dati (serve un orologio o una fascia cardio).",
-            "Internal load measures the training stress your body actually experiences, not the kilos lifted.\n\nWe compute it as TRIMP from the session's duration and average heart rate. ACWR, monotony and strain all build on it.\n\nImportant: without duration + average HR a session produces no internal load, so these metrics stay empty until you enter that data (a watch or chest strap is needed). If you ever saw a very high load with no HR, that came from an old session's manual effort rating: internal load is now based on heart rate alone, so it can no longer be inflated without it."),
+            "Misura lo stress che l'allenamento impone al corpo, calcolato come TRIMP dalla durata e dalla FC media. ACWR, monotonia e strain derivano tutti da questa metrica.\n\nSenza durata + FC media la sessione non genera carico: le metriche restano vuote. Serve un orologio o una fascia cardio.",
+            "Measures the stress training places on your body, computed as TRIMP from duration and average heart rate. ACWR, monotony and strain all build on it.\n\nWithout duration + average HR a session has no load, so these metrics stay empty. You need a watch or chest strap."),
         "info.activity.title": ("Livello di attività", "Activity level"),
         "info.activity.body": (
-            "Il livello di attività moltiplica il tuo metabolismo basale (BMR) per stimare quante calorie bruci ogni giorno (TDEE). Più ti muovi e ti alleni, più alto è il moltiplicatore.\n\nSedentario (×1.2): lavoro d'ufficio, nessun allenamento.\nLeggero (×1.375): 1-2 allenamenti a settimana.\nModerato (×1.55): 3-4 allenamenti a settimana.\nAlto (×1.725): 5-6 allenamenti a settimana.\nAtleta (×1.9): 6-7 allenamenti a settimana più un lavoro fisico o doppie sedute giornaliere.\n\nScegli in base ai giorni reali di allenamento: è il punto di partenza per calorie e macro.",
-            "Your activity level multiplies your basal metabolism (BMR) to estimate how many calories you burn each day (TDEE). The more you move and train, the higher the multiplier.\n\nSedentary (×1.2): desk job, no training.\nLight (×1.375): 1-2 workouts per week.\nModerate (×1.55): 3-4 workouts per week.\nHigh (×1.725): 5-6 workouts per week.\nAthlete (×1.9): 6-7 workouts per week plus a physical job or twice-daily sessions.\n\nPick it from your real training days: it's the basis for your calories and macros."),
+            "Moltiplica il metabolismo basale per stimare quante calorie bruci ogni giorno.\n\nSedentario (×1,2): lavoro d'ufficio. Leggero (×1,375): 1-2 allenamenti/sett. Moderato (×1,55): 3-4. Alto (×1,725): 5-6. Atleta (×1,9): 6-7 + lavoro fisico o doppie sedute. Scegli in base ai tuoi giorni reali di allenamento.",
+            "Multiplies your resting metabolism to estimate daily calorie burn.\n\nSedentary (×1.2): desk job. Light (×1.375): 1-2 sessions/week. Moderate (×1.55): 3-4. High (×1.725): 5-6. Athlete (×1.9): 6-7 plus physical job or twice-daily sessions. Pick based on your real training days."),
         "info.srpe.title": ("sRPE (durata × RPE)", "sRPE (duration × RPE)"),
         "info.srpe.body": (
-            "Session-RPE: durata della sessione in minuti moltiplicata per lo sforzo percepito (RPE 1-10, scala di Borg CR10).\n\nÈ il modo più semplice e validato per quantificare il carico interno di qualsiasi allenamento, di forza o cardio. Inserisci durata e RPE a fine sessione.",
-            "Session-RPE: session duration in minutes multiplied by perceived effort (RPE 1-10, Borg CR10 scale).\n\nIt's the simplest validated way to quantify the internal load of any session, strength or cardio. Enter duration and RPE at the end of the session."),
+            "Durata della sessione × RPE (1-10, Borg CR10). Il modo più semplice per quantificare il carico interno di qualsiasi allenamento.\n\nUsato nei dati storici. Il carico nelle sessioni attuali si basa sul TRIMP (FC media), più preciso.",
+            "Session duration × RPE (1-10, Borg CR10). The simplest way to quantify internal load for any session.\n\nUsed in historical data. Current sessions use TRIMP (average HR), which is more precise."),
         "info.trimp.title": ("TRIMP", "TRIMP"),
         "info.trimp.body": (
-            "Training Impulse (Banister): pesa la durata con la frequenza cardiaca di riserva e un fattore esponenziale diverso per uomo e donna.\n\nRichiede FC media e durata della sessione, oltre alla FC a riposo e massima del tuo profilo. È più preciso dell'sRPE per il cardio, perché tiene conto dell'intensità cardiovascolare reale.",
-            "Training Impulse (Banister): weights duration by heart-rate reserve and a sex-specific exponential factor.\n\nIt needs average HR and session duration, plus your resting and max HR from the profile. It's more precise than sRPE for cardio because it accounts for real cardiovascular intensity."),
+            "Calcola il carico cardiovascolare pesando la durata con la frequenza cardiaca di riserva (Banister). Più preciso dell'sRPE perché usa la FC reale.\n\nRichiede FC media + durata, e FC a riposo/massima dal profilo. Riferimento: corsa facile 45 min ≈ 40 TRIMP, sessione dura 60 min ≈ 80-100.",
+            "Calculates cardiovascular load by weighting duration by heart-rate reserve (Banister). More precise than sRPE because it uses real HR.\n\nNeeds average HR + duration, and resting/max HR from your profile. Reference: easy 45-min run ≈ 40 TRIMP, hard 60-min session ≈ 80-100."),
         "info.bmi.title": ("BMI", "BMI"),
         "info.bmi.body": (
-            "Indice di massa corporea: peso (kg) diviso per il quadrato dell'altezza (m). Categorie OMS: <18,5 sottopeso, 18,5-25 normopeso, 25-30 sovrappeso, >30 obeso.\n\nÈ un indicatore di massima: non distingue muscolo da grasso, quindi per chi è molto muscoloso o per i bodybuilder può risultare alto pur con poco grasso. Per questo, quando inserisci il grasso corporeo, l'app classifica in base ad esso invece che al solo BMI.\n\nCategorie di grasso corporeo (Uomo / Donna):\n• Essenziale: 2-5% / 10-13%\n• Atleta: 6-13% / 14-20%\n• Fitness: 14-17% / 21-24%\n• Nella media: 18-24% / 25-31%\n• Sovrappeso: 25%+ / 32%+\n• Obeso: 30%+ / 37%+\n\nRegola chiave: un uomo sotto il 18% o una donna sotto il 25% di grasso NON è clinicamente sovrappeso, anche se il BMI supera 25.",
-            "Body Mass Index: weight (kg) divided by height (m) squared. WHO categories: <18.5 underweight, 18.5-25 normal, 25-30 overweight, >30 obese.\n\nIt's a rough screen: it can't tell muscle from fat, so very muscular people and bodybuilders can read high with little fat. That's why, once you log your body fat, the app classifies by body fat instead of BMI alone.\n\nBody-fat categories (Men / Women):\n• Essential: 2-5% / 10-13%\n• Competitive athlete: 6-13% / 14-20%\n• Fitness: 14-17% / 21-24%\n• Average: 18-24% / 25-31%\n• Overweight: 25%+ / 32%+\n• Obese: 30%+ / 37%+\n\nKey rule: a man below 18% or a woman below 25% body fat is NOT clinically overweight, even if BMI is above 25."),
+            "Peso (kg) ÷ altezza² (m). Categorie OMS: <18,5 sottopeso, 18,5-25 normale, 25-30 sovrappeso, >30 obeso.\n\nNon distingue muscolo da grasso: una persona muscolosa può avere BMI alto con poco grasso. Quando inserisci il grasso corporeo, l'app classifica in base a quello invece che al BMI.",
+            "Weight (kg) ÷ height² (m). WHO categories: <18.5 underweight, 18.5-25 normal, 25-30 overweight, >30 obese.\n\nIt can't tell muscle from fat — a muscular person can read high with little fat. When you log body fat, the app classifies by that instead of BMI alone."),
         "info.bodyfat.title": ("Grasso corporeo", "Body fat"),
         "info.bodyfat.body": (
-            "Percentuale di massa grassa sul peso totale. Puoi inserirla manualmente (da plicometro o bilancia) oppure lasciare la stima Navy, basata su circonferenze di collo e vita più l'altezza.\n\nLa stima Navy è comoda ma indicativa (±3-4%): l'importante è misurare sempre allo stesso modo e seguire il trend.",
-            "Share of fat mass over total weight. Enter it manually (from calipers or a scale) or use the Navy estimate, based on neck and waist circumferences plus height.\n\nThe Navy estimate is handy but approximate (±3-4%): what matters is measuring the same way every time and following the trend."),
+            "Percentuale di grasso sul peso totale. Inseriscila a mano (plicometro, bilancia smart) oppure usa la stima Navy basata su collo e vita.\n\nLa stima Navy ha un margine di ±3-4%: l'importante è misurarsi sempre nello stesso modo e seguire il trend nel tempo.",
+            "Percentage of fat in your total weight. Enter it manually (calipers, smart scale) or use the Navy estimate from neck and waist measurements.\n\nThe Navy estimate has a ±3-4% margin — measure consistently and track the trend over time."),
         "info.tdee.title": ("TDEE & BMR", "TDEE & BMR"),
         "info.tdee.body": (
-            "Il BMR (metabolismo basale) è l'energia che bruci a riposo, calcolata con la formula di Mifflin-St Jeor da peso, altezza, età e sesso.\n\nIl TDEE è il dispendio totale giornaliero: BMR × un moltiplicatore di attività (1,2 sedentario → 1,9 atleta). È il punto di partenza per impostare le calorie obiettivo di definizione, mantenimento o massa.",
-            "BMR (basal metabolic rate) is the energy you burn at rest, from the Mifflin-St Jeor formula using weight, height, age and sex.\n\nTDEE is your total daily expenditure: BMR × an activity multiplier (1.2 sedentary → 1.9 athlete). It's the basis for setting cut, maintenance or bulk calorie targets."),
+            "BMR: calorie bruciate a riposo, calcolate con Mifflin-St Jeor da peso, altezza, età e sesso.\n\nTDEE = BMR × moltiplicatore di attività (1,2–1,9). È la base per impostare le calorie obiettivo in definizione, mantenimento o massa.",
+            "BMR: calories burned at rest, from the Mifflin-St Jeor formula using weight, height, age and sex.\n\nTDEE = BMR × activity multiplier (1.2–1.9). It's the starting point for setting calorie targets on a cut, maintenance or bulk."),
         "info.macros.title": ("Macronutrienti", "Macronutrients"),
         "info.macros.body": (
-            "La ripartizione di proteine, carboidrati e grassi che compone le calorie obiettivo, su range ISSN.\n\nProteine ~1,8-2,2 g/kg (più alte in definizione per proteggere la massa magra). Grassi ~0,8 g/kg come minimo ormonale. I carboidrati riempiono le calorie restanti e alimentano la prestazione.",
-            "How protein, carbs and fat split up your calorie target, on ISSN ranges.\n\nProtein ~1.8-2.2 g/kg (higher on a cut to protect lean mass). Fat ~0.8 g/kg as a hormonal floor. Carbs fill the remaining calories and fuel performance."),
+            "Come proteine, carboidrati e grassi si distribuiscono nelle calorie obiettivo, su range ISSN.\n\nProteine 1,8-2,2 g/kg (più alte in definizione per proteggere la massa magra). Grassi min 0,8 g/kg. I carboidrati riempiono le calorie restanti e alimentano la prestazione.",
+            "How protein, carbs and fat split your calorie target, on ISSN reference ranges.\n\nProtein 1.8-2.2 g/kg (higher on a cut to protect lean mass). Fat minimum 0.8 g/kg. Carbs fill the remaining calories and fuel performance."),
         "info.carbcycle.title": ("Ciclizzazione dei carboidrati", "Carb cycling"),
         "info.carbcycle.body": (
-            "Sposta i carboidrati verso i giorni di allenamento mantenendo la media settimanale: più carbo nei giorni ON (×1,30) per la prestazione, meno nei giorni OFF (×0,65).\n\nUtile soprattutto in definizione per allenarsi con energia pur restando in deficit. Le proteine restano costanti ogni giorno.",
-            "Shuttles carbs toward training days while keeping the weekly average: more carbs on training (ON) days (×1.30) for performance, fewer on rest (OFF) days (×0.65).\n\nMost useful on a cut, to train with energy while staying in a deficit. Protein stays constant every day."),
+            "Sposta i carboidrati verso i giorni di allenamento mantenendo la media settimanale: +30% nei giorni ON, -35% nei giorni OFF.\n\nÈ utile soprattutto in definizione: alleni con energia restando in deficit. Le proteine restano costanti ogni giorno.",
+            "Shifts carbs toward training days while keeping the weekly average: +30% on ON days, -35% on OFF days.\n\nMost useful on a cut — you train with energy while staying in a deficit. Protein stays constant every day."),
         "info.lea.title": ("Disponibilità energetica (EA)", "Energy availability (EA)"),
         "info.lea.body": (
-            "Energia che resta per le funzioni vitali dopo l'allenamento: (calorie assunte − energia spesa con l'esercizio) ÷ massa magra, mediata sugli ultimi 7 giorni.\n\nSotto 30 kcal/kg di massa magra al giorno c'è rischio di bassa disponibilità energetica (LEA/RED-S): cali ormonali, ossei e di prestazione. 30-45 è una zona di cautela sotto carichi alti. Richiede calorie e grasso corporeo inseriti.",
-            "The energy left for vital functions after training: (calories eaten − exercise energy) ÷ fat-free mass, averaged over the last 7 days.\n\nBelow 30 kcal per kg of lean mass per day there's a risk of low energy availability (LEA/RED-S): hormonal, bone and performance decline. 30-45 is a caution zone under heavy load. Needs logged calories and body fat."),
+            "Energia disponibile per le funzioni vitali dopo l'allenamento: (calorie assunte − energia esercizio) ÷ massa magra, media 7 giorni.\n\nSotto 30 kcal/kg di massa magra al giorno c'è rischio di LEA/RED-S: cali ormonali, ossei e di prestazione. La zona 30-45 è di cautela sotto carichi alti.",
+            "Energy left for vital functions after training: (calories eaten − exercise energy) ÷ lean mass, 7-day average.\n\nBelow 30 kcal/kg lean mass per day risks LEA/RED-S: hormonal, bone and performance decline. 30-45 is a caution zone under high load."),
         "info.trend.title": ("Trend del peso", "Weight trend"),
         "info.trend.body": (
-            "Stima la tua reale variazione di peso (kg/settimana) con una regressione lineare sugli ultimi ~21 pesi, eliminando il rumore quotidiano da acqua e sale.\n\nConfronta il ritmo reale con l'obiettivo e suggerisce un aggiustamento calorico se vai troppo veloce, troppo lento o nella direzione sbagliata. Servono almeno 4 pesate.",
-            "Estimates your real weight change (kg/week) with a linear regression over your last ~21 weigh-ins, filtering out daily water/salt noise.\n\nIt compares the real rate to your target and suggests a calorie adjustment if you're too fast, too slow or going the wrong way. Needs at least 4 weigh-ins."),
+            "Stima la tua vera variazione di peso (kg/settimana) con una regressione lineare sugli ultimi ~21 pesi, filtrando il rumore giornaliero di acqua e sale.\n\nConfronta il ritmo reale con l'obiettivo e suggerisce un aggiustamento calorico. Servono almeno 4 pesate.",
+            "Estimates your real weight change (kg/week) with a linear regression over your last ~21 weigh-ins, filtering out daily water and salt noise.\n\nCompares your real rate to your target and suggests a calorie tweak if needed. Needs at least 4 weigh-ins."),
         "info.overload.title": ("Sovraccarico progressivo", "Progressive overload"),
         "info.overload.body": (
-            "Suggerimenti di doppia progressione per il prossimo allenamento, confrontando l'ultima sessione con il range di ripetizioni obiettivo.\n\nSe hai raggiunto il massimo del range su tutte le serie → aumenta il carico. Se sei dentro al range → cerca più ripetizioni. Se sei sotto → mantieni e cura la tecnica. Così cresci in modo graduale e misurabile.",
-            "Double-progression hints for your next workout, comparing your last session to the target rep range.\n\nIf you hit the top of the range on every set → add load. If you're inside the range → chase more reps. If you're below → hold and refine technique. This grows you gradually and measurably."),
+            "Suggerisce se aumentare il carico, le ripetizioni, mantenere o scaricare, confrontando l'ultima sessione con il range obiettivo.\n\nCima del range su tutte le serie → aumenta il peso. Dentro il range → cerca più ripetizioni. Sotto il fondo → mantieni e cura la tecnica. Il ritmo è graduale e misurabile.",
+            "Suggests whether to add load, add reps, hold or deload, comparing your last session to the target rep range.\n\nHit the top of the range on every set → add weight. Inside the range → chase more reps. Below the bottom → hold and refine technique. Progress is gradual and measurable."),
         "info.calories.title": ("Calorie bruciate", "Calories burned"),
         "info.calories.body": (
-            "Stima dell'energia attiva spesa nella sessione (la quota a riposo è esclusa, così il numero è confrontabile con quello di un orologio sportivo).\n\nOgni categoria ha la sua formula. Gli sport aerobici (bici, corsa, camminata, nuoto) usano una curva velocità→MET dedicata, calibrata sulla velocità reale ricavata da distanza e durata; senza distanza usiamo la FC media. La forza usa FC media e durata più un piccolo contributo dal volume sollevato. Un'attività nuova senza categoria (es. padel) usa una stima generica da FC e durata.\n\nÈ una stima: l'orologio usa sensori al polso e una calibrazione personale, quindi può differire. Puoi sempre inserire il tuo numero per sovrascriverla.",
-            "An estimate of the active energy spent in the session (the resting share is removed, so the number is comparable to a sports watch).\n\nEach category has its own formula. Aerobic sports (cycling, running, walking, swimming) use a dedicated speed→MET curve, calibrated on your real speed from distance and duration; without a distance we use average HR. Strength uses average HR and duration plus a small contribution from the volume lifted. A brand-new activity with no category (e.g. padel) uses a generic HR + duration estimate.\n\nIt's an estimate: a watch uses wrist sensors and personal calibration, so it can differ. You can always type your own number to override it."),
+            "Stima le calorie attive bruciate nella sessione (la quota a riposo è esclusa, come un orologio sportivo).\n\nOgni sport ha la sua formula: la corsa e il ciclismo usano una curva velocità→MET dalla distanza e durata; senza distanza usa la FC. La forza usa FC, durata e volume. È una stima: inserisci il tuo valore per sovrascriverla.",
+            "Estimates the active calories burned in the session (resting share removed, like a sports watch).\n\nEach sport has its own formula: running and cycling use a speed→MET curve from distance and duration; without distance it uses HR. Strength uses HR, duration and volume. It's an estimate — type your own number to override it."),
         "info.pace.title": ("Ritmo & velocità", "Pace & speed"),
         "info.pace.body": (
-            "Il ritmo viene calcolato automaticamente da distanza e durata, nell'unità tipica di ogni sport: la bici usa la velocità in km/h, la corsa e la camminata il passo in min/km, il nuoto il passo in min/100m.\n\nInserisci distanza e durata e il valore compare da solo. Se vuoi, puoi scriverlo a mano per sovrascrivere il calcolo automatico: la tua cifra ha sempre la precedenza.",
-            "Pace is computed automatically from distance and duration, in each sport's usual unit: cycling uses speed in km/h, running and walking use min/km pace, swimming uses min/100m.\n\nEnter distance and duration and the value fills in by itself. If you prefer, type it by hand to override the automatic calculation: your number always wins."),
+            "Calcolato automaticamente da distanza e durata: la bici usa km/h, la corsa e la camminata min/km, il nuoto min/100m.\n\nInserisci distanza e durata e compare da solo. Puoi scriverlo a mano per sovrascrivere il calcolo automatico.",
+            "Computed automatically from distance and duration: cycling uses km/h, running and walking use min/km, swimming uses min/100m.\n\nEnter distance and duration and it fills in automatically. Type it by hand to override."),
         "info.rmssd.title": ("RMSSD (HRV)", "RMSSD (HRV)"),
         "info.rmssd.body": (
-            "L'RMSSD è la principale misura della variabilità della frequenza cardiaca (HRV): la radice quadrata della media dei quadrati delle differenze tra battiti consecutivi (intervalli R-R), in millisecondi.\n\nRiflette l'attività del sistema nervoso parasimpatico (recupero). Valori più alti del tuo solito indicano buon recupero; valori bassi indicano stress o affaticamento. Misuralo al mattino, da sdraiato, sempre nello stesso modo, con un'app HRV o una fascia cardio, e inseriscilo qui. L'app lo trasforma poi nel punteggio di Prontezza.",
-            "RMSSD is the main heart-rate variability (HRV) metric: the root mean square of successive differences between consecutive heartbeats (R-R intervals), in milliseconds.\n\nIt reflects parasympathetic (recovery) nervous-system activity. Higher than your usual means good recovery; low means stress or fatigue. Measure it in the morning, lying down, the same way each time, with an HRV app or chest strap, and enter it here. The app then turns it into your Readiness score."),
+            "La misura principale dell'HRV: radice quadrata della media dei quadrati delle differenze tra battiti consecutivi, in ms. Riflette il recupero del sistema nervoso parasimpatico.\n\nMisuralo al mattino, sdraiato, sempre nello stesso modo, con un'app HRV o fascia cardio. L'app lo converte nel punteggio di Prontezza.",
+            "The main HRV metric: root mean square of successive differences between consecutive heartbeats, in ms. Reflects parasympathetic (recovery) nervous-system activity.\n\nMeasure in the morning, lying down, the same way each time, with an HRV app or chest strap. The app converts it into your Readiness score."),
         "info.dfa.title": ("DFA-alpha1 (soglia aerobica)", "DFA-alpha1 (aerobic threshold)"),
         "info.dfa.body": (
-            "La DFA-alpha1 è un indice ricavato dall'analisi frattale (detrended fluctuation analysis) della serie di intervalli R-R durante la corsa. Quando scende intorno a 0,75 segnala il primo soglia ventilatoria/aerobica, permettendo di stimarla senza test di laboratorio.\n\nRichiede un flusso continuo e accurato di intervalli R-R battito-battito da una fascia cardiaca Bluetooth, quindi è in arrivo insieme al supporto Bluetooth. La frequenza cardiaca da polso non è abbastanza precisa per questo calcolo.",
-            "DFA-alpha1 is an index from fractal (detrended fluctuation) analysis of the R-R interval series during running. When it drops to around 0.75 it marks the first ventilatory/aerobic threshold, letting you estimate it without a lab test.\n\nIt needs a continuous, accurate beat-to-beat R-R stream from a Bluetooth chest strap, so it's coming together with Bluetooth support. Wrist heart rate is not precise enough for this calculation."),
+            "Indice frattale degli intervalli R-R: quando scende intorno a 0,75 segnala la prima soglia aerobica senza test di laboratorio.\n\nRichiede un flusso R-R battito-battito continuo da fascia cardio Bluetooth. In arrivo con il supporto BLE.",
+            "Fractal index of R-R intervals: when it drops to ~0.75 it marks the first aerobic threshold without a lab test.\n\nNeeds a continuous beat-to-beat R-R stream from a Bluetooth chest strap. Coming with BLE support."),
         "info.weekplan.title": ("Piano settimanale", "Weekly plan"),
         "info.weekplan.body": (
-            "Decide quale sarà il tuo prossimo allenamento. Senza piano, l'app ruota automaticamente tra i giorni nell'ordine in cui appaiono nella pagina Allena (dopo Push viene Pull, ecc., poi ricomincia).\n\nCon il piano settimanale assegni a ogni giorno della settimana un allenamento di forza, un'attività cardio o riposo: il prossimo allenamento seguirà esattamente l'ordine che preferisci (es. Lunedì Push, Martedì Corsa, Giovedì Pull…). Lascia tutto vuoto per tornare alla rotazione automatica.",
-            "Decides what your next workout will be. Without a plan, the app rotates automatically through your days in the order they appear on the Train page (after Push comes Pull, etc., then loops).\n\nWith the weekly plan you assign each weekday a strength workout, a cardio activity or rest: the next workout follows exactly the order you prefer (e.g. Monday Push, Tuesday Running, Thursday Pull…). Leave it all empty to go back to automatic rotation."),
+            "Assegna a ogni giorno della settimana un allenamento di forza, un'attività cardio o riposo. Il prossimo allenamento seguirà esattamente questo ordine.\n\nSenza piano l'app ruota automaticamente tra i giorni in ordine. Lascia tutto vuoto per tornare alla rotazione automatica.",
+            "Assign a strength workout, cardio activity or rest to each weekday. The next workout follows exactly this schedule.\n\nWithout a plan the app rotates through your days automatically. Leave it all empty to go back to auto-rotation."),
         "info.adherence.title": ("Costanza & TDEE adattivo", "Adherence & adaptive TDEE"),
         "info.adherence.body": (
-            "Le calorie obiettivo non si basano solo sul peso. Quando registri la dieta e il peso per abbastanza giorni, l'app calcola il tuo mantenimento reale (TDEE adattivo) = calorie medie assunte − energia implicata dal trend di peso. Così impara la tua spesa energetica vera invece di fidarsi solo del moltiplicatore di attività.\n\nConsidera anche costanza di tracciamento, passi medi e volume di allenamento delle ultime 2-3 settimane. Se tracci poco, le stime sono meno affidabili e l'app te lo segnala.",
-            "Your calorie target isn't based on weight alone. Once you log nutrition and weight for enough days, the app computes your real maintenance (adaptive TDEE) = average intake − the energy implied by your weight trend. So it learns your true expenditure instead of trusting only the activity multiplier.\n\nIt also considers logging consistency, average steps and training volume over the last 2-3 weeks. If you log little, estimates are less reliable and the app flags it."),
+            "Quando tracki peso e calorie abbastanza giorni, l'app calcola il tuo mantenimento reale (TDEE adattivo) = calorie medie − energia implicata dal trend di peso. Impara la tua spesa vera invece di fidarsi solo del moltiplicatore di attività.\n\nConsideraiamo anche passi e volume di allenamento. Se tracci poco le stime sono meno affidabili.",
+            "Once you track weight and calories for enough days, the app calculates your real maintenance (adaptive TDEE) = average intake − energy implied by your weight trend. It learns your true expenditure instead of trusting only the activity multiplier.\n\nIt also factors in steps and training volume. Log inconsistently and estimates become less reliable."),
         "info.steps.title": ("Passi", "Steps"),
         "info.steps.body": (
-            "I passi giornalieri sono una misura dell'attività non sportiva (NEAT), che incide molto sul dispendio energetico totale. Inseriscili a mano o, se attivi Apple Salute, vengono importati automaticamente.\n\nServono per valutare la tua costanza di movimento e per rendere più precise le stime caloriche adattive.",
-            "Daily steps measure your non-exercise activity (NEAT), which heavily affects total energy expenditure. Enter them by hand or, if you connect Apple Health, they're imported automatically.\n\nThey help gauge how consistently you move and make the adaptive calorie estimates more accurate."),
+            "Attività non sportiva (NEAT), che incide molto sul dispendio totale. Inseriscili a mano o collegati ad Apple Salute per l'import automatico.\n\nServono per rendere più preciso il TDEE adattivo e per vedere quanto ti muovi fuori dall'allenamento.",
+            "Non-exercise activity (NEAT), which heavily affects total energy expenditure. Enter manually or connect to Apple Health for auto-import.\n\nThey make the adaptive TDEE estimate more accurate and show how much you move outside training."),
         "info.sleep.title": ("Punteggio sonno", "Sleep score"),
         "info.sleep.body": (
-            "Un punteggio 0-100 che riassume quanto bene hai dormito (durata e qualità percepita). Il sonno è uno dei fattori più importanti per recupero, prestazione e composizione corporea.\n\nInseriscilo ogni mattina insieme al peso: nel tempo potrai vedere come il sonno si correla con prontezza e progressi.",
-            "A 0-100 score summarizing how well you slept (duration and perceived quality). Sleep is one of the biggest drivers of recovery, performance and body composition.\n\nLog it each morning with your weight: over time you'll see how sleep relates to readiness and progress."),
+            "Punteggio 0-100 per durata e qualità percepita del sonno. Il sonno è il principale fattore di recupero, performance e composizione corporea.\n\nInseriscilo ogni mattina con il peso: nel tempo vedrai come si correla con prontezza e progressi.",
+            "A 0-100 score for sleep duration and perceived quality. Sleep is the single biggest driver of recovery, performance and body composition.\n\nLog it each morning with your weight — over time you'll see how it relates to readiness and progress."),
         "info.goal.title": ("Obiettivo & progressi", "Goal & progress"),
         "info.goal.body": (
-            "Il tuo obiettivo (peso e grasso) viene fissato al primo accesso e NON cambia automaticamente a ogni check-in: resta stabile finché non lo modifichi tu con il pulsante Cambia obiettivo.\n\nLa barra di avanzamento parte dal tuo peso iniziale e arriva al peso obiettivo, quindi si riempie man mano che ti avvicini, in salita o in discesa. Il numero a sinistra è il tuo peso attuale, che ovviamente cambia ad ogni pesata: è normale, l'obiettivo a destra resta fisso.",
-            "Your goal (weight and body fat) is set at first launch and does NOT change automatically at every check-in: it stays fixed until you change it with the Change goal button.\n\nThe progress bar runs from your start weight to your goal weight, filling as you get closer, whether losing or gaining. The number on the left is your current weight, which of course changes with each weigh-in: that's normal, the goal on the right stays put."),
+            "Il tuo obiettivo (peso e grasso) viene impostato all'inizio e non cambia ad ogni pesata: resta fisso finché non lo modifichi con 'Cambia obiettivo'.\n\nLa barra parte dal peso iniziale e arriva all'obiettivo. Il numero a sinistra cambia ad ogni check-in, quello a destra resta fisso.",
+            "Your goal (weight and body fat) is set at the start and doesn't change at each weigh-in — it stays fixed until you tap 'Change goal'.\n\nThe bar runs from your start weight to your goal weight. The number on the left changes with each check-in; the one on the right stays put."),
         "info.streak.title": ("Striscia", "Streak"),
         "info.streak.body": (
-            "I giorni consecutivi in cui hai fatto un check-in o un allenamento. La striscia resta attiva per tutta la giornata di oggi: non si azzera solo perché non hai ancora fatto il check-in di oggi.\n\nSi interrompe soltanto quando passa un giorno intero senza alcun check-in né allenamento.",
-            "The consecutive days you've done a check-in or a workout. The streak stays active for the whole of today: it doesn't reset just because you haven't checked in yet today.\n\nIt only breaks once a full day passes with no check-in and no workout."),
+            "Giorni consecutivi con almeno un check-in o un allenamento. Resta attiva per tutta la giornata di oggi: non si azzera prima che il giorno sia finito.\n\nSi interrompe solo quando un giorno intero passa senza nulla registrato.",
+            "Consecutive days with at least one check-in or workout. It stays alive for all of today — it doesn't reset before the day is over.\n\nIt only breaks once a full day passes with nothing logged."),
 
         // --- Day logging / rest / recommended fields ------------------------
         "home.tap_to_log":   ("Tocca un giorno per registrare", "Tap a day to log"),
@@ -623,6 +632,40 @@ enum L {
         "trimp.last":        ("Ultima:", "Last:"),
         "trimp.note":        ("Somma del TRIMP delle sessioni con FC media. Più alto = più stress cardiovascolare.",
                               "Sum of session TRIMP from average HR. Higher = more cardiovascular stress."),
+
+        // --- Sessions info popup --------------------------------------------
+        "info.sessions.title": ("Sessioni totali", "Total sessions"),
+        "info.sessions.body": (
+            "Tutte le sessioni di forza e cardio salvate dall'inizio. Ogni sessione conta, anche se breve.\n\nUsalo come riferimento nel tempo: se il numero cresce in modo costante, stai allenandoti con continuità.",
+            "All strength and cardio sessions saved since you started. Every session counts, even short ones.\n\nUse it as a long-term reference: a number that keeps growing means you're training consistently."),
+
+        // --- Exercise library -----------------------------------------------
+        "ex.library":         ("Libreria esercizi", "Exercise library"),
+
+        // --- Per-set effort tracking ----------------------------------------
+        "wk.effort":          ("Sforzo", "Effort"),
+        "wk.effort.off":      ("—", "—"),
+        "wk.effort.rir":      ("RIR", "RIR"),
+        "wk.effort.rpe":      ("RPE", "RPE"),
+        "wk.effort.fail":     ("FAIL", "FAIL"),
+        "wk.effort.hint":     ("RIR = ripetizioni prima del cedimento · RPE = sforzo 1-10 · FAIL = cedimento raggiunto",
+                               "RIR = reps before failure · RPE = perceived effort 1-10 · FAIL = hit failure"),
+
+        // --- Bodyweight exercise --------------------------------------------
+        "wk.bodyweight":      ("Corpo libero", "Bodyweight"),
+        "wk.bw_hint":         ("Il campo peso è il carico aggiunto. 0 = solo peso corporeo, negativo = macchina assistita.",
+                               "Weight field is added load. 0 = pure bodyweight, negative = machine-assisted."),
+
+        // --- Food sort options ----------------------------------------------
+        "food.sort":          ("Ordina", "Sort"),
+        "food.sort.recent":   ("Recenti", "Recent"),
+        "food.sort.alpha":    ("A-Z", "A-Z"),
+        "food.sort.kcal":     ("Kcal/100g", "Kcal/100g"),
+        "food.sort.ratio":    ("Kcal:Prot", "Kcal:Prot"),
+
+        // --- Stats / exercise search ----------------------------------------
+        "st.search_ex":       ("Cerca esercizio", "Search exercise"),
+        "st.all_exercises":   ("Tutti gli esercizi", "All exercises"),
     ]
 }
 

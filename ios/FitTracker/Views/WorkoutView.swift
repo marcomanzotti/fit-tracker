@@ -298,7 +298,9 @@ struct WorkoutView: View {
                            notes: "",
                            target: "\(ex.sets)×\(ex.reps)",
                            supersetGroup: ex.supersetGroup,
-                           method: ex.method)
+                           method: ex.method,
+                           effortMode: ex.effortMode,
+                           isBodyweight: ex.isBodyweight)
         }
         UIApplication.shared.isIdleTimerDisabled = true
         activePlanId = plan.id

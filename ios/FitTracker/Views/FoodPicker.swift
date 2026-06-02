@@ -75,6 +75,18 @@ private enum FoodSheet: Identifiable {
     }
 }
 
+private enum FoodSortKey: String, CaseIterable {
+    case recent, alpha, kcal, ratio
+    var label: String {
+        switch self {
+        case .recent: return t("food.sort.recent")
+        case .alpha:  return t("food.sort.alpha")
+        case .kcal:   return t("food.sort.kcal")
+        case .ratio:  return t("food.sort.ratio")
+        }
+    }
+}
+
 struct FoodPickerSheet: View {
     @EnvironmentObject var store: Store
     @Environment(\.dismiss) private var dismiss
@@ -83,11 +95,29 @@ struct FoodPickerSheet: View {
     @State private var search = ""
     @State private var sheet: FoodSheet?
     @State private var looking = false
+    @State private var sortKey: FoodSortKey = .recent
+    @State private var sortAsc = false
 
     private var filtered: [FoodItem] {
-        let all = store.recentFoods()
-        guard !search.isEmpty else { return all }
-        return all.filter { $0.name.localizedCaseInsensitiveContains(search) }
+        var all = store.recentFoods()
+        if !search.isEmpty { all = all.filter { $0.name.localizedCaseInsensitiveContains(search) } }
+        switch sortKey {
+        case .recent:
+            // recentFoods() already sorts by lastUsed desc, flip for asc
+            if sortAsc { all = all.reversed() }
+        case .alpha:
+            all.sort { a, b in
+                let cmp = a.name.localizedCaseInsensitiveCompare(b.name)
+                return sortAsc ? cmp == .orderedAscending : cmp == .orderedDescending
+            }
+        case .kcal:
+            all.sort { sortAsc ? $0.k100 < $1.k100 : $0.k100 > $1.k100 }
+        case .ratio:
+            // kcal-to-protein ratio (lower = more protein per kcal)
+            let ratio = { (f: FoodItem) -> Double in f.p100 > 0 ? f.k100 / f.p100 : Double.infinity }
+            all.sort { sortAsc ? ratio($0) < ratio($1) : ratio($0) > ratio($1) }
+        }
+        return all
     }
 
     var body: some View {
@@ -100,6 +130,7 @@ struct FoodPickerSheet: View {
                     FilledButton(title: t("food.new")) { sheet = .form(FoodItem(name: "")) }
                 }
                 InputField(placeholder: t("food.search"), text: $search, keyboard: .default)
+                sortBar
                 ScrollView {
                     LazyVStack(spacing: 8) {
                         if filtered.isEmpty {
@@ -150,6 +181,35 @@ struct FoodPickerSheet: View {
             }
         }
         .padding(.top, 18)
+    }
+
+    private var sortBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                Text(t("food.sort").uppercased()).font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
+                ForEach(FoodSortKey.allCases, id: \.self) { key in
+                    let active = sortKey == key
+                    Button {
+                        tap()
+                        if sortKey == key { sortAsc.toggle() } else { sortKey = key; sortAsc = false }
+                    } label: {
+                        HStack(spacing: 3) {
+                            Text(key.label).font(.head(10, .semibold)).tracking(0.5)
+                            if active {
+                                Image(systemName: sortAsc ? "arrow.up" : "arrow.down")
+                                    .font(.system(size: 9, weight: .bold))
+                            }
+                        }
+                        .foregroundColor(active ? Theme.bg : Theme.sub)
+                        .padding(.vertical, 5).padding(.horizontal, 9)
+                        .background(active ? Theme.acc : Theme.c2)
+                        .clipShape(Capsule())
+                        .overlay(Capsule().stroke(active ? Theme.acc : Theme.brd, lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
     }
 
     private func foodRow(_ f: FoodItem) -> some View {

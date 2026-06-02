@@ -271,20 +271,67 @@ extension Store {
         return (lo, max(lo, hi))
     }
 
-    /// Suggest whether to add load, add reps, hold, or deload an exercise, based
-    /// on the last logged session vs the plan's target rep range (double progression).
+    /// Double-progression for an exercise, enhanced with health and load context.
+    /// Priority order:
+    ///   1. Deload: HRV score < 30 (very low readiness) → always deload
+    ///   2. Hold:   ACWR > 1.3 (load spike) → hold to reduce injury risk
+    ///   3. Rep / load suggestion from last session vs target range
+    ///   4. Consistency check: if the exercise was hit at the top of the range
+    ///      in the two most recent sessions, confirm addLoad; a single session
+    ///      at the top with a prior fall-short stays at addReps (not yet confirmed).
     func progression(planId: String, exercise: String) -> ProgKind? {
         guard let plan = plan(planId),
               let pe = plan.exercises.first(where: { $0.name == exercise }),
-              let (lo, hi) = repRange(pe.reps),
-              let last = lastSession(forPlan: planId),
+              let (lo, hi) = repRange(pe.reps) else { return nil }
+
+        // Health gates — check readiness and load FIRST.
+        let r = readiness()
+        if let score = r.score, score < 30 { return .deload }
+        let aw = acwr()
+        if let ratio = aw.ratio, ratio > 1.3 { return .hold }
+
+        // Collect the last two sessions for this plan.
+        let planSessions = sessions
+            .filter { $0.planId == planId && $0.date != today() }
+            .sorted { $0.date > $1.date }
+        guard let last = planSessions.first,
               let ex = last.exercises.first(where: { $0.name == exercise }) else { return nil }
+
         let working = ex.sets.filter { pf($0.weight) > 0 }
         guard !working.isEmpty else { return nil }
         let reps = working.map { Int(pf($0.reps)) }
         guard let minReps = reps.min(), minReps > 0 else { return nil }
-        if minReps >= hi { return .addLoad }               // topped the range -> heavier
-        if minReps >= lo { return .addReps }               // in range -> chase more reps
-        return .hold                                        // missed the bottom -> hold form
+
+        // Effort-based gate: if per-set RIR/RPE data exists and indicates plenty
+        // of reserve (RIR ≥ 3 or RPE ≤ 6), stay at addReps even at the top.
+        if let effortScale = ex.effortScale {
+            let effortVals = ex.sets.compactMap { $0.effortVal }
+            if !effortVals.isEmpty {
+                let avgEffort = Double(effortVals.reduce(0, +)) / Double(effortVals.count)
+                switch effortScale {
+                case .rir where avgEffort >= 3: return .addReps   // still easy — chase reps
+                case .rpe where avgEffort <= 6: return .addReps
+                default: break
+                }
+            }
+        }
+
+        guard minReps >= hi else {
+            return minReps >= lo ? .addReps : .hold
+        }
+
+        // At the top of the range — confirm with the previous session before
+        // calling addLoad, so one lucky session doesn't falsely trigger a jump.
+        if planSessions.count >= 2 {
+            let prev = planSessions[1]
+            if let prevEx = prev.exercises.first(where: { $0.name == exercise }) {
+                let prevWorking = prevEx.sets.filter { pf($0.weight) > 0 }
+                let prevReps = prevWorking.compactMap { Int(pf($0.reps)) }
+                if let prevMin = prevReps.min(), prevMin >= hi {
+                    return .addLoad   // two sessions at ceiling → ready for more weight
+                }
+            }
+        }
+        return .addLoad   // only one session in history, give the benefit of the doubt
     }
 }

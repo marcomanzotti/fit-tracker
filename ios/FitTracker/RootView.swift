@@ -1,17 +1,30 @@
 import SwiftUI
 
 enum Tab: String, CaseIterable {
-    case home, allena, corpo, stats
+    case home, allena, corpo, nutri, stats
     var label: String {
         switch self {
         case .home: return t("nav.home"); case .allena: return t("nav.train")
-        case .corpo: return t("nav.body"); case .stats: return t("nav.stats")
+        case .corpo: return t("nav.body"); case .nutri: return t("nav.nutrition")
+        case .stats: return t("nav.stats")
         }
     }
     var sub: String {
         switch self {
         case .home: return t("sub.home"); case .allena: return t("sub.train")
-        case .corpo: return t("sub.body"); case .stats: return t("sub.stats")
+        case .corpo: return t("sub.body"); case .nutri: return t("sub.nutrition")
+        case .stats: return t("sub.stats")
+        }
+    }
+    /// Bottom-bar glyph. Chosen so no icon is reused elsewhere in the app
+    /// (section headers keep dumbbell.fill / fork.knife, which stay distinct).
+    var icon: String {
+        switch self {
+        case .home: return "house.fill"
+        case .allena: return "figure.strengthtraining.traditional"
+        case .corpo: return "figure.arms.open"
+        case .nutri: return "carrot.fill"
+        case .stats: return "chart.line.uptrend.xyaxis"
         }
     }
 }
@@ -36,6 +49,7 @@ struct RootView: View {
                         case .home:   HomeView(tab: $tab)
                         case .allena: WorkoutView()
                         case .corpo:  BodyView()
+                        case .nutri:  NutritionView()
                         case .stats:  StatsView()
                         }
                     }
@@ -121,12 +135,17 @@ struct NavBar: View {
                 Button {
                     tap(); tab = t
                 } label: {
+                    // Icon-only navigation: the page name is conveyed by the glyph
+                    // (labels removed to save space). The active dot keeps the
+                    // current page legible at a glance.
                     VStack(spacing: 6) {
-                        Circle().fill(t == tab ? Theme.acc : .clear).frame(width: 5, height: 5)
-                        Text(t.label.uppercased()).font(.head(11, .semibold)).tracking(1.5)
+                        Image(systemName: t.icon)
+                            .font(.system(size: 20, weight: t == tab ? .semibold : .regular))
                             .foregroundColor(t == tab ? Theme.acc : Theme.sub)
+                        Circle().fill(t == tab ? Theme.acc : .clear).frame(width: 5, height: 5)
                     }
                     .frame(maxWidth: .infinity, minHeight: 50)
+                    .accessibilityLabel(t.label)
                 }
             }
         }

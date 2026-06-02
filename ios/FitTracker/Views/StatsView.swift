@@ -6,8 +6,7 @@ struct StatsView: View {
 
     @State private var statsTab = "overview"
     @State private var selEx = ""
-    @State private var openId: UUID?
-    @State private var editingSession: WorkoutSession?
+    @State private var exSearch = ""
 
     private var tabs: [(String, String)] {
         [("overview", t("st.overview")), ("pr", t("st.records")), ("prog", t("st.progress")), ("storico", t("st.history"))]
@@ -146,22 +145,55 @@ struct StatsView: View {
 
     // MARK: Progress
     private var progress: some View {
-        Group {
+        let allEx = store.allExerciseNames()
+        let filtered = exSearch.isEmpty
+            ? allEx
+            : allEx.filter { $0.name.localizedCaseInsensitiveContains(exSearch) }
+        return Group {
             Card {
                 Lbl(text: t("st.select_ex")).padding(.bottom, 8)
-                Picker("", selection: $selEx) {
-                    Text(t("st.choose")).tag("")
-                    ForEach(store.plans) { p in
-                        ForEach(p.exercises) { ex in
-                            Text("\(p.name) · \(ex.name)").tag(ex.name)
+                InputField(placeholder: t("st.search_ex"), text: $exSearch, keyboard: .default)
+                    .padding(.bottom, 8)
+                if !selEx.isEmpty {
+                    HStack(spacing: 8) {
+                        Text(selEx).font(.system(size: 13, weight: .semibold)).foregroundColor(Theme.acc)
+                            .lineLimit(1)
+                        Spacer()
+                        Button { tap(); selEx = "" } label: {
+                            Image(systemName: "xmark.circle.fill").foregroundColor(Theme.sub)
                         }
                     }
+                    .padding(.vertical, 6).padding(.horizontal, 12)
+                    .background(Theme.acc.opacity(0.08))
+                    .clipShape(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous))
+                } else if !exSearch.isEmpty {
+                    ScrollView(.vertical, showsIndicators: false) {
+                        LazyVStack(spacing: 0) {
+                            ForEach(filtered, id: \.name) { item in
+                                Button { tap(); selEx = item.name; exSearch = "" } label: {
+                                    HStack {
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(item.name).font(.system(size: 13, weight: .semibold))
+                                                .foregroundColor(Theme.txt).lineLimit(1)
+                                            Text(item.group).font(.system(size: 10)).foregroundColor(Theme.sub)
+                                        }
+                                        Spacer()
+                                        Image(systemName: "chevron.right").font(.system(size: 11)).foregroundColor(Theme.sub)
+                                    }
+                                    .padding(.vertical, 9).padding(.horizontal, 12)
+                                }
+                                .buttonStyle(.plain)
+                                if item.name != filtered.last?.name {
+                                    Rectangle().fill(Theme.brd).frame(height: 1)
+                                }
+                            }
+                        }
+                    }
+                    .frame(maxHeight: 220)
+                    .background(Theme.c2)
+                    .clipShape(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous).stroke(Theme.brd, lineWidth: 1))
                 }
-                .pickerStyle(.menu).tint(Theme.txt)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.vertical, 6).padding(.horizontal, 12)
-                .background(Theme.c2).clipShape(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous).stroke(Theme.brd, lineWidth: 1))
             }
 
             if !selEx.isEmpty {
@@ -201,99 +233,19 @@ struct StatsView: View {
         }
     }
 
-    // MARK: History (calendar + list)
+    // MARK: History (two calendars only)
+    // Workout + nutrition calendars, nothing underneath them: tapping a workout
+    // day opens that session, tapping a nutrition day opens its editor. The full
+    // session list and the calorie/macro charts moved to the Train and Nutrition
+    // pages respectively, so nothing is duplicated here.
     private var history: some View {
-        let sorted = store.sessions.sorted { $0.date > $1.date }
-        return Group {
-            // Workout section: calendar of sessions + the session list. Workouts
-            // themselves are logged from the Train page; here it's history.
+        Group {
             SectionHeader(text: t("st.section_workout"), icon: "dumbbell.fill")
             CalendarCard()
-            if sorted.isEmpty {
-                Card { EmptyBox(title: t("st.empty_history"), text: t("st.no_workouts")) }
-            } else {
-                ForEach(sorted) { s in
-                    historyCard(s)
-                }
-            }
 
-            // Nutrition section: a calendar of daily intake (tap any day to edit)
-            // plus calorie/macro charts in the same style as every other metric.
             SectionHeader(text: t("st.section_nutrition"), icon: "fork.knife")
             NutritionCalendarCard()
-            NutritionChartsSection()
         }
-        .sheet(item: $editingSession) { s in SessionEditorView(session: s) }
-    }
-
-    private func historyCard(_ s: WorkoutSession) -> some View {
-        let isOpen = openId == s.id
-        return Card {
-            Button { tap(); openId = isOpen ? nil : s.id } label: {
-                HStack(alignment: .top) {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(s.planName.uppercased()).font(.head(18, .bold)).tracking(0.5)
-                            .foregroundColor(Color(hex: s.planColor))
-                        Text("\(s.date) · \(s.totalSets) \(t("wk.sets_n")) · ~\(store.estimateCalories(s)) kcal")
-                            .font(.system(size: 10)).foregroundColor(Theme.sub)
-                    }
-                    Spacer()
-                    VStack(alignment: .trailing, spacing: 5) {
-                        Badge(text: "\(Int(s.volume)) kg")
-                        Image(systemName: isOpen ? "chevron.up" : "chevron.down")
-                            .font(.system(size: 12)).foregroundColor(Theme.sub)
-                    }
-                }
-            }
-            .buttonStyle(.plain)
-
-            if isOpen {
-                VStack(alignment: .leading, spacing: 12) {
-                    ForEach(s.exercises) { ex in
-                        VStack(alignment: .leading, spacing: 7) {
-                            Text(ex.name).font(.system(size: 12, weight: .semibold)).foregroundColor(Theme.txt)
-                            FlexWrap(Array(ex.sets.enumerated().map { "S\($0.offset + 1): \(disp($0.element.weight))×\(disp($0.element.reps))" }), spacing: 4) { tag in
-                                Text(tag).font(.num(11)).foregroundColor(Theme.sub)
-                                    .padding(.vertical, 4).padding(.horizontal, 9)
-                                    .background(Theme.mut).clipShape(Capsule())
-                            }
-                            if !ex.notes.isEmpty {
-                                Text(ex.notes).font(.system(size: 11)).foregroundColor(Theme.sub)
-                            }
-                            Text("Vol \(Int(ex.volume)) · Max \(trimNum(ex.maxWeight)) kg")
-                                .font(.system(size: 10, weight: .semibold)).foregroundColor(Theme.sub)
-                        }
-                    }
-                    if s.sportType.isCardio {
-                        Text(cardioLine(s)).font(.system(size: 12)).foregroundColor(Theme.sub)
-                    }
-                    if let tr = store.trimp(s) {
-                        Text("TRIMP \(Int(tr))")
-                            .font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.acc2)
-                    } else if let load = s.sRPE {
-                        Text("sRPE \(Int(load))")
-                            .font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.acc2)
-                    }
-                    GhostButton(title: t("wk.edit_session")) { editingSession = s }
-                        .padding(.top, 4)
-                }
-                .padding(.top, 12)
-                .overlay(alignment: .top) { Rectangle().fill(Theme.brd).frame(height: 1) }
-            }
-        }
-    }
-
-    private func disp(_ s: String) -> String { s.isEmpty ? "?" : s }
-
-    private func cardioLine(_ s: WorkoutSession) -> String {
-        var parts: [String] = [s.sportType.label]
-        if let sec = s.durationSeconds { parts.append(fmtDuration(sec)) }
-        if let km = s.distanceKm { parts.append("\(dispDist(km)) \(Units.distLabel)") }
-        if let p = s.effectivePace {
-            parts.append(s.paceIsSpeed ? "\(trimNum((p * 10).rounded() / 10)) \(s.paceUnit)" : paceStr(p) + s.paceUnit)
-        }
-        if let hr = s.avgHR { parts.append("\(hr) bpm") }
-        return parts.joined(separator: " · ")
     }
 }
 

@@ -20,7 +20,11 @@ struct FieldRow<Content: View>: View {
     @ViewBuilder var content: Content
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
-            Lbl(text: label)
+            // FieldLabel pins the caption to a fixed single-line height, so two
+            // FieldRows side by side (e.g. Height / Current weight, Training days /
+            // Resting HR) keep their input boxes perfectly aligned regardless of
+            // how long the localized label is.
+            FieldLabel(label)
             content
         }
     }
@@ -364,8 +368,9 @@ struct SettingsView: View {
                     }
                 }
                 // Per-watch setup guide (Garmin/Polar/… toggles + GPX/TCX import).
-                Spacer().frame(height: 10)
+                Spacer().frame(height: 14)
                 GhostButton(title: t("guide.open"), color: Theme.blue) { showGuide = true }
+                    .padding(.bottom, 4)
             } else {
                 Text(t("hk.unavailable")).font(.system(size: 12)).foregroundColor(Theme.sub)
             }

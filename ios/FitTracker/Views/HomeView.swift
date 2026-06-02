@@ -34,7 +34,7 @@ struct HomeView: View {
             StatTile(label: t("home.streak"), value: "\(store.streak)", valueColor: Theme.acc,
                      note: store.streak == 1 ? t("home.day") : t("home.days"), info: "streak")
             StatTile(label: t("home.sessions"), value: "\(store.sessions.count)", valueColor: Theme.blue,
-                     note: t("home.total"))
+                     note: t("home.total"), info: "sessions")
         }
 
         weekStripCard
@@ -159,8 +159,8 @@ struct HomeView: View {
     }
 
     private func labeledField(_ label: String, _ ph: String, _ binding: Binding<String>) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(label).font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.sub)
+        VStack(alignment: .leading, spacing: 7) {
+            FieldLabel(label)
             InputField(placeholder: ph, text: binding)
         }
     }

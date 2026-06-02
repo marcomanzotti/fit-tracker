@@ -101,6 +101,19 @@ struct PlanEditorView: View {
                     TextField("", text: $plan.exercises[i].name,
                               prompt: Text(t("pe.ex_name_ph")).foregroundColor(Theme.sub))
                         .font(.system(size: 14, weight: .medium)).foregroundColor(Theme.txt)
+                    // Bodyweight toggle
+                    let bw = plan.exercises[i].bodyweight
+                    Button {
+                        tap()
+                        plan.exercises[i].isBodyweight = bw ? nil : true
+                    } label: {
+                        Text(t("wk.bodyweight")).font(.head(9, .semibold)).tracking(0.5)
+                            .foregroundColor(bw ? Theme.bg : Theme.sub)
+                            .padding(.vertical, 4).padding(.horizontal, 7)
+                            .background(bw ? Theme.good : Theme.c3)
+                            .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
                     Button { tap(); plan.exercises.removeAll { $0.id == id } } label: {
                         Image(systemName: "xmark").font(.system(size: 13)).foregroundColor(Theme.red.opacity(0.7))
                             .frame(width: 30, height: 34)
@@ -143,6 +156,7 @@ struct PlanEditorView: View {
                     }
                 }
                 methodRow(i)
+                effortRow(i)
             }
             .padding(.vertical, 11).padding(.horizontal, 12)
             .background(Theme.c2)
@@ -150,6 +164,31 @@ struct PlanEditorView: View {
             .overlay(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous).stroke(Theme.brd, lineWidth: 1))
             .padding(.bottom, 8)
         }
+    }
+
+    private func effortRow(_ i: Int) -> some View {
+        let cur = plan.exercises[i].effortScale
+        return HStack(spacing: 8) {
+            Text(t("wk.effort").uppercased()).font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
+            Spacer()
+            ForEach([EffortMode?.none] + EffortMode.allCases.map { Optional($0) }, id: \.?.rawValue) { mode in
+                let label = mode?.label ?? t("wk.effort.off")
+                let active = cur == mode
+                Button {
+                    tap()
+                    plan.exercises[i].effortMode = mode?.rawValue
+                } label: {
+                    Text(label).font(.head(9, .semibold)).tracking(0.5)
+                        .foregroundColor(active ? Theme.bg : Theme.sub)
+                        .padding(.vertical, 4).padding(.horizontal, 8)
+                        .background(active ? Theme.acc2 : Theme.c1)
+                        .clipShape(Capsule())
+                        .overlay(Capsule().stroke(active ? Theme.acc2 : Theme.brd, lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.top, 2)
     }
 
     private func methodRow(_ i: Int) -> some View {

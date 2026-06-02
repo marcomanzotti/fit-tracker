@@ -8,6 +8,7 @@ final class Store: ObservableObject {
     @Published var plans: [WorkoutPlan] = []
     @Published var cardioTypes: [CardioType] = []
     @Published var foods: [FoodItem] = []
+    @Published var exerciseItems: [ExerciseItem] = []
     @Published var prefs: Prefs = Prefs()
 
     private var loaded = false
@@ -26,6 +27,7 @@ final class Store: ObservableObject {
             $plans.map { _ in () }.eraseToAnyPublisher(),
             $cardioTypes.map { _ in () }.eraseToAnyPublisher(),
             $foods.map { _ in () }.eraseToAnyPublisher(),
+            $exerciseItems.map { _ in () }.eraseToAnyPublisher(),
             $prefs.map { _ in () }.eraseToAnyPublisher()
         ]
         Publishers.MergeMany(pubs)
@@ -41,6 +43,7 @@ final class Store: ObservableObject {
             daily = a.daily; sessions = a.sessions; body = a.body; plans = a.plans; prefs = a.prefs
             cardioTypes = a.cardioTypes ?? []
             foods = a.foods ?? []
+            exerciseItems = a.exerciseItems ?? []
         }
         if plans.isEmpty { plans = Store.defaultPlans() }
         if cardioTypes.isEmpty { cardioTypes = Store.defaultCardioTypes() }
@@ -54,7 +57,8 @@ final class Store: ObservableObject {
 
     func save() {
         guard loaded else { return }
-        let a = AppData(daily: daily, sessions: sessions, body: body, plans: plans, prefs: prefs, cardioTypes: cardioTypes, foods: foods)
+        let a = AppData(daily: daily, sessions: sessions, body: body, plans: plans, prefs: prefs,
+                        cardioTypes: cardioTypes, foods: foods, exerciseItems: exerciseItems)
         guard let d = try? JSONEncoder().encode(a) else { return }
         try? d.write(to: dataURL, options: .atomic)
         // Rolling dated backup in Documents (visible in the Files app).
@@ -64,7 +68,8 @@ final class Store: ObservableObject {
 
     /// Produce a JSON file URL for sharing/export.
     func exportFile() -> URL? {
-        let a = AppData(daily: daily, sessions: sessions, body: body, plans: plans, prefs: prefs, cardioTypes: cardioTypes, foods: foods)
+        let a = AppData(daily: daily, sessions: sessions, body: body, plans: plans, prefs: prefs,
+                        cardioTypes: cardioTypes, foods: foods, exerciseItems: exerciseItems)
         guard let d = try? JSONEncoder.pretty.encode(a) else { return nil }
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("fittracker-\(today()).json")
         try? d.write(to: url, options: .atomic)
@@ -80,6 +85,7 @@ final class Store: ObservableObject {
         plans = a.plans.isEmpty ? Store.defaultPlans() : a.plans
         cardioTypes = (a.cardioTypes?.isEmpty == false) ? a.cardioTypes! : Store.defaultCardioTypes()
         foods = a.foods ?? []
+        exerciseItems = a.exerciseItems ?? []
         prefs = a.prefs
         return true
     }
@@ -328,6 +334,9 @@ extension Store {
     }
     func clearSchedule() { prefs.schedule = nil }
 
+    /// Maximum additional weight ever logged for an exercise. For bodyweight exercises
+    /// the PR is the highest added weight (positive = weighted vest/belt, 0 = pure BW).
+    /// Returns 0 when no sets have been logged with a positive weight.
     func exercisePR(_ name: String) -> Double {
         var mx = 0.0
         for s in sessions {
@@ -338,18 +347,35 @@ extension Store {
         return mx
     }
 
+    /// True when the exercise is marked as bodyweight in any plan or in the library.
+    func isBodyweightExercise(_ name: String) -> Bool {
+        if let item = exerciseItems.first(where: { $0.name == name }) { return item.isBodyweight }
+        for p in plans { if let ex = p.exercises.first(where: { $0.name == name }) { return ex.bodyweight } }
+        return false
+    }
+
     func lastSession(forPlan id: String) -> WorkoutSession? {
         sessions.filter { $0.planId == id && $0.date != today() }
             .sorted { $0.date > $1.date }.first
     }
 
-    /// Suggested next weight: previous session's max + 2.5kg if every set was completed.
+    /// Suggested next weight: previous session's max + 2.5 kg when ready to progress.
+    /// Suppresses the suggestion when readiness or ACWR indicate recovery stress.
     func suggested(planId: String, exercise: String) -> Double? {
+        guard let prog = progression(planId: planId, exercise: exercise),
+              prog == .addLoad else { return nil }
         guard let last = lastSession(forPlan: planId),
               let ex = last.exercises.first(where: { $0.name == exercise }),
               !ex.sets.isEmpty else { return nil }
+        // Readiness gate: if HRV score is very low, don't suggest adding load.
+        let r = readiness()
+        if let score = r.score, score < 30 { return nil }
+        // ACWR gate: if in a high-load spike, hold rather than increase.
+        let aw = acwr()
+        if let ratio = aw.ratio, ratio > 1.3 { return nil }
         let allDone = ex.sets.allSatisfy { pf($0.reps) > 0 && pf($0.weight) > 0 }
-        return allDone ? ex.maxWeight + 2.5 : nil
+        guard allDone else { return nil }
+        return ex.maxWeight + 2.5
     }
 
     /// Energy spent in a session, in kcal, as *active* energy (the resting
@@ -747,11 +773,53 @@ extension Store {
         return prs
     }
 
-    /// Distinct exercise names from every plan, in plan order.
+    /// Distinct exercise names from every plan, in plan order. Also includes
+    /// exercises in the library that are no longer in any plan (historical).
     func allExerciseNames() -> [(group: String, name: String)] {
+        var seen = Set<String>()
         var out: [(String, String)] = []
-        for p in plans { for e in p.exercises { out.append((p.name, e.name)) } }
+        for p in plans {
+            for e in p.exercises where !e.name.isEmpty {
+                if seen.insert(e.name).inserted { out.append((p.name, e.name)) }
+            }
+        }
+        // Append library exercises that fell out of all plans.
+        for item in exerciseItems.sorted(by: { ($0.lastUsed ?? "") > ($1.lastUsed ?? "") }) where !item.name.isEmpty {
+            if seen.insert(item.name).inserted { out.append((L.t("ex.library"), item.name)) }
+        }
         return out
+    }
+
+    // MARK: Exercise library
+    /// All known exercises, most-recently-used first.
+    func recentExercises() -> [ExerciseItem] {
+        exerciseItems.sorted {
+            ($0.lastUsed ?? "") != ($1.lastUsed ?? "")
+                ? ($0.lastUsed ?? "") > ($1.lastUsed ?? "")
+                : $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+        }
+    }
+
+    /// Auto-save an exercise the first time it is used; update its bodyweight flag.
+    @discardableResult
+    func touchExerciseInLibrary(_ name: String, isBodyweight: Bool = false) -> ExerciseItem {
+        if let i = exerciseItems.firstIndex(where: { $0.name == name }) {
+            exerciseItems[i].lastUsed = today()
+            if isBodyweight { exerciseItems[i].isBodyweight = true }
+            return exerciseItems[i]
+        }
+        let item = ExerciseItem(name: name, isBodyweight: isBodyweight, lastUsed: today())
+        exerciseItems.append(item)
+        return item
+    }
+
+    /// Update the bodyweight flag for an exercise in the library.
+    func setExerciseBodyweight(_ name: String, _ flag: Bool) {
+        if let i = exerciseItems.firstIndex(where: { $0.name == name }) {
+            exerciseItems[i].isBodyweight = flag
+        } else {
+            exerciseItems.append(ExerciseItem(name: name, isBodyweight: flag, lastUsed: today()))
+        }
     }
 
     struct ExPoint { var date: String; var maxW: Double; var vol: Double }

@@ -12,11 +12,7 @@ struct BodyView: View {
     @State private var measInputs: [String: String] = [:]
     @State private var shareURL: IdentURL?
     @State private var importing = false
-    // Nutrition & recovery inputs
-    @State private var kcalInput = ""
-    @State private var proteinInput = ""
-    @State private var carbsInput = ""
-    @State private var fatInput = ""
+    // Recovery inputs (nutrition moved to the dedicated Nutrition page)
     @State private var stepsInput = ""
     @State private var rmssdInput = ""
     @State private var restHRInput = ""
@@ -32,25 +28,19 @@ struct BodyView: View {
         let fat = bf.map { ((lw * $0 / 100) * 10).rounded() / 10 }
 
         checkInCard
-        nutritionRecoveryCard
+        recoveryCard
         analysisCard(lw: lw, bmi: bmi, cat: cat, bl: bl, navy: navy, bf: bf, lean: lean, fat: fat)
         measurementsCard(bl: bl)
         chartsSection
         backupCard
     }
 
-    // MARK: Nutrition & recovery (feeds the energy + readiness engines)
-    private var nutritionRecoveryCard: some View {
+    // MARK: Recovery (feeds the readiness engine). Nutrition (kcal + macros) now
+    // lives on its own Nutrition page; this card keeps the body-side recovery
+    // inputs: steps, HRV (RMSSD) and resting HR.
+    private var recoveryCard: some View {
         Card {
-            Lbl(text: t("nut.intake_today"), color: Theme.acc2).padding(.bottom, 10)
-            HStack(spacing: 10) {
-                field("KCAL", "2400", $kcalInput)
-                field("\(t("nut.protein")) (g)", "180", $proteinInput)
-            }.padding(.bottom, 10)
-            HStack(spacing: 10) {
-                field("\(t("nut.carbs")) (g)", "250", $carbsInput)
-                field("\(t("nut.fat")) (g)", "70", $fatInput)
-            }.padding(.bottom, 10)
+            Lbl(text: t("body.recovery"), color: Theme.acc2).padding(.bottom, 10)
             HStack(spacing: 10) {
                 fieldInfo(t("lbl.steps").uppercased(), "8000", $stepsInput, info: "steps")
                 fieldInfo(t("wk.rmssd"), "65", $rmssdInput, info: "rmssd")
@@ -63,9 +53,8 @@ struct BodyView: View {
                 .padding(.bottom, 10)
             FilledButton(title: t("save")) {
                 store.saveDailyExtras(
-                    kcal: Int(kcalInput), protein: dOrNil(proteinInput), carbs: dOrNil(carbsInput),
-                    fat: dOrNil(fatInput), steps: Int(stepsInput), rmssd: dOrNil(rmssdInput), restHR: Int(restHRInput))
-                kcalInput = ""; proteinInput = ""; carbsInput = ""; fatInput = ""
+                    kcal: nil, protein: nil, carbs: nil, fat: nil,
+                    steps: Int(stepsInput), rmssd: dOrNil(rmssdInput), restHR: Int(restHRInput))
                 stepsInput = ""; rmssdInput = ""; restHRInput = ""
                 toast.show(t("save"))
             }
