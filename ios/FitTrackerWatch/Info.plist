@@ -20,6 +20,10 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>NSHealthShareUsageDescription</key>
+	<string>Fit Tracker reads your heart rate, calories and distance during a workout to track the session on your wrist.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>Fit Tracker saves your workout to the Health app so heart rate, calories and distance stay in sync with your iPhone.</string>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
@@ -27,15 +31,11 @@
 	</array>
 	<key>WKApplication</key>
 	<true/>
-	<key>WKCompanionAppBundleIdentifier</key>
-	<string>com.marco.fittracker</string>
 	<key>WKBackgroundModes</key>
 	<array>
 		<string>workout-processing</string>
 	</array>
-	<key>NSHealthShareUsageDescription</key>
-	<string>Fit Tracker reads your heart rate, calories and distance during a workout to track the session on your wrist.</string>
-	<key>NSHealthUpdateUsageDescription</key>
-	<string>Fit Tracker saves your workout to the Health app so heart rate, calories and distance stay in sync with your iPhone.</string>
+	<key>WKCompanionAppBundleIdentifier</key>
+	<string>com.marco.manzotti.fittracker</string>
 </dict>
 </plist>
