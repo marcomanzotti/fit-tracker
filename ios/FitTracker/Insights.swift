@@ -636,7 +636,7 @@ struct SessionEditorView: View {
 
             // Per-set reps × weight (+ effort when a scale is set)
             ForEach(exB.sets) { $set in
-                let n = (exB.wrappedValue.sets.firstIndex { $0.id == set.wrappedValue.id } ?? 0) + 1
+                let n = (exB.wrappedValue.sets.firstIndex { $0.id == set.id } ?? 0) + 1
                 HStack(spacing: 10) {
                     Text("\(t("wk.set")) \(n)").font(.system(size: 11)).foregroundColor(Theme.sub).frame(width: 54, alignment: .leading)
                     SmallNumField(text: $set.reps, placeholder: t("wk.reps"))
