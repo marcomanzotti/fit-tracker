@@ -34,41 +34,99 @@ struct DailyEntry: Codable, Identifiable, Equatable {
     // (`kcal`) is used when no meals are logged. `meals` keys are MealSlot raw
     // values ("breakfast"/"lunch"/"dinner"/"snacks").
     var meals: [String: MealEntry]?
+    /// Day-level individual foods (food + amount), for users who log food-by-food
+    /// without assigning a meal. Sums into the day total alongside meals.
+    var foods: [FoodLog]?
     var id: String { date }
 
-    /// True when this day carries any nutrition data (quick total or per-meal).
+    /// True when this day carries any nutrition data (quick total, per-meal, or
+    /// individual foods).
     var hasNutrition: Bool {
-        (kcal ?? 0) > 0 || (meals?.values.contains { $0.kcal > 0 } ?? false)
+        (kcal ?? 0) > 0
+        || (meals?.values.contains { !$0.isEmpty } ?? false)
+        || !(foods?.isEmpty ?? true)
     }
-    /// Effective day total kcal: the per-meal sum when meals exist, else the
-    /// quick one-tap total.
+    /// Effective day total kcal: per-meal effective sums + day-level foods; the
+    /// quick one-tap total is the fallback when nothing structured is logged.
     var totalKcal: Int {
-        if let meals, !meals.isEmpty {
-            let s = meals.values.reduce(0) { $0 + $1.kcal }
-            if s > 0 { return s }
-        }
-        return kcal ?? 0
+        var s = 0
+        if let meals { s += meals.values.reduce(0) { $0 + $1.effKcal } }
+        if let foods { s += foods.reduce(0) { $0 + $1.kcal } }
+        return s > 0 ? s : (kcal ?? 0)
     }
-    /// Effective macro totals (per-meal sum wins over the quick totals).
-    func macro(_ kp: KeyPath<MealEntry, Double>) -> Double {
-        if let meals, !meals.isEmpty {
-            let s = meals.values.reduce(0.0) { $0 + $1[keyPath: kp] }
-            if s > 0 { return s }
-        }
-        return 0
+    var totalProtein: Double { macroTotal(\.effProtein, \.protein, quick: protein) }
+    var totalCarbs: Double { macroTotal(\.effCarbs, \.carbs, quick: carbs) }
+    var totalFat: Double { macroTotal(\.effFat, \.fat, quick: fat) }
+
+    /// Sum a macro across meals (effective) + day foods, falling back to the quick
+    /// total when nothing structured is present.
+    private func macroTotal(_ mealKP: KeyPath<MealEntry, Double>,
+                            _ foodKP: KeyPath<FoodLog, Double>, quick: Double?) -> Double {
+        var s = 0.0
+        if let meals { s += meals.values.reduce(0.0) { $0 + $1[keyPath: mealKP] } }
+        if let foods { s += foods.reduce(0.0) { $0 + $1[keyPath: foodKP] } }
+        return s > 0 ? s : (quick ?? 0)
     }
-    var totalProtein: Double { let m = macro(\.protein); return m > 0 ? m : (protein ?? 0) }
-    var totalCarbs: Double { let m = macro(\.carbs); return m > 0 ? m : (carbs ?? 0) }
-    var totalFat: Double { let m = macro(\.fat); return m > 0 ? m : (fat ?? 0) }
 }
 
 // MARK: - Per-meal nutrition entry
+// A meal can be logged two ways: typed totals (kcal/macros) OR a list of foods
+// (food + amount). When foods are present they are authoritative and the typed
+// totals are ignored; the `eff*` accessors expose whichever applies.
 struct MealEntry: Codable, Equatable {
     var kcal: Int = 0
     var protein: Double = 0
     var carbs: Double = 0
     var fat: Double = 0
-    var isEmpty: Bool { kcal == 0 && protein == 0 && carbs == 0 && fat == 0 }
+    var foods: [FoodLog]? = nil
+
+    var hasFoods: Bool { !(foods?.isEmpty ?? true) }
+    var effKcal: Int { hasFoods ? foods!.reduce(0) { $0 + $1.kcal } : kcal }
+    var effProtein: Double { hasFoods ? foods!.reduce(0) { $0 + $1.protein } : protein }
+    var effCarbs: Double { hasFoods ? foods!.reduce(0) { $0 + $1.carbs } : carbs }
+    var effFat: Double { hasFoods ? foods!.reduce(0) { $0 + $1.fat } : fat }
+    var isEmpty: Bool { kcal == 0 && protein == 0 && carbs == 0 && fat == 0 && !hasFoods }
+}
+
+// MARK: - Saved food (nutrition per 100 g/ml) + a logged amount of it
+// A FoodItem is a reusable entry in the user's local food list: its macros are
+// stored per 100 g (or 100 ml for liquids). A FoodLog is one logged use of a
+// food — the amount eaten plus a snapshot of the per-100 macros, so later edits
+// to the saved food never rewrite past days, and one-off foods work without
+// saving. Both are Codable and fully backward compatible (new optional fields).
+struct FoodItem: Codable, Identifiable, Equatable {
+    var id: String = UUID().uuidString
+    var name: String
+    var barcode: String?
+    var k100: Double = 0       // kcal per 100 g/ml
+    var p100: Double = 0       // protein
+    var c100: Double = 0       // carbs
+    var f100: Double = 0       // fat
+    var liquid: Bool = false   // measured in ml rather than g (display only)
+    var lastUsed: String?      // yyyy-MM-dd, for "recent" sorting
+    var unit: String { liquid ? "ml" : "g" }
+
+    /// Build a logged use of this food for `grams` (or ml) eaten.
+    func log(_ grams: Double) -> FoodLog {
+        FoodLog(foodId: id, name: name, grams: grams, k100: k100, p100: p100, c100: c100, f100: f100)
+    }
+}
+
+struct FoodLog: Codable, Identifiable, Equatable {
+    var id: UUID = UUID()
+    var foodId: String?        // reference to a saved FoodItem (nil if one-off)
+    var name: String
+    var grams: Double          // amount eaten (g or ml)
+    var k100: Double           // per-100 snapshot at log time
+    var p100: Double
+    var c100: Double
+    var f100: Double
+
+    private func scale(_ per100: Double) -> Double { (per100 * grams / 100 * 10).rounded() / 10 }
+    var kcal: Int { Int((k100 * grams / 100).rounded()) }
+    var protein: Double { scale(p100) }
+    var carbs: Double { scale(c100) }
+    var fat: Double { scale(f100) }
 }
 
 // MARK: - The four meal slots (breakfast / lunch / dinner / snacks)
@@ -443,4 +501,5 @@ struct AppData: Codable {
     var plans: [WorkoutPlan] = []
     var prefs: Prefs = Prefs()
     var cardioTypes: [CardioType]? = nil   // optional for backward-compatible decoding
+    var foods: [FoodItem]? = nil           // saved local food list (per-100 macros)
 }

@@ -7,6 +7,7 @@ final class Store: ObservableObject {
     @Published var body: [BodyEntry] = []
     @Published var plans: [WorkoutPlan] = []
     @Published var cardioTypes: [CardioType] = []
+    @Published var foods: [FoodItem] = []
     @Published var prefs: Prefs = Prefs()
 
     private var loaded = false
@@ -24,6 +25,7 @@ final class Store: ObservableObject {
             $body.map { _ in () }.eraseToAnyPublisher(),
             $plans.map { _ in () }.eraseToAnyPublisher(),
             $cardioTypes.map { _ in () }.eraseToAnyPublisher(),
+            $foods.map { _ in () }.eraseToAnyPublisher(),
             $prefs.map { _ in () }.eraseToAnyPublisher()
         ]
         Publishers.MergeMany(pubs)
@@ -38,6 +40,7 @@ final class Store: ObservableObject {
            let a = try? JSONDecoder().decode(AppData.self, from: d) {
             daily = a.daily; sessions = a.sessions; body = a.body; plans = a.plans; prefs = a.prefs
             cardioTypes = a.cardioTypes ?? []
+            foods = a.foods ?? []
         }
         if plans.isEmpty { plans = Store.defaultPlans() }
         if cardioTypes.isEmpty { cardioTypes = Store.defaultCardioTypes() }
@@ -51,7 +54,7 @@ final class Store: ObservableObject {
 
     func save() {
         guard loaded else { return }
-        let a = AppData(daily: daily, sessions: sessions, body: body, plans: plans, prefs: prefs, cardioTypes: cardioTypes)
+        let a = AppData(daily: daily, sessions: sessions, body: body, plans: plans, prefs: prefs, cardioTypes: cardioTypes, foods: foods)
         guard let d = try? JSONEncoder().encode(a) else { return }
         try? d.write(to: dataURL, options: .atomic)
         // Rolling dated backup in Documents (visible in the Files app).
@@ -61,7 +64,7 @@ final class Store: ObservableObject {
 
     /// Produce a JSON file URL for sharing/export.
     func exportFile() -> URL? {
-        let a = AppData(daily: daily, sessions: sessions, body: body, plans: plans, prefs: prefs, cardioTypes: cardioTypes)
+        let a = AppData(daily: daily, sessions: sessions, body: body, plans: plans, prefs: prefs, cardioTypes: cardioTypes, foods: foods)
         guard let d = try? JSONEncoder.pretty.encode(a) else { return nil }
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("fittracker-\(today()).json")
         try? d.write(to: url, options: .atomic)
@@ -76,6 +79,7 @@ final class Store: ObservableObject {
         daily = a.daily; sessions = a.sessions; body = a.body
         plans = a.plans.isEmpty ? Store.defaultPlans() : a.plans
         cardioTypes = (a.cardioTypes?.isEmpty == false) ? a.cardioTypes! : Store.defaultCardioTypes()
+        foods = a.foods ?? []
         prefs = a.prefs
         return true
     }
@@ -482,6 +486,48 @@ extension Store {
             e.meals = clean.isEmpty ? nil : clean
             e.kcal = nil; e.protein = nil; e.carbs = nil; e.fat = nil
         }
+        // Float any foods used in a meal to the top of the picker.
+        for m in clean.values { for l in (m.foods ?? []) { if let fid = l.foodId { touchFood(fid) } } }
+    }
+
+    // MARK: Saved food list (local, per-100 macros)
+    /// Saved foods, most-recently-used first (then alphabetical) for the picker.
+    func recentFoods() -> [FoodItem] {
+        foods.sorted {
+            ($0.lastUsed ?? "") != ($1.lastUsed ?? "")
+                ? ($0.lastUsed ?? "") > ($1.lastUsed ?? "")
+                : $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+        }
+    }
+    func food(barcode: String) -> FoodItem? { foods.first { $0.barcode == barcode } }
+
+    /// Insert or update a saved food (matched by id).
+    @discardableResult
+    func saveFood(_ f: FoodItem) -> FoodItem {
+        if let i = foods.firstIndex(where: { $0.id == f.id }) { foods[i] = f }
+        else { foods.append(f) }
+        return f
+    }
+    func deleteFood(_ id: String) { foods.removeAll { $0.id == id } }
+    /// Mark a food as used today so it floats to the top of the picker.
+    func touchFood(_ id: String) {
+        guard let i = foods.firstIndex(where: { $0.id == id }) else { return }
+        foods[i].lastUsed = today()
+    }
+
+    /// Replace the day-level individual foods for a date (food-by-food logging
+    /// without a meal). Empty list clears them.
+    func saveDayFoods(date: String, foods logs: [FoodLog]) {
+        upsertDaily(date) { e in
+            e.foods = logs.isEmpty ? nil : logs
+            // Day-level food logging is its own mode: clear the quick total and
+            // the per-meal breakdown so the day total is unambiguous.
+            if !logs.isEmpty {
+                e.kcal = nil; e.protein = nil; e.carbs = nil; e.fat = nil
+                e.meals = nil
+            }
+        }
+        for l in logs { if let fid = l.foodId { touchFood(fid) } }
     }
 
     /// Series of logged-intake days for the nutrition charts (most recent `days`).

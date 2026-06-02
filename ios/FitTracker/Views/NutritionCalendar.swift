@@ -122,6 +122,9 @@ struct NutritionDayEditor: View {
     @State private var qK = ""; @State private var qP = ""; @State private var qC = ""; @State private var qF = ""
     // Per-meal inputs: [slot raw : [field("k"/"p"/"c"/"f") : value]]
     @State private var meal: [String: [String: String]] = [:]
+    // Foods logged per meal, and at the day level (food-by-food mode).
+    @State private var mealFoods: [String: [FoodLog]] = [:]
+    @State private var dayFoods: [FoodLog] = []
     @State private var loaded = false
 
     var body: some View {
@@ -132,14 +135,16 @@ struct NutritionDayEditor: View {
                     header
                     Card {
                         FieldRow(label: t("nut.entry_mode")) {
-                            PillSelect(options: ["quick", "per_meal"],
-                                       title: { $0 == "quick" ? t("nut.quick") : t("nut.per_meal") },
+                            PillSelect(options: ["quick", "per_meal", "foods"],
+                                       title: { $0 == "quick" ? t("nut.quick") : ($0 == "per_meal" ? t("nut.per_meal") : t("nut.foods")) },
                                        selection: $mode)
                         }
                     }
-                    if mode == "quick" { quickCard } else { perMealCard }
+                    if mode == "quick" { quickCard }
+                    else if mode == "per_meal" { perMealCard }
+                    else { foodsCard }
                     BigButton(title: t("save")) { saveAction() }
-                    Button { tap(); store.saveNutritionTotal(date: date, kcal: nil, protein: nil, carbs: nil, fat: nil); toast.show(t("nut.cleared")); dismiss() } label: {
+                    Button { tap(); store.saveNutritionTotal(date: date, kcal: nil, protein: nil, carbs: nil, fat: nil); store.saveDayFoods(date: date, foods: []); toast.show(t("nut.cleared")); dismiss() } label: {
                         Text(t("delete")).font(.head(13, .semibold)).foregroundColor(Theme.red)
                             .frame(maxWidth: .infinity, minHeight: 44)
                     }
@@ -200,22 +205,43 @@ struct NutritionDayEditor: View {
     }
 
     private func mealCard(_ slot: MealSlot) -> some View {
-        Card {
+        let hasFoods = !(mealFoods[slot.rawValue]?.isEmpty ?? true)
+        return Card {
             HStack(spacing: 8) {
                 Image(systemName: slot.icon).font(.system(size: 14, weight: .bold)).foregroundColor(Color(hex: slot.color))
                 Text(t(slot.labelKey)).font(.system(size: 14, weight: .semibold)).foregroundColor(Theme.txt)
                 Spacer()
             }
             .padding(.bottom, 10)
-            HStack(spacing: 10) {
-                labeled("KCAL", "600", bind(slot.rawValue, "k"), .numberPad)
-                labeled("\(t("nut.protein")) (g)", "40", bind(slot.rawValue, "p"))
-            }.padding(.bottom, 10)
-            HStack(spacing: 10) {
-                labeled("\(t("nut.carbs")) (g)", "60", bind(slot.rawValue, "c"))
-                labeled("\(t("nut.fat")) (g)", "20", bind(slot.rawValue, "f"))
+            // Food-by-food for this meal (load saved / new / scan). When foods are
+            // present they drive the meal total and the manual fields are hidden.
+            FoodLogSection(logs: mealFoodsBinding(slot.rawValue), accent: Color(hex: slot.color))
+            if !hasFoods {
+                Spacer().frame(height: 10)
+                HStack(spacing: 10) {
+                    labeled("KCAL", "600", bind(slot.rawValue, "k"), .numberPad)
+                    labeled("\(t("nut.protein")) (g)", "40", bind(slot.rawValue, "p"))
+                }.padding(.bottom, 10)
+                HStack(spacing: 10) {
+                    labeled("\(t("nut.carbs")) (g)", "60", bind(slot.rawValue, "c"))
+                    labeled("\(t("nut.fat")) (g)", "20", bind(slot.rawValue, "f"))
+                }
             }
         }
+    }
+
+    // MARK: Day-level food-by-food
+    private var foodsCard: some View {
+        VStack(spacing: 11) {
+            Card {
+                Lbl(text: t("food.day_foods"), color: Theme.acc2).padding(.bottom, 10)
+                FoodLogSection(logs: $dayFoods)
+            }
+        }
+    }
+
+    private func mealFoodsBinding(_ slot: String) -> Binding<[FoodLog]> {
+        Binding(get: { mealFoods[slot] ?? [] }, set: { mealFoods[slot] = $0 })
     }
 
     private func labeled(_ label: String, _ ph: String, _ binding: Binding<String>, _ kb: UIKeyboardType = .decimalPad) -> some View {
@@ -231,14 +257,22 @@ struct NutritionDayEditor: View {
     }
 
     private var mealTotalKcal: Int {
-        MealSlot.allCases.reduce(0) { $0 + (Int(meal[$1.rawValue]?["k"] ?? "") ?? 0) }
+        MealSlot.allCases.reduce(0) { sum, s in
+            let foods = mealFoods[s.rawValue] ?? []
+            if !foods.isEmpty { return sum + foods.reduce(0) { $0 + $1.kcal } }
+            return sum + (Int(meal[s.rawValue]?["k"] ?? "") ?? 0)
+        }
     }
 
     private func load() {
         let e = store.dailyEntry(date)
-        if let meals = e?.meals, !meals.isEmpty {
+        if let df = e?.foods, !df.isEmpty {
+            mode = "foods"
+            dayFoods = df
+        } else if let meals = e?.meals, !meals.isEmpty {
             mode = "per_meal"
             for (k, v) in meals {
+                if let foods = v.foods, !foods.isEmpty { mealFoods[k] = foods }
                 meal[k] = ["k": v.kcal > 0 ? String(v.kcal) : "",
                            "p": v.protein > 0 ? trimNum(v.protein) : "",
                            "c": v.carbs > 0 ? trimNum(v.carbs) : "",
@@ -254,19 +288,30 @@ struct NutritionDayEditor: View {
     }
 
     private func saveAction() {
-        if mode == "quick" {
+        switch mode {
+        case "quick":
             store.saveNutritionTotal(date: date,
                                      kcal: Int(qK), protein: dn(qP), carbs: dn(qC), fat: dn(qF))
-        } else {
+            store.saveDayFoods(date: date, foods: [])      // ensure day foods cleared
+        case "foods":
+            store.saveDayFoods(date: date, foods: dayFoods)
+        default:                                            // per_meal
             var meals: [String: MealEntry] = [:]
             for s in MealSlot.allCases {
-                let m = MealEntry(kcal: Int(meal[s.rawValue]?["k"] ?? "") ?? 0,
+                let foods = mealFoods[s.rawValue] ?? []
+                var m: MealEntry
+                if !foods.isEmpty {
+                    m = MealEntry(foods: foods)             // foods drive the total
+                } else {
+                    m = MealEntry(kcal: Int(meal[s.rawValue]?["k"] ?? "") ?? 0,
                                   protein: pf(meal[s.rawValue]?["p"] ?? ""),
                                   carbs: pf(meal[s.rawValue]?["c"] ?? ""),
                                   fat: pf(meal[s.rawValue]?["f"] ?? ""))
+                }
                 if !m.isEmpty { meals[s.rawValue] = m }
             }
             store.saveNutritionMeals(date: date, meals: meals)
+            store.saveDayFoods(date: date, foods: [])      // clear any day-level foods
         }
         haptic(.success); toast.show(t("nut.saved")); dismiss()
     }
