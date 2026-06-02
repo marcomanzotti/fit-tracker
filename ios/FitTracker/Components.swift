@@ -119,10 +119,15 @@ struct StatTile: View {
                 Text(value).font(.num(30)).foregroundColor(valueColor)
                 if let unit { Text(unit).font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.sub) }
             }
-            if let note { Text(note).font(.system(size: 10)).foregroundColor(Theme.sub) }
+            if let note {
+                // Reserve two lines so tiles in a row keep identical heights even
+                // when one note wraps and another is a single word.
+                Text(note).font(.system(size: 10)).foregroundColor(Theme.sub)
+                    .lineLimit(2, reservesSpace: true)
+            }
         }
         .padding(.vertical, 13).padding(.horizontal, 12)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(Theme.c2)
         .clipShape(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous).stroke(Theme.brd, lineWidth: 1))

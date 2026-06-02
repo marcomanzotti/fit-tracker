@@ -279,19 +279,18 @@ struct BodyView: View {
 
     private func field(_ label: String, _ ph: String, _ binding: Binding<String>) -> some View {
         VStack(alignment: .leading, spacing: 7) {
-            Text(label).font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.sub)
+            FieldLabel(label)
             InputField(placeholder: ph, text: binding)
         }
     }
 
     /// Field with an inline info popup next to its label (for scientific inputs).
+    /// Both helpers use FieldLabel (fixed 18pt height) so input boxes in adjacent
+    /// columns/rows always start at the same vertical position, with or without
+    /// the info button.
     private func fieldInfo(_ label: String, _ ph: String, _ binding: Binding<String>, info: String) -> some View {
         VStack(alignment: .leading, spacing: 7) {
-            HStack(spacing: 2) {
-                Text(label).font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.sub)
-                InfoButton(id: info)
-                Spacer()
-            }
+            FieldLabel(label, info: info)
             InputField(placeholder: ph, text: binding)
         }
     }
