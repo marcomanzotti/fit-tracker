@@ -22,6 +22,7 @@ struct RootView: View {
     @EnvironmentObject var toast: ToastCenter
     @State private var tab: Tab = .home
     @State private var showSettings = false
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -58,6 +59,12 @@ struct RootView: View {
         .animation(.spring(response: 0.4, dampingFraction: 0.75), value: toast.message)
         .sheet(isPresented: $showSettings) { SettingsView(store: store) }
         .onAppear { if store.prefs.healthKitEnabled { store.syncHealth() } }
+        // Re-sync Health (daily metrics + workouts from any paired watch) every
+        // time the app returns to the foreground, so a session recorded on a
+        // Garmin/Fitbit/etc. shows up without a manual refresh.
+        .onChange(of: scenePhase) { phase in
+            if phase == .active, store.prefs.healthKitEnabled { store.syncHealth() }
+        }
     }
 }
 

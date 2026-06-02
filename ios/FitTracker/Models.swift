@@ -26,6 +26,9 @@ struct DailyEntry: Codable, Identifiable, Equatable {
     var rmssd: Double?        // HRV RMSSD typed from an external HRV app
     var restHR: Int?          // morning resting heart rate
     var hrvSDNN: Double?      // HRV SDNN imported from Apple Health (ms)
+    // Daily activity, imported from Apple Health (gap-fill, any paired watch)
+    var activeKcal: Int?      // active energy burned during the day
+    var exerciseMin: Int?     // exercise minutes (Apple "Move" equivalent)
     // Per-meal nutrition breakdown (optional, backward compatible). When present,
     // its kcal sum is authoritative for the day; the quick one-tap total above
     // (`kcal`) is used when no meals are logged. `meals` keys are MealSlot raw
@@ -191,6 +194,10 @@ struct WorkoutSession: Codable, Identifiable, Equatable {
     var elevationM: Double?    // optional climb
     var poolLengthM: Int?      // swimming pool length
     var caloriesManual: Int?   // user override of the calorie estimate
+    /// HKWorkout UUID when this session was imported from Apple Health (e.g. a
+    /// Garmin/Fitbit/Polar/Huawei watch that synced to Health). Used to dedupe
+    /// re-imports and to badge the session as externally sourced.
+    var healthUUID: String?
 
     var totalSets: Int { exercises.reduce(0) { $0 + $1.sets.count } }
     var volume: Double { exercises.reduce(0) { $0 + $1.volume } }

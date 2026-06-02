@@ -506,13 +506,52 @@ extension Store {
             if e.steps == nil, let v = s.steps, v > 0 { e.steps = v }
             if e.restHR == nil, let v = s.restHR, v > 0 { e.restHR = v }
             if e.hrvSDNN == nil, let v = s.hrvSDNN, v > 0 { e.hrvSDNN = v }
+            if e.activeKcal == nil, let v = s.activeKcal, v > 0 { e.activeKcal = v }
+            if e.exerciseMin == nil, let v = s.exerciseMin, v > 0 { e.exerciseMin = v }
             daily.removeAll { $0.date == s.date }
             daily.append(e)
         }
     }
 
+    // MARK: Apple Health workout import (any paired watch)
+    /// Turn HKWorkout records (Apple Watch, Garmin, Fitbit, Polar, Coros, Huawei, …)
+    /// into the app's own cardio/strength sessions. Three dedupe guards keep it from
+    /// creating doubles:
+    ///   1. a workout already imported (matched by its HKWorkout UUID) is skipped;
+    ///   2. a workout recorded by FitTracker's own Apple Watch app is skipped — the
+    ///      companion already delivered it over WatchConnectivity;
+    ///   3. a workout that overlaps an existing session (same day + same sport +
+    ///      duration within 2 min) is skipped, covering manually logged sessions.
+    func applyHealthWorkouts(_ workouts: [HealthWorkout]) {
+        for w in workouts {
+            if w.fromThisApp { continue }
+            if sessions.contains(where: { $0.healthUUID == w.uuid }) { continue }
+            let isStrength = w.sport == "strength"
+            let overlaps = sessions.contains { s in
+                guard s.date == w.date else { return false }
+                let sameSport = isStrength ? (s.sport == nil) : (s.sport == w.sport)
+                guard sameSport else { return false }
+                let dur = s.durationSeconds ?? 0
+                return abs(dur - w.durationSec) <= 120
+            }
+            if overlaps { continue }
+
+            let sportType = Sport(rawValue: w.sport) ?? .other
+            var s = WorkoutSession(date: w.date, planId: "health-\(w.sport)",
+                                   planName: sportType.label, planColor: sportType.color)
+            s.sport = isStrength ? nil : w.sport
+            s.durationSec = w.durationSec > 0 ? w.durationSec : nil
+            s.avgHR = (w.avgHR ?? 0) > 0 ? w.avgHR : nil
+            s.maxHRSes = (w.maxHR ?? 0) > 0 ? w.maxHR : nil
+            s.distanceKm = (w.distanceKm ?? 0) > 0 ? w.distanceKm : nil
+            if let k = w.kcal, k > 0 { s.caloriesManual = k }
+            s.healthUUID = w.uuid
+            sessions.append(s)
+        }
+    }
+
     /// Request authorization (if needed) and pull the last `days` days from Health.
-    func syncHealth(days: Int = 30, completion: ((Bool) -> Void)? = nil) {
+    func syncHealth(days: Int = 90, completion: ((Bool) -> Void)? = nil) {
         let hk = HealthKitManager.shared
         guard hk.isAvailable else { completion?(false); return }
         hk.requestAuthorization { granted in
@@ -521,7 +560,11 @@ extension Store {
                 self.applyHealthSamples(samples)
                 // Keep resting HR profile fresh from the most recent reading.
                 if let last = samples.compactMap({ $0.restHR }).last, last > 0 { self.prefs.restingHR = last }
-                completion?(true)
+                // Import workouts from any paired watch (Garmin/Fitbit/Polar/…).
+                hk.fetchWorkouts(days: days) { workouts in
+                    self.applyHealthWorkouts(workouts)
+                    completion?(true)
+                }
             }
         }
     }
