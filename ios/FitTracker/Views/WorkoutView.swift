@@ -258,8 +258,14 @@ struct WorkoutView: View {
                         Button { tap(); editingSession = s } label: {
                             HStack {
                                 VStack(alignment: .leading, spacing: 3) {
-                                    Text("\(s.planName)".uppercased()).font(.head(14, .semibold)).tracking(0.5)
-                                        .foregroundColor(Color(hex: s.planColor))
+                                    HStack(spacing: 5) {
+                                        Text("\(s.planName)".uppercased()).font(.head(14, .semibold)).tracking(0.5)
+                                            .foregroundColor(Color(hex: s.planColor))
+                                        if s.healthUUID != nil {
+                                            Image(systemName: "heart.fill").font(.system(size: 9))
+                                                .foregroundColor(Theme.red)
+                                        }
+                                    }
                                     Text("\(s.date) · \(s.sportType.isCardio ? cardioSummary(s) : "\(s.exercises.count) \(t("wk.exercises_n"))") · \(store.estimateCalories(s)) kcal")
                                         .font(.system(size: 10)).foregroundColor(Theme.sub)
                                 }
