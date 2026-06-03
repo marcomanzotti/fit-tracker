@@ -9,6 +9,9 @@ struct StatsView: View {
     @State private var exSearch = ""
     @State private var browseCat: String?  // expanded muscle group in the browser
     @State private var editingFam: FamilyEdit?
+    @State private var selVariant: String?  // chosen variant within the selected family
+    @State private var exSortKey: ExSortKey = .recent
+    @State private var exSortAsc = false
 
     private var tabs: [(String, String)] {
         [("overview", t("st.overview")), ("pr", t("st.records")), ("prog", t("st.progress")), ("storico", t("st.history"))]
@@ -44,9 +47,8 @@ struct StatsView: View {
         let d90 = Array(ws.suffix(90))
         let withW = d90.filter { $0.weight != nil }
         let sleepD = d90.filter { $0.sleep != nil }
-        let stepsD = d90.filter { ($0.steps ?? 0) > 0 }
-        let hrD = d90.filter { ($0.restHR ?? 0) > 0 || ($0.sleepHR ?? 0) > 0 }
-        let hrvD = d90.filter { ($0.rmssd ?? 0) > 0 || ($0.hrvSDNN ?? 0) > 0 }
+        let stepsWk = store.weeklyStepAverages(months: 6)
+        let vo2 = store.vo2Series(days: 180)
         let bf = store.currentBF
         return Group {
             if withW.count > 1 {
@@ -75,45 +77,27 @@ struct StatsView: View {
                     .chartYScale(domain: 0...100).styledAxes().frame(height: 155)
                 }
             }
-            // Daily activity & recovery history — every logged daily metric is
-            // kept and charted here, the same way workouts and nutrition are.
-            if stepsD.count > 1 {
+            // Steps as a weekly average over ~6 months — a readable trend instead of
+            // the noisy day-to-day scale. (HR + HRV are still saved/imported, just
+            // not charted here; HRV is surfaced on the Sleep card.)
+            if stepsWk.count > 1 {
                 Card {
                     Lbl(text: t("st.steps_time")).padding(.bottom, 8)
-                    Chart(stepsD) { e in
-                        BarMark(x: .value("g", fmtShort(e.date)), y: .value("s", e.steps ?? 0))
+                    Chart(stepsWk) { p in
+                        BarMark(x: .value("g", p.date), y: .value("s", p.value))
                             .foregroundStyle(Theme.blue.opacity(0.6)).cornerRadius(4)
                     }
                     .styledAxes().frame(height: 120)
                 }
             }
-            if hrD.count > 1 {
+            // VO2 max (cardiorespiratory fitness) imported from Apple Health.
+            if vo2.count > 1 {
                 Card {
-                    Lbl(text: t("st.hr_time")).padding(.bottom, 8)
-                    Chart {
-                        ForEach(hrD.filter { ($0.restHR ?? 0) > 0 }) { e in
-                            LineMark(x: .value("g", fmtShort(e.date)), y: .value("hr", e.restHR ?? 0),
-                                     series: .value("s", t("st.rest_hr")))
-                                .foregroundStyle(Theme.red).interpolationMethod(.catmullRom)
-                        }
-                        ForEach(hrD.filter { ($0.sleepHR ?? 0) > 0 }) { e in
-                            LineMark(x: .value("g", fmtShort(e.date)), y: .value("hr", e.sleepHR ?? 0),
-                                     series: .value("s", t("st.sleep_hr")))
-                                .foregroundStyle(Theme.blue).interpolationMethod(.catmullRom)
-                        }
-                    }
-                    .chartForegroundStyleScale(domain: [t("st.rest_hr"), t("st.sleep_hr")], range: [Theme.red, Theme.blue])
-                    .chartLegend(position: .bottom, spacing: 8)
-                    .chartYScale(domain: .automatic(includesZero: false)).styledAxes().frame(height: 130)
-                }
-            }
-            if hrvD.count > 1 {
-                Card {
-                    Lbl(text: t("st.hrv_time")).padding(.bottom, 8)
-                    Chart(hrvD) { e in
-                        LineMark(x: .value("g", fmtShort(e.date)), y: .value("v", e.rmssd ?? e.hrvSDNN ?? 0))
+                    Lbl(text: t("st.vo2_time")).padding(.bottom, 8)
+                    Chart(vo2) { p in
+                        LineMark(x: .value("g", p.date), y: .value("v", p.value))
                             .interpolationMethod(.catmullRom).foregroundStyle(Theme.good)
-                        AreaMark(x: .value("g", fmtShort(e.date)), y: .value("v", e.rmssd ?? e.hrvSDNN ?? 0))
+                        AreaMark(x: .value("g", p.date), y: .value("v", p.value))
                             .interpolationMethod(.catmullRom)
                             .foregroundStyle(LinearGradient(colors: [Theme.good.opacity(0.22), .clear], startPoint: .top, endPoint: .bottom))
                     }
@@ -193,14 +177,28 @@ struct StatsView: View {
         }
     }
 
+    /// Sort keys for the exercise browser — mirrors the nutrition library's logic.
+    enum ExSortKey: String, CaseIterable {
+        case recent, alpha, sessions
+        var label: String {
+            switch self {
+            case .recent:   return t("food.sort.recent")
+            case .alpha:    return t("food.sort.alpha")
+            case .sessions: return t("st.sort.sessions")
+            }
+        }
+    }
+
     // MARK: Progress — search + browse-by-muscle, grouped into movement families
     private var progress: some View {
-        let families = store.exerciseFamilies()
+        let families = sortedFamilies(store.exerciseFamilies())
         let q = exSearch.trimmingCharacters(in: .whitespaces)
         let filtered = q.isEmpty ? families
             : families.filter { f in
                 f.base.localizedCaseInsensitiveContains(q) || f.names.contains { $0.localizedCaseInsensitiveContains(q) }
             }
+        // Variants saved under the selected family (only meaningful when > 1).
+        let variants = selEx.isEmpty ? [] : (families.first { $0.base == selEx }?.names ?? [])
         return Group {
             Card {
                 Lbl(text: t("st.select_ex")).padding(.bottom, 8)
@@ -208,17 +206,21 @@ struct StatsView: View {
                     .padding(.bottom, 8)
                 if !selEx.isEmpty {
                     selectedFamilyChip
+                    if variants.count > 1 { variantPicker(variants) }
                 } else if !q.isEmpty {
                     // Searching: flat list of matching families.
                     familyList(filtered)
                 } else {
-                    // Browsing: a card per muscle group, expandable to its families.
+                    // Browsing: sort bar + a card per muscle group, expandable.
+                    exSortBar.padding(.bottom, 8)
                     browseByCategory(families)
                 }
             }
 
             if !selEx.isEmpty {
-                let data = store.exerciseHistory(family: selEx)
+                // A chosen variant narrows the history to that one exercise name;
+                // otherwise the whole family is aggregated.
+                let data = selVariant.map { store.exerciseHistory($0) } ?? store.exerciseHistory(family: selEx)
                 if data.isEmpty {
                     Card { EmptyBox(title: t("st.no_data"), text: t("st.progress_hint")) }
                 } else {
@@ -262,13 +264,82 @@ struct StatsView: View {
             Button { tap(); editingFam = FamilyEdit(base: selEx) } label: {
                 Image(systemName: "slider.horizontal.3").font(.system(size: 12)).foregroundColor(Theme.sub).frame(width: 28, height: 28)
             }.buttonStyle(.plain)
-            Button { tap(); selEx = "" } label: {
+            Button { tap(); selEx = ""; selVariant = nil } label: {
                 Image(systemName: "xmark.circle.fill").foregroundColor(Theme.sub)
             }.buttonStyle(.plain)
         }
         .padding(.vertical, 6).padding(.horizontal, 12)
         .background(Theme.acc.opacity(0.08))
         .clipShape(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous))
+    }
+
+    /// Horizontal capsule sort bar for the exercise browser (recent / A-Z /
+    /// #sessions), mirroring the nutrition library.
+    private var exSortBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                Text(t("food.sort").uppercased()).font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
+                ForEach(ExSortKey.allCases, id: \.self) { key in
+                    let active = exSortKey == key
+                    Button {
+                        tap()
+                        if exSortKey == key { exSortAsc.toggle() } else { exSortKey = key; exSortAsc = false }
+                    } label: {
+                        HStack(spacing: 3) {
+                            Text(key.label).font(.head(10, .semibold)).tracking(0.5)
+                            if active { Image(systemName: exSortAsc ? "arrow.up" : "arrow.down").font(.system(size: 9, weight: .bold)) }
+                        }
+                        .foregroundColor(active ? Theme.bg : Theme.sub)
+                        .padding(.vertical, 5).padding(.horizontal, 9)
+                        .background(active ? Theme.acc : Theme.c2)
+                        .clipShape(Capsule())
+                        .overlay(Capsule().stroke(active ? Theme.acc : Theme.brd, lineWidth: 1))
+                    }.buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    /// Pick which saved variant of the selected family to view (e.g. "wide grip"
+    /// vs "close grip"). "All" aggregates the whole family. Only shown when the
+    /// user actually saved more than one variant under the same base.
+    private func variantPicker(_ names: [String]) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                variantChip(t("st.all_variants"), selected: selVariant == nil) { selVariant = nil }
+                ForEach(names, id: \.self) { n in
+                    variantChip(n, selected: selVariant == n) { selVariant = n }
+                }
+            }
+        }
+        .padding(.top, 8)
+    }
+
+    private func variantChip(_ label: String, selected: Bool, _ action: @escaping () -> Void) -> some View {
+        Button { tap(); action() } label: {
+            Text(label).font(.head(10, .semibold)).tracking(0.3).lineLimit(1)
+                .foregroundColor(selected ? Theme.bg : Theme.sub)
+                .padding(.vertical, 5).padding(.horizontal, 10)
+                .background(selected ? Theme.acc : Theme.c2)
+                .clipShape(Capsule())
+                .overlay(Capsule().stroke(selected ? Theme.acc : Theme.brd, lineWidth: 1))
+        }.buttonStyle(.plain)
+    }
+
+    /// Apply the chosen sort to the family list. "recent" uses the most recent
+    /// lastUsed across the family's variants; "sessions" counts logged sessions.
+    private func sortedFamilies(_ fams: [Store.ExFamily]) -> [Store.ExFamily] {
+        let asc = exSortAsc
+        func cmp<T: Comparable>(_ a: T, _ b: T) -> Bool { asc ? a < b : a > b }
+        switch exSortKey {
+        case .alpha:
+            return fams.sorted { asc ? $0.base.localizedCaseInsensitiveCompare($1.base) == .orderedAscending
+                                     : $0.base.localizedCaseInsensitiveCompare($1.base) == .orderedDescending }
+        case .recent:
+            return fams.sorted { cmp(store.familyLastUsed($0), store.familyLastUsed($1)) }
+        case .sessions:
+            return fams.sorted { cmp(store.familySessionCount($0), store.familySessionCount($1)) }
+        }
     }
 
     private func familyList(_ fams: [Store.ExFamily]) -> some View {
@@ -323,7 +394,7 @@ struct StatsView: View {
 
     private func familyRow(_ f: Store.ExFamily) -> some View {
         let mg = MuscleGroup(rawValue: f.category) ?? .other
-        return Button { tap(); selEx = f.base; exSearch = "" } label: {
+        return Button { tap(); selEx = f.base; selVariant = nil; exSearch = "" } label: {
             HStack {
                 Circle().fill(Color(hex: mg.color)).frame(width: 8, height: 8)
                 VStack(alignment: .leading, spacing: 2) {

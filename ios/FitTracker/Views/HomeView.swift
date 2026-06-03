@@ -8,7 +8,6 @@ struct HomeView: View {
 
     @State private var weightInput = ""
     @State private var sleepInput = ""
-    @State private var hrInput = ""
     @State private var shareURL: IdentURL?
     @State private var editingGoal = false
     // "This week" day logging: a picker for empty days, then the session editor.
@@ -132,15 +131,10 @@ struct HomeView: View {
             HStack(spacing: 10) {
                 labeledField("\(t("home.weight")) (\(Units.wLabel.uppercased()))", Units.imperial ? "193" : "87,5", $weightInput)
                 if store.prefs.sleepEnabled {
-                    labeledField("\(t("home.sleep")) (0-100)", "78", $sleepInput)
+                    labeledFieldInfo("\(t("home.sleep")) (0-100)", "78", $sleepInput, info: "sleep")
                 }
             }
             .padding(.bottom, 10)
-            HStack(spacing: 10) {
-                labeledFieldInfo(t("home.wake_hr").uppercased(), "58", $hrInput, info: "rmssd")
-                Spacer().frame(maxWidth: .infinity)
-            }
-            .padding(.bottom, 4)
             if store.prefs.healthKitEnabled {
                 Text(t("home.health_autofill")).font(.system(size: 9)).foregroundColor(Theme.sub).padding(.bottom, 8)
             } else {
@@ -153,14 +147,14 @@ struct HomeView: View {
         .onReceive(store.$daily) { _ in prefillRecovery() }
     }
 
-    /// Fill the recovery inputs (resting HR, sleep score) from today's entry —
-    /// which Apple Health gap-fills on launch — but only when a field is still
-    /// empty, so it never overwrites something the user is typing. Editable + the
-    /// user can re-save to override.
+    /// Fill the sleep-score input from today's entry — which Apple Health gap-fills
+    /// on launch (derived from asleep hours) — but only when the field is still
+    /// empty, so it never overwrites what the user is typing. Editable + re-savable.
     private func prefillRecovery() {
-        guard let e = store.daily.first(where: { $0.date == today() }) else { return }
-        if hrInput.isEmpty, let hr = e.restHR, hr > 0 { hrInput = "\(hr)" }
-        if sleepInput.isEmpty, let s = e.sleep, s > 0 { sleepInput = "\(s)" }
+        guard sleepInput.isEmpty,
+              let e = store.daily.first(where: { $0.date == today() }),
+              let s = e.sleep, s > 0 else { return }
+        sleepInput = "\(s)"
     }
 
     private var checkedInCard: some View {
@@ -197,14 +191,11 @@ struct HomeView: View {
 
     private func saveCheckIn() {
         let w = Units.wIn(pf(weightInput)), s = pf(sleepInput)   // input → kg
-        let hr = Int(hrInput) ?? 0
         let hasW = w >= 30 && w <= 250
         let hasS = s > 0 && s <= 100
-        let hasHR = hr >= 30 && hr <= 120
-        guard hasW || hasS || hasHR else { return }
-        store.saveCheckIn(weight: hasW ? w : nil, sleep: hasS ? Int(s.rounded()) : nil,
-                          restHR: hasHR ? hr : nil)
-        weightInput = ""; sleepInput = ""; hrInput = ""
+        guard hasW || hasS else { return }
+        store.saveCheckIn(weight: hasW ? w : nil, sleep: hasS ? Int(s.rounded()) : nil)
+        weightInput = ""; sleepInput = ""
         toast.show(t("home.checkin_saved"))
     }
 

@@ -38,49 +38,26 @@ struct WorkoutView: View {
         }
     }
 
-    // A cell in the eager 2-column day grid (a real day or the trailing +add).
-    private enum DayCell: Identifiable {
-        case plan(WorkoutPlan), add
-        var id: String { if case .plan(let p) = self { return p.id } else { return "+add" } }
-    }
-    private enum CardioCell: Identifiable {
-        case type(CardioType), add
-        var id: String { if case .type(let c) = self { return c.id } else { return "+add" } }
-    }
-
     // MARK: Grid of workout days
     private var grid: some View {
         VStack(spacing: 11) {
-            HStack(spacing: 8) {
-                Lbl(text: t("wk.select_day"))
-                Spacer()
-                Button { tap(); newPlan() } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "plus")
-                        Text(t("wk.new_day").uppercased()).font(.head(10, .semibold)).tracking(1)
-                    }
-                    .foregroundColor(Theme.acc)
-                    .padding(.vertical, 8).padding(.horizontal, 12)
-                    .background(Theme.acc.opacity(0.07))
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Theme.acc, lineWidth: 1))
-                }
-            }
-
+            // Helper text first, then the "Select day" label — the +New Day button
+            // is gone; the trailing "+" card in the grid is the single way to add.
             Text(t("wk.edit_hint")).font(.system(size: 11)).foregroundColor(Theme.sub).lineSpacing(2)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-            // Eager (non-lazy) grid: with only a handful of days a LazyVGrid's
-            // height estimate is wrong, which made the page jitter and let the
-            // calendar below overlap the cards while scrolling. Past 6 cells it
-            // becomes a horizontally swipeable pager (3 rows × 2 cols per page) so
-            // the page never grows into endless vertical scrolling.
-            pagedGrid(store.plans.map { DayCell.plan($0) } + [.add], rowHeight: 130) { cell in
-                switch cell {
-                case .plan(let p): dayCard(p)
-                case .add:         addCard
-                }
+            HStack(spacing: 8) {
+                Lbl(text: t("wk.select_day"))
+                Spacer()
             }
+
+            // Paged 3×2 grid (max 6 cards/page) with long-press drag-to-reorder;
+            // dragging near an edge flips pages and cards always compact to fill
+            // gaps. A trailing "+" card is appended and stays last.
+            ReorderableCardGrid(items: $store.plans, rowHeight: 130,
+                                onReorder: { store.save() },
+                                card: { dayCard($0) }, addCell: { addCard })
+                .coordinateSpace(name: "grid")
 
             cardioSection
             CalendarCard()
@@ -91,71 +68,17 @@ struct WorkoutView: View {
         .sheet(item: $editingCardio) { ct in CardioTypeEditorView(type: ct, isNew: isNewCardio) }
     }
 
-    /// Eager two-column grid. Lays out cells in fixed rows so the container
-    /// reports its true height (no lazy estimation -> no scroll jitter/overlap).
-    @ViewBuilder
-    private func eagerGrid<C: Identifiable, V: View>(_ cells: [C], @ViewBuilder _ cell: @escaping (C) -> V) -> some View {
-        let rows = stride(from: 0, to: cells.count, by: 2).map { Array(cells[$0..<min($0 + 2, cells.count)]) }
-        VStack(spacing: 11) {
-            ForEach(rows.indices, id: \.self) { r in
-                HStack(alignment: .top, spacing: 11) {
-                    ForEach(rows[r]) { cell($0) }
-                    if rows[r].count == 1 { Color.clear.frame(maxWidth: .infinity) }
-                }
-            }
-        }
-    }
-
-    /// Up to 6 cells (3 rows × 2 cols) shown at once. With more, it becomes a
-    /// horizontally swipeable pager so the Train page never scrolls endlessly.
-    @ViewBuilder
-    private func pagedGrid<C: Identifiable, V: View>(_ cells: [C], rowHeight: CGFloat,
-                                                     @ViewBuilder _ cell: @escaping (C) -> V) -> some View {
-        if cells.count <= 6 {
-            eagerGrid(cells, cell)
-        } else {
-            let pages = stride(from: 0, to: cells.count, by: 6).map { Array(cells[$0..<min($0 + 6, cells.count)]) }
-            // Fixed page height (3 rows + gaps) so the page-style TabView lays out
-            // correctly inside the outer vertical ScrollView; +28 leaves room for
-            // the page dots.
-            let pageHeight = rowHeight * 3 + 11 * 2
-            TabView {
-                ForEach(pages.indices, id: \.self) { p in
-                    VStack(spacing: 0) {
-                        eagerGrid(pages[p], cell)
-                        Spacer(minLength: 0)
-                    }
-                }
-            }
-            .tabViewStyle(.page(indexDisplayMode: .always))
-            .frame(height: pageHeight + 28)
-        }
-    }
-
     // MARK: Cardio activities (saveable, customizable like strength days)
     private var cardioSection: some View {
         VStack(spacing: 11) {
             HStack(spacing: 8) {
                 Lbl(text: t("wk.cardio_types"))
                 Spacer()
-                Button { tap(); newCardio() } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "plus")
-                        Text(t("wk.add_cardio").uppercased()).font(.head(10, .semibold)).tracking(1)
-                    }
-                    .foregroundColor(Theme.blue)
-                    .padding(.vertical, 8).padding(.horizontal, 12)
-                    .background(Theme.blue.opacity(0.07))
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Theme.blue, lineWidth: 1))
-                }
             }
-            pagedGrid(store.cardioTypes.map { CardioCell.type($0) } + [.add], rowHeight: 112) { cell in
-                switch cell {
-                case .type(let ct): cardioTile(ct)
-                case .add:          addCardioTile
-                }
-            }
+            ReorderableCardGrid(items: $store.cardioTypes, rowHeight: 112,
+                                onReorder: { store.save() },
+                                card: { cardioTile($0) }, addCell: { addCardioTile })
+                .coordinateSpace(name: "grid")
         }
     }
 
@@ -302,7 +225,9 @@ struct WorkoutView: View {
     }
 
     private var recentSessions: some View {
-        let recent = store.sessions.sorted { $0.date > $1.date }.prefix(5)
+        // Last 10 only here; every older session stays saved and is still
+        // openable/editable by tapping its day in the calendar above.
+        let recent = store.sessions.sorted { $0.date > $1.date }.prefix(10)
         return Group {
             if !recent.isEmpty {
                 Card {
@@ -383,6 +308,9 @@ struct WorkoutView: View {
         } else {
             store.plans.append(p)
         }
+        // Populate the exercise library (muscle group, bodyweight) so these
+        // exercises stay recoverable in Progress and future plans.
+        store.registerPlanExercises(p)
         let created = isNew
         // Tear the editor down on the next runloop tick: clearing `editing` (which
         // swaps PlanEditorView out for the grid) synchronously inside the Save

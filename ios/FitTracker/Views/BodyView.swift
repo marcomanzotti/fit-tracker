@@ -12,11 +12,9 @@ struct BodyView: View {
     @State private var measInputs: [String: String] = [:]
     @State private var shareURL: IdentURL?
     @State private var importing = false
-    // Recovery inputs (nutrition moved to the dedicated Nutrition page)
+    // Steps is the only manually-overridable daily input left on this page; sleep
+    // score / HRV / sleeping HR are read-only Health imports.
     @State private var stepsInput = ""
-    @State private var rmssdInput = ""
-    @State private var restHRInput = ""
-    @State private var sleepHRInput = ""
 
     var body: some View {
         let lw = store.lastWeight
@@ -29,53 +27,76 @@ struct BodyView: View {
         let fat = bf.map { ((lw * $0 / 100) * 10).rounded() / 10 }
 
         checkInCard
-        recoveryCard
+        sleepCard
+        stepsCard
         analysisCard(lw: lw, bmi: bmi, cat: cat, bl: bl, navy: navy, bf: bf, lean: lean, fat: fat)
         measurementsCard(bl: bl)
         chartsSection
         backupCard
     }
 
-    // MARK: Recovery (feeds the readiness engine). Nutrition (kcal + macros) now
-    // lives on its own Nutrition page; this card keeps the body-side recovery
-    // inputs: steps, HRV (RMSSD) and resting HR.
-    private var recoveryCard: some View {
-        Card {
-            Lbl(text: t("body.recovery"), color: Theme.acc2).padding(.bottom, 10)
-            HStack(spacing: 10) {
-                fieldInfo(t("lbl.steps").uppercased(), "8000", $stepsInput, info: "steps")
-                fieldInfo(t("wk.rmssd"), "65", $rmssdInput, info: "rmssd")
-            }.padding(.bottom, 10)
-            HStack(spacing: 10) {
-                field("\(t("ob.rest_hr"))", "58", $restHRInput)
-                field(t("body.sleep_hr"), "52", $sleepHRInput)
-            }.padding(.bottom, 10)
-            Text(t("hk.optional_note")).font(.system(size: 10)).foregroundColor(Theme.sub).lineSpacing(2)
-                .padding(.bottom, 10)
-            FilledButton(title: t("save")) {
-                store.saveDailyExtras(
-                    kcal: nil, protein: nil, carbs: nil, fat: nil,
-                    steps: Int(stepsInput), rmssd: dOrNil(rmssdInput),
-                    restHR: Int(restHRInput), sleepHR: Int(sleepHRInput))
-                stepsInput = ""; rmssdInput = ""; restHRInput = ""; sleepHRInput = ""
-                toast.show(t("save"))
+    // MARK: Sleep (feeds the readiness engine). Read-only, imported from Apple
+    // Health: most people get sleep/HR/HRV from a watch, so there's no manual
+    // entry here. RMSSD is still computed internally for readiness; we surface the
+    // Health HRV (SDNN) value to the user instead.
+    private var sleepCard: some View {
+        let e = store.daily.first(where: { $0.date == today() })
+        let hrv = (e?.hrvSDNN ?? 0) > 0 ? e?.hrvSDNN : nil
+        let score = (e?.sleep ?? 0) > 0 ? e?.sleep : nil
+        let sHR = (e?.sleepHR ?? 0) > 0 ? e?.sleepHR : nil
+        let hrs = (e?.sleepHours ?? 0) > 0 ? e?.sleepHours : nil
+        return Card {
+            HStack(spacing: 6) {
+                Lbl(text: t("body.sleep"), color: Theme.acc2)
+                Spacer()
+                Text(t("hk.from_health").uppercased()).font(.head(8, .semibold)).tracking(1).foregroundColor(Theme.sub)
+            }
+            .padding(.bottom, 12)
+            HStack(spacing: 9) {
+                StatTile(label: t("home.sleep"), value: score.map { "\($0)" } ?? "—",
+                         unit: score != nil ? "/100" : nil, valueColor: Theme.acc2,
+                         note: hrs.map { "\(trimNum($0)) h" } ?? "—", info: "sleep")
+                StatTile(label: "HRV", value: hrv.map(trimNum) ?? "—", unit: hrv != nil ? "ms" : nil,
+                         valueColor: Theme.blue, note: t("st.hrv_sdnn"), info: "rmssd")
+                StatTile(label: t("body.sleep_hr"), value: sHR.map { "\($0)" } ?? "—",
+                         unit: sHR != nil ? "bpm" : nil, valueColor: Theme.red, note: t("hk.cat.sleepHR"))
             }
         }
-        .onAppear { prefillRecovery() }
-        .onReceive(store.$daily) { _ in prefillRecovery() }
     }
 
-    /// Prefill recovery inputs from today's entry (Apple Health gap-fills these on
-    /// launch). Only fills empty fields, so it never clobbers what the user types.
-    private func prefillRecovery() {
-        guard let e = store.daily.first(where: { $0.date == today() }) else { return }
-        if stepsInput.isEmpty, let v = e.steps, v > 0 { stepsInput = "\(v)" }
-        if rmssdInput.isEmpty, let v = e.rmssd, v > 0 { rmssdInput = trimNum(v) }
-        if restHRInput.isEmpty, let v = e.restHR, v > 0 { restHRInput = "\(v)" }
-        if sleepHRInput.isEmpty, let v = e.sleepHR, v > 0 { sleepHRInput = "\(v)" }
+    // MARK: Steps (its own card). Imported from Apple Health, but the field stays
+    // user-overridable: until the user types a value it shows/keeps the Health
+    // import; once typed and saved, the manual value wins for the day.
+    private var stepsCard: some View {
+        Card {
+            HStack(spacing: 6) {
+                Lbl(text: t("lbl.steps"), color: Theme.acc2)
+                Spacer()
+                Text(t("hk.from_health").uppercased()).font(.head(8, .semibold)).tracking(1).foregroundColor(Theme.sub)
+            }
+            .padding(.bottom, 10)
+            HStack(spacing: 10) {
+                InputField(placeholder: "8000", text: $stepsInput)
+                FilledButton(title: t("save")) {
+                    guard let v = Int(stepsInput), v > 0 else { return }
+                    store.saveDailyExtras(steps: v)
+                    stepsInput = ""; toast.show(t("save"))
+                }
+                .frame(width: 90)
+            }
+        }
+        .onAppear { prefillSteps() }
+        .onReceive(store.$daily) { _ in prefillSteps() }
     }
 
-    private func dOrNil(_ s: String) -> Double? { s.isEmpty ? nil : pf(s) }
+    /// Show today's steps in the field (Apple Health gap-fills them on launch).
+    /// Only fills the empty field, so it never clobbers what the user types.
+    private func prefillSteps() {
+        guard stepsInput.isEmpty,
+              let e = store.daily.first(where: { $0.date == today() }),
+              let v = e.steps, v > 0 else { return }
+        stepsInput = "\(v)"
+    }
 
     // MARK: Check-in
     private var checkInCard: some View {

@@ -31,6 +31,7 @@ struct DailyEntry: Codable, Identifiable, Equatable {
     // Daily activity, imported from Apple Health (gap-fill, any paired watch)
     var activeKcal: Int?      // active energy burned during the day
     var exerciseMin: Int?     // exercise minutes (Apple "Move" equivalent)
+    var vo2max: Double?       // cardiorespiratory fitness (mL/kg/min), Apple Health
     // Per-meal nutrition breakdown (optional, backward compatible). When present,
     // its kcal sum is authoritative for the day; the quick one-tap total above
     // (`kcal`) is used when no meals are logged. `meals` keys are MealSlot raw
@@ -402,6 +403,9 @@ struct PlanExercise: Codable, Identifiable, Equatable {
     var effortMode: String? = nil
     /// True when this is a bodyweight exercise.
     var isBodyweight: Bool? = nil
+    /// Muscle group (MuscleGroup raw value) assigned in the editor; propagated to
+    /// the exercise library on save so Progress can browse by muscle.
+    var muscle: String? = nil
 
     var trainMethod: TrainMethod { TrainMethod(rawValue: method ?? "normal") ?? .normal }
     var effortScale: EffortMode? { effortMode.flatMap { EffortMode(rawValue: $0) } }
@@ -540,7 +544,7 @@ struct Prefs: Codable, Equatable {
 /// The daily Health metrics the app can pull in. The user toggles these in
 /// Settings; only selected ones are read and gap-filled into daily entries.
 enum HealthCategory: String, CaseIterable, Identifiable {
-    case steps, restHR, hrv, sleep, sleepHR, activeKcal, exerciseMin
+    case steps, restHR, hrv, sleep, sleepHR, activeKcal, exerciseMin, vo2max
     var id: String { rawValue }
     static var allKeys: [String] { allCases.map { $0.rawValue } }
     var labelKey: String { "hk.cat." + rawValue }
@@ -553,6 +557,7 @@ enum HealthCategory: String, CaseIterable, Identifiable {
         case .sleepHR:     return "heart.text.square.fill"
         case .activeKcal:  return "flame.fill"
         case .exerciseMin: return "timer"
+        case .vo2max:      return "lungs.fill"
         }
     }
 }

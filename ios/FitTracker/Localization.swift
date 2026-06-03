@@ -78,7 +78,7 @@ enum L {
         "home.sleep":        ("Sonno", "Sleep"),
         "home.sleep_score":  ("Punteggio sonno", "Sleep score"),
         "home.save_checkin": ("Salva check-in", "Save check-in"),
-        "home.streak":       ("Striscia", "Streak"),
+        "home.streak":       ("Streak", "Streak"),
         "home.days":         ("giorni", "days"),
         "home.bmi":          ("BMI", "BMI"),
         "home.goal_weight":  ("Obiettivo peso", "Weight goal"),
@@ -538,8 +538,8 @@ enum L {
             "Session duration × RPE (1-10, Borg CR10). The simplest way to quantify internal load for any session.\n\nUsed in historical data. Current sessions use TRIMP (average HR), which is more precise."),
         "info.trimp.title": ("TRIMP", "TRIMP"),
         "info.trimp.body": (
-            "Calcola il carico cardiovascolare pesando la durata con la frequenza cardiaca di riserva (Banister). Più preciso dell'sRPE perché usa la FC reale.\n\nRichiede FC media + durata, e FC a riposo/massima dal profilo. Riferimento: corsa facile 45 min ≈ 40 TRIMP, sessione dura 60 min ≈ 80-100.",
-            "Calculates cardiovascular load by weighting duration by heart-rate reserve (Banister). More precise than sRPE because it uses real HR.\n\nNeeds average HR + duration, and resting/max HR from your profile. Reference: easy 45-min run ≈ 40 TRIMP, hard 60-min session ≈ 80-100."),
+            "Il TRIMP (Training Impulse) è una metrica scientifica che quantifica il carico di allenamento combinando la durata in minuti con l'intensità ricavata dalla frequenza cardiaca. Produce un unico punteggio che rappresenta lo stress fisiologico totale.\n\nRange per singola sessione:\n• Molto facile / recupero: 30–80\n• Moderato: 80–150\n• Duro: 150–250\n• Massimale: 250–500+\n\nRange settimanale (volume totale):\n• Principianti: 500–1.000\n• Intermedi: 1.000–1.500\n• Avanzati: 1.500–2.000\n• Élite: oltre 2.000\n\nRichiede FC media + durata, e FC a riposo/massima dal profilo.",
+            "TRIMP (Training Impulse) is a scientific metric used to quantify training load by combining exercise duration in minutes with exercise intensity derived from heart rate. It produces one single score representing total physiological stress.\n\nSingle-session ranges:\n• Very easy / recovery: 30–80\n• Moderate: 80–150\n• Hard: 150–250\n• Maximal: 250–500+\n\nWeekly ranges (total volume):\n• Beginners: 500–1,000\n• Intermediate: 1,000–1,500\n• Advanced: 1,500–2,000\n• Elite: over 2,000\n\nNeeds average HR + duration, plus resting/max HR from your profile."),
         "info.bmi.title": ("BMI", "BMI"),
         "info.bmi.body": (
             "Peso (kg) ÷ altezza² (m). Categorie OMS: <18,5 sottopeso, 18,5-25 normale, 25-30 sovrappeso, >30 obeso.\n\nNon distingue muscolo da grasso: una persona muscolosa può avere BMI alto con poco grasso. Quando inserisci il grasso corporeo, l'app classifica in base a quello invece che al BMI.",
@@ -608,7 +608,7 @@ enum L {
         "info.goal.body": (
             "Il tuo obiettivo (peso e grasso) viene impostato all'inizio e non cambia ad ogni pesata: resta fisso finché non lo modifichi con 'Cambia obiettivo'.\n\nLa barra parte dal peso iniziale e arriva all'obiettivo. Il numero a sinistra cambia ad ogni check-in, quello a destra resta fisso.",
             "Your goal (weight and body fat) is set at the start and doesn't change at each weigh-in — it stays fixed until you tap 'Change goal'.\n\nThe bar runs from your start weight to your goal weight. The number on the left changes with each check-in; the one on the right stays put."),
-        "info.streak.title": ("Striscia", "Streak"),
+        "info.streak.title": ("Streak", "Streak"),
         "info.streak.body": (
             "Giorni consecutivi con almeno un check-in o un allenamento. Resta attiva per tutta la giornata di oggi: non si azzera prima che il giorno sia finito.\n\nSi interrompe solo quando un giorno intero passa senza nulla registrato.",
             "Consecutive days with at least one check-in or workout. It stays alive for all of today — it doesn't reset before the day is over.\n\nIt only breaks once a full day passes with nothing logged."),
@@ -690,8 +690,9 @@ enum L {
         // --- v8.1: Apple Health categories ----------------------------------
         "hk.choose":          ("Cosa importare", "What to import"),
         "hk.import_workouts": ("Importa allenamenti passati", "Import past workouts"),
-        "hk.import_workouts_hint": ("Allenamenti registrati da altri orologi (Garmin, ecc.). I formati non sempre si convertono perfettamente.",
-                                    "Workouts recorded by other watches (Garmin, etc.). Formats don't always convert cleanly."),
+        "hk.import_workouts_hint": ("Importa gli allenamenti già registrati in Apple Salute — quelli dell'app Allenamento di Apple e di altri orologi (Garmin, ecc.). L'importazione non è ancora pienamente ottimizzata: alcuni dati potrebbero non convertirsi alla perfezione.",
+                                    "Import workouts already recorded in Apple Health — both Apple's own Workout app and other watches (Garmin, etc.). Importing isn't fully optimized yet, so some data may not convert perfectly."),
+        "hk.from_health":     ("Da Apple Salute", "From Apple Health"),
         "hk.cat.steps":       ("Passi", "Steps"),
         "hk.cat.restHR":      ("FC a riposo", "Resting heart rate"),
         "hk.cat.hrv":         ("HRV (SDNN)", "HRV (SDNN)"),
@@ -722,6 +723,15 @@ enum L {
                                "Variants sharing a family share one progress line. Change the family to merge or split them."),
         "st.family":          ("Famiglia (movimento base)", "Family (base movement)"),
         "st.muscle":          ("Muscolo", "Muscle"),
+
+        // --- v8.2: sleep card, steps card, VO2 max, variant picker -----------
+        "body.sleep":         ("Sonno", "Sleep"),
+        "hk.cat.vo2max":      ("VO₂ max", "VO₂ max"),
+        "st.vo2_time":        ("VO₂ max", "VO₂ max"),
+        "st.hrv_sdnn":        ("SDNN", "SDNN"),
+        "st.sort.sessions":   ("Sessioni", "Sessions"),
+        "st.all_variants":    ("Tutte", "All"),
+        "wk.recreate_plan":   ("Ricrea come scheda", "Recreate as plan"),
     ]
 }
 

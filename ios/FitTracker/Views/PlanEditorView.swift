@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct PlanEditorView: View {
+    @EnvironmentObject var store: Store
     @Binding var plan: WorkoutPlan
     var isNew: Bool
     var onSave: () -> Void
@@ -160,6 +161,10 @@ struct PlanEditorView: View {
     private func methodRow(_ ex: Binding<PlanExercise>) -> some View {
         let cur = ex.wrappedValue.trainMethod
         let isGrouped = cur == .superset || cur == .giant
+        // Effective muscle group: explicit choice, else the library's saved value,
+        // else a guess from the name — so the menu always shows something sensible.
+        let muscle = ex.wrappedValue.muscle ?? store.exerciseCategory(ex.wrappedValue.name)
+        let mg = MuscleGroup(rawValue: muscle) ?? .other
         return HStack(spacing: 10) {
             Text(t("wk.method").uppercased()).font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
             Menu {
@@ -169,6 +174,21 @@ struct PlanEditorView: View {
             } label: {
                 HStack(spacing: 5) {
                     Text(methodLabel(cur)).font(.system(size: 12, weight: .semibold)).foregroundColor(Theme.txt)
+                    Image(systemName: "chevron.down").font(.system(size: 9)).foregroundColor(Theme.sub)
+                }
+                .padding(.vertical, 6).padding(.horizontal, 10)
+                .background(Theme.c1).clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(Theme.brd, lineWidth: 1))
+            }
+            // Muscle group, right next to the method selector.
+            Menu {
+                ForEach(MuscleGroup.allCases) { g in
+                    Button(t(g.labelKey)) { tap(); ex.wrappedValue.muscle = g.rawValue }
+                }
+            } label: {
+                HStack(spacing: 5) {
+                    Circle().fill(Color(hex: mg.color)).frame(width: 7, height: 7)
+                    Text(t(mg.labelKey)).font(.system(size: 12, weight: .semibold)).foregroundColor(Theme.txt)
                     Image(systemName: "chevron.down").font(.system(size: 9)).foregroundColor(Theme.sub)
                 }
                 .padding(.vertical, 6).padding(.horizontal, 10)

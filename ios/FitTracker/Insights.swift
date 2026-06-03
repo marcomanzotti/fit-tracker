@@ -280,9 +280,15 @@ struct NutritionCard: View {
                 StatTile(label: t("nut.fat"), value: "\(Int(e.fat))", unit: "g", valueColor: Theme.good, info: "macros")
             }
             .padding(.bottom, 10)
-            HStack(spacing: 2) {
-                Text("\(t("nut.carb_high")): \(Int(e.carbHigh))g · \(t("nut.carb_low")): \(Int(e.carbLow))g")
-                    .font(.system(size: 10)).foregroundColor(Theme.sub)
+            // Carb-cycling targets stacked one per line — the "rest day" label
+            // wraps awkwardly when placed beside the training-day one.
+            HStack(alignment: .top, spacing: 2) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("\(t("nut.carb_high")): \(Int(e.carbHigh))g")
+                        .font(.system(size: 10)).foregroundColor(Theme.sub)
+                    Text("\(t("nut.carb_low")): \(Int(e.carbLow))g")
+                        .font(.system(size: 10)).foregroundColor(Theme.sub)
+                }
                 InfoButton(id: "carbcycle")
                 Spacer()
                 Text("\(t("nut.salt")) \(trimNum(e.saltMax))g").font(.system(size: 10)).foregroundColor(Theme.sub)
@@ -493,6 +499,7 @@ struct CalendarCard: View {
 // MARK: - Session editor (edit / delete a past session)
 struct SessionEditorView: View {
     @EnvironmentObject var store: Store
+    @EnvironmentObject var toast: ToastCenter
     @Environment(\.dismiss) private var dismiss
     @State var session: WorkoutSession
     @State private var confirmDelete = false
@@ -566,6 +573,23 @@ struct SessionEditorView: View {
 
                     BigButton(title: t("save")) {
                         store.updateSession(session); haptic(.success); dismiss()
+                    }
+                    // Bring a deleted strength plan back as a Train-page card, rebuilt
+                    // from this session's exercises. Only shown when the original plan
+                    // is gone and this is a strength session with exercises.
+                    if !session.sportType.isCardio, !session.exercises.isEmpty,
+                       store.plan(session.planId) == nil {
+                        Button { tap(); store.recreatePlan(from: session); haptic(.success); toast.show(t("wk.day_created")); dismiss() } label: {
+                            HStack(spacing: 7) {
+                                Image(systemName: "plus.square.on.square").font(.system(size: 13, weight: .bold))
+                                Text(t("wk.recreate_plan")).font(.head(13, .semibold))
+                            }
+                            .foregroundColor(Theme.acc)
+                            .frame(maxWidth: .infinity, minHeight: 46)
+                            .background(Theme.acc.opacity(0.08))
+                            .clipShape(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous))
+                            .overlay(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous).stroke(Theme.acc, lineWidth: 1))
+                        }
                     }
                     Button { tap(); confirmDelete = true } label: {
                         Text(t("wk.del_session")).font(.head(13, .semibold)).foregroundColor(Theme.red)

@@ -151,6 +151,51 @@ extension Store {
 extension Store {
     var sortedDaily: [DailyEntry] { daily.sorted { $0.date < $1.date } }
 
+    /// One point per ISO week (Monday-anchored): the average daily steps for days
+    /// that have steps, over the last `months` months. Smooths the noisy day-to-day
+    /// scale into a readable trend.
+    struct WeekPoint: Identifiable { var date: String; var value: Double; var id: String { date } }
+    func weeklyStepAverages(months: Int = 6) -> [WeekPoint] {
+        let cal = Calendar.current
+        guard let cutoff = cal.date(byAdding: .month, value: -months, to: Date()) else { return [] }
+        // Group step-bearing days by the Monday that starts their week.
+        var byWeek: [Date: (sum: Int, n: Int)] = [:]
+        for e in daily {
+            guard let v = e.steps, v > 0, let d = isoFormatter.date(from: e.date), d >= cutoff else { continue }
+            let comps = cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: d)
+            guard let weekStart = cal.date(from: comps) else { continue }
+            var acc = byWeek[weekStart] ?? (0, 0)
+            acc.sum += v; acc.n += 1
+            byWeek[weekStart] = acc
+        }
+        return byWeek.keys.sorted().map { ws in
+            let acc = byWeek[ws]!
+            return WeekPoint(date: fmtShort(isoFormatter.string(from: ws)),
+                             value: (Double(acc.sum) / Double(acc.n)).rounded())
+        }
+    }
+
+    /// Most recent lastUsed date across a family's variants (for "recent" sorting).
+    func familyLastUsed(_ f: ExFamily) -> String {
+        f.names.compactMap { n in exerciseItems.first { $0.name == n }?.lastUsed }.max() ?? ""
+    }
+
+    /// Number of logged sessions that include any variant of a family.
+    func familySessionCount(_ f: ExFamily) -> Int {
+        let names = Set(f.names)
+        return sessions.filter { s in s.exercises.contains { names.contains($0.name) } }.count
+    }
+
+    /// VO2 max readings (mL/kg/min) over the last `days` days, for the fitness trend.
+    func vo2Series(days: Int = 180) -> [WeekPoint] {
+        Array(sortedDaily.suffix(days))
+            .filter { ($0.vo2max ?? 0) > 0 }
+            .map { WeekPoint(date: fmtShort($0.date), value: $0.vo2max!) }
+    }
+
+    /// Latest known VO2 max (carried forward — Apple records it sparsely).
+    var latestVO2: Double? { sortedDaily.last(where: { ($0.vo2max ?? 0) > 0 })?.vo2max }
+
     var lastWeight: Double {
         sortedDaily.last(where: { $0.weight != nil })?.weight ?? prefs.startWeight
     }
@@ -583,6 +628,13 @@ extension Store {
     // MARK: Apple Health import (optional, gap-fill only)
     /// Merge Health samples into daily entries. Imported values only fill missing
     /// fields so a manually typed number is never overwritten.
+    /// Map asleep hours to a rough 0-100 sleep score (Apple gives duration, not a
+    /// score). Peaks at 8 h, falls off either side; clamped to 0-100.
+    static func sleepScore(fromHours h: Double) -> Int {
+        let penalty = abs(h - 8.0) * 12.0      // ~12 points lost per hour off 8 h
+        return max(0, min(100, Int((100 - penalty).rounded())))
+    }
+
     func applyHealthSamples(_ samples: [HealthDaySample]) {
         for s in samples {
             var e = daily.first(where: { $0.date == s.date }) ?? DailyEntry(date: s.date)
@@ -593,6 +645,13 @@ extension Store {
             if e.exerciseMin == nil, let v = s.exerciseMin, v > 0 { e.exerciseMin = v }
             if e.sleepHours == nil, let v = s.sleepHours, v > 0 { e.sleepHours = v }
             if e.sleepHR == nil, let v = s.sleepHR, v > 0 { e.sleepHR = v }
+            if e.vo2max == nil, let v = s.vo2max, v > 0 { e.vo2max = v }
+            // Derive a 0-100 sleep score from Health sleep duration when the user
+            // hasn't entered one — Apple exposes asleep hours, not a score, so we map
+            // hours to a score peaking around 8 h (7.5-8.5 h ≈ 95-100).
+            if e.sleep == nil, let h = e.sleepHours ?? s.sleepHours, h > 0 {
+                e.sleep = Store.sleepScore(fromHours: h)
+            }
             daily.removeAll { $0.date == s.date }
             daily.append(e)
         }
@@ -834,6 +893,49 @@ extension Store {
                                 base: Store.normalizedBase(name), category: Store.guessCategory(name).rawValue)
         exerciseItems.append(item)
         return item
+    }
+
+    /// Rebuild a Train-page plan from a past session (used when the original plan
+    /// was deleted). Carries over names, set counts, a representative rep target,
+    /// method, effort scale, bodyweight flag, and the library muscle group.
+    @discardableResult
+    func recreatePlan(from session: WorkoutSession) -> WorkoutPlan {
+        let exs: [PlanExercise] = session.exercises.map { le in
+            // Most common rep value across the logged sets as the new target.
+            let reps = le.sets.compactMap { Int(pf($0.reps)) }.filter { $0 > 0 }
+            let repTarget = reps.isEmpty ? "10" : "\(mode(reps))"
+            return PlanExercise(name: le.name, sets: max(1, le.sets.count), reps: repTarget,
+                                supersetGroup: le.supersetGroup, method: le.method,
+                                effortMode: le.effortMode, isBodyweight: le.isBodyweight,
+                                muscle: exerciseCategory(le.name))
+        }
+        let plan = WorkoutPlan(name: session.planName, color: session.planColor, exercises: exs)
+        plans.append(plan)
+        registerPlanExercises(plan)
+        return plan
+    }
+
+    /// Most frequent value in a list (ties resolved by first seen).
+    private func mode(_ xs: [Int]) -> Int {
+        var counts: [Int: Int] = [:]
+        for x in xs { counts[x, default: 0] += 1 }
+        return counts.max { a, b in a.value < b.value }?.key ?? (xs.first ?? 10)
+    }
+
+    /// Register every exercise in a plan into the library (creating entries as
+    /// needed) and apply the muscle group / bodyweight flag chosen in the editor.
+    /// Called on plan save so the library is always populated and recoverable, even
+    /// after the plan itself is later deleted.
+    func registerPlanExercises(_ plan: WorkoutPlan) {
+        for ex in plan.exercises {
+            let name = ex.name.trimmingCharacters(in: .whitespaces)
+            guard !name.isEmpty else { continue }
+            touchExerciseInLibrary(name, isBodyweight: ex.bodyweight)
+            if let m = ex.muscle, !m.isEmpty,
+               let i = exerciseItems.firstIndex(where: { $0.name == name }) {
+                exerciseItems[i].category = m
+            }
+        }
     }
 
     /// Update the bodyweight flag for an exercise in the library.

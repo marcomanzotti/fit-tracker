@@ -17,6 +17,7 @@ struct HealthDaySample {
     var exerciseMin: Int?
     var sleepHours: Double?
     var sleepHR: Int?
+    var vo2max: Double?
 }
 
 // MARK: - A workout read back from Apple Health
@@ -67,6 +68,7 @@ final class HealthKitManager {
         if let t = HKObjectType.quantityType(forIdentifier: .distanceCycling) { types.insert(t) }
         if let t = HKObjectType.quantityType(forIdentifier: .distanceSwimming) { types.insert(t) }
         if let t = HKObjectType.categoryType(forIdentifier: .sleepAnalysis) { types.insert(t) }
+        if let t = HKObjectType.quantityType(forIdentifier: .vo2Max) { types.insert(t) }
         types.insert(HKObjectType.workoutType())
         store.requestAuthorization(toShare: nil, read: types) { ok, _ in
             DispatchQueue.main.async { completion(ok) }
@@ -95,6 +97,7 @@ final class HealthKitManager {
         var exMin: [String: Int] = [:]
         var sleepHrs: [String: Double] = [:]
         var sleepHR: [String: Int] = [:]
+        var vo2: [String: Double] = [:]
         let group = DispatchGroup()
 
         // Steps: summed per day.
@@ -137,6 +140,17 @@ final class HealthKitManager {
                 group.leave()
             }
         }
+        // VO2 max: daily average (mL/kg/min). Apple records it sparsely, so a day
+        // without a reading simply carries no value (the last value carries forward
+        // in the UI).
+        if categories.contains("vo2max"), let t = HKObjectType.quantityType(forIdentifier: .vo2Max) {
+            let unit = HKUnit.literUnit(with: .milli).unitDivided(by: HKUnit.gramUnit(with: .kilo).unitMultiplied(by: .minute()))
+            group.enter()
+            collect(t, unit: unit, options: .discreteAverage, start: start, end: end, cal: cal) { map in
+                for (k, v) in map where v > 0 { vo2[k] = (v * 10).rounded() / 10 }
+                group.leave()
+            }
+        }
         // Sleep duration (+ optional sleeping heart rate from the asleep windows).
         if categories.contains("sleep") || categories.contains("sleepHR") {
             group.enter()
@@ -150,11 +164,11 @@ final class HealthKitManager {
 
         group.notify(queue: .main) {
             let keys = Set(steps.keys).union(rest.keys).union(hrv.keys).union(energy.keys)
-                .union(exMin.keys).union(sleepHrs.keys).union(sleepHR.keys)
+                .union(exMin.keys).union(sleepHrs.keys).union(sleepHR.keys).union(vo2.keys)
             let out = keys.sorted().map {
                 HealthDaySample(date: $0, steps: steps[$0], restHR: rest[$0], hrvSDNN: hrv[$0],
                                 activeKcal: energy[$0], exerciseMin: exMin[$0],
-                                sleepHours: sleepHrs[$0], sleepHR: sleepHR[$0])
+                                sleepHours: sleepHrs[$0], sleepHR: sleepHR[$0], vo2max: vo2[$0])
             }
             completion(out)
         }
