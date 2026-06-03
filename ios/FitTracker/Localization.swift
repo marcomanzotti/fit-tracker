@@ -378,7 +378,7 @@ enum L {
         "st.no_workouts":    ("Nessun allenamento registrato.", "No workouts logged."),
         "st.weight90":       ("Peso · 90 giorni", "Weight · 90 days"),
         "st.sleep":          ("Sleep score", "Sleep score"),
-        "st.bmi_time":       ("BMI nel tempo", "BMI over time"),
+        "st.bmi_time":       ("BMI", "BMI"),
         "st.composition":    ("Composizione corporea", "Body composition"),
         "st.lean":           ("Magra", "Lean"),
         "st.fat":            ("Grasso", "Fat"),

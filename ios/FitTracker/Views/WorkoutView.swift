@@ -51,13 +51,11 @@ struct WorkoutView: View {
                 Spacer()
             }
 
-            // Paged 3×2 grid (max 6 cards/page) with long-press drag-to-reorder;
-            // dragging near an edge flips pages and cards always compact to fill
-            // gaps. A trailing "+" card is appended and stays last.
-            ReorderableCardGrid(items: $store.plans, rowHeight: 130,
-                                onReorder: { store.save() },
-                                card: { dayCard($0) }, addCell: { addCard })
-                .coordinateSpace(name: "grid")
+            // Static 2-column grid: every card is the same size, with a trailing
+            // "+" card to add a day. (Drag-to-reorder was removed — it froze the
+            // page and stole taps.)
+            CardGrid(items: store.plans, rowHeight: 130,
+                     card: { dayCard($0) }, addCell: { addCard })
 
             cardioSection
             CalendarCard()
@@ -75,10 +73,8 @@ struct WorkoutView: View {
                 Lbl(text: t("wk.cardio_types"))
                 Spacer()
             }
-            ReorderableCardGrid(items: $store.cardioTypes, rowHeight: 112,
-                                onReorder: { store.save() },
-                                card: { cardioTile($0) }, addCell: { addCardioTile })
-                .coordinateSpace(name: "grid")
+            CardGrid(items: store.cardioTypes, rowHeight: 112,
+                     card: { cardioTile($0) }, addCell: { addCardioTile })
         }
     }
 

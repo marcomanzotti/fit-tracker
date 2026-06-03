@@ -51,7 +51,7 @@ struct StatsView: View {
         let withW = ws.filter { $0.weight != nil }
         let bf = store.currentBF
         return Group {
-            MetricChartCard(title: t("st.weight90"), color: Theme.acc) {
+            MetricChartCard(title: t("home.weight"), color: Theme.acc) {
                 $0.weight.map { Units.wOut($0) }
             }
             MetricChartCard(title: t("st.sleep"), info: "sleep", color: Theme.blue, yDomain: 0...100) {

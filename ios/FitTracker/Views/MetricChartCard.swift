@@ -22,8 +22,9 @@ struct MetricChartCard: View {
     @State private var expanded = false
 
     var body: some View {
-        // Overview default: weekly average over the last 3 months.
-        let data = store.metricSeries(value, granularity: .week, months: 3)
+        // Overview default: weekly average over the last 2 months (3 months still
+        // crowded the x-axis). The expanded sheet lets the user widen the window.
+        let data = store.metricSeries(value, granularity: .week, months: 2)
         return Group {
             if data.count > 1 {
                 Card {
