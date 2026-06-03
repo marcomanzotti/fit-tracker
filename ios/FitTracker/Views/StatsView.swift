@@ -42,80 +42,31 @@ struct StatsView: View {
     }
 
     // MARK: Overview
+    // Every daily-derived metric uses MetricChartCard: it defaults to a weekly
+    // average over the last 3 months (so the x-axis never crowds) and carries an
+    // expand button → a larger, horizontally-scrollable view with a
+    // day/week/month/year toggle.
     private var overview: some View {
         let ws = store.sortedDaily
-        let d90 = Array(ws.suffix(90))
-        let withW = d90.filter { $0.weight != nil }
-        let sleepD = d90.filter { $0.sleep != nil }
-        let stepsWk = store.weeklyStepAverages(months: 6)
-        let vo2 = store.vo2Series(days: 180)
+        let withW = ws.filter { $0.weight != nil }
         let bf = store.currentBF
         return Group {
-            if withW.count > 1 {
-                Card {
-                    Lbl(text: t("st.weight90")).padding(.bottom, 8)
-                    Chart(withW) { e in
-                        LineMark(x: .value("g", fmtShort(e.date)), y: .value("w", Units.wOut(e.weight ?? 0)))
-                            .interpolationMethod(.catmullRom).foregroundStyle(Theme.acc)
-                        AreaMark(x: .value("g", fmtShort(e.date)), y: .value("w", Units.wOut(e.weight ?? 0)))
-                            .interpolationMethod(.catmullRom)
-                            .foregroundStyle(LinearGradient(colors: [Theme.acc.opacity(0.25), .clear], startPoint: .top, endPoint: .bottom))
-                    }
-                    .chartYScale(domain: .automatic(includesZero: false)).styledAxes().frame(height: 155)
-                }
+            MetricChartCard(title: t("st.weight90"), color: Theme.acc) {
+                $0.weight.map { Units.wOut($0) }
             }
-            if sleepD.count > 1 {
-                Card {
-                    Lbl(text: t("st.sleep")).padding(.bottom, 8)
-                    Chart(sleepD) { e in
-                        LineMark(x: .value("g", fmtShort(e.date)), y: .value("s", e.sleep ?? 0))
-                            .interpolationMethod(.catmullRom).foregroundStyle(Theme.blue)
-                        AreaMark(x: .value("g", fmtShort(e.date)), y: .value("s", e.sleep ?? 0))
-                            .interpolationMethod(.catmullRom)
-                            .foregroundStyle(LinearGradient(colors: [Theme.blue.opacity(0.25), .clear], startPoint: .top, endPoint: .bottom))
-                    }
-                    .chartYScale(domain: 0...100).styledAxes().frame(height: 155)
-                }
+            MetricChartCard(title: t("st.sleep"), info: "sleep", color: Theme.blue, yDomain: 0...100) {
+                $0.sleep.map(Double.init)
             }
-            // Steps as a weekly average over ~6 months — a readable trend instead of
-            // the noisy day-to-day scale. (HR + HRV are still saved/imported, just
-            // not charted here; HRV is surfaced on the Sleep card.)
-            if stepsWk.count > 1 {
-                Card {
-                    Lbl(text: t("st.steps_time")).padding(.bottom, 8)
-                    Chart(stepsWk) { p in
-                        BarMark(x: .value("g", p.date), y: .value("s", p.value))
-                            .foregroundStyle(Theme.blue.opacity(0.6)).cornerRadius(4)
-                    }
-                    .styledAxes().frame(height: 120)
-                }
+            MetricChartCard(title: t("st.steps_time"), color: Theme.blue, kind: .bar) {
+                $0.steps.map(Double.init)
             }
-            // VO2 max (cardiorespiratory fitness) imported from Apple Health.
-            if vo2.count > 1 {
-                Card {
-                    Lbl(text: t("st.vo2_time")).padding(.bottom, 8)
-                    Chart(vo2) { p in
-                        LineMark(x: .value("g", p.date), y: .value("v", p.value))
-                            .interpolationMethod(.catmullRom).foregroundStyle(Theme.good)
-                        AreaMark(x: .value("g", p.date), y: .value("v", p.value))
-                            .interpolationMethod(.catmullRom)
-                            .foregroundStyle(LinearGradient(colors: [Theme.good.opacity(0.22), .clear], startPoint: .top, endPoint: .bottom))
-                    }
-                    .chartYScale(domain: .automatic(includesZero: false)).styledAxes().frame(height: 120)
-                }
+            MetricChartCard(title: t("st.vo2_time"), color: Theme.good) {
+                $0.vo2max
+            }
+            MetricChartCard(title: t("st.bmi_time"), color: Color(hex: "b08fff")) {
+                e in e.weight.map { store.bmi($0) }
             }
             if withW.count > 1 {
-                Card {
-                    Lbl(text: t("st.bmi_time")).padding(.bottom, 8)
-                    Chart(withW) { e in
-                        LineMark(x: .value("g", fmtShort(e.date)), y: .value("bmi", store.bmi(e.weight ?? 0)))
-                            .interpolationMethod(.catmullRom).foregroundStyle(Color(hex: "b08fff"))
-                        AreaMark(x: .value("g", fmtShort(e.date)), y: .value("bmi", store.bmi(e.weight ?? 0)))
-                            .interpolationMethod(.catmullRom)
-                            .foregroundStyle(LinearGradient(colors: [Color(hex: "b08fff").opacity(0.25), .clear], startPoint: .top, endPoint: .bottom))
-                    }
-                    .chartYScale(domain: .automatic(includesZero: false)).styledAxes().frame(height: 120)
-                }
                 if let bf {
                     Card {
                         Lbl(text: t("st.composition")).padding(.bottom, 8)

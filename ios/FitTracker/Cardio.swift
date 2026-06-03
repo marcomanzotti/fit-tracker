@@ -147,6 +147,11 @@ struct CardioTypeEditorView: View {
                         Lbl(text: t("wk.activity_name")).padding(.bottom, 8)
                         InputField(placeholder: t("wk.activity_name_ph"), text: $type.name, keyboard: .default)
                             .padding(.bottom, 14)
+                        Lbl(text: t("wk.activity_sub")).padding(.bottom, 8)
+                        InputField(placeholder: t("wk.activity_sub_ph"),
+                                   text: Binding(get: { type.sub ?? "" }, set: { type.sub = $0 }),
+                                   keyboard: .default)
+                            .padding(.bottom, 14)
                         Lbl(text: t("wk.cardio_kind")).padding(.bottom, 8)
                         PillSelect(options: sportKinds, title: { Sport(rawValue: $0)?.label ?? $0 }, selection: $type.sport)
                             .padding(.bottom, 14)

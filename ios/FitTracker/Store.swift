@@ -151,28 +151,71 @@ extension Store {
 extension Store {
     var sortedDaily: [DailyEntry] { daily.sorted { $0.date < $1.date } }
 
-    /// One point per ISO week (Monday-anchored): the average daily steps for days
-    /// that have steps, over the last `months` months. Smooths the noisy day-to-day
-    /// scale into a readable trend.
+    /// One time-bucketed average point (week/month/year) for an overview chart.
     struct WeekPoint: Identifiable { var date: String; var value: Double; var id: String { date } }
-    func weeklyStepAverages(months: Int = 6) -> [WeekPoint] {
+
+    /// Bucket granularity for the overview charts. The overview shows `.week` over
+    /// ~3 months by default (readable trend); the expanded view lets the user switch.
+    enum ChartGranularity: String, CaseIterable, Identifiable {
+        case day, week, month, year
+        var id: String { rawValue }
+        /// How far back to look by default for this granularity.
+        var months: Int {
+            switch self {
+            case .day:   return 3
+            case .week:  return 6
+            case .month: return 24
+            case .year:  return 120
+            }
+        }
+        /// Calendar components that identify a bucket.
+        var comps: Set<Calendar.Component> {
+            switch self {
+            case .day:   return [.year, .month, .day]
+            case .week:  return [.yearForWeekOfYear, .weekOfYear]
+            case .month: return [.year, .month]
+            case .year:  return [.year]
+            }
+        }
+    }
+
+    /// Generic time-bucketed average of a daily metric. Groups the days that carry a
+    /// value into buckets of the chosen granularity and averages each bucket, so a
+    /// crowded daily axis collapses into a readable trend. Used by every overview
+    /// chart (sleep, steps, weight, BMI, VO2…) and their expanded views.
+    func metricSeries(_ value: @escaping (DailyEntry) -> Double?,
+                      granularity: ChartGranularity, months: Int? = nil) -> [WeekPoint] {
         let cal = Calendar.current
-        guard let cutoff = cal.date(byAdding: .month, value: -months, to: Date()) else { return [] }
-        // Group step-bearing days by the Monday that starts their week.
-        var byWeek: [Date: (sum: Int, n: Int)] = [:]
+        let back = months ?? granularity.months
+        guard let cutoff = cal.date(byAdding: .month, value: -back, to: Date()) else { return [] }
+        var byBucket: [Date: (sum: Double, n: Int)] = [:]
         for e in daily {
-            guard let v = e.steps, v > 0, let d = isoFormatter.date(from: e.date), d >= cutoff else { continue }
-            let comps = cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: d)
-            guard let weekStart = cal.date(from: comps) else { continue }
-            var acc = byWeek[weekStart] ?? (0, 0)
+            guard let v = value(e), v.isFinite,
+                  let d = isoFormatter.date(from: e.date), d >= cutoff else { continue }
+            let comps = cal.dateComponents(granularity.comps, from: d)
+            guard let bucket = cal.date(from: comps) else { continue }
+            var acc = byBucket[bucket] ?? (0, 0)
             acc.sum += v; acc.n += 1
-            byWeek[weekStart] = acc
+            byBucket[bucket] = acc
         }
-        return byWeek.keys.sorted().map { ws in
-            let acc = byWeek[ws]!
-            return WeekPoint(date: fmtShort(isoFormatter.string(from: ws)),
-                             value: (Double(acc.sum) / Double(acc.n)).rounded())
+        return byBucket.keys.sorted().map { b in
+            let acc = byBucket[b]!
+            return WeekPoint(date: bucketLabel(b, granularity: granularity),
+                             value: ((acc.sum / Double(acc.n)) * 10).rounded() / 10)
         }
+    }
+
+    /// Compact axis label for a bucket start date, tuned per granularity.
+    private func bucketLabel(_ d: Date, granularity: ChartGranularity) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        switch granularity {
+        case .day:   f.dateFormat = "MM-dd"
+        case .week:  f.dateFormat = "MM-dd"
+        case .month: f.dateFormat = "yyyy-MM"
+        case .year:  f.dateFormat = "yyyy"
+        }
+        return f.string(from: d)
     }
 
     /// Most recent lastUsed date across a family's variants (for "recent" sorting).
@@ -184,13 +227,6 @@ extension Store {
     func familySessionCount(_ f: ExFamily) -> Int {
         let names = Set(f.names)
         return sessions.filter { s in s.exercises.contains { names.contains($0.name) } }.count
-    }
-
-    /// VO2 max readings (mL/kg/min) over the last `days` days, for the fitness trend.
-    func vo2Series(days: Int = 180) -> [WeekPoint] {
-        Array(sortedDaily.suffix(days))
-            .filter { ($0.vo2max ?? 0) > 0 }
-            .map { WeekPoint(date: fmtShort($0.date), value: $0.vo2max!) }
     }
 
     /// Latest known VO2 max (carried forward — Apple records it sparsely).
@@ -531,7 +567,7 @@ extension Store {
         if let carbs { e.carbs = carbs }
         if let fat { e.fat = fat }
         if let salt { e.salt = salt }
-        if let steps { e.steps = steps }
+        if let steps { e.steps = steps; e.stepsManual = true }
         if let rmssd { e.rmssd = rmssd }
         if let restHR { e.restHR = restHR }
         if let sleepHR { e.sleepHR = sleepHR }
@@ -638,7 +674,9 @@ extension Store {
     func applyHealthSamples(_ samples: [HealthDaySample]) {
         for s in samples {
             var e = daily.first(where: { $0.date == s.date }) ?? DailyEntry(date: s.date)
-            if e.steps == nil, let v = s.steps, v > 0 { e.steps = v }
+            // Steps refresh live from Health throughout the day (they only climb),
+            // UNLESS the user manually overrode the count — then their value wins.
+            if e.stepsManual != true, let v = s.steps, v > 0 { e.steps = v }
             if e.restHR == nil, let v = s.restHR, v > 0 { e.restHR = v }
             if e.hrvSDNN == nil, let v = s.hrvSDNN, v > 0 { e.hrvSDNN = v }
             if e.activeKcal == nil, let v = s.activeKcal, v > 0 { e.activeKcal = v }

@@ -94,9 +94,13 @@ struct WorkoutView: View {
                     .padding(.bottom, 10).padding(.trailing, 24)
                     Text(ct.name.uppercased()).font(.head(16, .bold)).tracking(0.5)
                         .foregroundColor(Theme.txt).lineLimit(1)
-                    Text(ct.sportType.label).font(.system(size: 10)).foregroundColor(Theme.sub).padding(.top, 3)
+                    // Optional editable subtitle (mirrors strength days); falls back
+                    // to the underlying sport label when the user hasn't set one.
+                    Text((ct.sub?.isEmpty == false ? ct.sub! : ct.sportType.label))
+                        .font(.system(size: 10)).foregroundColor(Theme.sub).lineLimit(1).padding(.top, 3)
+                    Spacer(minLength: 0)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
                 .padding(.vertical, 15).padding(.horizontal, 14)
                 .background(Theme.c1)
                 .overlay(alignment: .leading) { Rectangle().fill(Color(hex: ct.color)).frame(width: 3) }
@@ -126,7 +130,7 @@ struct WorkoutView: View {
                 Image(systemName: "plus.circle").font(.system(size: 24)).foregroundColor(Theme.sub)
                 Text(t("wk.new_cardio")).font(.head(11, .semibold)).tracking(1).foregroundColor(Theme.sub)
             }
-            .frame(maxWidth: .infinity, minHeight: 104)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Theme.c1.opacity(0.5))
             .clipShape(RoundedRectangle(cornerRadius: Theme.radius, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: Theme.radius, style: .continuous)
@@ -159,8 +163,9 @@ struct WorkoutView: View {
                     Divider().overlay(Theme.brd).padding(.top, 11).padding(.bottom, 8)
                     Text("\(p.exercises.count) \(t("wk.exercises_n"))".uppercased()).font(.head(9, .semibold)).tracking(1.5)
                         .foregroundColor(Theme.sub)
+                    Spacer(minLength: 0)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
                 .padding(.vertical, 15).padding(.horizontal, 14)
                 .background(Theme.c1)
                 .overlay(alignment: .leading) { Rectangle().fill(Color(hex: p.color)).frame(width: 3) }
@@ -215,7 +220,7 @@ struct WorkoutView: View {
                 Image(systemName: "plus.circle").font(.system(size: 26)).foregroundColor(Theme.sub)
                 Text(t("wk.create_day")).font(.head(11, .semibold)).tracking(1).foregroundColor(Theme.sub)
             }
-            .frame(maxWidth: .infinity, minHeight: 120)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Theme.c1.opacity(0.5))
             .clipShape(RoundedRectangle(cornerRadius: Theme.radius, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: Theme.radius, style: .continuous)

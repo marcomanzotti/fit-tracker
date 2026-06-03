@@ -7,7 +7,6 @@ struct BodyView: View {
     @EnvironmentObject var toast: ToastCenter
 
     @State private var weightInput = ""
-    @State private var sleepInput = ""
     @State private var bfInput = ""
     @State private var measInputs: [String: String] = [:]
     @State private var shareURL: IdentURL?
@@ -89,31 +88,31 @@ struct BodyView: View {
         .onReceive(store.$daily) { _ in prefillSteps() }
     }
 
-    /// Show today's steps in the field (Apple Health gap-fills them on launch).
-    /// Only fills the empty field, so it never clobbers what the user types.
+    /// Keep the field showing today's live Health steps (they refresh on every
+    /// foreground sync and only climb). Once the user has manually overridden the
+    /// count (`stepsManual`), we stop touching the field so their value stays put;
+    /// likewise we never clobber a value the user is mid-typing into an empty field.
     private func prefillSteps() {
-        guard stepsInput.isEmpty,
-              let e = store.daily.first(where: { $0.date == today() }),
+        guard let e = store.daily.first(where: { $0.date == today() }),
               let v = e.steps, v > 0 else { return }
-        stepsInput = "\(v)"
+        if e.stepsManual == true { return }
+        let shown = Int(stepsInput)
+        if shown == nil || shown != v { stepsInput = "\(v)" }
     }
 
     // MARK: Check-in
+    // Body weight only — sleep score is imported from Apple Health and shown on
+    // the Sleep card above, so the daily check-in stays a single quick field.
     private var checkInCard: some View {
         Card {
             Lbl(text: "\(t("home.checkin")) · \(today())", color: Theme.acc2).padding(.bottom, 10)
-            HStack(spacing: 10) {
-                field("\(t("home.weight")) (\(Units.wLabel.uppercased()))", Units.imperial ? "193" : "87,5", $weightInput)
-                if store.prefs.sleepEnabled {
-                    fieldInfo("\(t("home.sleep")) (0-100)", "78", $sleepInput, info: "sleep")
-                }
-            }.padding(.bottom, 10)
+            field("\(t("home.weight")) (\(Units.wLabel.uppercased()))", Units.imperial ? "193" : "87,5", $weightInput)
+                .padding(.bottom, 12)
             FilledButton(title: t("home.save_checkin")) {
-                let w = Units.wIn(pf(weightInput)), s = pf(sleepInput)
-                let hasW = w >= 30 && w <= 250, hasS = s > 0 && s <= 100
-                guard hasW || hasS else { return }
-                store.saveCheckIn(weight: hasW ? w : nil, sleep: hasS ? Int(s.rounded()) : nil)
-                weightInput = ""; sleepInput = ""; toast.show(t("home.checkin_saved"))
+                let w = Units.wIn(pf(weightInput))
+                guard w >= 30 && w <= 250 else { return }
+                store.saveCheckIn(weight: w, sleep: nil)
+                weightInput = ""; toast.show(t("home.checkin_saved"))
             }
         }
     }
@@ -308,17 +307,6 @@ struct BodyView: View {
     private func field(_ label: String, _ ph: String, _ binding: Binding<String>) -> some View {
         VStack(alignment: .leading, spacing: 7) {
             FieldLabel(label)
-            InputField(placeholder: ph, text: binding)
-        }
-    }
-
-    /// Field with an inline info popup next to its label (for scientific inputs).
-    /// Both helpers use FieldLabel (fixed 18pt height) so input boxes in adjacent
-    /// columns/rows always start at the same vertical position, with or without
-    /// the info button.
-    private func fieldInfo(_ label: String, _ ph: String, _ binding: Binding<String>, info: String) -> some View {
-        VStack(alignment: .leading, spacing: 7) {
-            FieldLabel(label, info: info)
             InputField(placeholder: ph, text: binding)
         }
     }

@@ -22,6 +22,7 @@ struct DailyEntry: Codable, Identifiable, Equatable {
     var fat: Double?
     var salt: Double?
     var steps: Int?
+    var stepsManual: Bool?    // true once the user types a step count — Health stops overwriting it for the day
     // Recovery (optional, manual entry)
     var rmssd: Double?        // HRV RMSSD typed from an external HRV app
     var restHR: Int?          // morning resting / waking heart rate
@@ -254,6 +255,7 @@ struct CardioType: Codable, Identifiable, Equatable {
     var name: String
     var sport: String          // Sport raw value (drives icon + calorie MET)
     var color: String          // hex from Theme.cardioColors (customizable)
+    var sub: String?           // optional editable subtitle (mirrors WorkoutPlan.sub)
 
     var sportType: Sport { Sport(rawValue: sport) ?? .other }
 }

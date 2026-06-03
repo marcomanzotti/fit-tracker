@@ -7,7 +7,6 @@ struct HomeView: View {
     @Binding var tab: Tab
 
     @State private var weightInput = ""
-    @State private var sleepInput = ""
     @State private var shareURL: IdentURL?
     @State private var editingGoal = false
     // "This week" day logging: a picker for empty days, then the session editor.
@@ -47,10 +46,10 @@ struct HomeView: View {
         // ACWR (EWMA). Readiness only appears if you log HRV (optional sensor).
         Group {
             TrimpCard()
-            LoadCard()
             LoadTrendCard()
-            NutritionCard()
+            LoadCard()
             ReadinessCard()
+            NutritionCard()
         }
 
         backupRow
@@ -125,36 +124,16 @@ struct HomeView: View {
     }
 
     // MARK: Check-in
+    // Body weight only: sleep score comes from Apple Health and is shown on the
+    // Body → Sleep card, so there's nothing else worth typing here every day.
     private var checkInCard: some View {
         Card(bg: Theme.c1) {
             Lbl(text: t("home.checkin"), color: Theme.acc2).padding(.bottom, 10)
-            HStack(spacing: 10) {
-                labeledField("\(t("home.weight")) (\(Units.wLabel.uppercased()))", Units.imperial ? "193" : "87,5", $weightInput)
-                if store.prefs.sleepEnabled {
-                    labeledFieldInfo("\(t("home.sleep")) (0-100)", "78", $sleepInput, info: "sleep")
-                }
-            }
-            .padding(.bottom, 10)
-            if store.prefs.healthKitEnabled {
-                Text(t("home.health_autofill")).font(.system(size: 9)).foregroundColor(Theme.sub).padding(.bottom, 8)
-            } else {
-                Spacer().frame(height: 6)
-            }
+            labeledField("\(t("home.weight")) (\(Units.wLabel.uppercased()))", Units.imperial ? "193" : "87,5", $weightInput)
+                .padding(.bottom, 12)
             FilledButton(title: t("home.save_checkin")) { saveCheckIn() }
         }
         .overlay(RoundedRectangle(cornerRadius: Theme.radius).stroke(Theme.acc.opacity(0.3), lineWidth: 1))
-        .onAppear { prefillRecovery() }
-        .onReceive(store.$daily) { _ in prefillRecovery() }
-    }
-
-    /// Fill the sleep-score input from today's entry — which Apple Health gap-fills
-    /// on launch (derived from asleep hours) — but only when the field is still
-    /// empty, so it never overwrites what the user is typing. Editable + re-savable.
-    private func prefillRecovery() {
-        guard sleepInput.isEmpty,
-              let e = store.daily.first(where: { $0.date == today() }),
-              let s = e.sleep, s > 0 else { return }
-        sleepInput = "\(s)"
     }
 
     private var checkedInCard: some View {
@@ -182,20 +161,11 @@ struct HomeView: View {
         }
     }
 
-    private func labeledFieldInfo(_ label: String, _ ph: String, _ binding: Binding<String>, info: String) -> some View {
-        VStack(alignment: .leading, spacing: 7) {
-            FieldLabel(label, info: info)
-            InputField(placeholder: ph, text: binding, keyboard: .numberPad)
-        }
-    }
-
     private func saveCheckIn() {
-        let w = Units.wIn(pf(weightInput)), s = pf(sleepInput)   // input → kg
-        let hasW = w >= 30 && w <= 250
-        let hasS = s > 0 && s <= 100
-        guard hasW || hasS else { return }
-        store.saveCheckIn(weight: hasW ? w : nil, sleep: hasS ? Int(s.rounded()) : nil)
-        weightInput = ""; sleepInput = ""
+        let w = Units.wIn(pf(weightInput))   // input → kg
+        guard w >= 30 && w <= 250 else { return }
+        store.saveCheckIn(weight: w, sleep: nil)
+        weightInput = ""
         toast.show(t("home.checkin_saved"))
     }
 
