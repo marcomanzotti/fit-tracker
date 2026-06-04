@@ -9,6 +9,7 @@ import androidx.lifecycle.AndroidViewModel
 import kotlinx.serialization.json.Json
 import java.io.File
 import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 import kotlin.math.ln
 import kotlin.math.roundToInt
 
@@ -90,6 +91,28 @@ class Store(app: Application) : AndroidViewModel(app) {
 
     // MARK: - Derived data
     val sortedDaily: List<DailyEntry> get() = daily.sortedBy { it.date }
+
+    /**
+     * Weekly-average time series for a daily metric, over the last [months] months.
+     * Returns a list of (label, value) pairs for charting.
+     * Default: last 2 months, weekly buckets — matches iOS MetricChartCard default.
+     */
+    fun metricSeries(value: (DailyEntry) -> Double?, months: Int = 2): List<Pair<String, Double>> {
+        val cutoff = java.time.LocalDate.now().minusMonths(months.toLong()).toString()
+        val entries = sortedDaily.filter { it.date >= cutoff && value(it) != null }
+        if (entries.size < 2) return emptyList()
+        // Group by ISO week (yyyy-Www)
+        val grouped = LinkedHashMap<String, MutableList<Double>>()
+        for (e in entries) {
+            val d = java.time.LocalDate.parse(e.date)
+            val week = d.format(java.time.format.DateTimeFormatter.ofPattern("MM/dd"))
+            // Use Monday of that week as the bucket label (short date of week start)
+            val monday = d.minusDays((d.dayOfWeek.value - 1).toLong())
+            val label = monday.format(java.time.format.DateTimeFormatter.ofPattern("d MMM"))
+            grouped.getOrPut(label) { mutableListOf() }.add(value(e)!!)
+        }
+        return grouped.map { (label, vals) -> label to (vals.sum() / vals.size) }
+    }
 
     val lastWeight: Double
         get() = sortedDaily.lastOrNull { it.weight != null }?.weight ?: prefs.startWeight

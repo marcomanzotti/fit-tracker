@@ -2,6 +2,12 @@ package com.marco.fittracker.ui
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -100,7 +106,8 @@ fun LineChart(
     yMin: Double? = null,
     yMax: Double? = null,
     fill: Boolean = false,
-    points: Boolean = false
+    points: Boolean = false,
+    onSelect: ((Int) -> Unit)? = null
 ) {
     val all = series.flatMap { it.values.filterNotNull() }
     if (all.isEmpty()) { Spacer(Modifier.height(heightDp.dp)); return }
@@ -111,7 +118,20 @@ fun LineChart(
     val pad = (hi - lo) * 0.12
     lo -= pad; hi += pad
 
-    Canvas(Modifier.fillMaxWidth().height(heightDp.dp)) {
+    var selectedIdx by remember { mutableStateOf<Int?>(null) }
+    Canvas(Modifier.fillMaxWidth().height(heightDp.dp).then(
+        if (onSelect != null) Modifier.pointerInput(xLabels) {
+            detectTapGestures { offset ->
+                val leftPad = 26.dp.toPx()
+                val w = size.width - leftPad
+                val n = xLabels.size
+                if (n <= 1) return@detectTapGestures
+                val rawIdx = ((offset.x - leftPad) / w * (n - 1)).toInt().coerceIn(0, n - 1)
+                selectedIdx = rawIdx
+                onSelect(rawIdx)
+            }
+        } else Modifier
+    )) {
         val leftPad = 26.dp.toPx()
         val bottomPad = 16.dp.toPx()
         val topPad = 6.dp.toPx()
@@ -150,15 +170,36 @@ fun LineChart(
             }
             drawPath(path, s.color, style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round))
             if (points) pts.forEach { drawCircle(s.color, 3.dp.toPx(), it) }
+            // Highlight selected point
+            selectedIdx?.let { idx ->
+                val v = s.values.getOrNull(idx)
+                if (v != null) {
+                    val pt = Offset(xOf(idx), yOf(v))
+                    drawCircle(s.color, 5.dp.toPx(), pt)
+                    drawLine(s.color.copy(alpha = 0.4f), Offset(pt.x, topPad), Offset(pt.x, topPad + h), 1f, pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(4f, 4f)))
+                }
+            }
         }
     }
 }
 
 @Composable
-fun BarChart(xLabels: List<String>, values: List<Double>, color: Color = T.acc.copy(alpha = 0.55f), heightDp: Int = 120) {
+fun BarChart(xLabels: List<String>, values: List<Double>, color: Color = T.acc.copy(alpha = 0.55f), heightDp: Int = 120, onSelect: ((Int) -> Unit)? = null) {
     if (values.isEmpty()) { Spacer(Modifier.height(heightDp.dp)); return }
     val hi = max(values.max(), 1.0)
-    Canvas(Modifier.fillMaxWidth().height(heightDp.dp)) {
+    var selectedIdx by remember { mutableStateOf<Int?>(null) }
+    Canvas(Modifier.fillMaxWidth().height(heightDp.dp).then(
+        if (onSelect != null) Modifier.pointerInput(values) {
+            detectTapGestures { offset ->
+                val leftPad = 26.dp.toPx()
+                val w = size.width - leftPad
+                val n = values.size
+                val slot = w / n
+                val idx = ((offset.x - leftPad) / slot).toInt().coerceIn(0, n - 1)
+                selectedIdx = idx; onSelect(idx)
+            }
+        } else Modifier
+    )) {
         val leftPad = 26.dp.toPx()
         val bottomPad = 16.dp.toPx()
         val topPad = 6.dp.toPx()
@@ -179,8 +220,9 @@ fun BarChart(xLabels: List<String>, values: List<Double>, color: Color = T.acc.c
             val x = leftPad + slot * i + (slot - bw) / 2
             val barH = (values[i] / hi * h).toFloat()
             val y = topPad + h - barH
+            val barColor = if (selectedIdx == i) color.copy(alpha = 1f) else color
             drawRoundRect(
-                color = color,
+                color = barColor,
                 topLeft = Offset(x, y),
                 size = Size(bw, barH),
                 cornerRadius = androidx.compose.ui.geometry.CornerRadius(4.dp.toPx())

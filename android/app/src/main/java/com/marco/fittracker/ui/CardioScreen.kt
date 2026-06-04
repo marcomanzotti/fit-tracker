@@ -182,7 +182,9 @@ fun CardioTypeEditorDialog(initial: CardioType, isNew: Boolean, onClose: () -> U
             Icon(Icons.Filled.Close, null, tint = T.sub, modifier = Modifier.size(24.dp).clickable { onClose() })
         }
         Spacer(Modifier.height(14.dp))
-        Field(t("wk.activity_name"), type.name, { type = type.copy(name = it) }, t("wk.activity_name_ph"), KeyboardType.Text)
+        Field(t("wk.activity_name"), type.name, { type = type.copy(name = titleCased(it)) }, t("wk.activity_name_ph"), KeyboardType.Text)
+        Spacer(Modifier.height(14.dp))
+        Field(t("wk.activity_sub"), type.sub ?: "", { type = type.copy(sub = it.ifEmpty { null }) }, t("wk.activity_sub_ph"), KeyboardType.Text)
         Spacer(Modifier.height(14.dp))
         Lbl(t("wk.cardio_kind"))
         Spacer(Modifier.height(8.dp))
@@ -366,7 +368,8 @@ private fun CardioCard(ct: CardioType, onLog: (CardioType) -> Unit, onEdit: (Car
             Spacer(Modifier.height(10.dp))
             Text(ct.name.uppercase(), color = T.txt, fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 1)
             Spacer(Modifier.height(3.dp))
-            Text(ct.sportType.label(), color = T.sub, fontSize = 10.sp)
+            // Show optional subtitle if set, otherwise fall back to sport label
+            Text(ct.sub?.takeIf { it.isNotEmpty() } ?: ct.sportType.label(), color = T.sub, fontSize = 10.sp, maxLines = 1)
         }
         Icon(Icons.Filled.Edit, "edit",
             tint = T.sub, modifier = Modifier.align(Alignment.TopEnd).padding(6.dp).size(18.dp).clickable { tap(); onEdit(ct) })

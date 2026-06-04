@@ -61,6 +61,12 @@ fun trimNum(v: Double): String =
         if (s.endsWith(".0")) s.dropLast(2) else s
     }
 
+/** Capitalise the first letter of every word; rest lowercase. */
+fun titleCased(s: String): String =
+    s.split(" ").joinToString(" ") { word ->
+        if (word.isEmpty()) word else word[0].uppercaseChar() + word.drop(1).lowercase()
+    }
+
 // MARK: - Daily check-in (weight + sleep + optional nutrition / recovery)
 // Every field added after the original schema has a default, so old saved JSON
 // keeps decoding (kotlinx.serialization uses the default for missing keys).
@@ -76,6 +82,7 @@ data class DailyEntry(
     val fat: Double? = null,
     val salt: Double? = null,
     val steps: Int? = null,
+    val stepsManual: Boolean? = null, // true once user types — Health Connect stops overwriting
     // Recovery (optional, manual entry)
     val rmssd: Double? = null,
     val restHR: Int? = null,
@@ -137,7 +144,8 @@ data class CardioType(
     val id: String = randomId(),
     val name: String,
     val sport: String,         // Sport raw value
-    val color: String          // hex from T.cardioColors
+    val color: String,         // hex from T.cardioColors
+    val sub: String? = null    // optional editable subtitle (mirrors strength days)
 ) {
     val sportType: Sport get() = Sport.from(sport)
 }

@@ -5,6 +5,9 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -61,6 +64,7 @@ import kotlinx.coroutines.delay
 val LocalStore = compositionLocalOf<Store> { error("Store not provided") }
 val LocalTimer = compositionLocalOf<TimerState> { error("Timer not provided") }
 val LocalToast = compositionLocalOf<ToastState> { error("Toast not provided") }
+val LocalActiveWorkout = compositionLocalOf<ActiveWorkoutState> { error("ActiveWorkout not provided") }
 
 class TimerState {
     var remaining by mutableIntStateOf(0)
@@ -83,6 +87,30 @@ class ToastState {
     fun show(m: String) { message = m; seq++ }
 }
 
+/** Holds the running workout so it survives tab switches. */
+class ActiveWorkoutState {
+    var planId by mutableStateOf<String?>(null)
+    val log = mutableStateListOf<com.marco.fittracker.data.LoggedExercise>()
+    var startMs by mutableLongStateOf(0L)
+
+    val isActive get() = planId != null
+
+    fun start(plan: com.marco.fittracker.data.WorkoutPlan) {
+        planId = plan.id
+        log.clear()
+        log.addAll(plan.exercises.map { ex ->
+            com.marco.fittracker.data.LoggedExercise(
+                name = ex.name,
+                sets = List(maxOf(1, ex.sets)) { com.marco.fittracker.data.SetEntry() },
+                target = "${ex.sets}×${ex.reps}"
+            )
+        })
+        startMs = System.currentTimeMillis()
+    }
+
+    fun end() { planId = null; log.clear(); startMs = 0L }
+}
+
 enum class Tab(val label: String, val sub: String) {
     HOME("Home", "Dashboard"),
     ALLENA("Allena", "Log allenamento"),
@@ -95,6 +123,7 @@ fun RootScreen() {
     val store: Store = viewModel()
     val timer = remember { TimerState() }
     val toast = remember { ToastState() }
+    val activeWorkout = remember { ActiveWorkoutState() }
     val view = LocalView.current
 
     // Countdown loop
@@ -109,7 +138,7 @@ fun RootScreen() {
         if (toast.message != null) { delay(1800); toast.message = null }
     }
 
-    CompositionLocalProvider(LocalStore provides store, LocalTimer provides timer, LocalToast provides toast) {
+    CompositionLocalProvider(LocalStore provides store, LocalTimer provides timer, LocalToast provides toast, LocalActiveWorkout provides activeWorkout) {
         var tab by remember { mutableStateOf(Tab.HOME) }
         var showSettings by remember { mutableStateOf(false) }
         val statusPad = WindowInsets.statusBars.asPaddingValues()
@@ -139,6 +168,10 @@ fun RootScreen() {
                 Modifier.align(Alignment.BottomCenter),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                // Show "Workout in progress" strip when active on a different tab
+                if (activeWorkout.isActive && tab != Tab.ALLENA) {
+                    ActiveWorkoutStrip(activeWorkout, store) { tab = Tab.ALLENA }
+                }
                 if (timer.active) TimerStrip()
                 NavBar(tab, navPad) { tab = it }
             }
@@ -226,6 +259,44 @@ private fun NavBar(tab: Tab, navPad: PaddingValues, onSelect: (Tab) -> Unit) {
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ActiveWorkoutStrip(activeWorkout: ActiveWorkoutState, store: com.marco.fittracker.data.Store, onTap: () -> Unit) {
+    val tap = rememberTap()
+    val plan = activeWorkout.planId?.let { store.plan(it) }
+    val pc = plan?.let { hexColor(it.color) } ?: T.acc
+
+    // Live elapsed timer
+    var elapsedSec by remember { mutableIntStateOf(0) }
+    LaunchedEffect(activeWorkout.startMs) {
+        while (activeWorkout.isActive) {
+            elapsedSec = ((System.currentTimeMillis() - activeWorkout.startMs) / 1000).toInt()
+            delay(1000)
+        }
+    }
+    val elapsed = "%d:%02d".format(elapsedSec / 60, elapsedSec % 60)
+
+    Row(
+        Modifier
+            .padding(horizontal = 16.dp)
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(T.c2)
+            .clickable { tap(); onTap() }
+            .padding(vertical = 11.dp, horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        // Pulsing dot
+        Box(Modifier.size(8.dp).clip(CircleShape).background(pc))
+        Column(Modifier.weight(1f)) {
+            Text(com.marco.fittracker.data.t("wk.workout_live").uppercase(), color = T.sub, fontSize = 8.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp)
+            Text((plan?.name ?: "").uppercase(), color = pc, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+        }
+        Text(elapsed, color = T.txt, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+        Icon(Icons.Filled.PlayArrow, null, tint = T.sub, modifier = Modifier.size(18.dp))
     }
 }
 

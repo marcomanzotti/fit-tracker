@@ -56,30 +56,24 @@ fun HomeScreen(onTab: (Tab) -> Unit) {
     val context = LocalContext.current
 
     var weightInput by remember { mutableStateOf("") }
-    var sleepInput by remember { mutableStateOf("") }
     var editingGoal by remember { mutableStateOf(false) }
 
     val lw = store.lastWeight
     val bmi = store.bmi(lw)
     val cat = bmiCategory(bmi)
 
-    // Check-in
+    // Check-in — weight only (sleep score comes from the Sleep card via Health Connect)
     if (!store.hasCheckedIn()) {
         Card(borderColor = T.acc.copy(alpha = 0.3f)) {
             Lbl(t("home.checkin"), T.acc2)
             Spacer(Modifier.height(10.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                LabeledField("${t("home.weight")} (KG)", "87,5", weightInput, { weightInput = it }, Modifier.weight(1f))
-                if (store.prefs.sleepEnabled)
-                    LabeledField("${t("home.sleep")} (0-100)", "78", sleepInput, { sleepInput = it }, Modifier.weight(1f))
-            }
+            LabeledField("${t("home.weight")} (KG)", if (store.prefs.units == "imperial") "193" else "87,5", weightInput, { weightInput = it })
             Spacer(Modifier.height(10.dp))
             FilledButton(t("home.save_checkin")) {
-                val w = pf(weightInput); val s = pf(sleepInput)
-                val hasW = w in 30.0..250.0; val hasS = s > 0 && s <= 100
-                if (hasW || hasS) {
-                    store.saveCheckIn(if (hasW) w else null, if (hasS) Math.round(s).toInt() else null)
-                    weightInput = ""; sleepInput = ""; toast.show(t("home.checkin_saved"))
+                val w = pf(weightInput)
+                if (w in 30.0..250.0) {
+                    store.saveCheckIn(w, null)
+                    weightInput = ""; toast.show(t("home.checkin_saved"))
                 }
             }
         }
@@ -188,10 +182,10 @@ fun HomeScreen(onTab: (Tab) -> Unit) {
     // are computable from your data: TRIMP (avg HR) and ACWR (EWMA). Readiness
     // only appears if you log HRV (optional sensor).
     TrimpCard()
-    LoadCard()
     LoadTrendCard()
-    NutritionCard()
+    LoadCard()
     ReadinessCard()
+    NutritionCard()
 
     if (editingGoal) GoalEditorDialog { editingGoal = false }
 

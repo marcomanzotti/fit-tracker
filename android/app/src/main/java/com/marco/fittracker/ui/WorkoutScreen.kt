@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.NorthEast
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.AlertDialog
@@ -70,17 +71,16 @@ import com.marco.fittracker.data.trimp
 fun WorkoutScreen() {
     val store = LocalStore.current
     val toast = LocalToast.current
+    val activeWorkout = LocalActiveWorkout.current
 
-    var activePlanId by remember { mutableStateOf<String?>(null) }
     var editingPlan by remember { mutableStateOf<WorkoutPlan?>(null) }
     var isNew by remember { mutableStateOf(false) }
-    val log = remember { mutableStateListOf<LoggedExercise>() }
 
-    val active = activePlanId?.let { store.plan(it) }
+    val active = activeWorkout.planId?.let { store.plan(it) }
     when {
-        active != null -> LiveWorkout(active, log,
-            onBack = { activePlanId = null; log.clear() },
-            onSaved = { activePlanId = null; log.clear() })
+        active != null -> LiveWorkout(active, activeWorkout.log,
+            onBack = { activeWorkout.end() },
+            onSaved = { activeWorkout.end() })
         editingPlan != null -> PlanEditor(editingPlan!!, isNew,
             onSave = { p ->
                 val fixed = if (p.name.trim().isEmpty()) p.copy(name = "Nuovo giorno") else p
@@ -91,13 +91,7 @@ fun WorkoutScreen() {
             onDelete = { store.deletePlan(editingPlan!!.id); toast.show("Giorno eliminato"); editingPlan = null },
             onCancel = { editingPlan = null })
         else -> WorkoutGrid(
-            onStart = { p ->
-                log.clear()
-                log.addAll(p.exercises.map { ex ->
-                    LoggedExercise(name = ex.name, sets = List(maxOf(1, ex.sets)) { SetEntry() }, target = "${ex.sets}×${ex.reps}")
-                })
-                activePlanId = p.id
-            },
+            onStart = { p -> activeWorkout.start(p) },
             onNew = { editingPlan = WorkoutPlan(name = "", sub = "", color = T.planColors.first(), exercises = emptyList()); isNew = true },
             onEdit = { editingPlan = it; isNew = false }
         )
@@ -195,28 +189,42 @@ private fun DayCard(p: WorkoutPlan, onStart: (WorkoutPlan) -> Unit, onEdit: (Wor
                 .background(T.c1)
                 .drawBehind { drawRect(color = pc, size = androidx.compose.ui.geometry.Size(3.dp.toPx(), size.height)) }
                 .border(1.dp, T.brd, RoundedCornerShape(T.radius))
-                .clickable { tap(); onStart(p) }
-                .padding(vertical = 15.dp, horizontal = 14.dp)
+                .clickable { tap(); onEdit(p) }
         ) {
-            Text("GIORNO", color = pc, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 2.sp)
-            Spacer(Modifier.height(5.dp))
-            Text(p.name.uppercase(), color = T.txt, fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-            Spacer(Modifier.height(3.dp))
-            Text(p.sub, color = T.sub, fontSize = 11.sp, maxLines = 1)
-            Spacer(Modifier.height(11.dp))
-            Box(Modifier.fillMaxWidth().height(1.dp).background(T.brd))
-            Spacer(Modifier.height(8.dp))
-            Text("${p.exercises.size} ${t("wk.exercises_n").uppercase()}", color = T.sub, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp)
+            // Card body — tap opens plan editor
+            Column(Modifier.padding(top = 15.dp, start = 14.dp, end = 14.dp, bottom = 11.dp)) {
+                Text(t("wk.day").uppercase(), color = pc, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 2.sp,
+                    modifier = Modifier.padding(end = 30.dp))
+                Spacer(Modifier.height(5.dp))
+                Text(p.name.uppercase(), color = T.txt, fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                Spacer(Modifier.height(3.dp))
+                Text(p.sub, color = T.sub, fontSize = 11.sp, maxLines = 1)
+                Spacer(Modifier.height(8.dp))
+            }
+            // Play strip — starts the workout immediately
+            Row(
+                Modifier.fillMaxWidth()
+                    .clip(RoundedCornerShape(bottomStart = T.radius, bottomEnd = T.radius))
+                    .background(pc)
+                    .clickable { tap(); onStart(p) }
+                    .padding(vertical = 9.dp, horizontal = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Icon(Icons.Filled.PlayArrow, null, tint = T.bg, modifier = Modifier.size(13.dp))
+                Spacer(Modifier.width(5.dp))
+                Text(t("wk.start").uppercase(), color = T.bg, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+            }
         }
-        Row(
-            Modifier.align(Alignment.TopEnd).padding(7.dp)
-                .clip(RoundedCornerShape(20.dp)).background(pc)
-                .clickable { tap(); onEdit(p) }.padding(vertical = 4.dp, horizontal = 7.dp),
-            verticalAlignment = Alignment.CenterVertically
+        // Edit icon — top-right, small pencil, separate tap target
+        Box(
+            Modifier.align(Alignment.TopEnd).padding(8.dp)
+                .size(26.dp)
+                .clip(CircleShape).background(pc.copy(alpha = 0.85f))
+                .clickable { tap(); onEdit(p) },
+            contentAlignment = Alignment.Center
         ) {
-            Icon(Icons.Filled.Edit, "edit", tint = T.bg, modifier = Modifier.size(11.dp))
-            Spacer(Modifier.width(3.dp))
-            Text(t("wk.edit").uppercase(), color = T.bg, fontSize = 8.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.5.sp)
+            Icon(Icons.Filled.Edit, "edit", tint = T.bg, modifier = Modifier.size(12.dp))
         }
     }
 }
@@ -553,7 +561,7 @@ private fun PlanEditor(initial: WorkoutPlan, isNew: Boolean, onSave: (WorkoutPla
 
     Card {
         Lbl("Nome giorno"); Spacer(Modifier.height(8.dp))
-        InputField(plan.name, { plan = plan.copy(name = it) }, "es. Push, Petto, Gambe…", KeyboardType.Text)
+        InputField(plan.name, { plan = plan.copy(name = com.marco.fittracker.data.titleCased(it)) }, "es. Push, Petto, Gambe…", KeyboardType.Text)
         Spacer(Modifier.height(10.dp))
         Lbl("Sottotitolo"); Spacer(Modifier.height(8.dp))
         InputField(plan.sub, { plan = plan.copy(sub = it) }, "es. Spalle + Petto", KeyboardType.Text)
@@ -611,18 +619,52 @@ private fun PlanEditor(initial: WorkoutPlan, isNew: Boolean, onSave: (WorkoutPla
 @Composable
 private fun PlanExerciseRow(ex: PlanExercise, i: Int, count: Int, onChange: (PlanExercise) -> Unit, onRemove: () -> Unit, onMoveUp: () -> Unit, onMoveDown: () -> Unit) {
     val tap = rememberTap()
+    val store = LocalStore.current
+    var showSuggestions by remember { mutableStateOf(false) }
+
+    val suggestions = remember(ex.name) {
+        val q = ex.name.trim()
+        if (q.length < 2) emptyList()
+        else store.allExerciseNames()
+            .map { it.second }
+            .filter { it.contains(q, ignoreCase = true) && !it.equals(q, ignoreCase = true) }
+            .take(5)
+    }
+
     Column(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(T.radiusS)).background(T.c2)
             .border(1.dp, T.brd, RoundedCornerShape(T.radiusS)).padding(vertical = 11.dp, horizontal = 12.dp),
         verticalArrangement = Arrangement.spacedBy(9.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            BasicTextField(
-                value = ex.name, onValueChange = { onChange(ex.copy(name = it)) },
-                textStyle = TextStyle(color = T.txt, fontSize = 14.sp, fontWeight = FontWeight.Medium), cursorBrush = SolidColor(T.acc),
-                singleLine = true, modifier = Modifier.weight(1f),
-                decorationBox = { inner -> if (ex.name.isEmpty()) Text("Nome esercizio", color = T.sub, fontSize = 14.sp); inner() }
-            )
+            Column(Modifier.weight(1f)) {
+                BasicTextField(
+                    value = ex.name,
+                    onValueChange = { v ->
+                        val titled = com.marco.fittracker.data.titleCased(v)
+                        onChange(ex.copy(name = titled))
+                        showSuggestions = suggestions.isNotEmpty()
+                    },
+                    textStyle = TextStyle(color = T.txt, fontSize = 14.sp, fontWeight = FontWeight.Medium), cursorBrush = SolidColor(T.acc),
+                    singleLine = true, modifier = Modifier.fillMaxWidth(),
+                    decorationBox = { inner -> if (ex.name.isEmpty()) Text(t("pe.ex_name_ph"), color = T.sub, fontSize = 14.sp); inner() }
+                )
+                if (showSuggestions && suggestions.isNotEmpty()) {
+                    Column(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(T.radiusS)).background(T.c1)
+                            .border(1.dp, T.brd, RoundedCornerShape(T.radiusS))
+                    ) {
+                        suggestions.forEachIndexed { idx, s ->
+                            Text(
+                                s, color = T.txt, fontSize = 13.sp, fontWeight = FontWeight.Medium,
+                                modifier = Modifier.fillMaxWidth().clickable { tap(); onChange(ex.copy(name = s)); showSuggestions = false }
+                                    .padding(vertical = 9.dp, horizontal = 12.dp)
+                            )
+                            if (idx < suggestions.lastIndex) Box(Modifier.fillMaxWidth().height(1.dp).background(T.brd))
+                        }
+                    }
+                }
+            }
             Icon(Icons.Filled.Close, "rimuovi", tint = T.red.copy(alpha = 0.7f), modifier = Modifier.size(30.dp).clickable { tap(); onRemove() })
         }
         Row(verticalAlignment = Alignment.CenterVertically) {

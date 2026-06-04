@@ -65,46 +65,64 @@ fun StatsScreen() {
     }
 }
 
+/** Overview metric chart card — weekly average over last 2 months, with tap tooltip. */
+@Composable
+private fun MetricCard(title: String, series: List<Pair<String, Double>>, color: androidx.compose.ui.graphics.Color, isBar: Boolean = false, yMin: Double? = null, yMax: Double? = null) {
+    if (series.size < 2) return
+    var selected by remember { mutableStateOf<Pair<String, Double>?>(null) }
+    Card {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Lbl(title, modifier = Modifier.weight(1f))
+            selected?.let { (label, v) ->
+                Text(trimNum(v), color = color, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                Text(" · $label", color = T.sub, fontSize = 11.sp)
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        if (isBar)
+            BarChart(series.map { it.first }, series.map { it.second }, color = color, onSelect = { selected = series.getOrNull(it) })
+        else
+            LineChart(
+                series.map { it.first },
+                listOf(Series(title, color, series.map { it.second })),
+                fill = true,
+                yMin = yMin, yMax = yMax,
+                onSelect = { selected = series.getOrNull(it) }
+            )
+    }
+}
+
 @Composable
 private fun Overview() {
     val store = LocalStore.current
-    val ws = store.sortedDaily
-    val d90 = ws.takeLast(90)
-    val withW = d90.filter { it.weight != null }
-    val sleepD = d90.filter { it.sleep != null }
     val bf = store.currentBF
 
-    if (withW.size > 1) {
+    val weightSeries = store.metricSeries { it.weight }
+    val sleepSeries  = store.metricSeries { it.sleep?.toDouble() }
+    val stepsSeries  = store.metricSeries { it.steps?.toDouble() }
+    val bmiSeries    = store.metricSeries { it.weight?.let { w -> store.bmi(w) } }
+
+    MetricCard("Peso", weightSeries, T.acc)
+    MetricCard("Sleep score", sleepSeries, T.blue, yMin = 0.0, yMax = 100.0)
+    MetricCard("Passi", stepsSeries, hexColor("ff9500"), isBar = true)
+    MetricCard("BMI", bmiSeries, hexColor("b08fff"))
+
+    // Body composition chart — needs at least 2 weight entries + current BF
+    val ws60 = store.sortedDaily.filter { it.date >= java.time.LocalDate.now().minusMonths(2).toString() && it.weight != null }
+    if (ws60.size > 1 && bf != null) {
         Card {
-            Lbl("Peso · 90 giorni"); Spacer(Modifier.height(8.dp))
-            LineChart(withW.map { fmtShort(it.date) }, listOf(Series("Peso", T.acc, withW.map { it.weight })), fill = true)
+            Lbl("Composizione corporea"); Spacer(Modifier.height(8.dp))
+            val series = listOf(
+                Series("Magra", T.blue, ws60.map { Math.round((it.weight ?: 0.0) * (1 - bf / 100) * 10) / 10.0 }),
+                Series("Grasso", T.red, ws60.map { Math.round((it.weight ?: 0.0) * bf / 100 * 10) / 10.0 })
+            )
+            LineChart(ws60.map { fmtShort(it.date) }, series)
+            ChartLegend(series)
         }
     }
-    if (sleepD.size > 1) {
-        Card {
-            Lbl("Sleep score"); Spacer(Modifier.height(8.dp))
-            LineChart(sleepD.map { fmtShort(it.date) }, listOf(Series("Sleep", T.blue, sleepD.map { it.sleep?.toDouble() })), fill = true, yMin = 0.0, yMax = 100.0)
-        }
-    }
-    if (withW.size > 1) {
-        Card {
-            Lbl("BMI nel tempo"); Spacer(Modifier.height(8.dp))
-            LineChart(withW.map { fmtShort(it.date) }, listOf(Series("BMI", hexColor("b08fff"), withW.map { store.bmi(it.weight ?: 0.0) })), heightDp = 120)
-        }
-        if (bf != null) {
-            Card {
-                Lbl("Composizione corporea"); Spacer(Modifier.height(8.dp))
-                val series = listOf(
-                    Series("Magra", T.blue, withW.map { Math.round((it.weight ?: 0.0) * (1 - bf / 100) * 10) / 10.0 }),
-                    Series("Grasso", T.red, withW.map { Math.round((it.weight ?: 0.0) * bf / 100 * 10) / 10.0 })
-                )
-                LineChart(withW.map { fmtShort(it.date) }, series)
-                ChartLegend(series)
-            }
-        }
-    }
-    if (withW.size < 2) {
-        Card { EmptyBox("Nessun dato", "Registra peso e sleep per 2+ giorni per vedere i grafici.") }
+
+    if (weightSeries.isEmpty() && sleepSeries.isEmpty()) {
+        Card { EmptyBox("Nessun dato", "Registra peso per 2+ settimane per vedere i grafici.") }
     }
     ProfileCard()
 }
