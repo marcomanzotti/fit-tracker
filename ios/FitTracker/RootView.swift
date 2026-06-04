@@ -67,11 +67,15 @@ struct RootView: View {
             }
 
             VStack(spacing: 8) {
-                // "Workout in progress" strip — tapping it jumps to the Train tab
-                // where LiveWorkoutView is already displayed. Shown whenever a
-                // workout is active AND the user is not already on the Train tab.
-                if activeWorkout.isActive && tab != .allena {
-                    ActiveWorkoutStrip { tab = .allena }
+                // "Workout in progress" strip — tapping it reopens the live view.
+                // Shown whenever a workout is active but the live screen isn't
+                // on-screen: either the user is on another tab, or they minimized
+                // it while staying on the Train tab.
+                if activeWorkout.isActive && (tab != .allena || activeWorkout.minimized) {
+                    ActiveWorkoutStrip {
+                        activeWorkout.minimized = false
+                        tab = .allena
+                    }
                 }
                 if timer.active { TimerStrip() }
                 NavBar(tab: $tab)

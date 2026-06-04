@@ -3,12 +3,15 @@ import SwiftUI
 struct LiveWorkoutView: View {
     let plan: WorkoutPlan
     @Binding var log: [LoggedExercise]
+    /// Called when the user minimizes (back) — keeps the workout running.
     var onBack: () -> Void
+    /// Called after a Finish or Discard — actually ends the session.
     var onSaved: () -> Void
 
     @EnvironmentObject var store: Store
     @EnvironmentObject var timer: RestTimer
     @EnvironmentObject var toast: ToastCenter
+    @EnvironmentObject var activeWorkout: ActiveWorkout
     @ObservedObject private var watch = WatchSync.shared
 
     @State private var addName = ""
@@ -18,6 +21,10 @@ struct LiveWorkoutView: View {
     @State private var sessAvgHR = ""
     @State private var sessRMSSD = ""
     @State private var sessCalManual = ""
+    @State private var confirmDiscard = false
+    // Drives the live elapsed clock (counts up from the workout start).
+    @State private var now = Date()
+    private let tick = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     private var lastSess: WorkoutSession? { store.lastSession(forPlan: plan.id) }
 
@@ -25,7 +32,10 @@ struct LiveWorkoutView: View {
         VStack(spacing: 11) {
             backRow
             if isWatchLive { watchLiveBanner }
-            if let last = lastSess { lastSessionBlock(last) }
+            // During an active workout the top slot shows the LIVE elapsed timer
+            // (counting up). Past sessions are visible from the calendar/recent
+            // list, so the running time is more useful here than the last session.
+            liveTimerBlock
 
             ForEach($log) { $ex in
                 exerciseCard($ex)
@@ -35,16 +45,57 @@ struct LiveWorkoutView: View {
             sessionLoadCard
             caloriesCard
 
-            BigButton(title: saved ? t("wk.saved") : t("wk.save_session"), color: saved ? Theme.good : Theme.acc) {
+            // Finish (primary) + Discard (destructive). Back never ends the
+            // workout — only these explicit actions do.
+            BigButton(title: saved ? t("wk.saved") : t("wk.finish_session"), color: saved ? Theme.good : Theme.acc) {
                 saveSession()
+            }
+            Button { tap(); confirmDiscard = true } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "trash").font(.system(size: 12, weight: .bold))
+                    Text(t("wk.discard_session")).font(.system(size: 14, weight: .semibold))
+                }
+                .foregroundColor(Theme.red)
+                .frame(maxWidth: .infinity, minHeight: 48)
+                .overlay(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous).stroke(Theme.red.opacity(0.45), lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+            .confirmationDialog(t("wk.discard_q"), isPresented: $confirmDiscard, titleVisibility: .visible) {
+                Button(t("wk.discard_session"), role: .destructive) { discardSession() }
+                Button(t("cancel"), role: .cancel) {}
             }
         }
         // Claim this activity so a workout finished on the watch folds into THIS
         // session instead of creating a duplicate, and stream-fill live as it runs.
         .onAppear { watch.openActivityId = plan.id; if let s = watch.live { applyLive(s) } }
         .onDisappear { if watch.openActivityId == plan.id { watch.openActivityId = nil } }
+        .onReceive(tick) { now = $0 }
         .onReceive(watch.$live) { if let s = $0 { applyLive(s) } }
         .onReceive(watch.$pendingResult) { if let r = $0 { applyResult(r) } }
+    }
+
+    // MARK: Live elapsed timer (replaces the last-session block while active)
+    private var elapsedSec: Int {
+        guard let start = activeWorkout.startDate else { return 0 }
+        return max(0, Int(now.timeIntervalSince(start)))
+    }
+
+    private var liveTimerBlock: some View {
+        HStack(spacing: 12) {
+            HStack(spacing: 7) {
+                Circle().fill(Color(hex: plan.color)).frame(width: 8, height: 8)
+                Text(t("wk.workout_live").uppercased())
+                    .font(.head(10, .bold)).tracking(1).foregroundColor(Theme.sub)
+            }
+            Spacer()
+            Text(fmtDuration(elapsedSec)).font(.num(30)).foregroundColor(Theme.txt)
+                .monospacedDigit()
+        }
+        .padding(.vertical, 12).padding(.horizontal, 14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(hex: plan.color).opacity(0.06))
+        .overlay(alignment: .leading) { Rectangle().fill(Color(hex: plan.color)).frame(width: 2) }
+        .clipShape(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous))
     }
 
     // MARK: Live-from-watch mirroring
@@ -112,18 +163,27 @@ struct LiveWorkoutView: View {
         }
     }
 
-    // MARK: Calories burned (always shown; manual override wins)
+    // MARK: Calories burned
     /// Build a session snapshot from the current inputs so the calorie estimate
-    /// reflects whatever data the user has entered (volume, duration, avg HR).
+    /// reflects whatever data the session has (volume, duration, avg HR). The
+    /// duration falls back to the live elapsed time so the finish estimate is
+    /// based on the real tracked length even if the user never typed one.
     private func currentSessionSnapshot() -> WorkoutSession {
         var s = WorkoutSession(date: today(), planId: plan.id, planName: plan.name,
                                planColor: plan.color, exercises: log)
-        s.durationSec = sessDurationSec
+        s.durationSec = sessDurationSec ?? (elapsedSec > 0 ? elapsedSec : nil)
         s.avgHR = Int(sessAvgHR)
         return s
     }
 
     private var estCalories: Int { store.estimateCalories(currentSessionSnapshot()) }
+
+    /// Calories are NOT prefilled while the workout is running — pressing Play
+    /// starts a live session, it isn't a completed log. The estimate appears only
+    /// once the user enters/records data (duration or HR), and is always editable.
+    private var caloriesReady: Bool {
+        !sessCalManual.isEmpty || (sessDurationSec ?? 0) > 0 || Int(sessAvgHR) ?? 0 > 0
+    }
 
     private var caloriesCard: some View {
         Card(accent: Theme.acc) {
@@ -132,8 +192,8 @@ struct LiveWorkoutView: View {
                 InfoButton(id: "calories", color: Theme.acc2)
                 Spacer()
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
-                    Text(sessCalManual.isEmpty ? "\(estCalories)" : sessCalManual)
-                        .font(.num(28)).foregroundColor(Theme.acc)
+                    Text(!sessCalManual.isEmpty ? sessCalManual : (caloriesReady ? "\(estCalories)" : "—"))
+                        .font(.num(28)).foregroundColor(caloriesReady ? Theme.acc : Theme.sub)
                     Text("kcal").font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.sub)
                 }
             }
@@ -141,10 +201,11 @@ struct LiveWorkoutView: View {
             HStack(spacing: 8) {
                 Text(t("wk.cal_override").uppercased()).font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
                 Spacer()
-                InputField(placeholder: "\(estCalories)", text: $sessCalManual, keyboard: .numberPad)
+                InputField(placeholder: caloriesReady ? "\(estCalories)" : "—", text: $sessCalManual, keyboard: .numberPad)
                     .frame(width: 110)
             }
-            Text(t("wk.cal_hint")).font(.system(size: 9)).foregroundColor(Theme.sub).padding(.top, 6)
+            Text(caloriesReady ? t("wk.cal_hint") : t("wk.cal_at_finish"))
+                .font(.system(size: 9)).foregroundColor(Theme.sub).padding(.top, 6)
         }
     }
 
@@ -192,9 +253,12 @@ struct LiveWorkoutView: View {
     }
 
     // MARK: Header
+    // The back control MINIMIZES the workout (it keeps running in the background;
+    // the floating strip brings it back). It never ends or discards the session —
+    // only the Finish / Discard buttons at the bottom do that.
     private var backRow: some View {
         HStack(spacing: 12) {
-            GhostButton(title: "← \(t("wk.back"))") { onBack() }
+            GhostButton(title: "↓ \(t("wk.minimize"))") { onBack() }
             VStack(alignment: .leading, spacing: 2) {
                 Text(plan.name.uppercased()).font(.head(20, .bold)).tracking(0.5)
                     .foregroundColor(Color(hex: plan.color))
@@ -429,7 +493,7 @@ struct LiveWorkoutView: View {
         toast.show(t("wk.ex_added"))
     }
 
-    // MARK: Save
+    // MARK: Finish / Discard
     private func saveSession() {
         guard !saved else { return }
         let exercises = log.map { e -> LoggedExercise in
@@ -447,7 +511,11 @@ struct LiveWorkoutView: View {
         var sess = WorkoutSession(date: today(), planId: plan.id,
                                   planName: plan.name, planColor: plan.color,
                                   exercises: exercises)
-        sess.durationSec = sessDurationSec
+        // Duration source of truth: the value the user typed, else any value the
+        // paired watch streamed in, else the real phone-tracked elapsed time.
+        // (Watch data already merges into sessDurationSec via applyLive/applyResult,
+        //  so an Apple Watch session takes precedence when present.)
+        sess.durationSec = sessDurationSec ?? (elapsedSec > 0 ? elapsedSec : nil)
         sess.avgHR = Int(sessAvgHR)
         sess.rmssd = sessRMSSD.isEmpty ? nil : pf(sessRMSSD)
         sess.caloriesManual = Int(sessCalManual).flatMap { $0 > 0 ? $0 : nil }
@@ -457,6 +525,14 @@ struct LiveWorkoutView: View {
         haptic(.success)
         toast.show(t("wk.session_saved"))
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { onSaved() }
+    }
+
+    /// Explicit destructive discard — only reached via the red button + confirm.
+    private func discardSession() {
+        timer.stop()
+        haptic(.warning)
+        toast.show(t("wk.discarded"))
+        onSaved()   // tears down the active workout without saving anything
     }
 
     private func disp(_ s: String) -> String { s.isEmpty ? "?" : s }

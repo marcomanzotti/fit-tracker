@@ -14,12 +14,12 @@ struct WorkoutView: View {
     @State private var isNewCardio = false
 
     var body: some View {
-        if let pid = activeWorkout.planId, let plan = store.plan(pid) {
+        if let pid = activeWorkout.planId, let plan = store.plan(pid), !activeWorkout.minimized {
             LiveWorkoutView(
                 plan: plan,
                 log: $activeWorkout.log,
-                onBack: { endWorkout() },
-                onSaved: { endWorkout() }
+                onBack: { activeWorkout.minimized = true },   // minimize, keep running
+                onSaved: { endWorkout() }                      // finish / discard ends it
             )
         } else if editing != nil {
             // editing != nil is guaranteed here, but never force-unwrap: during
@@ -179,7 +179,10 @@ struct WorkoutView: View {
                             .font(.head(9, .semibold)).tracking(1.5).foregroundColor(Theme.sub)
                         Spacer()
                     }
-                    Spacer(minLength: 0)
+                    // Reserve clear space below the count line so the Play circle,
+                    // which sits in the bottom-right, never touches this text.
+                    .padding(.trailing, 46)
+                    Spacer(minLength: 14)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
                 .padding(.vertical, 15).padding(.horizontal, 14)
@@ -191,9 +194,10 @@ struct WorkoutView: View {
             .buttonStyle(.plain)
 
             // Circular Play button — bottom-right, plan color, starts the workout.
+            // Sits a touch lower/right so it clears the exercise-count line above.
             PlayCircle(color: Color(hex: p.color)) { tap(); start(p) }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-                .padding(10)
+                .padding(.trailing, 12).padding(.bottom, 12)
                 .allowsHitTesting(true)
 
             // Edit pill (top-right) — separate from the card tap.

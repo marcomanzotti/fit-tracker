@@ -88,6 +88,16 @@ func tap() {
     UIImpactFeedbackGenerator(style: .light).impactOccurred()
 }
 
+/// A stronger, unmistakable alert when the rest timer finishes — a success
+/// notification plus two heavy impacts spaced out, so it's felt even mid-set.
+func restDoneHaptic() {
+    let notif = UINotificationFeedbackGenerator()
+    notif.notificationOccurred(.success)
+    let heavy = UIImpactFeedbackGenerator(style: .heavy)
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) { heavy.impactOccurred() }
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.36) { heavy.impactOccurred() }
+}
+
 
 // MARK: - Text helpers
 /// Capitalise the first letter of every word; rest lowercase.

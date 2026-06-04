@@ -26,7 +26,9 @@ struct DayPickerSheet: View {
     // Apple Health workouts recorded that day but not yet in the app — offered
     // for manual import when automatic matching missed them.
     @State private var importable: [HealthWorkout] = []
-    @State private var checkedHealth = false
+    @State private var healthState: HealthState = .idle
+
+    enum HealthState { case idle, loading, loaded, unavailable }
 
     var body: some View {
         ZStack {
@@ -65,18 +67,10 @@ struct DayPickerSheet: View {
                         .buttonStyle(.plain)
                     }
 
-                    // Apple Health import — workouts recorded by the watch that
-                    // day but not yet matched into the app (e.g. a native Apple
-                    // Workout session). Imported as green Apple-style sessions.
-                    if !importable.isEmpty {
-                        Lbl(text: t("day.import_health"), color: Color(hex: Theme.appleGreen))
-                        Card {
-                            ForEach(Array(importable.enumerated()), id: \.element.uuid) { _, w in
-                                healthRow(w)
-                                if w.uuid != importable.last?.uuid { divider }
-                            }
-                        }
-                    }
+                    // Apple Health import — ALWAYS shown so the action is findable.
+                    // Tapping queries Health for that day's workouts (Apple Watch /
+                    // Apple Fitness, Garmin, etc.) and lists any not yet in the app.
+                    healthImportSection
 
                     if !store.plans.isEmpty {
                         Lbl(text: t("wk.select_day"))
@@ -109,9 +103,67 @@ struct DayPickerSheet: View {
         .preferredColorScheme(.dark)
         .presentationDetents([.medium, .large])
         .onAppear {
-            guard !checkedHealth, store.prefs.healthKitEnabled else { return }
-            checkedHealth = true
-            store.importableHealthWorkouts(onDate: date) { importable = $0 }
+            // Auto-query once on open so workouts usually appear without a tap.
+            if healthState == .idle { loadHealth() }
+        }
+    }
+
+    private func loadHealth() {
+        guard HealthKitManager.shared.isAvailable else { healthState = .unavailable; return }
+        healthState = .loading
+        store.importableHealthWorkouts(onDate: date) { found in
+            importable = found
+            healthState = .loaded
+        }
+    }
+
+    // MARK: Apple Health import section (always visible)
+    @ViewBuilder private var healthImportSection: some View {
+        let green = Color(hex: Theme.appleGreen)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: "heart.fill").font(.system(size: 11)).foregroundColor(green)
+                Lbl(text: t("day.import_health"), color: green)
+                Spacer()
+                if healthState == .loaded {
+                    Button { tap(); loadHealth() } label: {
+                        Image(systemName: "arrow.clockwise").font(.system(size: 12, weight: .semibold)).foregroundColor(Theme.sub)
+                    }.buttonStyle(.plain)
+                }
+            }
+            Card {
+                switch healthState {
+                case .idle, .loading:
+                    HStack(spacing: 10) {
+                        ProgressView().tint(green)
+                        Text(t("day.health_loading")).font(.system(size: 13)).foregroundColor(Theme.sub)
+                        Spacer()
+                    }.padding(.vertical, 6)
+                case .unavailable:
+                    Text(t("day.health_unavailable")).font(.system(size: 12)).foregroundColor(Theme.sub).padding(.vertical, 6)
+                case .loaded:
+                    if importable.isEmpty {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text(t("day.health_none")).font(.system(size: 13)).foregroundColor(Theme.sub)
+                            Button { tap(); loadHealth() } label: {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "arrow.clockwise").font(.system(size: 11, weight: .bold))
+                                    Text(t("day.health_recheck")).font(.system(size: 12, weight: .semibold))
+                                }
+                                .foregroundColor(green)
+                                .padding(.vertical, 7).padding(.horizontal, 12)
+                                .background(green.opacity(0.10)).clipShape(Capsule())
+                                .overlay(Capsule().stroke(green.opacity(0.4), lineWidth: 1))
+                            }.buttonStyle(.plain)
+                        }.padding(.vertical, 2)
+                    } else {
+                        ForEach(Array(importable.enumerated()), id: \.element.uuid) { _, w in
+                            healthRow(w)
+                            if w.uuid != importable.last?.uuid { divider }
+                        }
+                    }
+                }
+            }
         }
     }
 

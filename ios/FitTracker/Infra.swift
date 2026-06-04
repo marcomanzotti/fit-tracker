@@ -19,7 +19,7 @@ final class RestTimer: ObservableObject {
                 if self.remaining <= 0 {
                     self.done = true
                     self.cancellable?.cancel()
-                    haptic(.success)
+                    restDoneHaptic()
                 }
             }
     }
@@ -41,11 +41,15 @@ final class ActiveWorkout: ObservableObject {
     @Published var planId: String? = nil
     @Published var log: [LoggedExercise] = []
     @Published var startDate: Date? = nil
+    /// True when the user backed out of the live view but the workout is still
+    /// running in the background (the floating strip un-minimizes it).
+    @Published var minimized: Bool = false
 
     var isActive: Bool { planId != nil }
 
     func start(plan: WorkoutPlan) {
         planId = plan.id
+        minimized = false
         log = plan.exercises.map { ex in
             LoggedExercise(name: ex.name,
                            sets: (0..<max(1, ex.sets)).map { _ in SetEntry() },
@@ -63,6 +67,7 @@ final class ActiveWorkout: ObservableObject {
         planId = nil
         log = []
         startDate = nil
+        minimized = false
     }
 }
 
