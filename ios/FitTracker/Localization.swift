@@ -656,6 +656,7 @@ enum L {
                               "Choose what you did on this day: a strength workout, a cardio activity or rest. Data starts from last time and stays editable."),
         "day.mark_rest":     ("Segna come riposo", "Mark as rest"),
         "day.clear_rest":    ("Rimuovi riposo", "Remove rest"),
+        "day.import_health": ("Importa da Apple Salute", "Import from Apple Health"),
         "cal.tap_hint":      ("Tocca un giorno per registrare un allenamento o il riposo", "Tap a day to log a workout or rest"),
         "load.recommended":  ("Consigliato", "Recommended"),
         "load.sensor":       ("Sensore HRV", "HRV sensor"),

@@ -78,6 +78,8 @@ struct WorkoutView: View {
     }
 
     private func cardioTile(_ ct: CardioType) -> some View {
+        // Card body → open the cardio logger. Circular Play (bottom-right) starts
+        // the activity (on a paired watch too, when reachable) and opens the logger.
         ZStack(alignment: .topTrailing) {
             Button { tap(); loggingCardio = ct } label: {
                 VStack(alignment: .leading, spacing: 0) {
@@ -104,6 +106,11 @@ struct WorkoutView: View {
             }
             .buttonStyle(.plain)
 
+            // Circular Play button — bottom-right, starts the cardio activity.
+            PlayCircle(color: Color(hex: ct.color)) { tap(); startCardio(ct) }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                .padding(10)
+
             Button { tap(); editCardio(ct) } label: {
                 HStack(spacing: 3) {
                     Image(systemName: "pencil").font(.system(size: 10, weight: .bold))
@@ -117,6 +124,17 @@ struct WorkoutView: View {
             .buttonStyle(.plain)
             .padding(7)
         }
+    }
+
+    /// Start a cardio activity: ask a paired watch to start it (live tracking +
+    /// auto-import on stop), and open the logger so the phone can capture the
+    /// session too. Other wearables import automatically from Health later.
+    private func startCardio(_ ct: CardioType) {
+        if WatchSync.shared.watchReachable {
+            WatchSync.shared.startOnWatch(activityId: ct.id)
+            toast.show(t("wk.started_on_watch"))
+        }
+        loggingCardio = ct
     }
 
     private var addCardioTile: some View {
@@ -144,7 +162,7 @@ struct WorkoutView: View {
     }
 
     private func dayCard(_ p: WorkoutPlan) -> some View {
-        // Card body → edit/view plan. Play button (bottom strip) → start workout.
+        // Card body → edit/view plan. Circular Play button (bottom-right) → start.
         // Edit pill stays at top-right so the two actions are spatially distinct.
         ZStack(alignment: .topTrailing) {
             Button { tap(); editPlan(p) } label: {
@@ -155,18 +173,28 @@ struct WorkoutView: View {
                     Text(p.name.uppercased()).font(.head(18, .bold)).tracking(0.5)
                         .foregroundColor(Theme.txt).lineLimit(1).padding(.bottom, 3)
                     Text(p.sub).font(.system(size: 11)).foregroundColor(Theme.sub).lineLimit(1)
+                    Divider().overlay(Theme.brd).padding(.top, 11).padding(.bottom, 8)
+                    HStack(alignment: .bottom) {
+                        Text("\(p.exercises.count) \(t("wk.exercises_n"))".uppercased())
+                            .font(.head(9, .semibold)).tracking(1.5).foregroundColor(Theme.sub)
+                        Spacer()
+                    }
                     Spacer(minLength: 0)
-                    // Play strip at the card bottom — visually anchored, easy to hit.
-                    playStrip(p)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-                .padding(.top, 15).padding(.horizontal, 14).padding(.bottom, 0)
+                .padding(.vertical, 15).padding(.horizontal, 14)
                 .background(Theme.c1)
                 .overlay(alignment: .leading) { Rectangle().fill(Color(hex: p.color)).frame(width: 3) }
                 .clipShape(RoundedRectangle(cornerRadius: Theme.radius, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: Theme.radius, style: .continuous).stroke(Theme.brd, lineWidth: 1))
             }
             .buttonStyle(.plain)
+
+            // Circular Play button — bottom-right, plan color, starts the workout.
+            PlayCircle(color: Color(hex: p.color)) { tap(); start(p) }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                .padding(10)
+                .allowsHitTesting(true)
 
             // Edit pill (top-right) — separate from the card tap.
             Button { tap(); editPlan(p) } label: {
@@ -177,62 +205,6 @@ struct WorkoutView: View {
             }
             .buttonStyle(.plain)
             .padding(8)
-        }
-    }
-
-    /// Bottom strip inside the card: Play + optional Watch button.
-    @ViewBuilder
-    private func playStrip(_ p: WorkoutPlan) -> some View {
-        HStack(spacing: 0) {
-            // Play button — starts the workout immediately.
-            Button {
-                tap()
-                start(p)
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "play.fill").font(.system(size: 11, weight: .bold))
-                    Text(t("wk.start").uppercased()).font(.head(9, .bold)).tracking(1)
-                }
-                .foregroundColor(Theme.bg)
-                .frame(maxWidth: .infinity, minHeight: 34)
-                .background(Color(hex: p.color))
-            }
-            .buttonStyle(.plain)
-
-            // Watch button — separated by a 1 pt divider, same height as Play.
-            if WatchSync.shared.watchAppAvailable {
-                Rectangle().fill(Color(hex: p.color).opacity(0.4)).frame(width: 1)
-                Button {
-                    tap()
-                    startOnWatch(p)
-                } label: {
-                    Image(systemName: "applewatch")
-                        .font(.system(size: 13, weight: .bold)).foregroundColor(Theme.bg)
-                        .frame(width: 40, height: 34)
-                        .background(Color(hex: p.color).opacity(0.75))
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        // Clip only the bottom corners to match the outer card's radius.
-        .clipShape(
-            UnevenRoundedRectangle(
-                topLeadingRadius: 0, bottomLeadingRadius: Theme.radius - 1,
-                bottomTrailingRadius: Theme.radius - 1, topTrailingRadius: 0,
-                style: .continuous
-            )
-        )
-    }
-
-    /// Ask a paired watch to start this workout; the user then trains on the wrist
-    /// while the phone mirrors it live.
-    private func startOnWatch(_ p: WorkoutPlan) {
-        if WatchSync.shared.watchReachable {
-            WatchSync.shared.startOnWatch(activityId: p.id)
-            start(p)                                    // open the phone mirror too
-            toast.show(t("wk.started_on_watch"))
-        } else {
-            toast.show(t("wk.watch_unreachable"))
         }
     }
 
@@ -299,6 +271,14 @@ struct WorkoutView: View {
     private func start(_ plan: WorkoutPlan) {
         UIApplication.shared.isIdleTimerDisabled = true
         activeWorkout.start(plan: plan)
+        // If an Apple Watch app is paired and reachable, start the identical
+        // session there too so the two run in sync (the watch streams live data
+        // back). Other wearables (Garmin/Polar/…) can't be started from iOS, but
+        // their session is auto-imported from Health on the next foreground sync.
+        if WatchSync.shared.watchReachable {
+            WatchSync.shared.startOnWatch(activityId: plan.id)
+            toast.show(t("wk.started_on_watch"))
+        }
     }
 
     private func endWorkout() {
@@ -344,5 +324,27 @@ struct WorkoutView: View {
             editing = nil
             toast.show(t("wk.day_deleted"))
         }
+    }
+}
+
+// MARK: - Circular Play button (shared by strength & cardio cards)
+// A filled circular play control in the card's accent color, sitting bottom-right.
+// Native-feeling, distinct from the edit pill, and a generous tap target.
+struct PlayCircle: View {
+    let color: Color
+    let action: () -> Void
+    var body: some View {
+        Button(action: action) {
+            ZStack {
+                Circle().fill(color)
+                    .frame(width: 38, height: 38)
+                    .shadow(color: color.opacity(0.4), radius: 5, y: 2)
+                Image(systemName: "play.fill")
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundColor(Theme.bg)
+                    .offset(x: 1)   // optical centering of the triangle
+            }
+        }
+        .buttonStyle(.plain)
     }
 }

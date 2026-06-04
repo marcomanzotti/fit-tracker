@@ -721,28 +721,45 @@ extension Store {
             }
             if overlaps { continue }
 
-            let sportType = Sport(rawValue: w.sport) ?? .other
-            // Imported Health workouts are normal sessions but get Apple's workout
-            // green so they read as "from Apple Health" on the calendar. The name
-            // uses the HK display name ("Weight Training", "Running", …) so the user
-            // can tell different activity types apart. They never create Train-page
-            // cards (those come from plans/cardio types only).
-            let sessionName = w.displayName.isEmpty ? sportType.label : w.displayName
-            var s = WorkoutSession(date: w.date, planId: "health-\(w.sport)",
-                                   planName: sessionName, planColor: Theme.appleGreen)
-            s.sport = isStrength ? nil : w.sport
-            s.durationSec = w.durationSec > 0 ? w.durationSec : nil
-            s.avgHR = (w.avgHR ?? 0) > 0 ? w.avgHR : nil
-            s.maxHRSes = (w.maxHR ?? 0) > 0 ? w.maxHR : nil
-            s.distanceKm = (w.distanceKm ?? 0) > 0 ? w.distanceKm : nil
-            if let k = w.kcal, k > 0 { s.caloriesManual = k }
-            s.healthUUID = w.uuid
-            s.source = w.sourceName.isEmpty ? nil : w.sourceName
-            sessions.append(s)
+            sessions.append(sessionFromHealth(w))
             imported += 1
             if !w.sourceName.isEmpty { srcs.insert(w.sourceName) }
         }
         return (imported, srcs.sorted())
+    }
+
+    /// Build a WorkoutSession from a Health workout. Imported sessions get Apple's
+    /// workout green and the HK display name ("Weight Training", "Running", …) so
+    /// they read as "from Apple Health" on the calendar and carry every metric the
+    /// device recorded (duration, kcal, avg/max HR, distance).
+    private func sessionFromHealth(_ w: HealthWorkout) -> WorkoutSession {
+        let isStrength = w.sport == "strength"
+        let sportType = Sport(rawValue: w.sport) ?? .other
+        let sessionName = w.displayName.isEmpty ? sportType.label : w.displayName
+        var s = WorkoutSession(date: w.date, planId: "health-\(w.sport)",
+                               planName: sessionName, planColor: Theme.appleGreen)
+        s.sport = isStrength ? nil : w.sport
+        s.durationSec = w.durationSec > 0 ? w.durationSec : nil
+        s.avgHR = (w.avgHR ?? 0) > 0 ? w.avgHR : nil
+        s.maxHRSes = (w.maxHR ?? 0) > 0 ? w.maxHR : nil
+        s.distanceKm = (w.distanceKm ?? 0) > 0 ? w.distanceKm : nil
+        if let k = w.kcal, k > 0 { s.caloriesManual = k }
+        s.healthUUID = w.uuid
+        s.source = w.sourceName.isEmpty ? nil : w.sourceName
+        return s
+    }
+
+    /// Manually import one Health workout (from the calendar's import action),
+    /// skipping the auto-match dedupe guards the user has already overridden by
+    /// choosing it. Still avoids creating a duplicate of an already-imported UUID.
+    /// Returns the created (or existing) session so the caller can open its editor.
+    @discardableResult
+    func importHealthWorkout(_ w: HealthWorkout) -> WorkoutSession {
+        if let existing = sessions.first(where: { $0.healthUUID == w.uuid }) { return existing }
+        let s = sessionFromHealth(w)
+        sessions.append(s)
+        save()
+        return s
     }
 
     // MARK: Workout file import (GPX / TCX — any device that can export a file)
@@ -769,6 +786,24 @@ extension Store {
         s.source = url.lastPathComponent
         sessions.append(s)
         return s
+    }
+
+    /// Fetch Apple Health workouts recorded on a given day that are NOT already in
+    /// the app, so the calendar can offer them for manual import when the automatic
+    /// match missed them. Requests authorization first if needed.
+    func importableHealthWorkouts(onDate date: String, completion: @escaping ([HealthWorkout]) -> Void) {
+        let hk = HealthKitManager.shared
+        guard hk.isAvailable else { completion([]); return }
+        hk.requestAuthorization { granted in
+            guard granted else { completion([]); return }
+            hk.fetchWorkouts(onDate: date) { workouts in
+                // Hide ones already saved (by UUID) and ones recorded by this app's
+                // own watch companion (those arrive over WatchConnectivity).
+                let existing = Set(self.sessions.compactMap { $0.healthUUID })
+                let out = workouts.filter { !$0.fromThisApp && !existing.contains($0.uuid) }
+                completion(out)
+            }
+        }
     }
 
     /// Request authorization (if needed) and pull the last `days` days from Health.

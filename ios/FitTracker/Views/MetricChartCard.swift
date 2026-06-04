@@ -124,19 +124,11 @@ struct InteractiveMetricPlot: View {
         }
         .chartOverlay { proxy in
             GeometryReader { geo in
+                // A plain tap selects the nearest bucket (toggle off if re-tapped).
+                // For scrubbing we require a deliberate long-press FIRST, then drag —
+                // this lets a normal vertical scroll pass straight through the chart
+                // instead of being captured the instant a finger touches it.
                 Rectangle().fill(Color.clear).contentShape(Rectangle())
-                    .gesture(
-                        DragGesture(minimumDistance: 0)
-                            .onChanged { val in
-                                let x = val.location.x - geo[proxy.plotAreaFrame].origin.x
-                                if let date: String = proxy.value(atX: x) {
-                                    selected = closestPoint(to: date)
-                                }
-                            }
-                            .onEnded { _ in
-                                // keep selection visible; tap background to clear
-                            }
-                    )
                     .onTapGesture { loc in
                         let x = loc.x - geo[proxy.plotAreaFrame].origin.x
                         if let date: String = proxy.value(atX: x) {
@@ -144,6 +136,18 @@ struct InteractiveMetricPlot: View {
                             if selected?.id == pt?.id { selected = nil } else { selected = pt }
                         }
                     }
+                    .gesture(
+                        LongPressGesture(minimumDuration: 0.18)
+                            .sequenced(before: DragGesture(minimumDistance: 0))
+                            .onChanged { value in
+                                if case .second(true, let drag?) = value {
+                                    let x = drag.location.x - geo[proxy.plotAreaFrame].origin.x
+                                    if let date: String = proxy.value(atX: x) {
+                                        selected = closestPoint(to: date)
+                                    }
+                                }
+                            }
+                    )
             }
         }
     }

@@ -201,6 +201,30 @@ final class HealthKitManager {
         #endif
     }
 
+    /// Pull HKWorkout records that START on a specific calendar day (yyyy-MM-dd).
+    /// Used by the calendar's manual "Import from Apple Health" action when the
+    /// automatic match missed a session recorded by the watch.
+    func fetchWorkouts(onDate dateString: String, completion: @escaping ([HealthWorkout]) -> Void) {
+        #if canImport(HealthKit)
+        guard isAvailable, let day = isoFormatter.date(from: dateString) else { completion([]); return }
+        let cal = Calendar.current
+        let start = cal.startOfDay(for: day)
+        guard let end = cal.date(byAdding: .day, value: 1, to: start) else { completion([]); return }
+        let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: .strictStartDate)
+        let sort = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)
+        let bundle = Bundle.main.bundleIdentifier ?? "com.marco.manzotti.fittracker"
+        let query = HKSampleQuery(sampleType: .workoutType(), predicate: predicate,
+                                  limit: HKObjectQueryNoLimit, sortDescriptors: [sort]) { _, samples, _ in
+            let workouts = (samples as? [HKWorkout]) ?? []
+            let out = workouts.map { w -> HealthWorkout in self.summarize(w, appBundle: bundle) }
+            DispatchQueue.main.async { completion(out) }
+        }
+        store.execute(query)
+        #else
+        completion([])
+        #endif
+    }
+
     #if canImport(HealthKit)
     /// Reduce one HKWorkout to the fields the app stores in a WorkoutSession.
     private func summarize(_ w: HKWorkout, appBundle: String) -> HealthWorkout {

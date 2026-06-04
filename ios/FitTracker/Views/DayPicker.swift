@@ -23,6 +23,11 @@ struct DayPickerSheet: View {
     /// Called with the created session (to edit) or nil for rest / clear.
     var onPicked: (WorkoutSession?) -> Void
 
+    // Apple Health workouts recorded that day but not yet in the app — offered
+    // for manual import when automatic matching missed them.
+    @State private var importable: [HealthWorkout] = []
+    @State private var checkedHealth = false
+
     var body: some View {
         ZStack {
             Theme.bg.ignoresSafeArea()
@@ -60,6 +65,19 @@ struct DayPickerSheet: View {
                         .buttonStyle(.plain)
                     }
 
+                    // Apple Health import — workouts recorded by the watch that
+                    // day but not yet matched into the app (e.g. a native Apple
+                    // Workout session). Imported as green Apple-style sessions.
+                    if !importable.isEmpty {
+                        Lbl(text: t("day.import_health"), color: Color(hex: Theme.appleGreen))
+                        Card {
+                            ForEach(Array(importable.enumerated()), id: \.element.uuid) { _, w in
+                                healthRow(w)
+                                if w.uuid != importable.last?.uuid { divider }
+                            }
+                        }
+                    }
+
                     if !store.plans.isEmpty {
                         Lbl(text: t("wk.select_day"))
                         Card {
@@ -90,9 +108,54 @@ struct DayPickerSheet: View {
         }
         .preferredColorScheme(.dark)
         .presentationDetents([.medium, .large])
+        .onAppear {
+            guard !checkedHealth, store.prefs.healthKitEnabled else { return }
+            checkedHealth = true
+            store.importableHealthWorkouts(onDate: date) { importable = $0 }
+        }
     }
 
     private var divider: some View { Rectangle().fill(Theme.brd).frame(height: 1).padding(.vertical, 2) }
+
+    /// A pickable Apple-Health workout: green accent, HK display name + a short
+    /// metric summary; tapping imports it as a real session and opens its editor.
+    private func healthRow(_ w: HealthWorkout) -> some View {
+        let green = Color(hex: Theme.appleGreen)
+        let icon = (Sport(rawValue: w.sport) ?? .other).icon
+        return Button {
+            tap()
+            let s = store.importHealthWorkout(w)
+            finish(s)
+        } label: {
+            HStack(spacing: 12) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous).fill(green.opacity(0.16)).frame(width: 38, height: 38)
+                    Image(systemName: icon).font(.system(size: 16, weight: .bold)).foregroundColor(green)
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 5) {
+                        Text(w.displayName).font(.system(size: 15, weight: .semibold)).foregroundColor(Theme.txt).lineLimit(1)
+                        Image(systemName: "heart.fill").font(.system(size: 8)).foregroundColor(Theme.red)
+                    }
+                    Text(healthSummary(w)).font(.system(size: 11)).foregroundColor(Theme.sub).lineLimit(1)
+                }
+                Spacer()
+                Image(systemName: "square.and.arrow.down").foregroundColor(green)
+            }
+            .padding(.vertical, 9)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func healthSummary(_ w: HealthWorkout) -> String {
+        var parts: [String] = []
+        if w.durationSec > 0 { parts.append(fmtDuration(w.durationSec)) }
+        if let km = w.distanceKm, km > 0 { parts.append("\(dispDist(km)) \(Units.distLabel)") }
+        if let hr = w.avgHR, hr > 0 { parts.append("\(hr) bpm") }
+        if let k = w.kcal, k > 0 { parts.append("\(k) kcal") }
+        if !w.sourceName.isEmpty { parts.append(w.sourceName) }
+        return parts.isEmpty ? t("day.import_health") : parts.joined(separator: " · ")
+    }
 
     private func pickRow(name: String, sub: String, color: String, icon: String, action: @escaping () -> Void) -> some View {
         Button { tap(); action() } label: {

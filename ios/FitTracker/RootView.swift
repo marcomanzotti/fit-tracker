@@ -44,19 +44,26 @@ struct RootView: View {
 
             VStack(spacing: 0) {
                 HeaderBar(tab: tab) { showSettings = true }
-                ScrollView(.vertical) {
-                    VStack(spacing: 11) {
-                        switch tab {
-                        case .home:   HomeView(tab: $tab)
-                        case .allena: WorkoutView()
-                        case .corpo:  BodyView()
-                        case .nutri:  NutritionView()
-                        case .stats:  StatsView()
+                // GeometryReader pins the scroll content to the exact viewport width,
+                // so an over-wide child can never trigger horizontal rubber-banding.
+                // (.scrollBounceBehavior(axes:) would be cleaner but needs iOS 16.4;
+                // this works on the 16.0 deployment target.)
+                GeometryReader { geo in
+                    ScrollView(.vertical) {
+                        VStack(spacing: 11) {
+                            switch tab {
+                            case .home:   HomeView(tab: $tab)
+                            case .allena: WorkoutView()
+                            case .corpo:  BodyView()
+                            case .nutri:  NutritionView()
+                            case .stats:  StatsView()
+                            }
                         }
+                        .frame(width: geo.size.width - 32, alignment: .top)
+                        .padding(.horizontal, 16).padding(.top, 14).padding(.bottom, 130)
                     }
-                    .padding(.horizontal, 16).padding(.top, 14).padding(.bottom, 130)
+                    .scrollDismissesKeyboard(.interactively)
                 }
-                .scrollDismissesKeyboard(.interactively)
             }
 
             VStack(spacing: 8) {
