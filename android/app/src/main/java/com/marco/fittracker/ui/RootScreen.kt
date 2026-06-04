@@ -92,11 +92,14 @@ class ActiveWorkoutState {
     var planId by mutableStateOf<String?>(null)
     val log = mutableStateListOf<com.marco.fittracker.data.LoggedExercise>()
     var startMs by mutableLongStateOf(0L)
+    /** True when the user backed out but the workout is still running. */
+    var minimized by mutableStateOf(false)
 
     val isActive get() = planId != null
 
     fun start(plan: com.marco.fittracker.data.WorkoutPlan) {
         planId = plan.id
+        minimized = false
         log.clear()
         log.addAll(plan.exercises.map { ex ->
             com.marco.fittracker.data.LoggedExercise(
@@ -108,7 +111,7 @@ class ActiveWorkoutState {
         startMs = System.currentTimeMillis()
     }
 
-    fun end() { planId = null; log.clear(); startMs = 0L }
+    fun end() { planId = null; log.clear(); startMs = 0L; minimized = false }
 }
 
 enum class Tab(val label: String, val sub: String) {
@@ -126,11 +129,17 @@ fun RootScreen() {
     val activeWorkout = remember { ActiveWorkoutState() }
     val view = LocalView.current
 
-    // Countdown loop
+    // Countdown loop — on completion fire a strong, unmistakable rest-done buzz
+    // (a CONFIRM plus two spaced reject pulses) so the end of rest is felt mid-set.
     LaunchedEffect(timer.runId, timer.active) {
         if (timer.active) {
             while (timer.remaining > 0) { delay(1000); timer.remaining -= 1 }
-            if (timer.active) { timer.done = true; view.performHapticFeedback(HapticFeedbackConstants.CONFIRM) }
+            if (timer.active) {
+                timer.done = true
+                view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+                delay(180); view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                delay(180); view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+            }
         }
     }
     // Toast auto-dismiss
@@ -168,9 +177,13 @@ fun RootScreen() {
                 Modifier.align(Alignment.BottomCenter),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // Show "Workout in progress" strip when active on a different tab
-                if (activeWorkout.isActive && tab != Tab.ALLENA) {
-                    ActiveWorkoutStrip(activeWorkout, store) { tab = Tab.ALLENA }
+                // Show "Workout in progress" strip when active but the live screen
+                // isn't on-screen (another tab, or minimized on the Train tab).
+                if (activeWorkout.isActive && (tab != Tab.ALLENA || activeWorkout.minimized)) {
+                    ActiveWorkoutStrip(activeWorkout, store) {
+                        activeWorkout.minimized = false
+                        tab = Tab.ALLENA
+                    }
                 }
                 if (timer.active) TimerStrip()
                 NavBar(tab, navPad) { tab = it }

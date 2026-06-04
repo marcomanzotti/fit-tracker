@@ -153,6 +153,13 @@ object L {
         "wk.calories" to ("Calorie bruciate" to "Calories burned"),
         "wk.cal_override" to ("Modifica manuale" to "Manual override"),
         "wk.cal_hint" to ("Stima dai tuoi dati: con FC più precisa, altrimenti da durata e tipo di attività. Puoi sovrascriverla." to "Estimated from your data: sharper with HR, otherwise from duration and activity type. You can override it."),
+        "wk.cal_at_finish" to ("Le calorie vengono stimate al termine dell'allenamento." to "Calories are estimated when you finish the workout."),
+        "wk.saved" to ("Salvata" to "Saved"),
+        "wk.finish_session" to ("Termina sessione" to "Finish session"),
+        "wk.discard_session" to ("Elimina allenamento" to "Discard workout"),
+        "wk.discard_q" to ("Eliminare questo allenamento? L'operazione non può essere annullata." to "Discard this workout? This can't be undone."),
+        "wk.discarded" to ("Allenamento eliminato" to "Workout discarded"),
+        "wk.minimize" to ("Riduci" to "Minimize"),
 
         "cal.title" to ("Calendario" to "Calendar"),
         "cal.no_sessions" to ("Nessuna sessione questo mese" to "No sessions this month"),

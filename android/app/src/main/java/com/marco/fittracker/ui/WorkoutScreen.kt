@@ -22,6 +22,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
@@ -34,6 +35,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -78,9 +80,9 @@ fun WorkoutScreen() {
 
     val active = activeWorkout.planId?.let { store.plan(it) }
     when {
-        active != null -> LiveWorkout(active, activeWorkout.log,
-            onBack = { activeWorkout.end() },
-            onSaved = { activeWorkout.end() })
+        active != null && !activeWorkout.minimized -> LiveWorkout(active, activeWorkout.log,
+            onBack = { activeWorkout.minimized = true },   // minimize, keep running
+            onSaved = { activeWorkout.end() })             // finish / discard ends it
         editingPlan != null -> PlanEditor(editingPlan!!, isNew,
             onSave = { p ->
                 val fixed = if (p.name.trim().isEmpty()) p.copy(name = "Nuovo giorno") else p
@@ -255,8 +257,10 @@ private fun LiveWorkout(plan: WorkoutPlan, log: SnapshotStateList<LoggedExercise
     val store = LocalStore.current
     val timer = LocalTimer.current
     val toast = LocalToast.current
+    val activeWorkout = LocalActiveWorkout.current
     val tap = rememberTap()
     val view = LocalView.current
+    val pc = hexColor(plan.color)
 
     var addName by remember { mutableStateOf("") }
     val showNotes = remember { mutableStateListOf<String>() }
@@ -265,38 +269,41 @@ private fun LiveWorkout(plan: WorkoutPlan, log: SnapshotStateList<LoggedExercise
     var sessAvgHR by remember { mutableStateOf("") }
     var sessRMSSD by remember { mutableStateOf("") }
     var sessCalManual by remember { mutableStateOf("") }
+    var confirmDiscard by remember { mutableStateOf(false) }
 
     DisposableEffect(Unit) { view.keepScreenOn = true; onDispose { view.keepScreenOn = false } }
 
-    val lastSess = store.lastSession(plan.id)
+    // Live elapsed timer (counts up from workout start)
+    var elapsedSec by remember { mutableStateOf(0) }
+    LaunchedEffect(activeWorkout.startMs) {
+        while (activeWorkout.isActive) {
+            elapsedSec = ((System.currentTimeMillis() - activeWorkout.startMs) / 1000).toInt()
+            kotlinx.coroutines.delay(1000)
+        }
+    }
 
-    // Back row
+    // Back row — MINIMIZES the workout (keeps running); never discards.
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        GhostButton("← Indietro") { onBack() }
+        GhostButton("↓ ${t("wk.minimize")}") { onBack() }
         Column(Modifier.weight(1f)) {
-            Text(plan.name.uppercase(), color = hexColor(plan.color), fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text(plan.name.uppercase(), color = pc, fontSize = 20.sp, fontWeight = FontWeight.Bold)
             Text("${plan.sub} · ${today()}", color = T.sub, fontSize = 10.sp)
         }
     }
 
-    // Last session reference
-    if (lastSess != null) {
-        Column(
-            Modifier.fillMaxWidth()
-                .clip(RoundedCornerShape(T.radiusS))
-                .background(T.acc.copy(alpha = 0.04f))
-                .drawBehind { drawRect(color = T.acc, size = androidx.compose.ui.geometry.Size(2.dp.toPx(), size.height)) }
-                .padding(vertical = 11.dp, horizontal = 14.dp)
-        ) {
-            Lbl("Ultima · ${lastSess.date}", T.acc2)
-            Spacer(Modifier.height(3.dp))
-            lastSess.exercises.take(3).forEach { e ->
-                val sets = e.sets.joinToString(" · ") { "${disp(it.weight)}×${disp(it.reps)}" }
-                Text("${e.name}: $sets", color = T.sub, fontSize = 11.sp)
-            }
-            if (lastSess.exercises.size > 3)
-                Text("+${lastSess.exercises.size - 3} altri", color = T.sub, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
-        }
+    // Live elapsed timer (replaces the last-session block while active). Past
+    // sessions are visible elsewhere; the running time is more useful here.
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(T.radiusS)).background(pc.copy(alpha = 0.06f))
+            .drawBehind { drawRect(color = pc, size = androidx.compose.ui.geometry.Size(2.dp.toPx(), size.height)) }
+            .padding(vertical = 12.dp, horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(Modifier.size(8.dp).clip(CircleShape).background(pc))
+        Spacer(Modifier.width(8.dp))
+        Text(t("wk.workout_live").uppercase(), color = T.sub, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+        Spacer(Modifier.weight(1f))
+        Text("%d:%02d".format(elapsedSec / 60, elapsedSec % 60), color = T.txt, fontSize = 30.sp, fontWeight = FontWeight.Bold)
     }
 
     // Exercise cards
@@ -368,10 +375,13 @@ private fun LiveWorkout(plan: WorkoutPlan, log: SnapshotStateList<LoggedExercise
         LoadField(t("wk.rmssd"), sessRMSSD, "rmssd", KeyboardType.Decimal) { sessRMSSD = it }
     }
 
-    // Calories burned (always shown; manual override wins)
+    // Calories — NOT prefilled at start. Pressing Play begins a live session, it
+    // isn't a completed log. The estimate appears only once there's real data
+    // (duration or HR); the duration falls back to the live elapsed time.
+    val caloriesReady = sessCalManual.isNotEmpty() || (sessDurationSec ?: 0) > 0 || (sessAvgHR.toIntOrNull() ?: 0) > 0
     val estCal = run {
         val snap = WorkoutSession(date = today(), planId = plan.id, planName = plan.name, planColor = plan.color,
-            exercises = log.toList(), durationSec = sessDurationSec, avgHR = sessAvgHR.toIntOrNull())
+            exercises = log.toList(), durationSec = sessDurationSec ?: (if (elapsedSec > 0) elapsedSec else null), avgHR = sessAvgHR.toIntOrNull())
         store.estimateCalories(snap)
     }
     Card(accent = T.acc) {
@@ -380,7 +390,8 @@ private fun LiveWorkout(plan: WorkoutPlan, log: SnapshotStateList<LoggedExercise
             Spacer(Modifier.width(5.dp)); InfoButton("calories", T.acc2)
             Spacer(Modifier.weight(1f))
             Row(verticalAlignment = Alignment.Bottom) {
-                Text(if (sessCalManual.isEmpty()) "$estCal" else sessCalManual, color = T.acc, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+                Text(if (sessCalManual.isNotEmpty()) sessCalManual else if (caloriesReady) "$estCal" else "—",
+                    color = if (caloriesReady) T.acc else T.sub, fontSize = 28.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.width(4.dp))
                 Text("kcal", color = T.sub, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
             }
@@ -388,19 +399,20 @@ private fun LiveWorkout(plan: WorkoutPlan, log: SnapshotStateList<LoggedExercise
         Spacer(Modifier.height(10.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(t("wk.cal_override").uppercase(), color = T.sub, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp, modifier = Modifier.weight(1f))
-            Box(Modifier.width(110.dp)) { InputField(sessCalManual, { sessCalManual = it }, "$estCal", KeyboardType.Number) }
+            Box(Modifier.width(110.dp)) { InputField(sessCalManual, { sessCalManual = it }, if (caloriesReady) "$estCal" else "—", KeyboardType.Number) }
         }
         Spacer(Modifier.height(6.dp))
-        Text(t("wk.cal_hint"), color = T.sub, fontSize = 9.sp)
+        Text(if (caloriesReady) t("wk.cal_hint") else t("wk.cal_at_finish"), color = T.sub, fontSize = 9.sp)
     }
 
-    BigButton(if (saved) "Salvata" else "Salva sessione", color = if (saved) T.good else T.acc) {
+    // Finish (primary) — duration source of truth: typed value, else live elapsed.
+    BigButton(if (saved) t("wk.saved") else t("wk.finish_session"), color = if (saved) T.good else T.acc) {
         if (!saved) {
             val exercises = log.map { e -> e.copy(sets = e.sets.filter { it.filled }) }.filter { it.sets.isNotEmpty() }
             if (exercises.isEmpty()) { toast.show("Nessuna serie da salvare") } else {
                 store.addSession(WorkoutSession(
                     date = today(), planId = plan.id, planName = plan.name, planColor = plan.color, exercises = exercises,
-                    durationSec = sessDurationSec, avgHR = sessAvgHR.toIntOrNull(),
+                    durationSec = sessDurationSec ?: (if (elapsedSec > 0) elapsedSec else null), avgHR = sessAvgHR.toIntOrNull(),
                     rmssd = if (sessRMSSD.isEmpty()) null else pf(sessRMSSD),
                     caloriesManual = sessCalManual.toIntOrNull()?.takeIf { it > 0 }))
                 saved = true; timer.stop()
@@ -409,6 +421,38 @@ private fun LiveWorkout(plan: WorkoutPlan, log: SnapshotStateList<LoggedExercise
                 onSaved()
             }
         }
+    }
+
+    // Discard (destructive, red) — only ends the workout via explicit confirm.
+    Spacer(Modifier.height(4.dp))
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(T.radiusS))
+            .border(1.dp, T.red.copy(alpha = 0.45f), RoundedCornerShape(T.radiusS))
+            .clickable { tap(); confirmDiscard = true }.padding(vertical = 13.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center
+    ) {
+        Icon(Icons.Filled.Delete, null, tint = T.red, modifier = Modifier.size(15.dp))
+        Spacer(Modifier.width(6.dp))
+        Text(t("wk.discard_session"), color = T.red, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+    }
+
+    if (confirmDiscard) {
+        AlertDialog(
+            onDismissRequest = { confirmDiscard = false },
+            title = { Text(t("wk.discard_session"), color = T.txt) },
+            text = { Text(t("wk.discard_q"), color = T.sub) },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmDiscard = false
+                    timer.stop()
+                    view.performHapticFeedback(android.view.HapticFeedbackConstants.REJECT)
+                    toast.show(t("wk.discarded"))
+                    onSaved()
+                }) { Text(t("wk.discard_session"), color = T.red) }
+            },
+            dismissButton = { TextButton(onClick = { confirmDiscard = false }) { Text(t("cancel"), color = T.sub) } },
+            containerColor = T.c1
+        )
     }
 }
 
