@@ -32,6 +32,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -362,6 +363,7 @@ private fun CardioCard(ct: CardioType, onLog: (CardioType) -> Unit, onEdit: (Car
     Box {
         Column(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(T.radius)).background(T.c1)
+                .drawBehind { drawRect(color = pc, size = androidx.compose.ui.geometry.Size(3.dp.toPx(), size.height)) }
                 .border(1.dp, T.brd, RoundedCornerShape(T.radius))
                 .clickable { tap(); onLog(ct) }.padding(vertical = 15.dp, horizontal = 14.dp)
         ) {
@@ -371,9 +373,19 @@ private fun CardioCard(ct: CardioType, onLog: (CardioType) -> Unit, onEdit: (Car
             Spacer(Modifier.height(3.dp))
             // Show optional subtitle if set, otherwise fall back to sport label
             Text(ct.sub?.takeIf { it.isNotEmpty() } ?: ct.sportType.label(), color = T.sub, fontSize = 10.sp, maxLines = 1)
+            Spacer(Modifier.height(20.dp))
         }
-        Icon(Icons.Filled.Edit, "edit",
-            tint = T.sub, modifier = Modifier.align(Alignment.TopEnd).padding(6.dp).size(18.dp).clickable { tap(); onEdit(ct) })
+        // Edit icon — top-right
+        Box(
+            Modifier.align(Alignment.TopEnd).padding(8.dp).size(26.dp)
+                .clip(CircleShape).background(pc.copy(alpha = 0.85f))
+                .clickable { tap(); onEdit(ct) },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(Icons.Filled.Edit, "edit", tint = T.bg, modifier = Modifier.size(12.dp))
+        }
+        // Circular Play button — bottom-right, starts the cardio activity
+        PlayCircle(pc, Modifier.align(Alignment.BottomEnd).padding(10.dp)) { tap(); onLog(ct) }
     }
 }
 

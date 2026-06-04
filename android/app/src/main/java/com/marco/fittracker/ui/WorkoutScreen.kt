@@ -183,6 +183,7 @@ private fun DayCard(p: WorkoutPlan, onStart: (WorkoutPlan) -> Unit, onEdit: (Wor
     val tap = rememberTap()
     val pc = hexColor(p.color)
     Box {
+        // Card body — tap opens plan editor
         Column(
             Modifier.fillMaxWidth()
                 .clip(RoundedCornerShape(T.radius))
@@ -190,42 +191,42 @@ private fun DayCard(p: WorkoutPlan, onStart: (WorkoutPlan) -> Unit, onEdit: (Wor
                 .drawBehind { drawRect(color = pc, size = androidx.compose.ui.geometry.Size(3.dp.toPx(), size.height)) }
                 .border(1.dp, T.brd, RoundedCornerShape(T.radius))
                 .clickable { tap(); onEdit(p) }
+                .padding(vertical = 15.dp, horizontal = 14.dp)
         ) {
-            // Card body — tap opens plan editor
-            Column(Modifier.padding(top = 15.dp, start = 14.dp, end = 14.dp, bottom = 11.dp)) {
-                Text(t("wk.day").uppercase(), color = pc, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 2.sp,
-                    modifier = Modifier.padding(end = 30.dp))
-                Spacer(Modifier.height(5.dp))
-                Text(p.name.uppercase(), color = T.txt, fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-                Spacer(Modifier.height(3.dp))
-                Text(p.sub, color = T.sub, fontSize = 11.sp, maxLines = 1)
-                Spacer(Modifier.height(8.dp))
-            }
-            // Play strip — starts the workout immediately
-            Row(
-                Modifier.fillMaxWidth()
-                    .clip(RoundedCornerShape(bottomStart = T.radius, bottomEnd = T.radius))
-                    .background(pc)
-                    .clickable { tap(); onStart(p) }
-                    .padding(vertical = 9.dp, horizontal = 14.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center
-            ) {
-                Icon(Icons.Filled.PlayArrow, null, tint = T.bg, modifier = Modifier.size(13.dp))
-                Spacer(Modifier.width(5.dp))
-                Text(t("wk.start").uppercase(), color = T.bg, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-            }
+            Text(t("wk.day").uppercase(), color = pc, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 2.sp,
+                modifier = Modifier.padding(end = 30.dp))
+            Spacer(Modifier.height(5.dp))
+            Text(p.name.uppercase(), color = T.txt, fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+            Spacer(Modifier.height(3.dp))
+            Text(p.sub, color = T.sub, fontSize = 11.sp, maxLines = 1)
+            Spacer(Modifier.height(11.dp))
+            Box(Modifier.fillMaxWidth().height(1.dp).background(T.brd))
+            Spacer(Modifier.height(8.dp))
+            Text("${p.exercises.size} ${t("wk.exercises_n").uppercase()}", color = T.sub, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp)
+            Spacer(Modifier.height(4.dp))
         }
-        // Edit icon — top-right, small pencil, separate tap target
+        // Edit icon — top-right
         Box(
-            Modifier.align(Alignment.TopEnd).padding(8.dp)
-                .size(26.dp)
+            Modifier.align(Alignment.TopEnd).padding(8.dp).size(26.dp)
                 .clip(CircleShape).background(pc.copy(alpha = 0.85f))
                 .clickable { tap(); onEdit(p) },
             contentAlignment = Alignment.Center
         ) {
             Icon(Icons.Filled.Edit, "edit", tint = T.bg, modifier = Modifier.size(12.dp))
         }
+        // Circular Play button — bottom-right, starts the workout immediately
+        PlayCircle(pc, Modifier.align(Alignment.BottomEnd).padding(10.dp)) { tap(); onStart(p) }
+    }
+}
+
+// MARK: - Circular Play button (shared by strength & cardio cards)
+@Composable
+fun PlayCircle(color: androidx.compose.ui.graphics.Color, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Box(
+        modifier.size(38.dp).clip(CircleShape).background(color).clickable { onClick() },
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(Icons.Filled.PlayArrow, "start", tint = T.bg, modifier = Modifier.size(20.dp))
     }
 }
 
