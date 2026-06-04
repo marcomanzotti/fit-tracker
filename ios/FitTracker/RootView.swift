@@ -33,6 +33,7 @@ struct RootView: View {
     @EnvironmentObject var store: Store
     @EnvironmentObject var timer: RestTimer
     @EnvironmentObject var toast: ToastCenter
+    @EnvironmentObject var activeWorkout: ActiveWorkout
     @State private var tab: Tab = .home
     @State private var showSettings = false
     @Environment(\.scenePhase) private var scenePhase
@@ -63,6 +64,12 @@ struct RootView: View {
             }
 
             VStack(spacing: 8) {
+                // "Workout in progress" strip — tapping it jumps to the Train tab
+                // where LiveWorkoutView is already displayed. Shown whenever a
+                // workout is active AND the user is not already on the Train tab.
+                if activeWorkout.isActive && tab != .allena {
+                    ActiveWorkoutStrip { tab = .allena }
+                }
                 if timer.active { TimerStrip() }
                 NavBar(tab: $tab)
             }
@@ -157,6 +164,80 @@ struct NavBar: View {
         .padding(.bottom, 8)
         .background(Theme.c1.opacity(0.96))
         .overlay(alignment: .top) { Rectangle().fill(Theme.brd).frame(height: 1) }
+    }
+}
+
+// MARK: - Active workout strip (shown when a workout is running on another tab)
+struct ActiveWorkoutStrip: View {
+    @EnvironmentObject var activeWorkout: ActiveWorkout
+    @EnvironmentObject var store: Store
+    let onTap: () -> Void
+
+    private var elapsed: String {
+        guard let start = activeWorkout.startDate else { return "" }
+        let sec = Int(Date().timeIntervalSince(start))
+        let m = sec / 60, s = sec % 60
+        return String(format: "%d:%02d", m, s)
+    }
+
+    private var planColor: Color {
+        guard let pid = activeWorkout.planId, let plan = store.plan(pid) else { return Theme.acc }
+        return Color(hex: plan.color)
+    }
+
+    private var planName: String {
+        guard let pid = activeWorkout.planId, let plan = store.plan(pid) else { return "" }
+        return plan.name
+    }
+
+    var body: some View {
+        Button { tap(); onTap() } label: {
+            HStack(spacing: 12) {
+                // Pulsing dot indicates live session.
+                Circle().fill(planColor).frame(width: 8, height: 8)
+                    .overlay(Circle().stroke(planColor.opacity(0.3), lineWidth: 4))
+
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(t("wk.workout_live").uppercased())
+                        .font(.head(8, .semibold)).tracking(1.5).foregroundColor(Theme.sub)
+                    Text(planName.uppercased())
+                        .font(.head(13, .bold)).tracking(0.5).foregroundColor(planColor).lineLimit(1)
+                }
+
+                Spacer()
+
+                ElapsedClock(startDate: activeWorkout.startDate)
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.sub)
+            }
+            .padding(.vertical, 11).padding(.horizontal, 16)
+            .background(Theme.c2)
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(planColor.opacity(0.4), lineWidth: 1))
+            .padding(.horizontal, 16)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// Live elapsed timer that re-draws every second.
+private struct ElapsedClock: View {
+    let startDate: Date?
+    @State private var now = Date()
+    private let tick = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+
+    var body: some View {
+        Text(label)
+            .font(.num(22)).foregroundColor(Theme.txt)
+            .onReceive(tick) { now = $0 }
+    }
+
+    private var label: String {
+        guard let start = startDate else { return "0:00" }
+        let sec = Int(now.timeIntervalSince(start))
+        let m = sec / 60, s = sec % 60
+        return String(format: "%d:%02d", m, s)
     }
 }
 

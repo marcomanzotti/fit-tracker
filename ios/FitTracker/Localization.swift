@@ -708,6 +708,8 @@ enum L {
         "hk.cat.exerciseMin": ("Minuti di attività", "Exercise minutes"),
 
         // --- v8.1: Apple Watch live sync ------------------------------------
+        "wk.start":           ("Inizia", "Start"),
+        "wk.workout_live":    ("Allenamento in corso", "Workout in progress"),
         "wk.watch_live":      ("In diretta da Apple Watch", "Live from Apple Watch"),
         "wk.watch_synced":    ("Allenamento sincronizzato dall'orologio", "Workout synced from your watch"),
         "wk.started_on_watch": ("Avviato su Apple Watch", "Started on Apple Watch"),

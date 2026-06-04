@@ -33,6 +33,39 @@ final class RestTimer: ObservableObject {
     var progress: Double { total > 0 ? Double(remaining) / Double(total) : 0 }
 }
 
+// MARK: - Active workout session (survives tab switching)
+// Holds the running workout so the user can freely navigate the app while a
+// session is in progress. WorkoutView reads this instead of @State so switching
+// tabs doesn't tear down the live log.
+final class ActiveWorkout: ObservableObject {
+    @Published var planId: String? = nil
+    @Published var log: [LoggedExercise] = []
+    @Published var startDate: Date? = nil
+
+    var isActive: Bool { planId != nil }
+
+    func start(plan: WorkoutPlan) {
+        planId = plan.id
+        log = plan.exercises.map { ex in
+            LoggedExercise(name: ex.name,
+                           sets: (0..<max(1, ex.sets)).map { _ in SetEntry() },
+                           notes: "",
+                           target: "\(ex.sets)×\(ex.reps)",
+                           supersetGroup: ex.supersetGroup,
+                           method: ex.method,
+                           effortMode: ex.effortMode,
+                           isBodyweight: ex.isBodyweight)
+        }
+        startDate = Date()
+    }
+
+    func end() {
+        planId = nil
+        log = []
+        startDate = nil
+    }
+}
+
 // MARK: - Toast
 final class ToastCenter: ObservableObject {
     @Published var message: String?
