@@ -118,6 +118,7 @@ class Store(app: Application) : AndroidViewModel(app) {
         get() = sortedDaily.lastOrNull { it.weight != null }?.weight ?: prefs.startWeight
 
     fun plan(id: String): WorkoutPlan? = plans.firstOrNull { it.id == id }
+    fun cardioType(id: String): CardioType? = cardioTypes.firstOrNull { it.id == id }
 
     fun bmi(w: Double): Double = Math.round((w / (prefs.height * prefs.height)) * 10.0) / 10.0
 

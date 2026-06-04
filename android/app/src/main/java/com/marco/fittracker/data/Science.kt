@@ -147,9 +147,9 @@ data class ReadinessResult(
 )
 
 fun Store.readiness(): ReadinessResult {
-    // Prefer manual RMSSD; fall back to imported SDNN when RMSSD is sparse. The
-    // readiness math is a personal-baseline z-score of ln(HRV), so either metric
-    // works as long as one source is used consistently.
+    // Prefer any legacy per-session/daily HRV value; fall back to HRV imported
+    // from the health platform. The readiness math is a personal-baseline
+    // z-score of ln(HRV), so either source works (both are HRV in ms).
     val rmssdMap = HashMap<String, Double>()
     for (s in sessions) s.rmssd?.let { if (it > 0) rmssdMap[s.date] = it }
     for (d in daily) d.rmssd?.let { if (it > 0) rmssdMap[d.date] = it }

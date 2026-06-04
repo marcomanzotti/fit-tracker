@@ -78,16 +78,6 @@ private fun Field(label: String, value: String, onChange: (String) -> Unit, ph: 
     }
 }
 
-/** "Recommended · HRV sensor" flag for the optional RMSSD field. */
-@Composable
-private fun RecommendedFlag() {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(t("load.recommended").uppercase(), color = T.sub, fontSize = 8.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
-        Spacer(Modifier.width(7.dp))
-        Badge(t("load.sensor"), T.blue, T.blue.copy(alpha = 0.12f))
-    }
-}
-
 // MARK: - Cardio logger
 @Composable
 fun CardioLoggerDialog(type: CardioType, onClose: () -> Unit) {
@@ -96,7 +86,6 @@ fun CardioLoggerDialog(type: CardioType, onClose: () -> Unit) {
     var durationSec by remember { mutableStateOf<Int?>(null) }
     var distance by remember { mutableStateOf("") }
     var avgHR by remember { mutableStateOf("") }
-    var rmssd by remember { mutableStateOf("") }
     var calManual by remember { mutableStateOf("") }
     var paceManual by remember { mutableStateOf<Double?>(null) }
     val pc = hexColor(type.color)
@@ -105,7 +94,6 @@ fun CardioLoggerDialog(type: CardioType, onClose: () -> Unit) {
         date = today(), planId = "cardio-${type.id}", planName = type.name, planColor = type.color,
         exercises = emptyList(), sport = type.sport, durationSec = durationSec,
         avgHR = avgHR.toIntOrNull(),
-        rmssd = if (rmssd.isEmpty()) null else pf(rmssd),
         distanceKm = if (distance.isEmpty()) null else pf(distance),
         paceManual = paceManual,
         caloriesManual = calManual.toIntOrNull()?.takeIf { it > 0 }
@@ -129,12 +117,6 @@ fun CardioLoggerDialog(type: CardioType, onClose: () -> Unit) {
         }
         Spacer(Modifier.height(14.dp))
         PaceField(build(), paceManual) { paceManual = it }
-        Spacer(Modifier.height(13.dp))
-        Box(Modifier.fillMaxWidth().height(1.dp).background(T.brd))
-        Spacer(Modifier.height(11.dp))
-        RecommendedFlag()
-        Spacer(Modifier.height(9.dp))
-        Field(t("wk.rmssd"), rmssd, { rmssd = it }, "—", KeyboardType.Decimal)
         Spacer(Modifier.height(14.dp))
         Column(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(T.radiusS)).background(T.c1)
@@ -263,12 +245,6 @@ fun SessionEditorDialog(initial: WorkoutSession, onClose: () -> Unit) {
                 Text(t("load.trimp_hint"), color = T.sub, fontSize = 9.sp)
             }
         }
-        Spacer(Modifier.height(11.dp))
-        Box(Modifier.fillMaxWidth().height(1.dp).background(T.brd))
-        Spacer(Modifier.height(11.dp))
-        RecommendedFlag()
-        Spacer(Modifier.height(9.dp))
-        Field(t("wk.rmssd"), s.rmssd?.let { trimNum(it) } ?: "", { s = s.copy(rmssd = if (it.isEmpty()) null else pf(it)) }, "—", KeyboardType.Decimal)
         Spacer(Modifier.height(14.dp))
         // Calories burned (estimate from data; manual override wins).
         Column(
@@ -325,7 +301,7 @@ private fun updateSet(s: WorkoutSession, ei: Int, si: Int, transform: (SetEntry)
 
 // MARK: - Cardio activities grid section (used inside the workout screen)
 @Composable
-fun CardioSection(onLog: (CardioType) -> Unit, onEdit: (CardioType) -> Unit, onNew: () -> Unit) {
+fun CardioSection(onLog: (CardioType) -> Unit, onEdit: (CardioType) -> Unit, onNew: () -> Unit, onStart: (CardioType) -> Unit) {
     val store = LocalStore.current
     val tap = rememberTap()
     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -339,25 +315,16 @@ fun CardioSection(onLog: (CardioType) -> Unit, onEdit: (CardioType) -> Unit, onN
             Text(t("wk.add_cardio").uppercase(), color = T.blue, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
         }
     }
-    val items: List<CardioType?> = store.cardioTypes.toList() + listOf(null)
-    val rows = (items.size + 1) / 2
-    for (r in 0 until rows) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(11.dp)) {
-            for (c in 0 until 2) {
-                val idx = r * 2 + c
-                Box(Modifier.weight(1f)) {
-                    if (idx < items.size) {
-                        val ct = items[idx]
-                        if (ct != null) CardioCard(ct, onLog, onEdit) else CardioAddCard(onNew)
-                    }
-                }
-            }
-        }
-    }
+    // 2-column grid, max 6 cards per page with horizontal paging past that.
+    CardPager(
+        items = store.cardioTypes.toList(),
+        card = { ct -> CardioCard(ct, onLog, onEdit, onStart) },
+        addCard = { CardioAddCard(onNew) }
+    )
 }
 
 @Composable
-private fun CardioCard(ct: CardioType, onLog: (CardioType) -> Unit, onEdit: (CardioType) -> Unit) {
+private fun CardioCard(ct: CardioType, onLog: (CardioType) -> Unit, onEdit: (CardioType) -> Unit, onStart: (CardioType) -> Unit) {
     val tap = rememberTap()
     val pc = hexColor(ct.color)
     Box {
@@ -384,8 +351,8 @@ private fun CardioCard(ct: CardioType, onLog: (CardioType) -> Unit, onEdit: (Car
         ) {
             Icon(Icons.Filled.Edit, "edit", tint = T.bg, modifier = Modifier.size(12.dp))
         }
-        // Circular Play button — bottom-right, starts the cardio activity
-        PlayCircle(pc, Modifier.align(Alignment.BottomEnd).padding(10.dp)) { tap(); onLog(ct) }
+        // Circular Play button — bottom-right, starts the live cardio session
+        PlayCircle(pc, Modifier.align(Alignment.BottomEnd).padding(10.dp)) { tap(); onStart(ct) }
     }
 }
 

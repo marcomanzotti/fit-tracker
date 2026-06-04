@@ -160,6 +160,13 @@ object L {
         "wk.discard_q" to ("Eliminare questo allenamento? L'operazione non può essere annullata." to "Discard this workout? This can't be undone."),
         "wk.discarded" to ("Allenamento eliminato" to "Workout discarded"),
         "wk.minimize" to ("Riduci" to "Minimize"),
+        "wk.paused" to ("In pausa" to "Paused"),
+        "wk.pause" to ("Pausa" to "Pause"),
+        "wk.resume" to ("Riprendi" to "Resume"),
+        "wk.finish" to ("Termina" to "Finish"),
+        "wk.speed_pace" to ("Ritmo" to "Pace"),
+        "wk.session_saved" to ("Sessione salvata" to "Session saved"),
+        "wk.gps_hint" to ("Attiva la posizione per misurare distanza e ritmo via GPS." to "Enable location to measure distance and pace via GPS."),
 
         "cal.title" to ("Calendario" to "Calendar"),
         "cal.no_sessions" to ("Nessuna sessione questo mese" to "No sessions this month"),

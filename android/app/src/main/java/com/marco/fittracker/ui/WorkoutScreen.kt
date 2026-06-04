@@ -74,15 +74,20 @@ fun WorkoutScreen() {
     val store = LocalStore.current
     val toast = LocalToast.current
     val activeWorkout = LocalActiveWorkout.current
+    val activeCardio = LocalActiveCardio.current
 
     var editingPlan by remember { mutableStateOf<WorkoutPlan?>(null) }
     var isNew by remember { mutableStateOf(false) }
 
     val active = activeWorkout.planId?.let { store.plan(it) }
+    val activeCt = activeCardio.typeId?.let { store.cardioType(it) }
     when {
         active != null && !activeWorkout.minimized -> LiveWorkout(active, activeWorkout.log,
             onBack = { activeWorkout.minimized = true },   // minimize, keep running
             onSaved = { activeWorkout.end() })             // finish / discard ends it
+        activeCt != null && !activeCardio.minimized -> LiveCardio(activeCt,
+            onBack = { activeCardio.minimized = true },    // minimize, keep running
+            onSaved = { activeCardio.end() })              // finish / discard ends it
         editingPlan != null -> PlanEditor(editingPlan!!, isNew,
             onSave = { p ->
                 val fixed = if (p.name.trim().isEmpty()) p.copy(name = "Nuovo giorno") else p
@@ -94,6 +99,7 @@ fun WorkoutScreen() {
             onCancel = { editingPlan = null })
         else -> WorkoutGrid(
             onStart = { p -> activeWorkout.start(p) },
+            onStartCardio = { c -> activeCardio.start(c) },
             onNew = { editingPlan = WorkoutPlan(name = "", sub = "", color = T.planColors.first(), exercises = emptyList()); isNew = true },
             onEdit = { editingPlan = it; isNew = false }
         )
@@ -102,7 +108,7 @@ fun WorkoutScreen() {
 
 // MARK: - Grid of workout days
 @Composable
-private fun WorkoutGrid(onStart: (WorkoutPlan) -> Unit, onNew: () -> Unit, onEdit: (WorkoutPlan) -> Unit) {
+private fun WorkoutGrid(onStart: (WorkoutPlan) -> Unit, onStartCardio: (CardioType) -> Unit, onNew: () -> Unit, onEdit: (WorkoutPlan) -> Unit) {
     val store = LocalStore.current
     val tap = rememberTap()
 
@@ -127,29 +133,19 @@ private fun WorkoutGrid(onStart: (WorkoutPlan) -> Unit, onNew: () -> Unit, onEdi
 
     Text(t("wk.edit_hint"), color = T.sub, fontSize = 11.sp, lineHeight = 15.sp)
 
-    // 2-column grid built from rows
-    val cells = store.plans.toList()
-    val rows = (cells.size + 1 + 1) / 2  // +1 for add card
-    val items: List<WorkoutPlan?> = cells + listOf(null) // null = add card
-    for (r in 0 until rows) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(11.dp)) {
-            for (c in 0 until 2) {
-                val idx = r * 2 + c
-                Box(Modifier.weight(1f)) {
-                    if (idx < items.size) {
-                        val p = items[idx]
-                        if (p != null) DayCard(p, onStart, onEdit) else AddCard(onNew)
-                    }
-                }
-            }
-        }
-    }
+    // 2-column grid, max 6 cards per page with horizontal paging past that.
+    CardPager(
+        items = store.plans.toList(),
+        card = { p -> DayCard(p, onStart, onEdit) },
+        addCard = { AddCard(onNew) }
+    )
 
     // Cardio activities (saveable, customizable like strength days)
     CardioSection(
         onLog = { loggingCardio = it },
         onEdit = { editingCardio = it; isNewCardio = false },
-        onNew = { editingCardio = CardioType(name = "", sport = "running", color = T.cardioColors.first()); isNewCardio = true }
+        onNew = { editingCardio = CardioType(name = "", sport = "running", color = T.cardioColors.first()); isNewCardio = true },
+        onStart = { onStartCardio(it) }
     )
 
     // Recent sessions (tap to edit / delete)
@@ -204,8 +200,11 @@ private fun DayCard(p: WorkoutPlan, onStart: (WorkoutPlan) -> Unit, onEdit: (Wor
             Spacer(Modifier.height(11.dp))
             Box(Modifier.fillMaxWidth().height(1.dp).background(T.brd))
             Spacer(Modifier.height(8.dp))
-            Text("${p.exercises.size} ${t("wk.exercises_n").uppercase()}", color = T.sub, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp)
-            Spacer(Modifier.height(4.dp))
+            // Reserve clear space below the count line so the Play circle, which
+            // sits in the bottom-right, never touches this text.
+            Text("${p.exercises.size} ${t("wk.exercises_n").uppercase()}", color = T.sub, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp,
+                modifier = Modifier.padding(end = 46.dp))
+            Spacer(Modifier.height(14.dp))
         }
         // Edit icon — top-right
         Box(
@@ -267,7 +266,6 @@ private fun LiveWorkout(plan: WorkoutPlan, log: SnapshotStateList<LoggedExercise
     var saved by remember { mutableStateOf(false) }
     var sessDurationSec by remember { mutableStateOf<Int?>(null) }
     var sessAvgHR by remember { mutableStateOf("") }
-    var sessRMSSD by remember { mutableStateOf("") }
     var sessCalManual by remember { mutableStateOf("") }
     var confirmDiscard by remember { mutableStateOf(false) }
 
@@ -363,16 +361,8 @@ private fun LiveWorkout(plan: WorkoutPlan, log: SnapshotStateList<LoggedExercise
                 Text(t("load.trimp_hint"), color = T.sub, fontSize = 9.sp)
             }
         }
-        Spacer(Modifier.height(11.dp))
-        Box(Modifier.fillMaxWidth().height(1.dp).background(T.brd))
-        Spacer(Modifier.height(11.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(t("load.recommended").uppercase(), color = T.sub, fontSize = 8.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
-            Spacer(Modifier.width(7.dp))
-            Badge(t("load.sensor"), T.blue, T.blue.copy(alpha = 0.12f))
-        }
-        Spacer(Modifier.height(9.dp))
-        LoadField(t("wk.rmssd"), sessRMSSD, "rmssd", KeyboardType.Decimal) { sessRMSSD = it }
+        // HRV (recovery) is imported automatically from the watch / health
+        // platform — readiness runs on it without any manual entry here.
     }
 
     // Calories — NOT prefilled at start. Pressing Play begins a live session, it
@@ -413,7 +403,6 @@ private fun LiveWorkout(plan: WorkoutPlan, log: SnapshotStateList<LoggedExercise
                 store.addSession(WorkoutSession(
                     date = today(), planId = plan.id, planName = plan.name, planColor = plan.color, exercises = exercises,
                     durationSec = sessDurationSec ?: (if (elapsedSec > 0) elapsedSec else null), avgHR = sessAvgHR.toIntOrNull(),
-                    rmssd = if (sessRMSSD.isEmpty()) null else pf(sessRMSSD),
                     caloriesManual = sessCalManual.toIntOrNull()?.takeIf { it > 0 }))
                 saved = true; timer.stop()
                 view.performHapticFeedback(android.view.HapticFeedbackConstants.CONFIRM)

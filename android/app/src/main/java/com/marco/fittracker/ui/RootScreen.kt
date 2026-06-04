@@ -65,6 +65,7 @@ val LocalStore = compositionLocalOf<Store> { error("Store not provided") }
 val LocalTimer = compositionLocalOf<TimerState> { error("Timer not provided") }
 val LocalToast = compositionLocalOf<ToastState> { error("Toast not provided") }
 val LocalActiveWorkout = compositionLocalOf<ActiveWorkoutState> { error("ActiveWorkout not provided") }
+val LocalActiveCardio = compositionLocalOf<ActiveCardioState> { error("ActiveCardio not provided") }
 
 class TimerState {
     var remaining by mutableIntStateOf(0)
@@ -114,6 +115,34 @@ class ActiveWorkoutState {
     fun end() { planId = null; log.clear(); startMs = 0L; minimized = false }
 }
 
+/** Holds a running cardio session so it survives tab switches (mirrors
+ *  ActiveWorkoutState). Tracks paused-aware elapsed seconds plus GPS distance
+ *  and current speed fed from the live cardio screen's location updates. */
+class ActiveCardioState {
+    var typeId by mutableStateOf<String?>(null)
+    var minimized by mutableStateOf(false)
+    var elapsedSec by mutableIntStateOf(0)
+    var paused by mutableStateOf(false)
+    var gpsDistanceKm by mutableStateOf<Double?>(null)
+    var speedMs by mutableStateOf(0.0)
+
+    val isActive get() = typeId != null
+
+    fun start(type: com.marco.fittracker.data.CardioType) {
+        typeId = type.id
+        minimized = false
+        elapsedSec = 0
+        paused = false
+        gpsDistanceKm = null
+        speedMs = 0.0
+    }
+
+    fun end() {
+        typeId = null; minimized = false; elapsedSec = 0
+        paused = false; gpsDistanceKm = null; speedMs = 0.0
+    }
+}
+
 enum class Tab(val label: String, val sub: String) {
     HOME("Home", "Dashboard"),
     ALLENA("Allena", "Log allenamento"),
@@ -127,6 +156,7 @@ fun RootScreen() {
     val timer = remember { TimerState() }
     val toast = remember { ToastState() }
     val activeWorkout = remember { ActiveWorkoutState() }
+    val activeCardio = remember { ActiveCardioState() }
     val view = LocalView.current
 
     // Countdown loop — on completion fire a strong, unmistakable rest-done buzz
@@ -147,7 +177,7 @@ fun RootScreen() {
         if (toast.message != null) { delay(1800); toast.message = null }
     }
 
-    CompositionLocalProvider(LocalStore provides store, LocalTimer provides timer, LocalToast provides toast, LocalActiveWorkout provides activeWorkout) {
+    CompositionLocalProvider(LocalStore provides store, LocalTimer provides timer, LocalToast provides toast, LocalActiveWorkout provides activeWorkout, LocalActiveCardio provides activeCardio) {
         var tab by remember { mutableStateOf(Tab.HOME) }
         var showSettings by remember { mutableStateOf(false) }
         val statusPad = WindowInsets.statusBars.asPaddingValues()
@@ -182,6 +212,13 @@ fun RootScreen() {
                 if (activeWorkout.isActive && (tab != Tab.ALLENA || activeWorkout.minimized)) {
                     ActiveWorkoutStrip(activeWorkout, store) {
                         activeWorkout.minimized = false
+                        tab = Tab.ALLENA
+                    }
+                }
+                // Same floating strip for a running cardio session.
+                if (activeCardio.isActive && (tab != Tab.ALLENA || activeCardio.minimized)) {
+                    ActiveCardioStrip(activeCardio, store) {
+                        activeCardio.minimized = false
                         tab = Tab.ALLENA
                     }
                 }
@@ -307,6 +344,35 @@ private fun ActiveWorkoutStrip(activeWorkout: ActiveWorkoutState, store: com.mar
         Column(Modifier.weight(1f)) {
             Text(com.marco.fittracker.data.t("wk.workout_live").uppercase(), color = T.sub, fontSize = 8.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp)
             Text((plan?.name ?: "").uppercase(), color = pc, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+        }
+        Text(elapsed, color = T.txt, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+        Icon(Icons.Filled.PlayArrow, null, tint = T.sub, modifier = Modifier.size(18.dp))
+    }
+}
+
+@Composable
+private fun ActiveCardioStrip(activeCardio: ActiveCardioState, store: com.marco.fittracker.data.Store, onTap: () -> Unit) {
+    val tap = rememberTap()
+    val ct = activeCardio.typeId?.let { store.cardioType(it) }
+    val pc = ct?.let { hexColor(it.color) } ?: T.acc
+    val elapsed = "%d:%02d".format(activeCardio.elapsedSec / 60, activeCardio.elapsedSec % 60)
+
+    Row(
+        Modifier
+            .padding(horizontal = 16.dp)
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(T.c2)
+            .clickable { tap(); onTap() }
+            .padding(vertical = 11.dp, horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Box(Modifier.size(8.dp).clip(CircleShape).background(pc))
+        Column(Modifier.weight(1f)) {
+            Text(com.marco.fittracker.data.t(if (activeCardio.paused) "wk.paused" else "wk.workout_live").uppercase(),
+                color = T.sub, fontSize = 8.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp)
+            Text((ct?.name ?: "").uppercase(), color = pc, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1)
         }
         Text(elapsed, color = T.txt, fontSize = 22.sp, fontWeight = FontWeight.Bold)
         Icon(Icons.Filled.PlayArrow, null, tint = T.sub, modifier = Modifier.size(18.dp))
