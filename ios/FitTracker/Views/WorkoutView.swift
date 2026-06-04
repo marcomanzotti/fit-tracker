@@ -208,7 +208,7 @@ struct WorkoutView: View {
                 } label: {
                     Image(systemName: "applewatch")
                         .font(.system(size: 13, weight: .bold)).foregroundColor(Theme.bg)
-                        .frame(width: 40, minHeight: 34)
+                        .frame(width: 40, height: 34)
                         .background(Color(hex: p.color).opacity(0.75))
                 }
                 .buttonStyle(.plain)

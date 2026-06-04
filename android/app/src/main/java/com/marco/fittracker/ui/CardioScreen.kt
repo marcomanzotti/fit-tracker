@@ -47,6 +47,7 @@ import com.marco.fittracker.data.WorkoutSession
 import com.marco.fittracker.data.pf
 import com.marco.fittracker.data.t
 import com.marco.fittracker.data.today
+import com.marco.fittracker.data.titleCased
 import com.marco.fittracker.data.trimNum
 import com.marco.fittracker.data.trimp
 

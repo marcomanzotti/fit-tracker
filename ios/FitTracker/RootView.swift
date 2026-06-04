@@ -57,10 +57,6 @@ struct RootView: View {
                     .padding(.horizontal, 16).padding(.top, 14).padding(.bottom, 130)
                 }
                 .scrollDismissesKeyboard(.interactively)
-                // Lock horizontal axis so the Home screen (and all tabs) cannot
-                // drift sideways — SwiftUI's rubber-band effect only applies to
-                // the axes the ScrollView actually scrolls.
-                .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
             }
 
             VStack(spacing: 8) {

@@ -97,10 +97,10 @@ private fun Overview() {
     val store = LocalStore.current
     val bf = store.currentBF
 
-    val weightSeries = store.metricSeries { it.weight }
-    val sleepSeries  = store.metricSeries { it.sleep?.toDouble() }
-    val stepsSeries  = store.metricSeries { it.steps?.toDouble() }
-    val bmiSeries    = store.metricSeries { it.weight?.let { w -> store.bmi(w) } }
+    val weightSeries = store.metricSeries(value = { e -> e.weight })
+    val sleepSeries  = store.metricSeries(value = { e -> e.sleep?.toDouble() })
+    val stepsSeries  = store.metricSeries(value = { e -> e.steps?.toDouble() })
+    val bmiSeries    = store.metricSeries(value = { e -> e.weight?.let { w -> store.bmi(w) } })
 
     MetricCard("Peso", weightSeries, T.acc)
     MetricCard("Sleep score", sleepSeries, T.blue, yMin = 0.0, yMax = 100.0)

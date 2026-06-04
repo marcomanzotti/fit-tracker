@@ -67,7 +67,7 @@ fun HomeScreen(onTab: (Tab) -> Unit) {
         Card(borderColor = T.acc.copy(alpha = 0.3f)) {
             Lbl(t("home.checkin"), T.acc2)
             Spacer(Modifier.height(10.dp))
-            LabeledField("${t("home.weight")} (KG)", if (store.prefs.units == "imperial") "193" else "87,5", weightInput, { weightInput = it })
+            LabeledField("${t("home.weight")} (KG)", "87,5", weightInput, { weightInput = it })
             Spacer(Modifier.height(10.dp))
             FilledButton(t("home.save_checkin")) {
                 val w = pf(weightInput)
