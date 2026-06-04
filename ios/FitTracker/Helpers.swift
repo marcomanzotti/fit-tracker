@@ -87,3 +87,13 @@ func haptic(_ type: UINotificationFeedbackGenerator.FeedbackType = .success) {
 func tap() {
     UIImpactFeedbackGenerator(style: .light).impactOccurred()
 }
+
+
+// MARK: - Text helpers
+/// Capitalise the first letter of every word; rest lowercase.
+func titleCased(_ s: String) -> String {
+    s.split(separator: " ", omittingEmptySubsequences: false).map { word -> String in
+        guard let first = word.first else { return String(word) }
+        return first.uppercased() + word.dropFirst().lowercased()
+    }.joined(separator: " ")
+}

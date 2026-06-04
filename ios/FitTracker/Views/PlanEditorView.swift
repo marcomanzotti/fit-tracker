@@ -1,5 +1,71 @@
 import SwiftUI
 
+// MARK: - Exercise name field with autocomplete + title-case
+// Shown inside each exercise row. As the user types, names from the exercise
+// library that contain the typed text are shown in a dropdown below the field;
+// tapping one fills the field exactly to avoid duplicate-name fragmentation.
+private struct ExerciseNameField: View {
+    @EnvironmentObject var store: Store
+    @Binding var name: String
+    var placeholder: String
+
+    @State private var showSuggestions = false
+    @State private var isFocused = false
+
+    private var suggestions: [String] {
+        let q = name.trimmingCharacters(in: .whitespaces)
+        guard q.count >= 2 else { return [] }
+        let all = store.allExerciseNames().map { $0.name }
+        return Array(all
+            .filter { $0.localizedCaseInsensitiveContains(q) && $0.lowercased() != q.lowercased() }
+            .prefix(5))
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            TextField("", text: $name,
+                      prompt: Text(placeholder).foregroundColor(Theme.sub))
+                .font(.system(size: 14, weight: .medium)).foregroundColor(Theme.txt)
+                .autocorrectionDisabled()
+                .onChange(of: name) { newVal in
+                    let titled = titleCased(newVal)
+                    if titled != newVal { name = titled }
+                    showSuggestions = !suggestions.isEmpty
+                }
+                .onSubmit { showSuggestions = false }
+
+            if showSuggestions && !suggestions.isEmpty {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(suggestions, id: \.self) { s in
+                        Button {
+                            tap()
+                            name = s
+                            showSuggestions = false
+                        } label: {
+                            Text(s)
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundColor(Theme.txt)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.vertical, 9).padding(.horizontal, 12)
+                                .background(Theme.c3)
+                        }
+                        .buttonStyle(.plain)
+                        if s != suggestions.last {
+                            Divider().background(Theme.brd)
+                        }
+                    }
+                }
+                .clipShape(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous)
+                    .stroke(Theme.brd, lineWidth: 1))
+                .padding(.top, 4)
+                .zIndex(10)
+            }
+        }
+    }
+
+}
+
 struct PlanEditorView: View {
     @EnvironmentObject var store: Store
     @Binding var plan: WorkoutPlan
@@ -28,6 +94,7 @@ struct PlanEditorView: View {
             Card {
                 Lbl(text: t("pe.day_name")).padding(.bottom, 8)
                 InputField(placeholder: t("pe.day_name_ph"), text: $plan.name, keyboard: .default)
+                    .onChange(of: plan.name) { v in let tc = titleCased(v); if tc != v { plan.name = tc } }
                     .padding(.bottom, 10)
                 Lbl(text: t("pe.subtitle")).padding(.bottom, 8)
                 InputField(placeholder: t("pe.subtitle_ph"), text: $plan.sub, keyboard: .default)
@@ -102,10 +169,8 @@ struct PlanEditorView: View {
         let idx = plan.exercises.firstIndex(where: { $0.id == id })
         let bw = ex.wrappedValue.bodyweight
         return VStack(spacing: 9) {
-            HStack(spacing: 8) {
-                TextField("", text: ex.name,
-                          prompt: Text(t("pe.ex_name_ph")).foregroundColor(Theme.sub))
-                    .font(.system(size: 14, weight: .medium)).foregroundColor(Theme.txt)
+            HStack(alignment: .top, spacing: 8) {
+                ExerciseNameField(name: ex.name, placeholder: t("pe.ex_name_ph"))
                 BodyweightChip(isBodyweight: ex.isBodyweight)
                 Button { tap(); plan.exercises.removeAll { $0.id == id } } label: {
                     Image(systemName: "xmark").font(.system(size: 13)).foregroundColor(Theme.red.opacity(0.7))

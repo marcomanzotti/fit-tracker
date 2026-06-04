@@ -524,7 +524,10 @@ struct Prefs: Codable, Equatable {
     /// Selected Health import categories — defaults to every daily metric on.
     var healthCategories: Set<String> { Set(healthImport ?? HealthCategory.allKeys) }
     func importsHealth(_ key: String) -> Bool { healthCategories.contains(key) }
-    var importWorkoutsEnabled: Bool { importWorkouts == true }
+    /// Import workouts from Apple Health. Defaults ON when HealthKit is enabled —
+    /// Apple Watch workouts written to Health should appear in the app automatically.
+    /// The user can turn it off in Settings if they prefer not to import.
+    var importWorkoutsEnabled: Bool { importWorkouts != false }
     var imperial: Bool { units == "imperial" }
     var restDaySet: Set<String> { Set(restDays ?? []) }
     /// Schedule normalized to exactly 7 slots (Mon..Sun); missing -> all empty.

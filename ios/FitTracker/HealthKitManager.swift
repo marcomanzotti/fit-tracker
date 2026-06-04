@@ -29,6 +29,7 @@ struct HealthWorkout {
     var uuid: String          // HKWorkout UUID — dedupe key
     var date: String          // yyyy-MM-dd of the start
     var sport: String         // Sport raw value (running/cycling/…/strength/other)
+    var displayName: String   // human-readable activity name ("Weight Training", "Running", …)
     var durationSec: Int
     var kcal: Int?            // active energy burned
     var distanceKm: Double?
@@ -226,6 +227,7 @@ final class HealthKitManager {
             uuid: w.uuid.uuidString,
             date: isoFormatter.string(from: w.startDate),
             sport: Self.sport(for: w.workoutActivityType),
+            displayName: Self.displayName(for: w.workoutActivityType),
             durationSec: Int(w.duration.rounded()),
             kcal: kcal, distanceKm: km, avgHR: avg, maxHR: mx,
             fromThisApp: src == appBundle || src.hasPrefix("com.marco.manzotti.fittracker"),
@@ -242,6 +244,46 @@ final class HealthKitManager {
         case .traditionalStrengthTraining, .functionalStrengthTraining, .coreTraining, .crossTraining:
             return "strength"
         default: return "other"
+        }
+    }
+
+    /// Human-readable name for the workout type — shown as the session name in
+    /// the app so users can distinguish "Weight Training" from "Running" etc.
+    private static func displayName(for t: HKWorkoutActivityType) -> String {
+        switch t {
+        case .running:                        return "Running"
+        case .walking:                        return "Walking"
+        case .hiking:                         return "Hiking"
+        case .cycling:                        return "Cycling"
+        case .handCycling:                    return "Hand Cycling"
+        case .swimming:                       return "Swimming"
+        case .traditionalStrengthTraining:    return "Weight Training"
+        case .functionalStrengthTraining:     return "Functional Strength"
+        case .coreTraining:                   return "Core Training"
+        case .crossTraining:                  return "Cross Training"
+        case .yoga:                           return "Yoga"
+        case .pilates:                        return "Pilates"
+        case .rowing:                         return "Rowing"
+        case .elliptical:                     return "Elliptical"
+        case .stairClimbing:                  return "Stair Climbing"
+        case .stepTraining:                   return "Step Training"
+        case .highIntensityIntervalTraining:  return "HIIT"
+        case .flexibility:                    return "Flexibility"
+        case .jumpRope:                       return "Jump Rope"
+        case .boxing:                         return "Boxing"
+        case .martialArts:                    return "Martial Arts"
+        case .soccer:                         return "Soccer"
+        case .basketball:                     return "Basketball"
+        case .tennis:                         return "Tennis"
+        case .golf:                           return "Golf"
+        case .dance:                          return "Dance"
+        case .barre:                          return "Barre"
+        case .skatingSports:                  return "Skating"
+        case .snowSports:                     return "Snow Sports"
+        case .surfingSports:                  return "Surfing"
+        case .waterFitness:                   return "Water Fitness"
+        case .mindAndBody:                    return "Mind & Body"
+        default:                              return "Workout"
         }
     }
 

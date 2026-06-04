@@ -274,6 +274,10 @@ struct FoodFormSheet: View {
                             VStack(alignment: .leading, spacing: 7) {
                                 FieldLabel(t("food.name"))
                                 InputField(placeholder: "Riso / Rice", text: $name, keyboard: .default)
+                                    .onChange(of: name) { v in
+                                        let tc = titleCased(v)
+                                        if tc != v { name = tc }
+                                    }
                             }
                             Text("\(t("food.per100_label")) (100\(liquid ? "ml" : "g"))".uppercased())
                                 .font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.acc2)

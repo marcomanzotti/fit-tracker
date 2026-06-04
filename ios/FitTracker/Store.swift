@@ -723,10 +723,13 @@ extension Store {
 
             let sportType = Sport(rawValue: w.sport) ?? .other
             // Imported Health workouts are normal sessions but get Apple's workout
-            // green so they read as "from Apple Health" on the calendar. They never
-            // create Train-page cards (those come from plans/cardio types only).
+            // green so they read as "from Apple Health" on the calendar. The name
+            // uses the HK display name ("Weight Training", "Running", …) so the user
+            // can tell different activity types apart. They never create Train-page
+            // cards (those come from plans/cardio types only).
+            let sessionName = w.displayName.isEmpty ? sportType.label : w.displayName
             var s = WorkoutSession(date: w.date, planId: "health-\(w.sport)",
-                                   planName: sportType.label, planColor: Theme.appleGreen)
+                                   planName: sessionName, planColor: Theme.appleGreen)
             s.sport = isStrength ? nil : w.sport
             s.durationSec = w.durationSec > 0 ? w.durationSec : nil
             s.avgHR = (w.avgHR ?? 0) > 0 ? w.avgHR : nil

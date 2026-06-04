@@ -43,7 +43,7 @@ struct RootView: View {
 
             VStack(spacing: 0) {
                 HeaderBar(tab: tab) { showSettings = true }
-                ScrollView {
+                ScrollView(.vertical) {
                     VStack(spacing: 11) {
                         switch tab {
                         case .home:   HomeView(tab: $tab)
@@ -56,6 +56,10 @@ struct RootView: View {
                     .padding(.horizontal, 16).padding(.top, 14).padding(.bottom, 130)
                 }
                 .scrollDismissesKeyboard(.interactively)
+                // Lock horizontal axis so the Home screen (and all tabs) cannot
+                // drift sideways — SwiftUI's rubber-band effect only applies to
+                // the axes the ScrollView actually scrolls.
+                .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
             }
 
             VStack(spacing: 8) {

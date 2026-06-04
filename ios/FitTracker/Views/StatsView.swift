@@ -57,7 +57,7 @@ struct StatsView: View {
             MetricChartCard(title: t("st.sleep"), info: "sleep", color: Theme.blue, yDomain: 0...100) {
                 $0.sleep.map(Double.init)
             }
-            MetricChartCard(title: t("st.steps_time"), color: Theme.blue, kind: .bar) {
+            MetricChartCard(title: t("st.steps_time"), color: Color(hex: "ff9500"), kind: .bar) {
                 $0.steps.map(Double.init)
             }
             MetricChartCard(title: t("st.vo2_time"), color: Theme.good) {
