@@ -237,6 +237,7 @@ extension Store {
     }
 
     func plan(_ id: String) -> WorkoutPlan? { plans.first { $0.id == id } }
+    func cardioType(_ id: String) -> CardioType? { cardioTypes.first { $0.id == id } }
 
     func bmi(_ w: Double) -> Double { ((w / (prefs.height * prefs.height)) * 10).rounded() / 10 }
 

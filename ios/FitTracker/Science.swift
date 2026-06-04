@@ -216,8 +216,9 @@ extension Store {
     /// The composite z maps to 0-100 as 50 + 20·z (so ±2.5 SD spans the full range)
     /// and to the rest/easy/ready advice bands.
     func readiness() -> ReadinessResult {
-        // HRV: prefer manually typed RMSSD, fall back to Health SDNN — whichever
-        // has more days, used consistently (the z-score works on either).
+        // HRV: prefer any legacy per-session/daily HRV value, fall back to the
+        // HRV imported from Apple Health — whichever has more days, used
+        // consistently (the z-score works on either; both are HRV in ms).
         var rmssdMap: [String: Double] = [:]
         for s in sessions { if let r = s.rmssd, r > 0 { rmssdMap[s.date] = r } }
         for d in daily { if let r = d.rmssd, r > 0 { rmssdMap[d.date] = r } }

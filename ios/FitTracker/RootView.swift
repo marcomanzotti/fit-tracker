@@ -34,6 +34,7 @@ struct RootView: View {
     @EnvironmentObject var timer: RestTimer
     @EnvironmentObject var toast: ToastCenter
     @EnvironmentObject var activeWorkout: ActiveWorkout
+    @EnvironmentObject var activeCardio: ActiveCardio
     @State private var tab: Tab = .home
     @State private var showSettings = false
     @Environment(\.scenePhase) private var scenePhase
@@ -74,6 +75,13 @@ struct RootView: View {
                 if activeWorkout.isActive && (tab != .allena || activeWorkout.minimized) {
                     ActiveWorkoutStrip {
                         activeWorkout.minimized = false
+                        tab = .allena
+                    }
+                }
+                // Same floating strip for a running cardio session.
+                if activeCardio.isActive && (tab != .allena || activeCardio.minimized) {
+                    ActiveCardioStrip {
+                        activeCardio.minimized = false
                         tab = .allena
                     }
                 }
@@ -222,6 +230,47 @@ struct ActiveWorkoutStrip: View {
             .background(Theme.c2)
             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(planColor.opacity(0.4), lineWidth: 1))
+            .padding(.horizontal, 16)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Active cardio strip (shown when a cardio session runs on another tab)
+struct ActiveCardioStrip: View {
+    @EnvironmentObject var activeCardio: ActiveCardio
+    @EnvironmentObject var store: Store
+    let onTap: () -> Void
+
+    private var ct: CardioType? { activeCardio.typeId.flatMap { store.cardioType($0) } }
+    private var color: Color { ct.map { Color(hex: $0.color) } ?? Theme.acc }
+
+    private var elapsed: String {
+        let sec = activeCardio.elapsedSec
+        let m = sec / 60, s = sec % 60
+        return String(format: "%d:%02d", m, s)
+    }
+
+    var body: some View {
+        Button { tap(); onTap() } label: {
+            HStack(spacing: 12) {
+                Circle().fill(color).frame(width: 8, height: 8)
+                    .overlay(Circle().stroke(color.opacity(0.3), lineWidth: 4))
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(t(activeCardio.paused ? "wk.paused" : "wk.workout_live").uppercased())
+                        .font(.head(8, .semibold)).tracking(1.5).foregroundColor(Theme.sub)
+                    Text((ct?.name ?? "").uppercased())
+                        .font(.head(13, .bold)).tracking(0.5).foregroundColor(color).lineLimit(1)
+                }
+                Spacer()
+                Text(elapsed).font(.num(22)).foregroundColor(Theme.txt)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.sub)
+            }
+            .padding(.vertical, 11).padding(.horizontal, 16)
+            .background(Theme.c2)
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(color.opacity(0.4), lineWidth: 1))
             .padding(.horizontal, 16)
         }
         .buttonStyle(.plain)

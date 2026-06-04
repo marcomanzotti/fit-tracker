@@ -36,8 +36,8 @@ struct BodyView: View {
 
     // MARK: Sleep (feeds the readiness engine). Read-only, imported from Apple
     // Health: most people get sleep/HR/HRV from a watch, so there's no manual
-    // entry here. RMSSD is still computed internally for readiness; we surface the
-    // Health HRV (SDNN) value to the user instead.
+    // entry here. HRV is imported from Apple Health / the watch and drives the
+    // readiness score directly — the user never has to type it.
     private var sleepCard: some View {
         let e = store.daily.first(where: { $0.date == today() })
         let hrv = (e?.hrvSDNN ?? 0) > 0 ? e?.hrvSDNN : nil
@@ -56,7 +56,7 @@ struct BodyView: View {
                          unit: score != nil ? "/100" : nil, valueColor: Theme.acc2,
                          note: hrs.map { "\(trimNum($0)) h" } ?? "—", info: "sleep")
                 StatTile(label: "HRV", value: hrv.map(trimNum) ?? "—", unit: hrv != nil ? "ms" : nil,
-                         valueColor: Theme.blue, note: t("st.hrv_sdnn"), info: "rmssd")
+                         valueColor: Theme.blue, note: t("st.hrv_sdnn"), info: "hrv")
                 StatTile(label: t("body.sleep_hr"), value: sHR.map { "\($0)" } ?? "—",
                          unit: sHR != nil ? "bpm" : nil, valueColor: Theme.red, note: t("hk.cat.sleepHR"))
             }

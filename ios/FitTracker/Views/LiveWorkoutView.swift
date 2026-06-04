@@ -19,7 +19,6 @@ struct LiveWorkoutView: View {
     @State private var saved = false
     @State private var sessDurationSec: Int? = nil
     @State private var sessAvgHR = ""
-    @State private var sessRMSSD = ""
     @State private var sessCalManual = ""
     @State private var confirmDiscard = false
     // Drives the live elapsed clock (counts up from the workout start).
@@ -232,15 +231,8 @@ struct LiveWorkoutView: View {
                 }
                 .padding(.top, 12)
             }
-            // Optional, sensor-only recovery metric — clearly flagged as recommended.
-            Rectangle().fill(Theme.brd).frame(height: 1).padding(.vertical, 11)
-            HStack(spacing: 7) {
-                Text(t("load.recommended").uppercased()).font(.head(8, .semibold)).tracking(1).foregroundColor(Theme.sub)
-                Badge(text: t("load.sensor"), color: Theme.blue, bg: Theme.blue.opacity(0.12))
-                Spacer()
-            }
-            .padding(.bottom, 9)
-            loadField(t("wk.rmssd"), $sessRMSSD, info: "rmssd", keyboard: .decimalPad)
+            // HRV (recovery) is imported automatically from Apple Health / the
+            // watch — readiness runs on it without any manual entry here.
         }
     }
 
@@ -517,7 +509,6 @@ struct LiveWorkoutView: View {
         //  so an Apple Watch session takes precedence when present.)
         sess.durationSec = sessDurationSec ?? (elapsedSec > 0 ? elapsedSec : nil)
         sess.avgHR = Int(sessAvgHR)
-        sess.rmssd = sessRMSSD.isEmpty ? nil : pf(sessRMSSD)
         sess.caloriesManual = Int(sessCalManual).flatMap { $0 > 0 ? $0 : nil }
         store.sessions.append(sess)
         saved = true

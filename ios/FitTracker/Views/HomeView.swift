@@ -94,8 +94,10 @@ struct HomeView: View {
                 .foregroundColor(isToday ? Theme.acc : Theme.sub)
             Button {
                 tap()
-                if let first = sess.first { editingSession = first }
-                else { pickerDate = IdentDate(date: ds) }
+                // Open the day sheet (lists logged workouts + Health/Fitness
+                // imports) for any non-future day, so an existing session never
+                // blocks reaching the import list. Future days do nothing.
+                if ds <= today() { pickerDate = IdentDate(date: ds) }
             } label: {
                 ZStack {
                     RoundedRectangle(cornerRadius: 11, style: .continuous).fill(fill)

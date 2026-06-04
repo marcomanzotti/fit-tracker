@@ -5,6 +5,7 @@ struct WorkoutView: View {
     @EnvironmentObject var store: Store
     @EnvironmentObject var toast: ToastCenter
     @EnvironmentObject var activeWorkout: ActiveWorkout
+    @EnvironmentObject var activeCardio: ActiveCardio
 
     @State private var editing: WorkoutPlan?
     @State private var isNew = false
@@ -20,6 +21,12 @@ struct WorkoutView: View {
                 log: $activeWorkout.log,
                 onBack: { activeWorkout.minimized = true },   // minimize, keep running
                 onSaved: { endWorkout() }                      // finish / discard ends it
+            )
+        } else if let cid = activeCardio.typeId, let ct = store.cardioType(cid), !activeCardio.minimized {
+            LiveCardioView(
+                type: ct,
+                onBack: { activeCardio.minimized = true },     // minimize, keep running
+                onSaved: { endCardio() }                        // finish / discard ends it
             )
         } else if editing != nil {
             // editing != nil is guaranteed here, but never force-unwrap: during
@@ -126,15 +133,22 @@ struct WorkoutView: View {
         }
     }
 
-    /// Start a cardio activity: ask a paired watch to start it (live tracking +
-    /// auto-import on stop), and open the logger so the phone can capture the
-    /// session too. Other wearables import automatically from Health later.
+    /// Start a cardio activity for real: open the full live tracking screen
+    /// (running clock + GPS distance/pace + live HR/calories) and, if an Apple
+    /// Watch is paired and reachable, start the identical session there too so the
+    /// two run in sync. Other wearables auto-import from Health afterwards.
     private func startCardio(_ ct: CardioType) {
+        UIApplication.shared.isIdleTimerDisabled = true
+        activeCardio.start(ct)
         if WatchSync.shared.watchReachable {
-            WatchSync.shared.startOnWatch(activityId: ct.id)
+            WatchSync.shared.startOnWatch(activityId: "cardio-\(ct.id)")
             toast.show(t("wk.started_on_watch"))
         }
-        loggingCardio = ct
+    }
+
+    private func endCardio() {
+        UIApplication.shared.isIdleTimerDisabled = false
+        activeCardio.end()
     }
 
     private var addCardioTile: some View {
@@ -182,7 +196,7 @@ struct WorkoutView: View {
                     // Reserve clear space below the count line so the Play circle,
                     // which sits in the bottom-right, never touches this text.
                     .padding(.trailing, 46)
-                    Spacer(minLength: 14)
+                    Spacer(minLength: 20)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
                 .padding(.vertical, 15).padding(.horizontal, 14)
@@ -197,7 +211,7 @@ struct WorkoutView: View {
             // Sits a touch lower/right so it clears the exercise-count line above.
             PlayCircle(color: Color(hex: p.color)) { tap(); start(p) }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-                .padding(.trailing, 12).padding(.bottom, 12)
+                .padding(.trailing, 12).padding(.bottom, 10)
                 .allowsHitTesting(true)
 
             // Edit pill (top-right) — separate from the card tap.

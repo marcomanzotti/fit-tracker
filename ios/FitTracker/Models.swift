@@ -24,7 +24,7 @@ struct DailyEntry: Codable, Identifiable, Equatable {
     var steps: Int?
     var stepsManual: Bool?    // true once the user types a step count — Health stops overwriting it for the day
     // Recovery (optional, manual entry)
-    var rmssd: Double?        // HRV RMSSD typed from an external HRV app
+    var rmssd: Double?        // legacy daily HRV value (no longer user-editable; kept for old backups + readiness)
     var restHR: Int?          // morning resting / waking heart rate
     var hrvSDNN: Double?      // HRV SDNN imported from Apple Health (ms)
     var sleepHR: Int?         // average heart rate during sleep (Health / manual)
@@ -275,7 +275,7 @@ struct WorkoutSession: Codable, Identifiable, Equatable {
     var rpe: Int?              // session global RPE 1-10 (Borg CR10) for sRPE
     var avgHR: Int?            // average heart rate (manual) for TRIMP
     var maxHRSes: Int?         // max heart rate during session (manual)
-    var rmssd: Double?         // RMSSD typed for this session (optional)
+    var rmssd: Double?         // legacy per-session HRV value (no longer user-editable; kept for old backups)
     var distanceKm: Double?    // running / cycling / walking
     var paceManual: Double?    // user pace/speed override in the sport's native unit
     var elevationM: Double?    // optional climb

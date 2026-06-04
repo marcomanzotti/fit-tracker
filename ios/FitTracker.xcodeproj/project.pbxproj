@@ -331,6 +331,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Fit Tracker";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Fit Tracker uses your location during cardio activities to measure distance, pace and route. Tracking only runs while a session is active.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Fit Tracker uses the camera to scan food barcodes so it can look up and save their nutrition values.";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Fit Tracker can optionally read your steps, resting heart rate and HRV to improve readiness, training-load and nutrition estimates. You can always enter these by hand instead.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -367,6 +368,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Fit Tracker";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Fit Tracker uses your location during cardio activities to measure distance, pace and route. Tracking only runs while a session is active.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Fit Tracker uses the camera to scan food barcodes so it can look up and save their nutrition values.";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Fit Tracker can optionally read your steps, resting heart rate and HRV to improve readiness, training-load and nutrition estimates. You can always enter these by hand instead.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -458,6 +460,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Fit Tracker";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Fit Tracker uses your location during cardio activities to measure distance, pace and route. Tracking only runs while a session is active.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Fit Tracker uses the camera to scan food barcodes so it can look up and save their nutrition values.";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Fit Tracker can optionally read your steps, resting heart rate and HRV to improve readiness, training-load and nutrition estimates. You can always enter these by hand instead.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -492,6 +495,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "Fit Tracker";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Fit Tracker uses your location during cardio activities to measure distance, pace and route. Tracking only runs while a session is active.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Fit Tracker uses the camera to scan food barcodes so it can look up and save their nutrition values.";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Fit Tracker can optionally read your steps, resting heart rate and HRV to improve readiness, training-load and nutrition estimates. You can always enter these by hand instead.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;

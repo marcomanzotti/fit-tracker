@@ -49,6 +49,21 @@ struct DayPickerSheet: View {
 
                     Text(t("day.hint")).font(.system(size: 12)).foregroundColor(Theme.sub).lineSpacing(3)
 
+                    // Workouts already logged on this day — tap to open the editor.
+                    // Shown first so a day that already has sessions still gives
+                    // access to the Health-import list below (instead of jumping
+                    // straight into one session's editor).
+                    let logged = store.sessions.filter { $0.date == date }.sorted { $0.planName < $1.planName }
+                    if !logged.isEmpty {
+                        Lbl(text: t("day.logged"))
+                        Card {
+                            ForEach(logged) { s in
+                                loggedRow(s)
+                                if s.id != logged.last?.id { divider }
+                            }
+                        }
+                    }
+
                     // Rest toggle
                     Card {
                         Button { tap(); store.toggleRestDay(date); finish(nil) } label: {
@@ -168,6 +183,45 @@ struct DayPickerSheet: View {
     }
 
     private var divider: some View { Rectangle().fill(Theme.brd).frame(height: 1).padding(.vertical, 2) }
+
+    /// A workout already logged on this day. Tapping hands it back to the caller
+    /// so the calendar opens its editor — same as tapping the day used to do.
+    private func loggedRow(_ s: WorkoutSession) -> some View {
+        Button { tap(); finish(s) } label: {
+            HStack(spacing: 12) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color(hex: s.planColor).opacity(0.16)).frame(width: 38, height: 38)
+                    Image(systemName: s.sportType.isCardio ? s.sportType.icon : "dumbbell.fill")
+                        .font(.system(size: 16, weight: .bold)).foregroundColor(Color(hex: s.planColor))
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 5) {
+                        Text(s.planName).font(.system(size: 15, weight: .semibold)).foregroundColor(Theme.txt).lineLimit(1)
+                        if s.source != nil {
+                            Image(systemName: "heart.fill").font(.system(size: 8)).foregroundColor(Theme.red)
+                        }
+                    }
+                    Text(loggedSummary(s)).font(.system(size: 11)).foregroundColor(Theme.sub).lineLimit(1)
+                }
+                Spacer()
+                Image(systemName: "slider.horizontal.3").foregroundColor(Theme.sub)
+            }
+            .padding(.vertical, 9)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func loggedSummary(_ s: WorkoutSession) -> String {
+        var parts: [String] = []
+        if let sec = s.durationSeconds { parts.append(fmtDuration(sec)) }
+        if s.sportType.isCardio {
+            if let km = s.distanceKm, km > 0 { parts.append("\(dispDist(km)) \(Units.distLabel)") }
+        } else {
+            parts.append("\(s.exercises.count) \(t("wk.exercises_n"))")
+        }
+        parts.append("\(store.estimateCalories(s)) kcal")
+        return parts.joined(separator: " · ")
+    }
 
     /// A pickable Apple-Health workout: green accent, HK display name + a short
     /// metric summary; tapping imports it as a real session and opens its editor.

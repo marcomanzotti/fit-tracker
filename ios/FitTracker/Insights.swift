@@ -472,8 +472,10 @@ struct CalendarCard: View {
         let future = ds > today()
         return Button {
             tap()
-            if let first = daySessions.first { editing = first }
-            else if !future { pickerDate = IdentDate(date: ds) }
+            // Always open the day sheet for a non-future day: it lists that day's
+            // logged workouts (tap to edit) AND the importable Apple Health /
+            // Fitness workouts, so an existing session never blocks the import.
+            if !future { pickerDate = IdentDate(date: ds) }
         } label: {
             VStack(spacing: 1) {
                 Text("\(day)").font(.system(size: 12, weight: isToday ? .bold : .regular))
@@ -542,14 +544,8 @@ struct SessionEditorView: View {
                             }
                             .padding(.top, 12)
                         }
-                        Rectangle().fill(Theme.brd).frame(height: 1).padding(.vertical, 11)
-                        HStack(spacing: 7) {
-                            Text(t("load.recommended").uppercased()).font(.head(8, .semibold)).tracking(1).foregroundColor(Theme.sub)
-                            Badge(text: t("load.sensor"), color: Theme.blue, bg: Theme.blue.opacity(0.12))
-                            Spacer()
-                        }
-                        .padding(.bottom, 9)
-                        metricField(t("wk.rmssd"), doubleBinding(\.rmssd), info: "rmssd", keyboard: .decimalPad)
+                        // HRV (recovery) is imported automatically from Apple Health
+                        // / the watch — readiness uses it without manual entry.
                     }
 
                     // Calories burned (estimate from data; manual override wins).
