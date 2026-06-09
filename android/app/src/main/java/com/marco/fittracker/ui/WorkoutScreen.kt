@@ -59,11 +59,14 @@ import androidx.compose.runtime.DisposableEffect
 import com.marco.fittracker.data.CardioType
 import com.marco.fittracker.data.LoggedExercise
 import com.marco.fittracker.data.PlanExercise
+import com.marco.fittracker.data.ProgKind
 import com.marco.fittracker.data.SetEntry
+import com.marco.fittracker.data.Sport
 import com.marco.fittracker.data.WorkoutPlan
 import com.marco.fittracker.data.WorkoutSession
 import com.marco.fittracker.data.fmtDuration
 import com.marco.fittracker.data.pf
+import com.marco.fittracker.data.progression
 import com.marco.fittracker.data.t
 import com.marco.fittracker.data.today
 import com.marco.fittracker.data.trimNum
