@@ -550,6 +550,28 @@ data class Recipe(
     }
 }
 
+// MARK: - Health Connect daily sample (for gap-fill import)
+data class HealthDaySample(
+    val date: String,
+    val steps: Int? = null, val restHR: Int? = null, val rmssd: Double? = null,
+    val activeKcal: Int? = null, val exerciseMin: Int? = null,
+    val sleepHours: Double? = null, val sleepHR: Int? = null, val vo2max: Double? = null
+)
+
+// MARK: - Health Connect workout record (for merge)
+data class HealthWorkout(
+    val uuid: String,
+    val date: String,
+    val sport: String,
+    val durationSec: Int,
+    val avgHR: Int? = null,
+    val maxHR: Int? = null,
+    val calories: Int? = null,
+    val distance: Double? = null,
+    val sourceName: String = "",
+    val displayName: String = ""
+)
+
 // MARK: - The whole persisted document
 @Serializable
 data class AppData(

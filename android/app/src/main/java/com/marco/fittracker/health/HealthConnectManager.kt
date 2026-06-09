@@ -148,17 +148,16 @@ class HealthConnectManager(private val context: Context) {
 }
 
 // MARK: - Map ExerciseSessionRecord type → Sport
-private fun exerciseTypeSport(type: Int): String = when (type) {
-    ExerciseSessionRecord.EXERCISE_TYPE_RUNNING,
-    ExerciseSessionRecord.EXERCISE_TYPE_RUNNING_TREADMILL -> "running"
-    ExerciseSessionRecord.EXERCISE_TYPE_BIKING,
-    ExerciseSessionRecord.EXERCISE_TYPE_BIKING_STATIONARY -> "cycling"
-    ExerciseSessionRecord.EXERCISE_TYPE_SWIMMING_POOL,
-    ExerciseSessionRecord.EXERCISE_TYPE_SWIMMING_OPEN_WATER -> "swimming"
-    ExerciseSessionRecord.EXERCISE_TYPE_WALKING -> "walking"
-    ExerciseSessionRecord.EXERCISE_TYPE_STRENGTH_TRAINING,
-    ExerciseSessionRecord.EXERCISE_TYPE_WEIGHTLIFTING -> "strength"
-    else -> "other"
+private fun exerciseTypeSport(type: Int): String {
+    val t = ExerciseSessionRecord.ExerciseTypes
+    return when (type) {
+        t.RUNNING, t.RUNNING_TREADMILL -> "running"
+        t.BIKING, t.BIKING_STATIONARY -> "cycling"
+        t.SWIMMING_POOL, t.SWIMMING_OPEN_WATER -> "swimming"
+        t.WALKING -> "walking"
+        t.STRENGTH_TRAINING, t.WEIGHTLIFTING -> "strength"
+        else -> "other"
+    }
 }
 
 // MARK: - HealthDaySample extension to check category coverage

@@ -370,27 +370,13 @@ class Store(app: Application) : AndroidViewModel(app) {
         }
 
     // MARK: - Health Connect sample import (gap-fill only, manual values win)
-    data class HealthDaySample(
-        val date: String,
-        val steps: Int? = null, val restHR: Int? = null, val hrvSDNN: Double? = null,
-        val activeKcal: Int? = null, val exerciseMin: Int? = null,
-        val sleepHours: Double? = null, val sleepHR: Int? = null, val vo2max: Double? = null
-    )
-
-    companion object {
-        fun sleepScore(fromHours: Double): Int {
-            val penalty = Math.abs(fromHours - 8.0) * 12.0
-            return maxOf(0, minOf(100, (100 - penalty).roundToInt()))
-        }
-    }
-
     fun applyHealthSamples(samples: List<HealthDaySample>) {
         for (s in samples) {
             val existing = daily.firstOrNull { it.date == s.date } ?: DailyEntry(date = s.date)
             var e = existing
             if (e.stepsManual != true && s.steps != null && s.steps > 0) e = e.copy(steps = s.steps)
             if (e.restHR == null && s.restHR != null && s.restHR > 0) e = e.copy(restHR = s.restHR)
-            if (e.hrvSDNN == null && s.hrvSDNN != null && s.hrvSDNN > 0) e = e.copy(hrvSDNN = s.hrvSDNN)
+            if (e.hrvSDNN == null && s.rmssd != null && s.rmssd > 0) e = e.copy(hrvSDNN = s.rmssd)
             if (e.activeKcal == null && s.activeKcal != null && s.activeKcal > 0) e = e.copy(activeKcal = s.activeKcal)
             if (e.exerciseMin == null && s.exerciseMin != null && s.exerciseMin > 0) e = e.copy(exerciseMin = s.exerciseMin)
             if (e.sleepHours == null && s.sleepHours != null && s.sleepHours > 0) e = e.copy(sleepHours = s.sleepHours)
@@ -408,19 +394,6 @@ class Store(app: Application) : AndroidViewModel(app) {
 
     // MARK: - Health Connect workout import
     // Mirrors iOS applyHealthWorkouts: dedup by UUID, skip same-day/sport/duration overlaps.
-    data class HealthWorkout(
-        val uuid: String,
-        val date: String,
-        val sport: String,
-        val durationSec: Int,
-        val avgHR: Int? = null,
-        val maxHR: Int? = null,
-        val kcal: Int? = null,
-        val distanceKm: Double? = null,
-        val sourceName: String = "",
-        val displayName: String = ""
-    )
-
     fun applyHealthWorkouts(workouts: List<HealthWorkout>): Pair<Int, List<String>> {
         var imported = 0
         val srcs = mutableSetOf<String>()
@@ -454,8 +427,8 @@ class Store(app: Application) : AndroidViewModel(app) {
             durationSec = if (w.durationSec > 0) w.durationSec else null,
             avgHR = w.avgHR?.takeIf { it > 0 },
             maxHRSes = w.maxHR?.takeIf { it > 0 },
-            distanceKm = w.distanceKm?.takeIf { it > 0 },
-            caloriesManual = w.kcal?.takeIf { it > 0 },
+            distanceKm = w.distance?.takeIf { it > 0 },
+            caloriesManual = w.calories?.takeIf { it > 0 },
             healthUUID = w.uuid,
             source = w.sourceName.ifEmpty { null }
         )
@@ -737,6 +710,11 @@ class Store(app: Application) : AndroidViewModel(app) {
 
     // MARK: - Static helpers
     companion object {
+        fun sleepScore(fromHours: Double): Int {
+            val penalty = Math.abs(fromHours - 8.0) * 12.0
+            return maxOf(0, minOf(100, (100 - penalty).roundToInt()))
+        }
+
         fun defaultPlans(): List<WorkoutPlan> = listOf(
             WorkoutPlan(id = "p1", name = "Push", sub = "Chest + Shoulders + Triceps", color = "ff5a52", exercises = listOf(
                 PlanExercise(name = "Barbell bench press", sets = 4, reps = "6-8"),
