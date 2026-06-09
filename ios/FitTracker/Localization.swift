@@ -786,6 +786,31 @@ enum L {
         "st.sort.sessions":   ("Sessioni", "Sessions"),
         "st.all_variants":    ("Tutte", "All"),
         "wk.recreate_plan":   ("Ricrea come scheda", "Recreate as plan"),
+
+        // --- Food brand (v10) -----------------------------------------------
+        "food.brand":         ("Marca", "Brand"),
+
+        // --- Recipe (v10) ---------------------------------------------------
+        "recipe.title":       ("Ricette", "Recipes"),
+        "recipe.new":         ("Nuova ricetta", "New recipe"),
+        "recipe.edit":        ("Modifica ricetta", "Edit recipe"),
+        "recipe.none":        ("Nessuna ricetta salvata. Creane una.", "No saved recipes. Create one."),
+        "recipe.name_placeholder": ("es. Pasta al pesto", "e.g. Pasta with pesto"),
+        "recipe.input_mode":  ("Modalità di creazione", "Creation mode"),
+        "recipe.manual":      ("Manuale", "Manual"),
+        "recipe.from_ingredients": ("Da alimenti", "From foods"),
+        "recipe.per_serving_toggle": ("Valori totali ricetta + porzioni", "Total recipe values + servings"),
+        "recipe.per_serving_hint": ("Inserisci i valori totali e quante porzioni fa la ricetta", "Enter total values and how many servings the recipe makes"),
+        "recipe.servings":    ("Porzioni", "Servings"),
+        "recipe.total_macros_label": ("Valori totali ricetta", "Total recipe values"),
+        "recipe.ingredients": ("Ingredienti", "Ingredients"),
+        "recipe.add_ingredient": ("Aggiungi ingrediente", "Add ingredient"),
+        "recipe.serving":     ("porzione", "serving"),
+        "recipe.servings_short": ("porz", "srv"),
+
+        // --- Sleep manual entry (v10) ----------------------------------------
+        "body.sleep_manual":  ("Inserimento manuale", "Manual entry"),
+        "body.sleep_hours":   ("Ore di sonno", "Sleep hours"),
     ]
 }
 

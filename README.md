@@ -52,6 +52,18 @@ formato dati, cosi' un backup esportato da una si importa nell'altra:
 ### Corpo — misurazioni
 - BMI, body-fat (manuale o stima US-Navy da collo + vita), massa magra/grassa,
   misurazioni settimanali con delta e grafici, export/import JSON.
+- **Sonno**: se Apple Salute non rileva dati per la notte corrente, compare un form
+  di inserimento manuale per ore di sonno, punteggio 0-100, HRV SDNN e FC notturna.
+
+### Nutrizione — alimentazione
+- **Calendario mensile** come vista principale: ogni giorno e' colorato per intake vs
+  target (verde/ambra/rosso), toccabile per inserire o modificare.
+- Apertura su **"Per pasto"** di default per il giorno corrente (colazione /
+  pranzo / cena / spuntini); modalita' Totale rapido e Alimenti per uso avanzato.
+- **Alimenti con marca opzionale**: distingui prodotti con lo stesso nome di brand diversi.
+- **Ricette**: crea ricette da zero (valori per 100 g, oppure totale + porzioni) o
+  assemblale aggiungendo alimenti gia' salvati. Nel picker alimenti / ricette, scorri
+  verso destra per aprire le ricette, verso sinistra per gli alimenti.
 
 ### Stats — statistiche
 - Grafici peso / sonno / BMI / composizione, lista PR, progressione per esercizio,

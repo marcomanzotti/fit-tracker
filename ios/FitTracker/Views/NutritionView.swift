@@ -1,11 +1,8 @@
 import SwiftUI
 
 // MARK: - Nutrition page (dedicated tab)
-// Consolidates everything food-related that used to be scattered around the app:
-// today's intake logging (quick / per-meal / food-by-food with barcode scan via
-// NutritionDayEditor), a managed food database, the daily targets, and the
-// calorie/macro charts. The Home dashboard's NutritionCard is intentionally left
-// untouched; the day-by-day history calendar stays in Stats → History.
+// Consolidates everything food-related: daily targets, today's intake, a
+// month-view calendar (tap any day to log), charts, and the food database.
 struct NutritionView: View {
     @EnvironmentObject var store: Store
 
@@ -14,8 +11,9 @@ struct NutritionView: View {
     var body: some View {
         targetCard
         todayCard
-        FoodDatabaseCard()
+        NutritionCalendarCard()
         NutritionChartsSection()
+        FoodDatabaseCard()
     }
 
     // MARK: Today's targets (compact, action-oriented header)

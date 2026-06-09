@@ -11,9 +11,13 @@ struct BodyView: View {
     @State private var measInputs: [String: String] = [:]
     @State private var shareURL: IdentURL?
     @State private var importing = false
-    // Steps is the only manually-overridable daily input left on this page; sleep
-    // score / HRV / sleeping HR are read-only Health imports.
     @State private var stepsInput = ""
+    // Manual sleep entry (shown when Health has no data for today)
+    @State private var sleepHoursInput = ""
+    @State private var sleepScoreInput = ""
+    @State private var sleepHRVInput = ""
+    @State private var sleepHRInput = ""
+    @State private var showManualSleep = false
 
     var body: some View {
         let lw = store.lastWeight
@@ -34,23 +38,38 @@ struct BodyView: View {
         backupCard
     }
 
-    // MARK: Sleep (feeds the readiness engine). Read-only, imported from Apple
-    // Health: most people get sleep/HR/HRV from a watch, so there's no manual
-    // entry here. HRV is imported from Apple Health / the watch and drives the
-    // readiness score directly — the user never has to type it.
+    // MARK: Sleep card — shows Health data when available, otherwise a manual entry form.
     private var sleepCard: some View {
         let e = store.daily.first(where: { $0.date == today() })
         let hrv = (e?.hrvSDNN ?? 0) > 0 ? e?.hrvSDNN : nil
         let score = (e?.sleep ?? 0) > 0 ? e?.sleep : nil
         let sHR = (e?.sleepHR ?? 0) > 0 ? e?.sleepHR : nil
         let hrs = (e?.sleepHours ?? 0) > 0 ? e?.sleepHours : nil
+        let hasHealthData = score != nil || hrv != nil || sHR != nil || hrs != nil
+
         return Card {
             HStack(spacing: 6) {
                 Lbl(text: t("body.sleep"), color: Theme.acc2)
                 Spacer()
-                Text(t("hk.from_health").uppercased()).font(.head(8, .semibold)).tracking(1).foregroundColor(Theme.sub)
+                if hasHealthData {
+                    Text(t("hk.from_health").uppercased()).font(.head(8, .semibold)).tracking(1).foregroundColor(Theme.sub)
+                } else {
+                    Button {
+                        tap(); showManualSleep.toggle()
+                        if showManualSleep { prefillManualSleep(e) }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: showManualSleep ? "chevron.up" : "pencil")
+                                .font(.system(size: 10, weight: .semibold))
+                            Text(t("body.sleep_manual").uppercased()).font(.head(8, .semibold)).tracking(1)
+                        }
+                        .foregroundColor(Theme.acc2)
+                    }
+                }
             }
             .padding(.bottom, 12)
+
+            // Health tiles (always shown when data exists)
             HStack(spacing: 9) {
                 StatTile(label: t("home.sleep"), value: score.map { "\($0)" } ?? "—",
                          unit: score != nil ? "/100" : nil, valueColor: Theme.acc2,
@@ -60,7 +79,49 @@ struct BodyView: View {
                 StatTile(label: t("body.sleep_hr"), value: sHR.map { "\($0)" } ?? "—",
                          unit: sHR != nil ? "bpm" : nil, valueColor: Theme.red, note: t("hk.cat.sleepHR"))
             }
+
+            // Manual entry form (shown when no Health data, or toggled by user)
+            if !hasHealthData && showManualSleep {
+                VStack(alignment: .leading, spacing: 10) {
+                    Divider().background(Theme.brd).padding(.vertical, 6)
+                    HStack(spacing: 10) {
+                        sleepField(t("body.sleep_hours"), "7.5", $sleepHoursInput)
+                        sleepField(t("home.sleep") + " (0-100)", "82", $sleepScoreInput, .numberPad)
+                    }
+                    HStack(spacing: 10) {
+                        sleepField("HRV SDNN (ms)", "55", $sleepHRVInput)
+                        sleepField(t("body.sleep_hr") + " (bpm)", "52", $sleepHRInput, .numberPad)
+                    }
+                    FilledButton(title: t("save")) { saveManualSleep() }
+                }
+                .padding(.top, 4)
+            }
         }
+    }
+
+    private func sleepField(_ label: String, _ ph: String, _ b: Binding<String>, _ kb: UIKeyboardType = .decimalPad) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(label).font(.head(9, .semibold)).tracking(0.5).foregroundColor(Theme.sub)
+            InputField(placeholder: ph, text: b, keyboard: kb)
+        }
+    }
+
+    private func prefillManualSleep(_ e: DailyEntry?) {
+        if let v = e?.sleepHours, v > 0 { sleepHoursInput = trimNum(v) }
+        if let v = e?.sleep, v > 0 { sleepScoreInput = "\(v)" }
+        if let v = e?.hrvSDNN, v > 0 { sleepHRVInput = trimNum(v) }
+        if let v = e?.sleepHR, v > 0 { sleepHRInput = "\(v)" }
+    }
+
+    private func saveManualSleep() {
+        let hours = pf(sleepHoursInput) > 0 ? pf(sleepHoursInput) : nil
+        let score = Int(sleepScoreInput)
+        let hrv = pf(sleepHRVInput) > 0 ? pf(sleepHRVInput) : nil
+        let sHR = Int(sleepHRInput)
+        store.saveManualSleep(hours: hours, score: score, hrv: hrv, sleepHR: sHR)
+        sleepHoursInput = ""; sleepScoreInput = ""; sleepHRVInput = ""; sleepHRInput = ""
+        showManualSleep = false
+        toast.show(t("save"))
     }
 
     // MARK: Steps (its own card). Imported from Apple Health, but the field stays

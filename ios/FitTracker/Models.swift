@@ -101,6 +101,7 @@ struct MealEntry: Codable, Equatable {
 struct FoodItem: Codable, Identifiable, Equatable {
     var id: String = UUID().uuidString
     var name: String
+    var brand: String?         // optional brand name (e.g. "Barilla", "Mulino Bianco")
     var barcode: String?
     var k100: Double = 0       // kcal per 100 g/ml
     var p100: Double = 0       // protein
@@ -109,10 +110,12 @@ struct FoodItem: Codable, Identifiable, Equatable {
     var liquid: Bool = false   // measured in ml rather than g (display only)
     var lastUsed: String?      // yyyy-MM-dd, for "recent" sorting
     var unit: String { liquid ? "ml" : "g" }
+    /// Display name including brand when present.
+    var fullName: String { brand.map { "\($0) – \(name)" } ?? name }
 
     /// Build a logged use of this food for `grams` (or ml) eaten.
     func log(_ grams: Double) -> FoodLog {
-        FoodLog(foodId: id, name: name, grams: grams, k100: k100, p100: p100, c100: c100, f100: f100)
+        FoodLog(foodId: id, name: fullName, grams: grams, k100: k100, p100: p100, c100: c100, f100: f100)
     }
 }
 
@@ -603,6 +606,73 @@ enum MuscleGroup: String, CaseIterable, Identifiable {
     }
 }
 
+// MARK: - Recipe (saved multi-ingredient meal or preparation)
+// A recipe can be defined two ways (controlled by `perServing`):
+//   • perServing = false: macros are per 100 g/ml of the finished dish (like FoodItem)
+//   • perServing = true:  macros are for the whole recipe; `servings` divides it into portions
+// When the recipe is built from saved FoodItems, `ingredients` holds snapshots of each
+// item + amount; the macro totals are computed from those and cached in the per-100 fields.
+// When entered manually the macro fields are filled directly and `ingredients` is empty.
+struct RecipeIngredient: Codable, Identifiable, Equatable {
+    var id: UUID = UUID()
+    var foodId: String?        // reference to saved FoodItem (nil if one-off)
+    var name: String
+    var grams: Double
+    var k100: Double; var p100: Double; var c100: Double; var f100: Double
+    var kcal: Int  { Int((k100 * grams / 100).rounded()) }
+    var protein: Double { (p100 * grams / 100 * 10).rounded() / 10 }
+    var carbs: Double   { (c100 * grams / 100 * 10).rounded() / 10 }
+    var fat: Double     { (f100 * grams / 100 * 10).rounded() / 10 }
+}
+
+struct Recipe: Codable, Identifiable, Equatable {
+    var id: String = UUID().uuidString
+    var name: String
+    var ingredients: [RecipeIngredient] = []
+    /// When true, the k/p/c/f fields represent the TOTAL for the whole recipe and
+    /// are divided by `servings` before scaling; when false they are per 100 g.
+    var perServing: Bool = false
+    var servings: Double = 1   // number of portions the recipe yields
+    /// Cached/manual per-100 macros (or total macros when perServing = true).
+    var k100: Double = 0
+    var p100: Double = 0
+    var c100: Double = 0
+    var f100: Double = 0
+    var lastUsed: String?
+
+    /// Effective per-100 g macros (always normalised).
+    var effK100: Double { perServing && servings > 0 ? k100 / servings : k100 }
+    var effP100: Double { perServing && servings > 0 ? p100 / servings : p100 }
+    var effC100: Double { perServing && servings > 0 ? c100 / servings : c100 }
+    var effF100: Double { perServing && servings > 0 ? f100 / servings : f100 }
+
+    /// Build a FoodLog for `grams` (or portions when perServing) of this recipe.
+    func log(_ amount: Double) -> FoodLog {
+        let scale = perServing ? amount : amount   // amount = grams always; caller decides unit
+        return FoodLog(foodId: nil, name: name, grams: scale,
+                       k100: effK100, p100: effP100, c100: effC100, f100: effF100)
+    }
+
+    /// Recompute the per-100 cache from ingredients totals (call after editing ingredients).
+    mutating func rebuildFromIngredients() {
+        guard !ingredients.isEmpty else { return }
+        let totalGrams = ingredients.reduce(0) { $0 + $1.grams }
+        guard totalGrams > 0 else { return }
+        let tK = Double(ingredients.reduce(0) { $0 + $1.kcal })
+        let tP = ingredients.reduce(0) { $0 + $1.protein }
+        let tC = ingredients.reduce(0) { $0 + $1.carbs }
+        let tF = ingredients.reduce(0) { $0 + $1.fat }
+        if perServing {
+            k100 = tK; p100 = tP; c100 = tC; f100 = tF   // total values
+        } else {
+            k100 = tK / totalGrams * 100
+            p100 = tP / totalGrams * 100
+            c100 = tC / totalGrams * 100
+            f100 = tF / totalGrams * 100
+        }
+    }
+}
+
 // MARK: - The whole persisted document
 struct AppData: Codable {
     var daily: [DailyEntry] = []
@@ -613,4 +683,5 @@ struct AppData: Codable {
     var cardioTypes: [CardioType]? = nil       // optional for backward-compatible decoding
     var foods: [FoodItem]? = nil               // saved local food list (per-100 macros)
     var exerciseItems: [ExerciseItem]? = nil   // saved exercise library (auto-populated)
+    var recipes: [Recipe]? = nil               // saved recipes (optional for backward compat)
 }

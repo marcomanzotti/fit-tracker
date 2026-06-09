@@ -7,6 +7,7 @@ import SwiftUI
 
 // A list of logged foods with a running total and an "add food" button. Bound to
 // a [FoodLog]; used both for a meal and for the day-level food list.
+// Opening the picker shows alimenti (left tab, default) and ricette (right tab, swipe).
 struct FoodLogSection: View {
     @Binding var logs: [FoodLog]
     var accent: Color = Theme.acc
@@ -29,11 +30,61 @@ struct FoodLogSection: View {
             }
         }
         .sheet(isPresented: $picking) {
-            FoodPickerSheet { log in logs.append(log) }
+            FoodAndRecipePickerSheet { log in logs.append(log) }
         }
     }
 
     private func delete(_ log: FoodLog) { logs.removeAll { $0.id == log.id } }
+}
+
+// MARK: - Combined food + recipe picker (swipe left = alimenti, right = ricette)
+struct FoodAndRecipePickerSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    var onPick: (FoodLog) -> Void
+
+    @State private var tab = 0   // 0 = alimenti (default), 1 = ricette
+
+    var body: some View {
+        ZStack {
+            Theme.bg.ignoresSafeArea()
+            VStack(spacing: 0) {
+                // Tab selector
+                HStack(spacing: 0) {
+                    tabButton(t("food.title"), index: 0)
+                    tabButton(t("recipe.title"), index: 1)
+                }
+                .padding(.horizontal, 18)
+                .padding(.top, 18)
+                .padding(.bottom, 8)
+
+                // Swipeable tab content
+                TabView(selection: $tab) {
+                    FoodPickerSheet(standaloneMode: false) { log in onPick(log); dismiss() }
+                        .tag(0)
+                    RecipePickerSheet { log in onPick(log); dismiss() }
+                        .tag(1)
+                }
+                .tabViewStyle(.page(indexDisplayMode: .never))
+            }
+        }
+        .preferredColorScheme(.dark)
+    }
+
+    private func tabButton(_ label: String, index: Int) -> some View {
+        let active = tab == index
+        return Button {
+            tap(); withAnimation { tab = index }
+        } label: {
+            Text(label.uppercased())
+                .font(.head(11, .semibold)).tracking(1)
+                .foregroundColor(active ? Theme.bg : Theme.sub)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+                .background(active ? Theme.acc : Theme.c2)
+                .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
 }
 
 // One logged food: name + amount on the left, scaled kcal + delete on the right.
@@ -90,6 +141,7 @@ private enum FoodSortKey: String, CaseIterable {
 struct FoodPickerSheet: View {
     @EnvironmentObject var store: Store
     @Environment(\.dismiss) private var dismiss
+    var standaloneMode: Bool = true   // false when embedded inside FoodAndRecipePickerSheet
     var onPick: (FoodLog) -> Void
 
     @State private var search = ""
@@ -124,7 +176,7 @@ struct FoodPickerSheet: View {
         ZStack {
             Theme.bg.ignoresSafeArea()
             VStack(spacing: 12) {
-                header
+                if standaloneMode { header }
                 HStack(spacing: 9) {
                     FilledButton(title: t("food.scan"), color: Theme.blue) { sheet = .scan }
                     FilledButton(title: t("food.new")) { sheet = .form(FoodItem(name: "")) }
@@ -216,7 +268,12 @@ struct FoodPickerSheet: View {
         HStack(spacing: 10) {
             Button { tap(); sheet = .qty(f) } label: {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(f.name).font(.system(size: 14, weight: .semibold)).foregroundColor(Theme.txt).lineLimit(1)
+                    HStack(spacing: 4) {
+                        Text(f.name).font(.system(size: 14, weight: .semibold)).foregroundColor(Theme.txt).lineLimit(1)
+                        if let brand = f.brand, !brand.isEmpty {
+                            Text(brand).font(.system(size: 11)).foregroundColor(Theme.sub).lineLimit(1)
+                        }
+                    }
                     Text("\(trimNum(f.k100)) kcal · P \(trimNum(f.p100)) C \(trimNum(f.c100)) F \(trimNum(f.f100)) · /100\(f.unit)")
                         .font(.system(size: 10)).foregroundColor(Theme.sub).lineLimit(1)
                 }
@@ -251,6 +308,7 @@ struct FoodFormSheet: View {
     var onSave: (FoodItem) -> Void
 
     @State private var name = ""
+    @State private var brand = ""
     @State private var k = ""; @State private var p = ""; @State private var c = ""; @State private var f = ""
     @State private var liquid = false
     @State private var loaded = false
@@ -278,6 +336,10 @@ struct FoodFormSheet: View {
                                         let tc = titleCased(v)
                                         if tc != v { name = tc }
                                     }
+                            }
+                            VStack(alignment: .leading, spacing: 7) {
+                                FieldLabel("\(t("food.brand")) (\(t("optional")))")
+                                InputField(placeholder: "Barilla, Mulino Bianco…", text: $brand, keyboard: .default)
                             }
                             Text("\(t("food.per100_label")) (100\(liquid ? "ml" : "g"))".uppercased())
                                 .font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.acc2)
@@ -313,6 +375,7 @@ struct FoodFormSheet: View {
             guard !loaded else { return }
             loaded = true
             name = food.name
+            brand = food.brand ?? ""
             if food.k100 > 0 { k = trimNum(food.k100) }
             if food.p100 > 0 { p = trimNum(food.p100) }
             if food.c100 > 0 { c = trimNum(food.c100) }
@@ -333,6 +396,8 @@ struct FoodFormSheet: View {
         guard !nm.isEmpty else { return }
         var item = food
         item.name = nm
+        let br = brand.trimmingCharacters(in: .whitespacesAndNewlines)
+        item.brand = br.isEmpty ? nil : br
         item.k100 = pf(k); item.p100 = pf(p); item.c100 = pf(c); item.f100 = pf(f)
         item.liquid = liquid
         item.lastUsed = today()

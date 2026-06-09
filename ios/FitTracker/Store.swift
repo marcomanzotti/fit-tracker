@@ -9,6 +9,7 @@ final class Store: ObservableObject {
     @Published var cardioTypes: [CardioType] = []
     @Published var foods: [FoodItem] = []
     @Published var exerciseItems: [ExerciseItem] = []
+    @Published var recipes: [Recipe] = []
     @Published var prefs: Prefs = Prefs()
 
     private var loaded = false
@@ -28,6 +29,7 @@ final class Store: ObservableObject {
             $cardioTypes.map { _ in () }.eraseToAnyPublisher(),
             $foods.map { _ in () }.eraseToAnyPublisher(),
             $exerciseItems.map { _ in () }.eraseToAnyPublisher(),
+            $recipes.map { _ in () }.eraseToAnyPublisher(),
             $prefs.map { _ in () }.eraseToAnyPublisher()
         ]
         Publishers.MergeMany(pubs)
@@ -44,6 +46,7 @@ final class Store: ObservableObject {
             cardioTypes = a.cardioTypes ?? []
             foods = a.foods ?? []
             exerciseItems = a.exerciseItems ?? []
+            recipes = a.recipes ?? []
         }
         if plans.isEmpty { plans = Store.defaultPlans() }
         if cardioTypes.isEmpty { cardioTypes = Store.defaultCardioTypes() }
@@ -58,7 +61,7 @@ final class Store: ObservableObject {
     func save() {
         guard loaded else { return }
         let a = AppData(daily: daily, sessions: sessions, body: body, plans: plans, prefs: prefs,
-                        cardioTypes: cardioTypes, foods: foods, exerciseItems: exerciseItems)
+                        cardioTypes: cardioTypes, foods: foods, exerciseItems: exerciseItems, recipes: recipes)
         guard let d = try? JSONEncoder().encode(a) else { return }
         try? d.write(to: dataURL, options: .atomic)
         // Rolling dated backup in Documents (visible in the Files app).
@@ -69,7 +72,7 @@ final class Store: ObservableObject {
     /// Produce a JSON file URL for sharing/export.
     func exportFile() -> URL? {
         let a = AppData(daily: daily, sessions: sessions, body: body, plans: plans, prefs: prefs,
-                        cardioTypes: cardioTypes, foods: foods, exerciseItems: exerciseItems)
+                        cardioTypes: cardioTypes, foods: foods, exerciseItems: exerciseItems, recipes: recipes)
         guard let d = try? JSONEncoder.pretty.encode(a) else { return nil }
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("fittracker-\(today()).json")
         try? d.write(to: url, options: .atomic)
@@ -86,6 +89,7 @@ final class Store: ObservableObject {
         cardioTypes = (a.cardioTypes?.isEmpty == false) ? a.cardioTypes! : Store.defaultCardioTypes()
         foods = a.foods ?? []
         exerciseItems = a.exerciseItems ?? []
+        recipes = a.recipes ?? []
         prefs = a.prefs
         return true
     }
@@ -1166,5 +1170,42 @@ extension Store {
         for (k, v) in values where v > 0 { rec.set(k, v) }
         body.removeAll { $0.date == t }
         body.append(rec)
+    }
+
+    // MARK: Manual sleep entry (when Health has no data for the day)
+    /// Save sleep data manually for today (all fields optional; only provided ones are written).
+    func saveManualSleep(hours: Double?, score: Int?, hrv: Double?, sleepHR: Int?) {
+        let t = today()
+        var e = daily.first(where: { $0.date == t }) ?? DailyEntry(date: t)
+        if let hours, hours > 0 { e.sleepHours = hours }
+        if let score { e.sleep = min(100, max(0, score)) }
+        if let hrv, hrv > 0 { e.hrvSDNN = hrv }
+        if let sleepHR, sleepHR > 0 { e.sleepHR = sleepHR }
+        daily.removeAll { $0.date == t }
+        daily.append(e)
+    }
+
+    // MARK: Saved recipes
+    /// All recipes sorted most-recently-used first, then alphabetically.
+    func recentRecipes() -> [Recipe] {
+        recipes.sorted {
+            ($0.lastUsed ?? "") != ($1.lastUsed ?? "")
+                ? ($0.lastUsed ?? "") > ($1.lastUsed ?? "")
+                : $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+        }
+    }
+
+    @discardableResult
+    func saveRecipe(_ r: Recipe) -> Recipe {
+        if let i = recipes.firstIndex(where: { $0.id == r.id }) { recipes[i] = r }
+        else { recipes.append(r) }
+        return r
+    }
+
+    func deleteRecipe(_ id: String) { recipes.removeAll { $0.id == id } }
+
+    func touchRecipe(_ id: String) {
+        guard let i = recipes.firstIndex(where: { $0.id == id }) else { return }
+        recipes[i].lastUsed = today()
     }
 }

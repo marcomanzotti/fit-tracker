@@ -278,12 +278,15 @@ struct NutritionDayEditor: View {
                            "c": v.carbs > 0 ? trimNum(v.carbs) : "",
                            "f": v.fat > 0 ? trimNum(v.fat) : ""]
             }
-        } else {
+        } else if (e?.kcal ?? 0) > 0 {
             mode = "quick"
             qK = e?.kcal.map(String.init) ?? ""
             qP = e?.protein.map { trimNum($0) } ?? ""
             qC = e?.carbs.map { trimNum($0) } ?? ""
             qF = e?.fat.map { trimNum($0) } ?? ""
+        } else {
+            // Nothing logged yet: default to per_meal for today, quick for past days.
+            mode = (date == today()) ? "per_meal" : "quick"
         }
     }
 
