@@ -395,6 +395,7 @@
 		FT00000000000000000026 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
 				CODE_SIGN_ENTITLEMENTS = FitTrackerWatch/FitTrackerWatch.entitlements;
 				CODE_SIGN_STYLE = Automatic;
@@ -423,6 +424,7 @@
 		FT00000000000000000027 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
 				CODE_SIGN_ENTITLEMENTS = FitTrackerWatch/FitTrackerWatch.entitlements;
 				CODE_SIGN_STYLE = Automatic;

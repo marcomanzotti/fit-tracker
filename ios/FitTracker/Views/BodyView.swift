@@ -53,18 +53,19 @@ struct BodyView: View {
                 Spacer()
                 if hasHealthData {
                     Text(t("hk.from_health").uppercased()).font(.head(8, .semibold)).tracking(1).foregroundColor(Theme.sub)
-                } else {
-                    Button {
-                        tap(); showManualSleep.toggle()
-                        if showManualSleep { prefillManualSleep(e) }
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: showManualSleep ? "chevron.up" : "pencil")
-                                .font(.system(size: 10, weight: .semibold))
+                }
+                Button {
+                    tap(); showManualSleep.toggle()
+                    if showManualSleep { prefillManualSleep(e) }
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: showManualSleep ? "chevron.up" : "pencil")
+                            .font(.system(size: 10, weight: .semibold))
+                        if !hasHealthData {
                             Text(t("body.sleep_manual").uppercased()).font(.head(8, .semibold)).tracking(1)
                         }
-                        .foregroundColor(Theme.acc2)
                     }
+                    .foregroundColor(Theme.acc2)
                 }
             }
             .padding(.bottom, 12)
@@ -80,8 +81,8 @@ struct BodyView: View {
                          unit: sHR != nil ? "bpm" : nil, valueColor: Theme.red, note: t("hk.cat.sleepHR"))
             }
 
-            // Manual entry form (shown when no Health data, or toggled by user)
-            if !hasHealthData && showManualSleep {
+            // Manual entry form (always accessible via pencil button)
+            if showManualSleep {
                 VStack(alignment: .leading, spacing: 10) {
                     Divider().background(Theme.brd).padding(.vertical, 6)
                     HStack(spacing: 10) {
