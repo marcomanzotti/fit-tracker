@@ -148,16 +148,14 @@ class HealthConnectManager(private val context: Context) {
 }
 
 // MARK: - Map ExerciseSessionRecord type → Sport
-private fun exerciseTypeSport(type: Int): String {
-    val t = ExerciseSessionRecord.ExerciseTypes
-    return when (type) {
-        t.RUNNING, t.RUNNING_TREADMILL -> "running"
-        t.BIKING, t.BIKING_STATIONARY -> "cycling"
-        t.SWIMMING_POOL, t.SWIMMING_OPEN_WATER -> "swimming"
-        t.WALKING -> "walking"
-        t.STRENGTH_TRAINING, t.WEIGHTLIFTING -> "strength"
-        else -> "other"
-    }
+// Integer values from Health Connect 1.1.0-alpha07 ExerciseSessionRecord constants
+private fun exerciseTypeSport(type: Int): String = when (type) {
+    56, 57 -> "running"    // RUNNING, RUNNING_TREADMILL
+    8, 9   -> "cycling"    // BIKING, BIKING_STATIONARY
+    82, 83 -> "swimming"   // SWIMMING_POOL, SWIMMING_OPEN_WATER
+    79     -> "walking"    // WALKING
+    45, 97 -> "strength"   // STRENGTH_TRAINING, WEIGHTLIFTING
+    else   -> "other"
 }
 
 // MARK: - HealthDaySample extension to check category coverage

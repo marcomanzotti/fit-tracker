@@ -52,6 +52,7 @@ dependencies {
     implementation("androidx.camera:camera-camera2:1.3.4")
     implementation("androidx.camera:camera-lifecycle:1.3.4")
     implementation("androidx.camera:camera-view:1.3.4")
+    implementation("androidx.concurrent:concurrent-futures-ktx:1.1.0")
     // ML Kit barcode scanning
     implementation("com.google.mlkit:barcode-scanning:17.3.0")
     // Health Connect

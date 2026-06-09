@@ -525,15 +525,15 @@ private fun ExerciseCard(plan: WorkoutPlan, log: SnapshotStateList<LoggedExercis
         }
 
         // Progression badge
-        if (prog == com.marco.fittracker.data.Store.ProgressionHint.ADD_LOAD || prog == com.marco.fittracker.data.Store.ProgressionHint.ADD_REPS) {
-            val progColor = if (prog == com.marco.fittracker.data.Store.ProgressionHint.ADD_LOAD) T.acc else T.blue
+        if (prog == com.marco.fittracker.data.ProgKind.ADD_LOAD || prog == com.marco.fittracker.data.ProgKind.ADD_REPS) {
+            val progColor = if (prog == com.marco.fittracker.data.ProgKind.ADD_LOAD) T.acc else T.blue
             Row(
                 Modifier.clip(CircleShape).background(progColor.copy(alpha = 0.09f)).padding(vertical = 6.dp, horizontal = 13.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(if (prog == com.marco.fittracker.data.Store.ProgressionHint.ADD_LOAD) "⚖" else "±", color = progColor, fontSize = 11.sp)
+                Text(if (prog == com.marco.fittracker.data.ProgKind.ADD_LOAD) "⚖" else "±", color = progColor, fontSize = 11.sp)
                 Spacer(Modifier.width(5.dp))
-                Text(t(if (prog == com.marco.fittracker.data.Store.ProgressionHint.ADD_LOAD) "wk.prog.add_load" else "wk.prog.add_reps"),
+                Text(t(if (prog == com.marco.fittracker.data.ProgKind.ADD_LOAD) "wk.prog.add_load" else "wk.prog.add_reps"),
                     color = progColor, fontSize = 12.sp, fontWeight = FontWeight.Bold)
             }
             Spacer(Modifier.height(11.dp))

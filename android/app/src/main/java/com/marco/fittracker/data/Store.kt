@@ -228,7 +228,7 @@ class Store(app: Application) : AndroidViewModel(app) {
 
     fun suggested(planId: String, exercise: String): Double? {
         val prog = progression(planId, exercise)
-        if (prog != ProgressionHint.ADD_LOAD) return null
+        if (prog != ProgKind.ADD_LOAD) return null
         val last = lastSession(planId) ?: return null
         val ex = last.exercises.firstOrNull { it.name == exercise } ?: return null
         if (ex.sets.isEmpty()) return null
@@ -299,7 +299,8 @@ class Store(app: Application) : AndroidViewModel(app) {
     // MARK: - Nutrition targets
     data class EnergyTargets(
         val bmr: Double, val tdee: Double, val target: Double, val mode: GoalMode,
-        val protein: Double, val carbs: Double, val fat: Double
+        val protein: Double, val carbs: Double, val fat: Double,
+        val carbHigh: Double = 0.0, val carbLow: Double = 0.0, val adaptive: Boolean = false
     )
 
     fun energyTargets(): EnergyTargets {
@@ -359,6 +360,21 @@ class Store(app: Application) : AndroidViewModel(app) {
                 sleep = if (score != null) score.coerceIn(0, 100) else e.sleep,
                 hrvSDNN = if (hrv != null && hrv > 0) hrv else e.hrvSDNN,
                 sleepHR = if (sleepHR != null && sleepHR > 0) sleepHR else e.sleepHR
+            )
+        }
+    }
+
+    fun saveDailyExtras(kcal: Int?, protein: Double?, carbs: Double?, fat: Double?, steps: Int?, restHR: Int?) {
+        val t = today()
+        upsertDaily(t) { e ->
+            e.copy(
+                steps = if (steps != null && steps > 0) steps else e.steps,
+                stepsManual = if (steps != null && steps > 0) true else e.stepsManual,
+                restHR = if (restHR != null && restHR > 0) restHR else e.restHR,
+                kcal = if (kcal != null && kcal > 0) kcal else e.kcal,
+                protein = if (protein != null && protein > 0) protein else e.protein,
+                carbs = if (carbs != null && carbs > 0) carbs else e.carbs,
+                fat = if (fat != null && fat > 0) fat else e.fat
             )
         }
     }
@@ -540,7 +556,7 @@ class Store(app: Application) : AndroidViewModel(app) {
                 ExPoint(fmtShort(s.date), ex.maxWeight, Math.round(ex.volume).toDouble())
             }
 
-    fun exerciseHistory(familyBase: String): List<ExPoint> {
+    fun exerciseHistoryForFamily(familyBase: String): List<ExPoint> {
         val names = exerciseItems.filter { exerciseBase(it.name) == familyBase }.map { it.name }.toHashSet()
         plans.forEach { p -> p.exercises.forEach { if (exerciseBase(it.name) == familyBase) names.add(it.name) } }
         return sessions.filter { s -> s.exercises.any { it.name in names } }
@@ -691,22 +707,6 @@ class Store(app: Application) : AndroidViewModel(app) {
     }
 
     fun updatePrefs(p: Prefs) { prefs = p; save() }
-
-    // MARK: - Progressive overload hints (mirrors iOS progression())
-    enum class ProgressionHint { ADD_LOAD, ADD_REPS, HOLD, DELOAD }
-
-    fun progression(planId: String, exercise: String): ProgressionHint? {
-        val last = lastSession(planId) ?: return null
-        val ex = last.exercises.firstOrNull { it.name == exercise } ?: return null
-        if (ex.sets.isEmpty()) return null
-        val allDone = ex.sets.all { pf(it.reps) > 0 }
-        val someEmpty = ex.sets.any { !it.filled }
-        return when {
-            someEmpty -> ProgressionHint.HOLD
-            allDone -> ProgressionHint.ADD_LOAD
-            else -> ProgressionHint.ADD_REPS
-        }
-    }
 
     // MARK: - Static helpers
     companion object {
