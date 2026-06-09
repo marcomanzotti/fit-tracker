@@ -70,7 +70,6 @@ import com.marco.fittracker.data.progression
 import com.marco.fittracker.data.t
 import com.marco.fittracker.data.today
 import com.marco.fittracker.data.trimNum
-import com.marco.fittracker.data.Sport
 
 @Composable
 fun WorkoutScreen() {
