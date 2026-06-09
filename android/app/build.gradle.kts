@@ -7,12 +7,12 @@ plugins {
 
 android {
     namespace = "com.marco.fittracker"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.marco.fittracker"
         minSdk = 26
-        targetSdk = 34
+        targetSdk = 35
         versionCode = 1
         versionName = "1.0"
     }
@@ -55,5 +55,5 @@ dependencies {
     // ML Kit barcode scanning
     implementation("com.google.mlkit:barcode-scanning:17.3.0")
     // Health Connect
-    implementation("androidx.health.connect:connect-client:1.1.0-alpha10")
+    implementation("androidx.health.connect:connect-client:1.1.0-rc02")
 }
