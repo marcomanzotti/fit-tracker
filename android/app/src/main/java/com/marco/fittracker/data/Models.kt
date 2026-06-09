@@ -42,7 +42,11 @@ fun paceStr(minPerUnit: Double): String {
 }
 
 val itMonths = listOf("Gen", "Feb", "Mar", "Apr", "Mag", "Giu", "Lug", "Ago", "Set", "Ott", "Nov", "Dic")
+val enMonths = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 val itDays = listOf("Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom")
+val enDays = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+val itWeekHeaders = listOf("L", "M", "M", "G", "V", "S", "D")
+val enWeekHeaders = listOf("M", "T", "W", "T", "F", "S", "S")
 
 fun headerDate(): Pair<String, String> {
     val now = LocalDate.now()
@@ -56,7 +60,6 @@ fun headerDate(): Pair<String, String> {
 fun trimNum(v: Double): String =
     if (v == Math.floor(v) && !v.isInfinite()) v.toLong().toString()
     else {
-        // %g-like: strip trailing zeros
         val s = ((Math.round(v * 1000.0)) / 1000.0).toString()
         if (s.endsWith(".0")) s.dropLast(2) else s
     }
@@ -68,11 +71,9 @@ fun titleCased(s: String): String =
     }
 
 // MARK: - Daily check-in (weight + sleep + optional nutrition / recovery)
-// Every field added after the original schema has a default, so old saved JSON
-// keeps decoding (kotlinx.serialization uses the default for missing keys).
 @Serializable
 data class DailyEntry(
-    val date: String,          // yyyy-MM-dd
+    val date: String,
     val weight: Double? = null,
     val sleep: Int? = null,
     // Nutrition (optional)
@@ -82,19 +83,123 @@ data class DailyEntry(
     val fat: Double? = null,
     val salt: Double? = null,
     val steps: Int? = null,
-    val stepsManual: Boolean? = null, // true once user types — Health Connect stops overwriting
-    // Recovery (optional, manual entry)
+    val stepsManual: Boolean? = null,
+    // Recovery (optional)
     val rmssd: Double? = null,
     val restHR: Int? = null,
-    val hrvSDNN: Double? = null    // HRV SDNN imported from a health platform (ms)
-)
+    val hrvSDNN: Double? = null,
+    val sleepHR: Int? = null,
+    val sleepHours: Double? = null,
+    // Daily activity from Health Connect
+    val activeKcal: Int? = null,
+    val exerciseMin: Int? = null,
+    val vo2max: Double? = null,
+    // Per-meal nutrition breakdown (optional). Keys are MealSlot raw values.
+    val meals: Map<String, MealEntry>? = null,
+    // Day-level individual foods (food-by-food without assigning a meal)
+    val foods: List<FoodLog>? = null
+) {
+    val hasNutrition: Boolean
+        get() = (kcal ?: 0) > 0
+            || (meals?.values?.any { !it.isEmpty } == true)
+            || !(foods?.isEmpty() ?: true)
+
+    val totalKcal: Int
+        get() {
+            var s = 0
+            meals?.values?.forEach { s += it.effKcal }
+            foods?.forEach { s += it.kcal }
+            return if (s > 0) s else (kcal ?: 0)
+        }
+    val totalProtein: Double get() = macroTotal({ it.effProtein }, { it.protein }, protein)
+    val totalCarbs: Double get() = macroTotal({ it.effCarbs }, { it.carbs }, carbs)
+    val totalFat: Double get() = macroTotal({ it.effFat }, { it.fat }, fat)
+
+    private fun macroTotal(
+        mealKP: (MealEntry) -> Double,
+        foodKP: (FoodLog) -> Double,
+        quick: Double?
+    ): Double {
+        var s = 0.0
+        meals?.values?.forEach { s += mealKP(it) }
+        foods?.forEach { s += foodKP(it) }
+        return if (s > 0) s else (quick ?: 0.0)
+    }
+}
+
+// MARK: - Per-meal nutrition entry
+@Serializable
+data class MealEntry(
+    val kcal: Int = 0,
+    val protein: Double = 0.0,
+    val carbs: Double = 0.0,
+    val fat: Double = 0.0,
+    val foods: List<FoodLog>? = null
+) {
+    val hasFoods: Boolean get() = !(foods?.isEmpty() ?: true)
+    val effKcal: Int get() = if (hasFoods) foods!!.sumOf { it.kcal } else kcal
+    val effProtein: Double get() = if (hasFoods) foods!!.sumOf { it.protein } else protein
+    val effCarbs: Double get() = if (hasFoods) foods!!.sumOf { it.carbs } else carbs
+    val effFat: Double get() = if (hasFoods) foods!!.sumOf { it.fat } else fat
+    val isEmpty: Boolean get() = kcal == 0 && protein == 0.0 && carbs == 0.0 && fat == 0.0 && !hasFoods
+}
+
+// MARK: - Saved food (nutrition per 100 g/ml) + a logged amount of it
+@Serializable
+data class FoodItem(
+    val id: String = randomId(),
+    val name: String,
+    val brand: String? = null,
+    val barcode: String? = null,
+    val k100: Double = 0.0,
+    val p100: Double = 0.0,
+    val c100: Double = 0.0,
+    val f100: Double = 0.0,
+    val liquid: Boolean = false,
+    val lastUsed: String? = null
+) {
+    val unit: String get() = if (liquid) "ml" else "g"
+    val fullName: String get() = if (brand != null) "$brand – $name" else name
+
+    fun log(grams: Double): FoodLog =
+        FoodLog(foodId = id, name = fullName, grams = grams, k100 = k100, p100 = p100, c100 = c100, f100 = f100)
+}
+
+@Serializable
+data class FoodLog(
+    val id: String = randomId(),
+    val foodId: String? = null,
+    val name: String,
+    val grams: Double,
+    val k100: Double,
+    val p100: Double,
+    val c100: Double,
+    val f100: Double
+) {
+    private fun scale(per100: Double): Double = (per100 * grams / 100 * 10).let { Math.round(it) / 10.0 }
+    val kcal: Int get() = Math.round(k100 * grams / 100).toInt()
+    val protein: Double get() = scale(p100)
+    val carbs: Double get() = scale(c100)
+    val fat: Double get() = scale(f100)
+}
+
+// MARK: - The four meal slots
+enum class MealSlot(val raw: String) {
+    BREAKFAST("breakfast"), LUNCH("lunch"), DINNER("dinner"), SNACKS("snacks");
+    val labelKey: String get() = "meal.$raw"
+    val color: String get() = when (this) {
+        BREAKFAST -> "ffb000"; LUNCH -> "ffe000"; DINNER -> "b08fff"; SNACKS -> "7fc950"
+    }
+    companion object { val all = listOf(BREAKFAST, LUNCH, DINNER, SNACKS) }
+}
 
 // MARK: - A single logged set
 @Serializable
 data class SetEntry(
     val id: String = randomId(),
     val reps: String = "",
-    val weight: String = ""
+    val weight: String = "",
+    val effortVal: Int? = null
 ) {
     val filled: Boolean get() = pf(reps) > 0 || pf(weight) > 0
 }
@@ -109,6 +214,13 @@ enum class TrainMethod(val raw: String) {
     companion object { fun from(r: String?) = entries.firstOrNull { it.raw == r } ?: NORMAL }
 }
 
+// MARK: - Effort tracking scale for per-set feedback
+enum class EffortMode(val raw: String) {
+    RIR("rir"), RPE("rpe"), FAIL("fail");
+    val label: String get() = when (this) { RIR -> "RIR"; RPE -> "RPE"; FAIL -> "FAIL" }
+    companion object { fun from(r: String?) = entries.firstOrNull { it.raw == r } }
+}
+
 // MARK: - An exercise as logged inside a session
 @Serializable
 data class LoggedExercise(
@@ -118,11 +230,15 @@ data class LoggedExercise(
     val notes: String = "",
     val target: String = "",
     val supersetGroup: Int? = null,
-    val method: String? = null
+    val method: String? = null,
+    val effortMode: String? = null,
+    val isBodyweight: Boolean? = null
 ) {
     val volume: Double get() = sets.sumOf { pf(it.reps) * pf(it.weight) }
     val maxWeight: Double get() = sets.maxOfOrNull { pf(it.weight) } ?: 0.0
     val trainMethod: TrainMethod get() = TrainMethod.from(method)
+    val effortScale: EffortMode? get() = EffortMode.from(effortMode)
+    val bodyweight: Boolean get() = isBodyweight == true
 }
 
 // MARK: - Sport kinds
@@ -134,7 +250,11 @@ enum class Sport(val raw: String) {
         STRENGTH -> "ffe000"; RUNNING -> "ff5a52"; SWIMMING -> "4fb8c4"
         CYCLING -> "7fc950"; WALKING -> "b08fff"; OTHER -> "ffb000"
     }
-    fun label(): String = L.t("sport." + raw)
+    fun label(): String = L.t("sport.$raw")
+    fun icon(): String = when (this) {
+        STRENGTH -> "dumbbell"; RUNNING -> "directions_run"; SWIMMING -> "pool"
+        CYCLING -> "directions_bike"; WALKING -> "directions_walk"; OTHER -> "fitness_center"
+    }
     companion object { fun from(r: String?) = entries.firstOrNull { it.raw == r } ?: STRENGTH }
 }
 
@@ -143,9 +263,9 @@ enum class Sport(val raw: String) {
 data class CardioType(
     val id: String = randomId(),
     val name: String,
-    val sport: String,         // Sport raw value
-    val color: String,         // hex from T.cardioColors
-    val sub: String? = null    // optional editable subtitle (mirrors strength days)
+    val sport: String,
+    val color: String,
+    val sub: String? = null
 ) {
     val sportType: Sport get() = Sport.from(sport)
 }
@@ -159,47 +279,43 @@ data class WorkoutSession(
     val planName: String,
     val planColor: String,
     val exercises: List<LoggedExercise> = emptyList(),
-    // Internal-load / cardio fields (all optional, backward compatible)
     val sport: String? = null,
-    val durationMin: Int? = null,       // legacy whole-minute duration (old data)
-    val durationSec: Int? = null,       // canonical duration in seconds (H/M/S)
+    val durationMin: Int? = null,
+    val durationSec: Int? = null,
     val rpe: Int? = null,
     val avgHR: Int? = null,
     val maxHRSes: Int? = null,
     val rmssd: Double? = null,
     val distanceKm: Double? = null,
-    val paceManual: Double? = null,     // user pace/speed override (native unit)
+    val paceManual: Double? = null,
     val elevationM: Double? = null,
     val poolLengthM: Int? = null,
-    val caloriesManual: Int? = null
+    val caloriesManual: Int? = null,
+    val healthUUID: String? = null,
+    val source: String? = null
 ) {
     val totalSets: Int get() = exercises.sumOf { it.sets.size }
     val volume: Double get() = exercises.sumOf { it.volume }
     val sportType: Sport get() = Sport.from(sport ?: "strength")
 
-    /** Canonical duration in seconds (new H/M/S value, falling back to minutes). */
     val durationSeconds: Int?
         get() = when {
             (durationSec ?: 0) > 0 -> durationSec
             (durationMin ?: 0) > 0 -> durationMin!! * 60
             else -> null
         }
-    /** Duration in (possibly fractional) minutes for the science formulas. */
     val durationMinutesD: Double? get() = durationSeconds?.let { it / 60.0 }
 
-    /** sRPE internal load = duration (min) x session RPE. */
     val sRPE: Double?
         get() {
             val d = durationMinutesD; val r = rpe
             return if (d != null && r != null && d > 0 && r > 0) d * r else null
         }
 
-    /** Pace/speed unit: cycling tracks km/h, swimming min/100m, else min/km. */
     val paceIsSpeed: Boolean get() = sportType == Sport.CYCLING
     val paceUnit: String get() = when (sportType) {
         Sport.CYCLING -> "km/h"; Sport.SWIMMING -> "/100m"; else -> "/km"
     }
-    /** Auto pace/speed from distance + duration, in the native unit. */
     val autoPace: Double?
         get() {
             val mins = durationMinutesD ?: return null
@@ -212,10 +328,7 @@ data class WorkoutSession(
                 else -> mins / dist
             }
         }
-    /** Effective pace: a manual override wins, otherwise the auto value. */
     val effectivePace: Double? get() = paceManual ?: autoPace
-
-    /** Legacy: average pace min/km (run/walk/bike) or min/100m (swim). */
     val pace: Double? get() = autoPace
 }
 
@@ -262,9 +375,14 @@ data class PlanExercise(
     val sets: Int = 3,
     val reps: String = "10",
     val supersetGroup: Int? = null,
-    val method: String? = null
+    val method: String? = null,
+    val effortMode: String? = null,
+    val isBodyweight: Boolean? = null,
+    val muscle: String? = null
 ) {
     val trainMethod: TrainMethod get() = TrainMethod.from(method)
+    val effortScale: EffortMode? get() = EffortMode.from(effortMode)
+    val bodyweight: Boolean get() = isBodyweight == true
 }
 
 @Serializable
@@ -295,13 +413,10 @@ enum class Activity(val raw: String, val multiplier: Double) {
 @Serializable
 data class Prefs(
     val timer: Int = 60,
-    // Clean, generic male defaults; onboarding swaps in female defaults when the
-    // user picks "Female". Existing users keep their saved values.
     val goalWeight: Double = 75.0,
     val goalBF: Double = 15.0,
     val startWeight: Double = 80.0,
     val height: Double = 1.80,
-    // optional (backward-compatible) profile fields
     val language: String? = null,
     val onboarded: Boolean? = null,
     val sex: String? = null,
@@ -313,11 +428,11 @@ data class Prefs(
     val restingHR: Int? = null,
     val maxHR: Int? = null,
     val sleepTracking: Boolean? = null,
-    // Optional weekly schedule: 7 entries Mon..Sun, each a plan id / cardio id /
-    // "rest" / "" (auto). When any slot is set, "next workout" follows the week.
     val schedule: List<String>? = null,
-    val healthKit: Boolean? = null,
-    // Days explicitly marked as rest (yyyy-MM-dd). A marker, not a session.
+    val healthConnect: Boolean? = null,
+    val healthImport: List<String>? = null,
+    val importWorkouts: Boolean? = null,
+    val units: String? = null,
     val restDays: List<String>? = null
 ) {
     val langCode: String get() = if (language == "it" || language == "en") language!! else "it"
@@ -329,8 +444,8 @@ data class Prefs(
     val age: Int?
         get() {
             val b = birthDate ?: return null
-            val d = runCatching { java.time.LocalDate.parse(b) }.getOrNull() ?: return null
-            return java.time.Period.between(d, java.time.LocalDate.now()).years.coerceAtLeast(0)
+            val d = runCatching { LocalDate.parse(b) }.getOrNull() ?: return null
+            return java.time.Period.between(d, LocalDate.now()).years.coerceAtLeast(0)
         }
     val estMaxHR: Int
         get() {
@@ -338,11 +453,101 @@ data class Prefs(
             return Math.round(208 - 0.7 * (age ?: 30)).toInt()
         }
     val restHRorDefault: Int get() = restingHR?.takeIf { it > 0 } ?: 60
-    val healthKitEnabled: Boolean get() = healthKit == true
+    val healthConnectEnabled: Boolean get() = healthConnect == true
+    val healthCategories: Set<String> get() = (healthImport ?: HealthCategory.allKeys).toSet()
+    fun importsHealth(key: String): Boolean = healthCategories.contains(key)
+    val importWorkoutsEnabled: Boolean get() = importWorkouts != false
+    val imperial: Boolean get() = units == "imperial"
     val restDaySet: Set<String> get() = (restDays ?: emptyList()).toSet()
-    /** Schedule normalized to exactly 7 slots (Mon..Sun); missing -> all empty. */
     val weekSchedule: List<String> get() = schedule?.takeIf { it.size == 7 } ?: List(7) { "" }
     val hasSchedule: Boolean get() = weekSchedule.any { it.isNotEmpty() && it != "rest" }
+}
+
+// MARK: - Health Connect import categories (user-selectable)
+enum class HealthCategory(val raw: String) {
+    STEPS("steps"), REST_HR("restHR"), HRV("hrv"), SLEEP("sleep"),
+    SLEEP_HR("sleepHR"), ACTIVE_KCAL("activeKcal"), EXERCISE_MIN("exerciseMin"), VO2MAX("vo2max");
+    val labelKey: String get() = "hk.cat.$raw"
+    companion object {
+        val allKeys: List<String> = entries.map { it.raw }
+        fun from(r: String?) = entries.firstOrNull { it.raw == r }
+    }
+}
+
+// MARK: - Saved exercise entry (exercise library)
+@Serializable
+data class ExerciseItem(
+    val id: String = randomId(),
+    val name: String,
+    val isBodyweight: Boolean = false,
+    val lastUsed: String? = null,
+    val base: String? = null,
+    val category: String? = null
+)
+
+// MARK: - Muscle-group categories
+enum class MuscleGroup(val raw: String) {
+    CHEST("chest"), BACK("back"), LEGS("legs"), SHOULDERS("shoulders"),
+    ARMS("arms"), CORE("core"), FULLBODY("fullbody"), CARDIO("cardio"), OTHER("other");
+    val labelKey: String get() = "mg.$raw"
+    val color: String get() = when (this) {
+        CHEST -> "ff5a52"; BACK -> "4fb8c4"; LEGS -> "ffb000"; SHOULDERS -> "b08fff"
+        ARMS -> "7fc950"; CORE -> "ff5da2"; FULLBODY -> "ffe000"; CARDIO -> "53a8ff"; OTHER -> "8a857d"
+    }
+    companion object { fun from(r: String?) = entries.firstOrNull { it.raw == r } ?: OTHER }
+}
+
+// MARK: - Recipe
+@Serializable
+data class RecipeIngredient(
+    val id: String = randomId(),
+    val foodId: String? = null,
+    val name: String,
+    val grams: Double,
+    val k100: Double,
+    val p100: Double,
+    val c100: Double,
+    val f100: Double
+) {
+    val kcal: Int get() = Math.round(k100 * grams / 100).toInt()
+    val protein: Double get() = (p100 * grams / 100 * 10).let { Math.round(it) / 10.0 }
+    val carbs: Double get() = (c100 * grams / 100 * 10).let { Math.round(it) / 10.0 }
+    val fat: Double get() = (f100 * grams / 100 * 10).let { Math.round(it) / 10.0 }
+}
+
+@Serializable
+data class Recipe(
+    val id: String = randomId(),
+    val name: String,
+    val ingredients: List<RecipeIngredient> = emptyList(),
+    val perServing: Boolean = false,
+    val servings: Double = 1.0,
+    val k100: Double = 0.0,
+    val p100: Double = 0.0,
+    val c100: Double = 0.0,
+    val f100: Double = 0.0,
+    val lastUsed: String? = null
+) {
+    val effK100: Double get() = if (perServing && servings > 0) k100 / servings else k100
+    val effP100: Double get() = if (perServing && servings > 0) p100 / servings else p100
+    val effC100: Double get() = if (perServing && servings > 0) c100 / servings else c100
+    val effF100: Double get() = if (perServing && servings > 0) f100 / servings else f100
+
+    fun log(amount: Double): FoodLog =
+        FoodLog(foodId = null, name = name, grams = amount, k100 = effK100, p100 = effP100, c100 = effC100, f100 = effF100)
+
+    fun rebuildFromIngredients(): Recipe {
+        if (ingredients.isEmpty()) return this
+        val totalGrams = ingredients.sumOf { it.grams }
+        if (totalGrams <= 0) return this
+        val tK = ingredients.sumOf { it.kcal }.toDouble()
+        val tP = ingredients.sumOf { it.protein }
+        val tC = ingredients.sumOf { it.carbs }
+        val tF = ingredients.sumOf { it.fat }
+        return if (perServing) copy(k100 = tK, p100 = tP, c100 = tC, f100 = tF)
+        else copy(k100 = tK / totalGrams * 100, p100 = tP / totalGrams * 100,
+                  c100 = tC / totalGrams * 100, f100 = tF / totalGrams * 100)
+    }
 }
 
 // MARK: - The whole persisted document
@@ -353,5 +558,8 @@ data class AppData(
     val body: List<BodyEntry> = emptyList(),
     val plans: List<WorkoutPlan> = emptyList(),
     val prefs: Prefs = Prefs(),
-    val cardioTypes: List<CardioType> = emptyList()
+    val cardioTypes: List<CardioType> = emptyList(),
+    val foods: List<FoodItem> = emptyList(),
+    val exerciseItems: List<ExerciseItem> = emptyList(),
+    val recipes: List<Recipe> = emptyList()
 )

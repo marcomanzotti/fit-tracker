@@ -67,7 +67,7 @@ import com.marco.fittracker.data.pf
 import com.marco.fittracker.data.t
 import com.marco.fittracker.data.today
 import com.marco.fittracker.data.trimNum
-import com.marco.fittracker.data.trimp
+import com.marco.fittracker.data.Sport
 
 @Composable
 fun WorkoutScreen() {
@@ -465,37 +465,52 @@ private fun ExerciseCard(plan: WorkoutPlan, log: SnapshotStateList<LoggedExercis
     val timer = LocalTimer.current
     val tap = rememberTap()
     val ex = log[i]
+    val bw = ex.bodyweight
     val pr = store.exercisePR(ex.name)
     val prevEx = store.lastSession(plan.id)?.exercises?.firstOrNull { it.name == ex.name }
     val sug = store.suggested(plan.id, ex.name)
+    val prog = store.progression(plan.id, ex.name)
+    val effortScale = ex.effortScale
 
     Card {
+        // Header: name + badges + PR
         Row(verticalAlignment = Alignment.Top) {
             Column(Modifier.weight(1f)) {
                 Text(ex.name, color = T.txt, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                if (ex.target.isNotEmpty()) { Spacer(Modifier.height(6.dp)); Tag(ex.target) }
+                Spacer(Modifier.height(5.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                    if (ex.target.isNotEmpty()) Tag(ex.target)
+                    if (bw) Badge(t("wk.bodyweight"), T.good, T.good.copy(alpha = 0.14f))
+                    if (ex.trainMethod != com.marco.fittracker.data.TrainMethod.NORMAL) {
+                        val ss = ex.trainMethod.short + (ex.supersetGroup?.let { " $it" } ?: "")
+                        Badge(ss, T.blue, T.blue.copy(alpha = 0.14f))
+                    }
+                    effortScale?.let { Badge(it.label, T.acc2, T.acc2.copy(alpha = 0.14f)) }
+                }
             }
             if (pr > 0) {
                 Column(horizontalAlignment = Alignment.End) {
                     Text("PR", color = T.sub, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp)
-                    Text("${trimNum(pr)} kg", color = T.acc, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    Text(if (bw && pr == 0.0) "BW" else "${trimNum(pr)} kg", color = T.acc, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
         Spacer(Modifier.height(10.dp))
 
+        // Last session reference
         if (prevEx != null && prevEx.sets.isNotEmpty()) {
             Column(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(T.blue.copy(alpha = 0.05f))
                     .border(1.dp, T.blue.copy(alpha = 0.12f), RoundedCornerShape(10.dp)).padding(vertical = 9.dp, horizontal = 12.dp)
             ) {
-                Text("ULTIMA VOLTA", color = T.blue, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 2.sp)
+                Text(t("wk.last_time_label").uppercase(), color = T.blue, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 2.sp)
                 Spacer(Modifier.height(6.dp))
                 ChipsFlow(prevEx.sets.mapIndexed { idx, s -> "S${idx + 1}: ${disp(s.weight)}×${disp(s.reps)}" })
             }
             Spacer(Modifier.height(10.dp))
         }
 
+        // Suggestion chip
         if (sug != null) {
             Row(
                 Modifier.clip(CircleShape).background(T.acc.copy(alpha = 0.09f))
@@ -504,29 +519,60 @@ private fun ExerciseCard(plan: WorkoutPlan, log: SnapshotStateList<LoggedExercis
             ) {
                 Icon(Icons.Filled.NorthEast, null, tint = T.acc2, modifier = Modifier.size(12.dp))
                 Spacer(Modifier.width(6.dp))
-                Text("Prova ${trimNum(sug)} kg", color = T.acc2, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Text("${t("wk.try")} ${trimNum(sug)} kg", color = T.acc2, fontSize = 12.sp, fontWeight = FontWeight.Bold)
             }
             Spacer(Modifier.height(11.dp))
         }
 
+        // Progression badge
+        if (prog == com.marco.fittracker.data.Store.ProgressionHint.ADD_LOAD || prog == com.marco.fittracker.data.Store.ProgressionHint.ADD_REPS) {
+            val progColor = if (prog == com.marco.fittracker.data.Store.ProgressionHint.ADD_LOAD) T.acc else T.blue
+            Row(
+                Modifier.clip(CircleShape).background(progColor.copy(alpha = 0.09f)).padding(vertical = 6.dp, horizontal = 13.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(if (prog == com.marco.fittracker.data.Store.ProgressionHint.ADD_LOAD) "⚖" else "±", color = progColor, fontSize = 11.sp)
+                Spacer(Modifier.width(5.dp))
+                Text(t(if (prog == com.marco.fittracker.data.Store.ProgressionHint.ADD_LOAD) "wk.prog.add_load" else "wk.prog.add_reps"),
+                    color = progColor, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            }
+            Spacer(Modifier.height(11.dp))
+        }
+
+        // Effort scale selector
+        EffortModeSelector(effortMode = ex.effortMode) { newMode ->
+            log[i] = log[i].copy(effortMode = newMode)
+        }
+        Spacer(Modifier.height(8.dp))
+
         // Column headers
         Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
             Spacer(Modifier.width(28.dp))
-            Text("RIP", color = T.sub, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp, modifier = Modifier.width(66.dp), textAlign = TextAlign.Center)
-            Text("KG", color = T.sub, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp, modifier = Modifier.width(66.dp), textAlign = TextAlign.Center)
+            Text(t("wk.reps").uppercase(), color = T.sub, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp, modifier = Modifier.width(66.dp), textAlign = TextAlign.Center)
+            Text(if (bw) "+KG" else "KG", color = if (bw) T.good else T.sub, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp, modifier = Modifier.width(66.dp), textAlign = TextAlign.Center)
+            if (effortScale != null)
+                Text(effortScale.label, color = T.acc2, fontSize = 9.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.5.sp, modifier = Modifier.width(48.dp), textAlign = TextAlign.Center)
         }
         Spacer(Modifier.height(6.dp))
 
-        log[i].sets.indices.forEach { j -> SetRow(log, i, j, pr) }
+        log[i].sets.indices.forEach { j -> SetRow(log, i, j, pr, bw, effortScale) }
+
+        // Bodyweight hint
+        if (bw) {
+            Text(t("wk.bw_hint"), color = T.sub, fontSize = 9.sp, modifier = Modifier.padding(top = 4.dp))
+        }
 
         // Footer
         Row(Modifier.fillMaxWidth().padding(top = 9.dp), verticalAlignment = Alignment.CenterVertically) {
-            GhostButton("+ Serie") { log[i] = log[i].copy(sets = log[i].sets + SetEntry()) }
+            GhostButton(t("wk.add_set")) { log[i] = log[i].copy(sets = log[i].sets + SetEntry()) }
             Spacer(Modifier.width(8.dp))
-            GhostButton("Timer ${store.prefs.timer}s", color = T.blue) { timer.start(store.prefs.timer) }
+            GhostButton("${t("wk.timer")} ${store.prefs.timer}s", color = T.blue) { timer.start(store.prefs.timer) }
             Spacer(Modifier.weight(1f))
-            if (log[i].volume > 0)
-                Text("Vol ${log[i].volume.toInt()} · Max ${trimNum(log[i].maxWeight)} kg", color = T.sub, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+            if (log[i].volume > 0) {
+                val volLabel = if (bw) "${t("wk.max")} +${trimNum(log[i].maxWeight)} kg"
+                    else "${t("wk.vol")} ${log[i].volume.toInt()} · ${t("wk.max")} ${trimNum(log[i].maxWeight)} kg"
+                Text(volLabel, color = T.sub, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+            }
         }
 
         // Notes
@@ -537,10 +583,10 @@ private fun ExerciseCard(plan: WorkoutPlan, log: SnapshotStateList<LoggedExercis
                 textStyle = TextStyle(color = T.txt, fontSize = 13.sp), cursorBrush = SolidColor(T.acc),
                 modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp).clip(RoundedCornerShape(10.dp)).background(T.c2)
                     .border(1.dp, T.brd, RoundedCornerShape(10.dp)).padding(vertical = 10.dp, horizontal = 14.dp),
-                decorationBox = { inner -> if (log[i].notes.isEmpty()) Text("Note…", color = T.sub, fontSize = 13.sp); inner() }
+                decorationBox = { inner -> if (log[i].notes.isEmpty()) Text(t("wk.note_ph"), color = T.sub, fontSize = 13.sp); inner() }
             )
         } else {
-            Text("+ Note", color = T.sub, fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
+            Text(t("wk.add_note"), color = T.sub, fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.clip(RoundedCornerShape(9.dp)).background(T.c2).border(1.dp, T.brd, RoundedCornerShape(9.dp))
                     .clickable { tap(); showNotes.add(ex.id) }.padding(vertical = 8.dp, horizontal = 12.dp))
         }
@@ -548,7 +594,8 @@ private fun ExerciseCard(plan: WorkoutPlan, log: SnapshotStateList<LoggedExercis
 }
 
 @Composable
-private fun SetRow(log: SnapshotStateList<LoggedExercise>, i: Int, j: Int, pr: Double) {
+private fun SetRow(log: SnapshotStateList<LoggedExercise>, i: Int, j: Int, pr: Double,
+                   bw: Boolean = false, effortScale: com.marco.fittracker.data.EffortMode? = null) {
     val tap = rememberTap()
     val s = log[i].sets[j]
     val w = pf(s.weight)
@@ -559,14 +606,17 @@ private fun SetRow(log: SnapshotStateList<LoggedExercise>, i: Int, j: Int, pr: D
     }
     Row(
         Modifier.fillMaxWidth().padding(vertical = 2.dp)
-            .clip(RoundedCornerShape(9.dp)).background(if (isPR) T.acc.copy(alpha = 0.05f) else Color.Transparent),
+            .clip(RoundedCornerShape(9.dp)).background(if (isPR && !bw) T.acc.copy(alpha = 0.05f) else Color.Transparent),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(9.dp)
     ) {
         Text("S${j + 1}", color = T.sub, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(28.dp), textAlign = TextAlign.Center)
         SmallNumField(s.reps, { v -> editSet { it.copy(reps = v) } }, highlight = isPR)
-        SmallNumField(s.weight, { v -> editSet { it.copy(weight = v) } }, highlight = isPR)
-        if (isPR) {
+        SmallNumField(s.weight, { v -> editSet { it.copy(weight = v) } }, highlight = isPR && !bw)
+        if (effortScale != null) {
+            EffortValField(s.effortVal) { v -> editSet { it.copy(effortVal = v) } }
+        }
+        if (isPR && !bw) {
             Text("PR", color = T.acc, fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
         } else {
             Icon(Icons.Filled.Close, "rimuovi", tint = T.red.copy(alpha = 0.5f),

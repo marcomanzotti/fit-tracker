@@ -9,7 +9,6 @@ import androidx.lifecycle.AndroidViewModel
 import kotlinx.serialization.json.Json
 import java.io.File
 import java.time.LocalDate
-import java.time.format.DateTimeFormatter
 import kotlin.math.ln
 import kotlin.math.roundToInt
 
@@ -28,12 +27,14 @@ private val prettyJson = Json {
 
 class Store(app: Application) : AndroidViewModel(app) {
 
-    // Observable state (Compose snapshot state)
     val daily = mutableStateListOf<DailyEntry>()
     val sessions = mutableStateListOf<WorkoutSession>()
     val body = mutableStateListOf<BodyEntry>()
     val plans = mutableStateListOf<WorkoutPlan>()
     val cardioTypes = mutableStateListOf<CardioType>()
+    val foods = mutableStateListOf<FoodItem>()
+    val exerciseItems = mutableStateListOf<ExerciseItem>()
+    val recipes = mutableStateListOf<Recipe>()
     var prefs by mutableStateOf(Prefs())
 
     private val dataFile: File get() = File(getApplication<Application>().filesDir, "fittracker.json")
@@ -41,7 +42,7 @@ class Store(app: Application) : AndroidViewModel(app) {
 
     init { load() }
 
-    // MARK: Persistence
+    // MARK: - Persistence
     private fun load() {
         runCatching {
             if (dataFile.exists()) {
@@ -49,30 +50,35 @@ class Store(app: Application) : AndroidViewModel(app) {
                 daily.addAll(a.daily); sessions.addAll(a.sessions)
                 body.addAll(a.body); plans.addAll(a.plans); prefs = a.prefs
                 cardioTypes.addAll(a.cardioTypes)
+                foods.addAll(a.foods)
+                exerciseItems.addAll(a.exerciseItems)
+                recipes.addAll(a.recipes)
             }
         }
         if (plans.isEmpty()) plans.addAll(defaultPlans())
         if (cardioTypes.isEmpty()) cardioTypes.addAll(defaultCardioTypes())
         L.lang = prefs.langCode
+        Units.imperial = prefs.imperial
         loaded = true
         save()
     }
 
-    fun syncLang() { L.lang = prefs.langCode }
+    fun syncLang() { L.lang = prefs.langCode; Units.imperial = prefs.imperial }
 
-    private fun snapshot() = AppData(daily.toList(), sessions.toList(), body.toList(), plans.toList(), prefs, cardioTypes.toList())
+    private fun snapshot() = AppData(
+        daily.toList(), sessions.toList(), body.toList(), plans.toList(), prefs,
+        cardioTypes.toList(), foods.toList(), exerciseItems.toList(), recipes.toList()
+    )
 
-    private fun save() {
+    fun save() {
         if (!loaded) return
         runCatching {
             val text = json.encodeToString(AppData.serializer(), snapshot())
             dataFile.writeText(text)
-            // Rolling dated backup, visible via the system file manager export.
             File(getApplication<Application>().filesDir, "backup-${today()}.json").writeText(text)
         }
     }
 
-    /** Pretty JSON used for share/export. */
     fun exportText(): String = prettyJson.encodeToString(AppData.serializer(), snapshot())
     fun exportFileName(): String = "fittracker-${today()}.json"
 
@@ -83,30 +89,25 @@ class Store(app: Application) : AndroidViewModel(app) {
         body.clear(); body.addAll(a.body)
         plans.clear(); plans.addAll(if (a.plans.isEmpty()) defaultPlans() else a.plans)
         cardioTypes.clear(); cardioTypes.addAll(if (a.cardioTypes.isEmpty()) defaultCardioTypes() else a.cardioTypes)
+        foods.clear(); foods.addAll(a.foods)
+        exerciseItems.clear(); exerciseItems.addAll(a.exerciseItems)
+        recipes.clear(); recipes.addAll(a.recipes)
         prefs = a.prefs
         L.lang = prefs.langCode
-        save()
-        true
+        Units.imperial = prefs.imperial
+        save(); true
     }.getOrDefault(false)
 
     // MARK: - Derived data
     val sortedDaily: List<DailyEntry> get() = daily.sortedBy { it.date }
 
-    /**
-     * Weekly-average time series for a daily metric, over the last [months] months.
-     * Returns a list of (label, value) pairs for charting.
-     * Default: last 2 months, weekly buckets — matches iOS MetricChartCard default.
-     */
     fun metricSeries(value: (DailyEntry) -> Double?, months: Int = 2): List<Pair<String, Double>> {
-        val cutoff = java.time.LocalDate.now().minusMonths(months.toLong()).toString()
+        val cutoff = LocalDate.now().minusMonths(months.toLong()).toString()
         val entries = sortedDaily.filter { it.date >= cutoff && value(it) != null }
         if (entries.size < 2) return emptyList()
-        // Group by ISO week (yyyy-Www)
         val grouped = LinkedHashMap<String, MutableList<Double>>()
         for (e in entries) {
-            val d = java.time.LocalDate.parse(e.date)
-            val week = d.format(java.time.format.DateTimeFormatter.ofPattern("MM/dd"))
-            // Use Monday of that week as the bucket label (short date of week start)
+            val d = LocalDate.parse(e.date)
             val monday = d.minusDays((d.dayOfWeek.value - 1).toLong())
             val label = monday.format(java.time.format.DateTimeFormatter.ofPattern("d MMM"))
             grouped.getOrPut(label) { mutableListOf() }.add(value(e)!!)
@@ -122,25 +123,29 @@ class Store(app: Application) : AndroidViewModel(app) {
 
     fun bmi(w: Double): Double = Math.round((w / (prefs.height * prefs.height)) * 10.0) / 10.0
 
-    /** US-Navy body-fat estimate from neck & waist (cm). */
-    fun bfNavy(waist: Double?, neck: Double?): Double? {
-        if (waist == null || neck == null || waist <= neck) return null
-        val v = 86.010 * log10(waist - neck) - 70.041 * log10(prefs.height * 100) + 36.76
+    /** US-Navy body-fat estimate (cm). Sex-specific: women use waist+hip−neck. */
+    fun bfNavy(waist: Double?, neck: Double?, hip: Double? = null): Double? {
+        val h = prefs.height * 100
+        if (waist == null || neck == null || h <= 0) return null
+        val v: Double = if (prefs.sexCode == "f") {
+            if (hip == null || (waist + hip) <= neck) return null
+            163.205 * log10(waist + hip - neck) - 97.684 * log10(h) - 78.387
+        } else {
+            if (waist <= neck) return null
+            86.010 * log10(waist - neck) - 70.041 * log10(h) + 36.76
+        }
         return Math.round(v * 10.0) / 10.0
     }
 
     fun hasCheckedIn(): Boolean = daily.any { it.date == today() && it.weight != null }
 
-    /** Consecutive days with a check-in or workout. Today is a grace period: the
-     *  streak stays alive all day even before today's check-in, and only breaks
-     *  after a full day has passed with nothing logged. */
     val streak: Int
         get() {
             val dates = HashSet<String>()
             daily.forEach { dates.add(it.date) }
             sessions.forEach { dates.add(it.date) }
             var d = LocalDate.now()
-            if (!dates.contains(d.toString())) d = d.minusDays(1)   // today still open
+            if (!dates.contains(d.toString())) d = d.minusDays(1)
             var n = 0
             repeat(400) {
                 val s = d.toString()
@@ -149,8 +154,10 @@ class Store(app: Application) : AndroidViewModel(app) {
             return n
         }
 
+    val latestVO2: Double?
+        get() = sortedDaily.lastOrNull { (it.vo2max ?: 0.0) > 0 }?.vo2max
+
     // MARK: - Next workout (schedule-aware)
-    /** What to train next: a strength plan or a cardio activity. */
     sealed class NextItem {
         data class Plan(val plan: WorkoutPlan) : NextItem()
         data class Cardio(val cardio: CardioType) : NextItem()
@@ -167,12 +174,11 @@ class Store(app: Application) : AndroidViewModel(app) {
         return null
     }
 
-    /** The next thing to train (schedule first, else rotation). */
     fun nextUp(): NextItem? {
         if (prefs.hasSchedule) {
             val sched = prefs.weekSchedule
             val now = LocalDate.now()
-            val todayMon = (now.dayOfWeek.value - 1).coerceIn(0, 6)   // Monday = 0
+            val todayMon = (now.dayOfWeek.value - 1).coerceIn(0, 6)
             val trainedToday = sessions.any { it.date == today() }
             for (off in 0 until 8) {
                 if (off == 0 && trainedToday) continue
@@ -183,13 +189,11 @@ class Store(app: Application) : AndroidViewModel(app) {
         return nextPlanRotation()?.let { NextItem.Plan(it) }
     }
 
-    /** Next strength plan only (used by progressive-overload suggestions). */
     fun nextStrengthPlan(): WorkoutPlan? {
         if (prefs.hasSchedule) (nextUp() as? NextItem.Plan)?.let { return it.plan }
         return nextPlanRotation()
     }
 
-    /** Rotation: the plan after the most recent session's plan, looping. */
     fun nextPlanRotation(): WorkoutPlan? {
         if (plans.isEmpty()) return null
         val last = sessions.sortedByDescending { it.date }.firstOrNull() ?: return plans.first()
@@ -200,8 +204,7 @@ class Store(app: Application) : AndroidViewModel(app) {
 
     fun setSchedule(weekday: Int, id: String) {
         if (weekday !in 0..6) return
-        val s = prefs.weekSchedule.toMutableList()
-        s[weekday] = id
+        val s = prefs.weekSchedule.toMutableList(); s[weekday] = id
         val keep = s.any { it.isNotEmpty() && it != "rest" }
         updatePrefs(prefs.copy(schedule = if (keep) s else null))
     }
@@ -213,44 +216,42 @@ class Store(app: Application) : AndroidViewModel(app) {
         return mx
     }
 
+    fun isBodyweightExercise(name: String): Boolean {
+        exerciseItems.firstOrNull { it.name == name }?.let { return it.isBodyweight }
+        for (p in plans) { p.exercises.firstOrNull { it.name == name }?.let { return it.bodyweight } }
+        return false
+    }
+
     fun lastSession(planId: String): WorkoutSession? =
         sessions.filter { it.planId == planId && it.date != today() }
             .sortedByDescending { it.date }.firstOrNull()
 
-    /** Suggested next weight: previous session's max + 2.5kg if every set was completed. */
     fun suggested(planId: String, exercise: String): Double? {
+        val prog = progression(planId, exercise)
+        if (prog != ProgressionHint.ADD_LOAD) return null
         val last = lastSession(planId) ?: return null
         val ex = last.exercises.firstOrNull { it.name == exercise } ?: return null
         if (ex.sets.isEmpty()) return null
         val allDone = ex.sets.all { pf(it.reps) > 0 && pf(it.weight) > 0 }
-        return if (allDone) ex.maxWeight + 2.5 else null
+        if (!allDone) return null
+        return ex.maxWeight + 2.5
     }
 
-    /** Energy spent in a session (kcal) as *active* energy (resting baseline
-     *  removed, so it's comparable to a sports watch). Each category has its own
-     *  formula: manual override wins; each aerobic sport has its own speed->MET
-     *  curve refined by avg HR; strength uses avg HR + duration + a small volume
-     *  bump; an unknown custom activity ("other", e.g. padel) uses a generic
-     *  HR + duration estimate. A new activity mapped to an existing sport inherits
-     *  that sport's formula via sportType. */
     fun estimateCalories(s: WorkoutSession): Int {
         s.caloriesManual?.let { if (it > 0) return it }
         val w = lastWeight
         val dur = s.durationMinutesD
-        if (dur == null || dur <= 0) {
-            // No duration logged: fall back to a strength volume/sets heuristic.
+        if (dur == null || dur <= 0)
             return (s.volume * 0.022 + s.totalSets * 3 + 60).roundToInt()
-        }
         val hours = dur / 60.0
-        val speed = s.distanceKm?.let { if (it > 0) it / hours else null }   // km/h
+        val speed = s.distanceKm?.let { if (it > 0) it / hours else null }
         val hrr = hrReserve(s.avgHR, s)
         val met = sportMET(s.sportType, speed, hrr)
-        var kcal = maxOf(1.0, met - 1.0) * w * hours   // active energy
+        var kcal = maxOf(1.0, met - 1.0) * w * hours
         if (s.sportType == Sport.STRENGTH) kcal += minOf(90.0, s.volume * 0.008)
         return maxOf(1, kcal.roundToInt())
     }
 
-    /** HR-reserve fraction (0..1) from profile resting/max HR, or null with no HR. */
     private fun hrReserve(hr: Int?, s: WorkoutSession): Double? {
         if (hr == null || hr <= 0) return null
         val rest = prefs.restHRorDefault.toDouble()
@@ -259,64 +260,390 @@ class Store(app: Application) : AndroidViewModel(app) {
         return ((hr - rest) / (mx - rest)).coerceIn(0.0, 1.0)
     }
 
-    /** Per-category gross MET. Aerobic sports use a speed->MET curve calibrated so
-     *  the active energy stays close to a sports-watch reading (the old HR-only
-     *  Keytel equation badly overestimated, ~1200 kcal for a steady ride). Without
-     *  speed we fall back to an HR-driven estimate, then a moderate fixed MET. */
     private fun sportMET(sport: Sport, speedKmh: Double?, hrr: Double?): Double = when (sport) {
         Sport.RUNNING -> when {
             speedKmh != null && speedKmh > 0 -> maxOf(6.0, 0.95 * speedKmh + 0.5)
-            hrr != null -> 3.0 + 9.0 * hrr
-            else -> 9.5
+            hrr != null -> 3.0 + 9.0 * hrr; else -> 9.5
         }
         Sport.CYCLING -> when {
             speedKmh != null && speedKmh > 0 -> when {
-                speedKmh < 16 -> 3.8
-                speedKmh < 20 -> 5.0      // ~17 km/h leisure -> ~500 kcal active for an 88-min ride
-                speedKmh < 24 -> 6.8
-                speedKmh < 28 -> 8.5
-                speedKmh < 33 -> 10.5
-                else -> 12.5
+                speedKmh < 16 -> 3.8; speedKmh < 20 -> 5.0; speedKmh < 24 -> 6.8
+                speedKmh < 28 -> 8.5; speedKmh < 33 -> 10.5; else -> 12.5
             }
-            hrr != null -> 2.5 + 7.0 * hrr
-            else -> 6.0
+            hrr != null -> 2.5 + 7.0 * hrr; else -> 6.0
         }
         Sport.WALKING -> when {
             speedKmh != null && speedKmh > 0 -> when {
-                speedKmh < 3.2 -> 2.5
-                speedKmh < 4.8 -> 3.3
-                speedKmh < 6.4 -> 4.5
-                speedKmh < 8.0 -> 6.0
-                else -> 7.5
+                speedKmh < 3.2 -> 2.5; speedKmh < 4.8 -> 3.3; speedKmh < 6.4 -> 4.5
+                speedKmh < 8.0 -> 6.0; else -> 7.5
             }
-            hrr != null -> 2.0 + 4.0 * hrr
-            else -> 3.5
+            hrr != null -> 2.0 + 4.0 * hrr; else -> 3.5
         }
         Sport.SWIMMING -> when {
             speedKmh != null && speedKmh > 0 -> if (speedKmh > 4) 10.0 else if (speedKmh < 2.5) 6.0 else 8.3
-            hrr != null -> 4.0 + 7.0 * hrr
-            else -> 8.0
+            hrr != null -> 4.0 + 7.0 * hrr; else -> 8.0
         }
         Sport.STRENGTH -> if (hrr != null) 2.8 + 5.5 * hrr else 4.5
         else -> if (hrr != null) 2.0 + 7.0 * hrr else 6.0
     }
 
-    // MARK: Cardio types
-    fun commitCardioType(ct: CardioType) {
-        val i = cardioTypes.indexOfFirst { it.id == ct.id }
-        if (i >= 0) cardioTypes[i] = ct else cardioTypes.add(ct)
+    // Banister TRIMP: duration * HRR * exp(b * HRR) where b=1.92 (men)
+    fun trimp(s: WorkoutSession): Double? {
+        val dur = s.durationMinutesD ?: return null
+        if (dur <= 0) return null
+        val hrr = hrReserve(s.avgHR, s) ?: return null
+        val b = if (prefs.sexCode == "f") 1.67 else 1.92
+        return dur * hrr * kotlin.math.exp(b * hrr)
+    }
+
+    // MARK: - Nutrition targets
+    data class EnergyTargets(
+        val bmr: Double, val tdee: Double, val target: Double, val mode: GoalMode,
+        val protein: Double, val carbs: Double, val fat: Double
+    )
+
+    fun energyTargets(): EnergyTargets {
+        val w = lastWeight; val h = prefs.height * 100   // cm
+        val age = prefs.age?.toDouble() ?: 30.0
+        val bmr = if (prefs.sexCode == "m")
+            10 * w + 6.25 * h - 5 * age + 5
+        else
+            10 * w + 6.25 * h - 5 * age - 161
+        val tdee = bmr * prefs.activityLevel.multiplier
+        val mode = prefs.goal
+        val target = (tdee * (1 + mode.calorieAdjust)).coerceAtLeast(1200.0)
+        // Protein: 2.0 g/kg; Fat: 0.9 g/kg; Carbs: remainder
+        val protein = (w * 2.0).roundToInt().toDouble()
+        val fat = (w * 0.9).roundToInt().toDouble()
+        val carbs = ((target - protein * 4 - fat * 9) / 4).coerceAtLeast(0.0).roundToInt().toDouble()
+        return EnergyTargets(bmr.roundToInt().toDouble(), tdee.roundToInt().toDouble(),
+            target.roundToInt().toDouble(), mode, protein, carbs, fat)
+    }
+
+    // MARK: - Nutrition storage
+    fun dailyEntry(date: String): DailyEntry? = daily.firstOrNull { it.date == date }
+
+    fun upsertDaily(date: String, mutate: (DailyEntry) -> DailyEntry) {
+        val existing = daily.firstOrNull { it.date == date } ?: DailyEntry(date = date)
+        val updated = mutate(existing)
+        daily.removeAll { it.date == date }
+        daily.add(updated)
         save()
     }
-    fun deleteCardioType(id: String) { cardioTypes.removeAll { it.id == id }; save() }
 
-    // MARK: Session editing
+    fun saveNutritionTotal(date: String, kcal: Int?, protein: Double?, carbs: Double?, fat: Double?) {
+        upsertDaily(date) { e -> e.copy(kcal = kcal, protein = protein, carbs = carbs, fat = fat, meals = null) }
+    }
+
+    fun saveNutritionMeals(date: String, meals: Map<String, MealEntry>) {
+        val clean = meals.filter { !it.value.isEmpty }
+        upsertDaily(date) { e ->
+            e.copy(meals = if (clean.isEmpty()) null else clean, kcal = null, protein = null, carbs = null, fat = null)
+        }
+        for (m in clean.values) { for (l in (m.foods ?: emptyList())) { l.foodId?.let { touchFood(it) } } }
+    }
+
+    fun saveDayFoods(date: String, foods: List<FoodLog>) {
+        upsertDaily(date) { e ->
+            if (foods.isEmpty()) e.copy(foods = null)
+            else e.copy(foods = foods, kcal = null, protein = null, carbs = null, fat = null, meals = null)
+        }
+        for (l in foods) { l.foodId?.let { touchFood(it) } }
+    }
+
+    fun saveManualSleep(hours: Double?, score: Int?, hrv: Double?, sleepHR: Int?) {
+        val t = today()
+        upsertDaily(t) { e ->
+            e.copy(
+                sleepHours = if (hours != null && hours > 0) hours else e.sleepHours,
+                sleep = if (score != null) score.coerceIn(0, 100) else e.sleep,
+                hrvSDNN = if (hrv != null && hrv > 0) hrv else e.hrvSDNN,
+                sleepHR = if (sleepHR != null && sleepHR > 0) sleepHR else e.sleepHR
+            )
+        }
+    }
+
+    data class NutPoint(val date: String, val kcal: Int, val protein: Double, val carbs: Double, val fat: Double)
+    fun nutritionSeries(days: Int = 90): List<NutPoint> =
+        sortedDaily.filter { it.hasNutrition }.takeLast(days).map {
+            NutPoint(it.date, it.totalKcal, it.totalProtein, it.totalCarbs, it.totalFat)
+        }
+
+    // MARK: - Health Connect sample import (gap-fill only, manual values win)
+    data class HealthDaySample(
+        val date: String,
+        val steps: Int? = null, val restHR: Int? = null, val hrvSDNN: Double? = null,
+        val activeKcal: Int? = null, val exerciseMin: Int? = null,
+        val sleepHours: Double? = null, val sleepHR: Int? = null, val vo2max: Double? = null
+    )
+
+    companion object {
+        fun sleepScore(fromHours: Double): Int {
+            val penalty = Math.abs(fromHours - 8.0) * 12.0
+            return maxOf(0, minOf(100, (100 - penalty).roundToInt()))
+        }
+    }
+
+    fun applyHealthSamples(samples: List<HealthDaySample>) {
+        for (s in samples) {
+            val existing = daily.firstOrNull { it.date == s.date } ?: DailyEntry(date = s.date)
+            var e = existing
+            if (e.stepsManual != true && s.steps != null && s.steps > 0) e = e.copy(steps = s.steps)
+            if (e.restHR == null && s.restHR != null && s.restHR > 0) e = e.copy(restHR = s.restHR)
+            if (e.hrvSDNN == null && s.hrvSDNN != null && s.hrvSDNN > 0) e = e.copy(hrvSDNN = s.hrvSDNN)
+            if (e.activeKcal == null && s.activeKcal != null && s.activeKcal > 0) e = e.copy(activeKcal = s.activeKcal)
+            if (e.exerciseMin == null && s.exerciseMin != null && s.exerciseMin > 0) e = e.copy(exerciseMin = s.exerciseMin)
+            if (e.sleepHours == null && s.sleepHours != null && s.sleepHours > 0) e = e.copy(sleepHours = s.sleepHours)
+            if (e.sleepHR == null && s.sleepHR != null && s.sleepHR > 0) e = e.copy(sleepHR = s.sleepHR)
+            if (e.vo2max == null && s.vo2max != null && s.vo2max > 0) e = e.copy(vo2max = s.vo2max)
+            if (e.sleep == null) {
+                val h = e.sleepHours ?: s.sleepHours
+                if (h != null && h > 0) e = e.copy(sleep = sleepScore(h))
+            }
+            daily.removeAll { it.date == s.date }
+            daily.add(e)
+        }
+        save()
+    }
+
+    // MARK: - Health Connect workout import
+    // Mirrors iOS applyHealthWorkouts: dedup by UUID, skip same-day/sport/duration overlaps.
+    data class HealthWorkout(
+        val uuid: String,
+        val date: String,
+        val sport: String,
+        val durationSec: Int,
+        val avgHR: Int? = null,
+        val maxHR: Int? = null,
+        val kcal: Int? = null,
+        val distanceKm: Double? = null,
+        val sourceName: String = "",
+        val displayName: String = ""
+    )
+
+    fun applyHealthWorkouts(workouts: List<HealthWorkout>): Pair<Int, List<String>> {
+        var imported = 0
+        val srcs = mutableSetOf<String>()
+        for (w in workouts) {
+            if (sessions.any { it.healthUUID == w.uuid }) continue
+            val isStrength = w.sport == "strength"
+            val overlaps = sessions.any { s ->
+                if (s.date != w.date) return@any false
+                val sameSport = if (isStrength) (s.sport == null) else (s.sport == w.sport)
+                if (!sameSport) return@any false
+                val dur = s.durationSeconds ?: 0
+                Math.abs(dur - w.durationSec) <= 120
+            }
+            if (overlaps) continue
+            sessions.add(sessionFromHealth(w))
+            imported++
+            if (w.sourceName.isNotEmpty()) srcs.add(w.sourceName)
+        }
+        if (imported > 0) save()
+        return imported to srcs.sorted()
+    }
+
+    private fun sessionFromHealth(w: HealthWorkout): WorkoutSession {
+        val isStrength = w.sport == "strength"
+        val sportType = Sport.from(w.sport)
+        val sessionName = w.displayName.ifEmpty { sportType.label() }
+        return WorkoutSession(
+            date = w.date, planId = "health-${w.sport}", planName = sessionName,
+            planColor = "34c759",   // Apple Health green
+            sport = if (isStrength) null else w.sport,
+            durationSec = if (w.durationSec > 0) w.durationSec else null,
+            avgHR = w.avgHR?.takeIf { it > 0 },
+            maxHRSes = w.maxHR?.takeIf { it > 0 },
+            distanceKm = w.distanceKm?.takeIf { it > 0 },
+            caloriesManual = w.kcal?.takeIf { it > 0 },
+            healthUUID = w.uuid,
+            source = w.sourceName.ifEmpty { null }
+        )
+    }
+
+    fun importHealthWorkout(w: HealthWorkout): WorkoutSession {
+        sessions.firstOrNull { it.healthUUID == w.uuid }?.let { return it }
+        val s = sessionFromHealth(w); sessions.add(s); save(); return s
+    }
+
+    // MARK: - Saved food list
+    fun recentFoods(): List<FoodItem> = foods.sortedWith(
+        compareByDescending<FoodItem> { it.lastUsed ?: "" }.thenBy { it.name.lowercase() }
+    )
+    fun food(barcode: String): FoodItem? = foods.firstOrNull { it.barcode == barcode }
+
+    fun saveFood(f: FoodItem): FoodItem {
+        val i = foods.indexOfFirst { it.id == f.id }
+        if (i >= 0) foods[i] = f else foods.add(f)
+        save(); return f
+    }
+    fun deleteFood(id: String) { foods.removeAll { it.id == id }; save() }
+    fun touchFood(id: String) {
+        val i = foods.indexOfFirst { it.id == id }
+        if (i >= 0) { foods[i] = foods[i].copy(lastUsed = today()); save() }
+    }
+
+    // MARK: - Saved recipes
+    fun recentRecipes(): List<Recipe> = recipes.sortedWith(
+        compareByDescending<Recipe> { it.lastUsed ?: "" }.thenBy { it.name.lowercase() }
+    )
+
+    fun saveRecipe(r: Recipe): Recipe {
+        val i = recipes.indexOfFirst { it.id == r.id }
+        if (i >= 0) recipes[i] = r else recipes.add(r)
+        save(); return r
+    }
+    fun deleteRecipe(id: String) { recipes.removeAll { it.id == id }; save() }
+    fun touchRecipe(id: String) {
+        val i = recipes.indexOfFirst { it.id == id }
+        if (i >= 0) { recipes[i] = recipes[i].copy(lastUsed = today()); save() }
+    }
+
+    // MARK: - Exercise library
+    fun recentExercises(): List<ExerciseItem> = exerciseItems.sortedWith(
+        compareByDescending<ExerciseItem> { it.lastUsed ?: "" }.thenBy { it.name.lowercase() }
+    )
+
+    fun touchExerciseInLibrary(name: String, isBodyweight: Boolean = false): ExerciseItem {
+        val i = exerciseItems.indexOfFirst { it.name == name }
+        if (i >= 0) {
+            val e = exerciseItems[i].let { ex ->
+                ex.copy(
+                    lastUsed = today(),
+                    isBodyweight = if (isBodyweight) true else ex.isBodyweight,
+                    base = ex.base ?: normalizedBase(name),
+                    category = ex.category ?: guessCategory(name).raw
+                )
+            }
+            exerciseItems[i] = e; save(); return e
+        }
+        val item = ExerciseItem(name = name, isBodyweight = isBodyweight, lastUsed = today(),
+            base = normalizedBase(name), category = guessCategory(name).raw)
+        exerciseItems.add(item); save(); return item
+    }
+
+    fun registerPlanExercises(plan: WorkoutPlan) {
+        for (ex in plan.exercises) {
+            val name = ex.name.trim(); if (name.isEmpty()) continue
+            touchExerciseInLibrary(name, ex.bodyweight)
+            if (ex.muscle != null && ex.muscle.isNotEmpty()) {
+                val i = exerciseItems.indexOfFirst { it.name == name }
+                if (i >= 0) exerciseItems[i] = exerciseItems[i].copy(category = ex.muscle)
+            }
+        }
+        save()
+    }
+
+    fun exerciseBase(name: String): String {
+        val item = exerciseItems.firstOrNull { it.name == name }
+        return item?.base?.takeIf { it.isNotEmpty() } ?: normalizedBase(name)
+    }
+
+    fun exerciseCategory(name: String): String {
+        val item = exerciseItems.firstOrNull { it.name == name }
+        return item?.category?.takeIf { it.isNotEmpty() } ?: guessCategory(name).raw
+    }
+
+    data class ExFamily(val base: String, val category: String, val names: List<String>)
+
+    fun exerciseFamilies(): List<ExFamily> {
+        val byBase = LinkedHashMap<String, Pair<String, MutableList<String>>>()
+        for ((_, name) in allExerciseNames()) {
+            if (name.isEmpty()) continue
+            val base = exerciseBase(name)
+            val entry = byBase.getOrPut(base) { exerciseCategory(name) to mutableListOf() }
+            if (!entry.second.contains(name)) entry.second.add(name)
+        }
+        return byBase.map { ExFamily(it.key, it.value.first, it.value.second) }
+            .sortedBy { it.base.lowercase() }
+    }
+
+    data class ExPoint(val date: String, val maxW: Double, val vol: Double)
+    fun exerciseHistory(name: String): List<ExPoint> =
+        sessions.filter { s -> s.exercises.any { it.name == name } }
+            .sortedBy { it.date }
+            .map { s ->
+                val ex = s.exercises.first { it.name == name }
+                ExPoint(fmtShort(s.date), ex.maxWeight, Math.round(ex.volume).toDouble())
+            }
+
+    fun exerciseHistory(familyBase: String): List<ExPoint> {
+        val names = exerciseItems.filter { exerciseBase(it.name) == familyBase }.map { it.name }.toHashSet()
+        plans.forEach { p -> p.exercises.forEach { if (exerciseBase(it.name) == familyBase) names.add(it.name) } }
+        return sessions.filter { s -> s.exercises.any { it.name in names } }
+            .sortedBy { it.date }
+            .map { s ->
+                val exs = s.exercises.filter { it.name in names }
+                ExPoint(fmtShort(s.date), exs.maxOfOrNull { it.maxWeight } ?: 0.0,
+                    Math.round(exs.sumOf { it.volume }).toDouble())
+            }
+    }
+
+    // MARK: - Body data
+    val bodyLatest: BodyEntry? get() = body.sortedByDescending { it.date }.firstOrNull()
+    val bodyPrev: BodyEntry?
+        get() { val s = body.sortedByDescending { it.date }; return if (s.size > 1) s[1] else null }
+
+    val currentBF: Double?
+        get() {
+            val bl = bodyLatest ?: return null
+            return bl.bfManual ?: bfNavy(bl.waist, bl.neck, bl.hips)
+        }
+
+    // MARK: - Mutations
+    fun saveCheckIn(weight: Double?, sleep: Int?, restHR: Int? = null, sleepHR: Int? = null) {
+        val t = today()
+        val existing = daily.firstOrNull { it.date == t } ?: DailyEntry(date = t)
+        val entry = existing.copy(
+            weight = weight ?: existing.weight,
+            sleep = sleep ?: existing.sleep,
+            restHR = restHR ?: existing.restHR,
+            sleepHR = sleepHR ?: existing.sleepHR
+        )
+        daily.removeAll { it.date == t }; daily.add(entry); save()
+    }
+
+    fun saveBodyFat(v: Double) {
+        val t = today()
+        val rec = (if (bodyLatest?.date == t) bodyLatest!! else BodyEntry(date = t)).copy(bfManual = v)
+        body.removeAll { it.date == t }; body.add(rec); save()
+    }
+
+    fun saveMeasurements(values: Map<String, Double>) {
+        val t = today()
+        var rec = if (bodyLatest?.date == t) bodyLatest!! else BodyEntry(date = t)
+        for ((k, v) in values) if (v > 0) rec = rec.withValue(k, v)
+        body.removeAll { it.date == t }; body.add(rec); save()
+    }
+
+    fun addSession(s: WorkoutSession) { sessions.add(s); save() }
     fun deleteSession(id: String) { sessions.removeAll { it.id == id }; save() }
     fun updateSession(s: WorkoutSession) {
         val i = sessions.indexOfFirst { it.id == s.id }
         if (i >= 0) { sessions[i] = s; save() }
     }
 
-    // MARK: Rest days (markers, not sessions)
+    fun upsertPlan(p: WorkoutPlan) {
+        val idx = plans.indexOfFirst { it.id == p.id }
+        if (idx >= 0) plans[idx] = p else plans.add(p); save()
+    }
+    fun deletePlan(id: String) { plans.removeAll { it.id == id }; save() }
+
+    fun addExerciseToPlan(planId: String, name: String) {
+        val idx = plans.indexOfFirst { it.id == planId }
+        if (idx < 0) return
+        val p = plans[idx]
+        if (p.exercises.any { it.name.equals(name, ignoreCase = true) }) return
+        plans[idx] = p.copy(exercises = p.exercises + PlanExercise(name = name, sets = 3, reps = "10"))
+        save()
+    }
+
+    fun commitCardioType(ct: CardioType) {
+        val i = cardioTypes.indexOfFirst { it.id == ct.id }
+        if (i >= 0) cardioTypes[i] = ct else cardioTypes.add(ct); save()
+    }
+    fun deleteCardioType(id: String) { cardioTypes.removeAll { it.id == id }; save() }
+
     fun isRestDay(date: String): Boolean = prefs.restDaySet.contains(date)
     fun setRestDay(date: String, on: Boolean) {
         val set = prefs.restDaySet.toMutableSet()
@@ -325,17 +652,13 @@ class Store(app: Application) : AndroidViewModel(app) {
     }
     fun toggleRestDay(date: String) = setRestDay(date, !isRestDay(date))
 
-    // MARK: Quick insert (log a workout for another day from Home or Calendar)
-    /** Create a strength session for [date], prefilled from the last session of
-     *  that plan (sets/reps/weights/load), or the plan template when no history. */
     fun quickInsertSession(plan: WorkoutPlan, date: String): WorkoutSession {
         val last = sessions.filter { it.planId == plan.id }.sortedByDescending { it.date }.firstOrNull()
         val exercises = if (last != null) {
             last.exercises.map { e ->
                 LoggedExercise(name = e.name,
                     sets = e.sets.map { SetEntry(reps = it.reps, weight = it.weight) },
-                    notes = "", target = e.target,
-                    supersetGroup = e.supersetGroup, method = e.method)
+                    notes = "", target = e.target, supersetGroup = e.supersetGroup, method = e.method)
             }
         } else {
             plan.exercises.map { pe ->
@@ -348,13 +671,9 @@ class Store(app: Application) : AndroidViewModel(app) {
         val s = WorkoutSession(date = date, planId = plan.id, planName = plan.name,
             planColor = plan.color, exercises = exercises,
             durationSec = last?.durationSeconds, avgHR = last?.avgHR, maxHRSes = last?.maxHRSes)
-        setRestDay(date, false)
-        sessions.add(s)
-        save()
-        return s
+        setRestDay(date, false); sessions.add(s); save(); return s
     }
 
-    /** Create a cardio session for [date], prefilled from the last log. */
     fun quickInsertCardio(type: CardioType, date: String): WorkoutSession {
         val pid = "cardio-${type.id}"
         val last = sessions.filter { it.planId == pid }.sortedByDescending { it.date }.firstOrNull()
@@ -362,28 +681,7 @@ class Store(app: Application) : AndroidViewModel(app) {
             planColor = type.color, exercises = emptyList(), sport = type.sport,
             durationSec = last?.durationSeconds, avgHR = last?.avgHR,
             distanceKm = last?.distanceKm, paceManual = last?.paceManual)
-        setRestDay(date, false)
-        sessions.add(s)
-        save()
-        return s
-    }
-
-    // MARK: Daily nutrition & recovery
-    fun saveDailyExtras(
-        kcal: Int? = null, protein: Double? = null, carbs: Double? = null,
-        fat: Double? = null, salt: Double? = null, steps: Int? = null,
-        rmssd: Double? = null, restHR: Int? = null, hrvSDNN: Double? = null
-    ) {
-        val t = today()
-        val e = daily.firstOrNull { it.date == t } ?: DailyEntry(date = t)
-        val ne = e.copy(
-            kcal = kcal ?: e.kcal, protein = protein ?: e.protein, carbs = carbs ?: e.carbs,
-            fat = fat ?: e.fat, salt = salt ?: e.salt, steps = steps ?: e.steps,
-            rmssd = rmssd ?: e.rmssd, restHR = restHR ?: e.restHR, hrvSDNN = hrvSDNN ?: e.hrvSDNN
-        )
-        daily.removeAll { it.date == t }
-        daily.add(ne)
-        save()
+        setRestDay(date, false); sessions.add(s); save(); return s
     }
 
     data class WeekStat(val avgWeight: Double?, val sessions: Int)
@@ -401,7 +699,6 @@ class Store(app: Application) : AndroidViewModel(app) {
     }
 
     data class PRInfo(val weight: Double, val date: String?)
-    /** PR per exercise name across all plans + sessions. */
     fun allPRs(): Map<String, PRInfo> {
         val prs = LinkedHashMap<String, PRInfo>()
         for (p in plans) for (e in p.exercises) if (!prs.containsKey(e.name)) prs[e.name] = PRInfo(0.0, null)
@@ -412,87 +709,33 @@ class Store(app: Application) : AndroidViewModel(app) {
         return prs
     }
 
-    /** Distinct exercise names from every plan, in plan order. */
     fun allExerciseNames(): List<Pair<String, String>> {
-        val out = ArrayList<Pair<String, String>>()
-        for (p in plans) for (e in p.exercises) out.add(p.name to e.name)
+        val seen = HashSet<String>(); val out = ArrayList<Pair<String, String>>()
+        for (p in plans) for (e in p.exercises) if (e.name.isNotEmpty() && seen.add(e.name)) out.add(p.name to e.name)
+        for (item in exerciseItems.sortedByDescending { it.lastUsed ?: "" })
+            if (item.name.isNotEmpty() && seen.add(item.name)) out.add(L.t("ex.library") to item.name)
         return out
-    }
-
-    data class ExPoint(val date: String, val maxW: Double, val vol: Double)
-    fun exerciseHistory(name: String): List<ExPoint> =
-        sessions.filter { s -> s.exercises.any { it.name == name } }
-            .sortedBy { it.date }
-            .map { s ->
-                val ex = s.exercises.first { it.name == name }
-                ExPoint(fmtShort(s.date), ex.maxWeight, Math.round(ex.volume).toDouble())
-            }
-
-    val bodyLatest: BodyEntry? get() = body.sortedByDescending { it.date }.firstOrNull()
-    val bodyPrev: BodyEntry?
-        get() {
-            val s = body.sortedByDescending { it.date }
-            return if (s.size > 1) s[1] else null
-        }
-
-    /** Effective body-fat %: manual override wins, otherwise Navy estimate. */
-    val currentBF: Double?
-        get() {
-            val bl = bodyLatest ?: return null
-            return bl.bfManual ?: bfNavy(bl.waist, bl.neck)
-        }
-
-    // MARK: - Mutations
-    fun saveCheckIn(weight: Double?, sleep: Int?) {
-        val t = today()
-        val existing = daily.firstOrNull { it.date == t } ?: DailyEntry(date = t)
-        val entry = existing.copy(
-            weight = weight ?: existing.weight,
-            sleep = sleep ?: existing.sleep
-        )
-        daily.removeAll { it.date == t }
-        daily.add(entry)
-        save()
-    }
-
-    fun saveBodyFat(v: Double) {
-        val t = today()
-        val rec = (if (bodyLatest?.date == t) bodyLatest!! else BodyEntry(date = t)).copy(bfManual = v)
-        body.removeAll { it.date == t }
-        body.add(rec)
-        save()
-    }
-
-    fun saveMeasurements(values: Map<String, Double>) {
-        val t = today()
-        var rec = if (bodyLatest?.date == t) bodyLatest!! else BodyEntry(date = t)
-        for ((k, v) in values) if (v > 0) rec = rec.withValue(k, v)
-        body.removeAll { it.date == t }
-        body.add(rec)
-        save()
-    }
-
-    fun addSession(s: WorkoutSession) { sessions.add(s); save() }
-
-    fun upsertPlan(p: WorkoutPlan) {
-        val idx = plans.indexOfFirst { it.id == p.id }
-        if (idx >= 0) plans[idx] = p else plans.add(p)
-        save()
-    }
-
-    fun deletePlan(id: String) { plans.removeAll { it.id == id }; save() }
-
-    fun addExerciseToPlan(planId: String, name: String) {
-        val idx = plans.indexOfFirst { it.id == planId }
-        if (idx >= 0) {
-            val p = plans[idx]
-            plans[idx] = p.copy(exercises = p.exercises + PlanExercise(name = name, sets = 3, reps = "10"))
-            save()
-        }
     }
 
     fun updatePrefs(p: Prefs) { prefs = p; save() }
 
+    // MARK: - Progressive overload hints (mirrors iOS progression())
+    enum class ProgressionHint { ADD_LOAD, ADD_REPS, HOLD, DELOAD }
+
+    fun progression(planId: String, exercise: String): ProgressionHint? {
+        val last = lastSession(planId) ?: return null
+        val ex = last.exercises.firstOrNull { it.name == exercise } ?: return null
+        if (ex.sets.isEmpty()) return null
+        val allDone = ex.sets.all { pf(it.reps) > 0 }
+        val someEmpty = ex.sets.any { !it.filled }
+        return when {
+            someEmpty -> ProgressionHint.HOLD
+            allDone -> ProgressionHint.ADD_LOAD
+            else -> ProgressionHint.ADD_REPS
+        }
+    }
+
+    // MARK: - Static helpers
     companion object {
         fun defaultPlans(): List<WorkoutPlan> = listOf(
             WorkoutPlan(id = "p1", name = "Push", sub = "Chest + Shoulders + Triceps", color = "ff5a52", exercises = listOf(
@@ -527,7 +770,50 @@ class Store(app: Application) : AndroidViewModel(app) {
             CardioType(id = "c-bike", name = "Cycling", sport = "cycling", color = "7fc950"),
             CardioType(id = "c-walk", name = "Walking", sport = "walking", color = "b08fff")
         )
+
+        fun normalizedBase(name: String): String {
+            var s = " ${name.lowercase()} "
+            val qualifiers = listOf("wide-grip", "wide grip", "close-grip", "close grip",
+                "narrow-grip", "narrow grip", "neutral-grip", "neutral grip",
+                "reverse-grip", "reverse grip", "rear-delt", "rear delt",
+                "single-arm", "single arm", "one-arm", "one arm", "wide", "close", "narrow")
+            for (q in qualifiers) s = s.replace(" $q ", " ")
+            val cleaned = s.replace("  ", " ").trim()
+            if (cleaned.isEmpty()) return name
+            return cleaned[0].uppercaseChar() + cleaned.drop(1)
+        }
+
+        fun guessCategory(name: String): MuscleGroup {
+            val n = name.lowercase()
+            fun has(ks: List<String>) = ks.any { n.contains(it) }
+            if (has(listOf("squat", "leg press", "leg curl", "leg extension", "lunge", "calf",
+                    "hamstring", "quad", "glute", "rdl", "romanian", "hip thrust"))) return MuscleGroup.LEGS
+            if (has(listOf("bench", "chest", "fly", "pec", "push-up", "push up", "dip"))) return MuscleGroup.CHEST
+            if (has(listOf("row", "pulldown", "pull-up", "pull up", "chin-up", "lat ", "deadlift",
+                    "pull-over", "back extension"))) return MuscleGroup.BACK
+            if (has(listOf("shoulder", "lateral raise", "delt", "overhead press", "ohp",
+                    "upright row", "face pull", "shrug"))) return MuscleGroup.SHOULDERS
+            if (has(listOf("curl", "triceps", "biceps", "pushdown", "skull", "preacher",
+                    "hammer", "forearm"))) return MuscleGroup.ARMS
+            if (has(listOf("plank", "crunch", "ab ", "abs", "core", "sit-up", "sit up",
+                    "leg raise", "russian twist"))) return MuscleGroup.CORE
+            if (has(listOf("run", "cycl", "bike", "swim", "walk", "rowing", "elliptical",
+                    "jump rope"))) return MuscleGroup.CARDIO
+            return MuscleGroup.OTHER
+        }
     }
+}
+
+// MARK: - Units helper (mirrors iOS Units)
+object Units {
+    var imperial: Boolean = false
+    val wLabel: String get() = if (imperial) "lb" else "kg"
+    val heightLabel: String get() = if (imperial) "in" else "cm"
+    fun wIn(v: Double): Double = if (imperial) v / 2.20462 else v
+    fun wOut(v: Double): Double = if (imperial) v * 2.20462 else v
+    fun heightIn(v: Double): Double = if (imperial) v * 2.54 / 100 else v / 100
+    fun heightOut(hm: Double): Double = if (imperial) hm * 100 / 2.54 else hm * 100
+    fun dispW(v: Double): String = trimNum(if (imperial) Math.round(wOut(v) * 10.0) / 10.0 else Math.round(v * 10.0) / 10.0)
 }
 
 private fun log10(x: Double): Double = ln(x) / ln(10.0)

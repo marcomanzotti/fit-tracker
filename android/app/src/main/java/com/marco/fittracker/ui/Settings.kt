@@ -41,17 +41,6 @@ import com.marco.fittracker.data.pf
 import com.marco.fittracker.data.t
 import com.marco.fittracker.data.trimNum
 
-/** One-line, day-quantified description of the selected activity level so the
- *  user understands exactly what each multiplier means for their calories. */
-private fun activityDesc(v: String): String = when (v) {
-    "sedentary" -> t("ob.act_sed_d")
-    "light" -> t("ob.act_light_d")
-    "moderate" -> t("ob.act_mod_d")
-    "high" -> t("ob.act_high_d")
-    "athlete" -> t("ob.act_athlete_d")
-    else -> ""
-}
-
 // Clean starting numbers per sex (height in meters, weights in kg).
 private data class SexDefaults(val height: String, val weight: String, val goal: String)
 private val maleDefaults = SexDefaults("1.8", "80", "75")
@@ -102,6 +91,10 @@ fun SettingsDialog(onClose: () -> Unit) {
     var maxHR by remember { mutableStateOf(p.maxHR?.toString() ?: "") }
     var sleepOn by remember { mutableStateOf(p.sleepEnabled) }
     var timer by remember { mutableStateOf(p.timer.toString()) }
+    var unitSys by remember { mutableStateOf(if (p.imperial) "imperial" else "metric") }
+    var hkOn by remember { mutableStateOf(p.healthConnectEnabled) }
+    var importWk by remember { mutableStateOf(p.importWorkoutsEnabled) }
+    var healthCats by remember { mutableStateOf(p.healthCategories) }
 
     // When the user flips sex and hasn't typed their own numbers yet (the fields
     // still hold the other sex's clean defaults), swap in this sex's defaults.
@@ -170,13 +163,30 @@ fun SettingsDialog(onClose: () -> Unit) {
             }
             Spacer(Modifier.height(14.dp))
 
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()
-                .clip(RoundedCornerShape(T.radiusS)).background(T.c2).border(1.dp, T.brd, RoundedCornerShape(T.radiusS))
-                .clickable { sleepOn = !sleepOn }.padding(vertical = 12.dp, horizontal = 14.dp)) {
-                Text(t("set.sleep_track"), color = T.txt, fontSize = 13.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
-                Box(Modifier.size(44.dp, 26.dp).clip(RoundedCornerShape(13.dp)).background(if (sleepOn) T.acc else T.c3),
-                    contentAlignment = if (sleepOn) Alignment.CenterEnd else Alignment.CenterStart) {
-                    Box(Modifier.padding(3.dp).size(20.dp).clip(RoundedCornerShape(10.dp)).background(T.bg))
+            // Sleep tracking toggle
+            SettingsToggle(t("set.sleep_track"), sleepOn) { sleepOn = it }
+            Spacer(Modifier.height(12.dp))
+
+            // Units (metric / imperial)
+            Lbl(t("set.units")); Spacer(Modifier.height(8.dp))
+            PillRow(listOf("metric" to t("set.metric"), "imperial" to t("set.imperial")), unitSys) { unitSys = it }
+            Spacer(Modifier.height(14.dp))
+
+            // Health Connect
+            SettingsToggle(t("hk.connect"), hkOn) { hkOn = it }
+            if (hkOn) {
+                Spacer(Modifier.height(10.dp))
+                Text(t("hk.hint"), color = T.sub, fontSize = 11.sp, lineHeight = 15.sp)
+                Spacer(Modifier.height(10.dp))
+                SettingsToggle(t("set.import_workouts"), importWk) { importWk = it }
+                Spacer(Modifier.height(10.dp))
+                Lbl(t("set.health_cats")); Spacer(Modifier.height(8.dp))
+                com.marco.fittracker.data.HealthCategory.entries.forEach { cat ->
+                    val on = cat.raw in healthCats
+                    SettingsToggle(com.marco.fittracker.data.t(cat.labelKey), on) { checked ->
+                        healthCats = if (checked) healthCats + cat.raw else healthCats - cat.raw
+                    }
+                    Spacer(Modifier.height(6.dp))
                 }
             }
             Spacer(Modifier.height(18.dp))
@@ -197,13 +207,34 @@ fun SettingsDialog(onClose: () -> Unit) {
                     restingHR = restHR.toIntOrNull(),
                     maxHR = maxHR.toIntOrNull(),
                     sleepTracking = sleepOn,
-                    timer = timer.toIntOrNull() ?: store.prefs.timer
+                    timer = timer.toIntOrNull() ?: store.prefs.timer,
+                    units = if (unitSys == "imperial") "imperial" else null,
+                    healthConnect = hkOn,
+                    importWorkouts = importWk,
+                    healthImport = healthCats.toList()
                 )
                 store.updatePrefs(np)
                 store.syncLang()
                 toast.show(t("save"))
                 onClose()
             }
+        }
+    }
+}
+
+// MARK: - Settings toggle row
+@Composable
+fun SettingsToggle(label: String, value: Boolean, onChange: (Boolean) -> Unit) {
+    Row(
+        Modifier.fillMaxWidth()
+            .clip(RoundedCornerShape(T.radiusS)).background(T.c2).border(1.dp, T.brd, RoundedCornerShape(T.radiusS))
+            .clickable { onChange(!value) }.padding(vertical = 12.dp, horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(label, color = T.txt, fontSize = 13.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+        Box(Modifier.size(44.dp, 26.dp).clip(RoundedCornerShape(13.dp)).background(if (value) T.acc else T.c3),
+            contentAlignment = if (value) Alignment.CenterEnd else Alignment.CenterStart) {
+            Box(Modifier.padding(3.dp).size(20.dp).clip(RoundedCornerShape(10.dp)).background(T.bg))
         }
     }
 }

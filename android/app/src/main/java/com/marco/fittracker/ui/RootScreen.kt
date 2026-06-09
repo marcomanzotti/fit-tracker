@@ -54,11 +54,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import android.view.HapticFeedbackConstants
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.marco.fittracker.data.Store
 import com.marco.fittracker.data.headerDate
 import com.marco.fittracker.data.trimNum
+import com.marco.fittracker.health.HealthConnectManager
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 // MARK: - Shared "environment" objects
 val LocalStore = compositionLocalOf<Store> { error("Store not provided") }
@@ -143,11 +146,14 @@ class ActiveCardioState {
     }
 }
 
-enum class Tab(val label: String, val sub: String) {
-    HOME("Home", "Dashboard"),
-    ALLENA("Allena", "Log allenamento"),
-    CORPO("Corpo", "Misurazioni & Check-in"),
-    STATS("Stats", "Statistiche")
+enum class Tab(val labelKey: String, val subKey: String) {
+    HOME("nav.home", "sub.home"),
+    ALLENA("nav.train", "sub.train"),
+    CORPO("nav.body", "sub.body"),
+    NUTRIZIONE("nav.nutrition", "sub.nutrition"),
+    STATS("nav.stats", "sub.stats");
+    val label: String get() = com.marco.fittracker.data.t(labelKey)
+    val sub: String get() = com.marco.fittracker.data.t(subKey)
 }
 
 @Composable
@@ -158,6 +164,25 @@ fun RootScreen() {
     val activeWorkout = remember { ActiveWorkoutState() }
     val activeCardio = remember { ActiveCardioState() }
     val view = LocalView.current
+    val context = LocalContext.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+
+    // Health Connect passive import on each launch
+    LaunchedEffect(Unit) {
+        if (store.prefs.healthConnectEnabled) {
+            scope.launch {
+                val hc = HealthConnectManager(context)
+                if (hc.isAvailable) {
+                    val samples = hc.readDailySamples(30)
+                    hc.applyToStore(store, store.prefs, samples)
+                    if (store.prefs.importWorkoutsEnabled) {
+                        val workouts = hc.readWorkouts(30)
+                        hc.importWorkouts(store, store.prefs, workouts)
+                    }
+                }
+            }
+        }
+    }
 
     // Countdown loop — on completion fire a strong, unmistakable rest-done buzz
     // (a CONFIRM plus two spaced reject pulses) so the end of rest is felt mid-set.
@@ -178,6 +203,14 @@ fun RootScreen() {
     }
 
     CompositionLocalProvider(LocalStore provides store, LocalTimer provides timer, LocalToast provides toast, LocalActiveWorkout provides activeWorkout, LocalActiveCardio provides activeCardio) {
+        // Onboarding gate — show profile setup on first launch
+        if (!store.prefs.didOnboard) {
+            OnboardingScreen(store = store) {
+                // store.prefs.onboarded is already set inside OnboardingScreen
+            }
+            return@CompositionLocalProvider
+        }
+
         var tab by remember { mutableStateOf(Tab.HOME) }
         var showSettings by remember { mutableStateOf(false) }
         val statusPad = WindowInsets.statusBars.asPaddingValues()
@@ -198,6 +231,7 @@ fun RootScreen() {
                         Tab.HOME -> HomeScreen { tab = it }
                         Tab.ALLENA -> WorkoutScreen()
                         Tab.CORPO -> BodyScreen()
+                        Tab.NUTRIZIONE -> NutritionScreen(store)
                         Tab.STATS -> StatsScreen()
                     }
                 }

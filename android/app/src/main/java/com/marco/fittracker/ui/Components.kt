@@ -413,3 +413,145 @@ fun ChipsFlow(items: List<String>, color: Color = T.blue, bg: Color = T.blue.cop
         }
     }
 }
+
+// MARK: - Search field (used in food picker, exercise search)
+@Composable
+fun SearchField(value: String, placeholder: String, onChange: (String) -> Unit) {
+    androidx.compose.material3.OutlinedTextField(
+        value = value, onValueChange = onChange,
+        placeholder = { Text(placeholder, color = T.sub, fontSize = 13.sp) },
+        singleLine = true,
+        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+            focusedTextColor = T.txt, unfocusedTextColor = T.txt,
+            focusedContainerColor = T.c2, unfocusedContainerColor = T.c2,
+            focusedBorderColor = T.acc, unfocusedBorderColor = T.brd, cursorColor = T.acc
+        ),
+        shape = RoundedCornerShape(T.radiusS),
+        modifier = Modifier.fillMaxWidth().height(46.dp)
+    )
+}
+
+// MARK: - Sort pill row (food picker / recipe picker)
+@Composable
+fun SortPillRow(
+    keys: List<Pair<String, String>>,
+    selected: String,
+    ascending: Boolean,
+    onSelect: (String) -> Unit
+) {
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(t("food.sort").uppercase(), color = T.sub, fontSize = 9.sp,
+            fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp,
+            modifier = Modifier.align(Alignment.CenterVertically))
+        keys.forEach { (key, label) ->
+            val tap = rememberTap()
+            val active = selected == key
+            val chipLabel = if (active) "$label ${if (ascending) "↑" else "↓"}" else label
+            Text(
+                chipLabel, color = if (active) T.bg else T.sub,
+                fontSize = 10.sp, fontWeight = FontWeight.SemiBold,
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .background(if (active) T.acc else T.c2)
+                    .border(1.dp, if (active) T.acc else T.brd, CircleShape)
+                    .clickable { tap(); onSelect(key) }
+                    .padding(horizontal = 9.dp, vertical = 5.dp)
+            )
+        }
+    }
+}
+
+// MARK: - Labeled text/number form field (food form, recipe form)
+@Composable
+fun FormField(
+    label: String, value: String, placeholder: String,
+    keyboardType: KeyboardType = KeyboardType.Decimal,
+    onChange: (String) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+        Text(label.uppercase(), color = T.sub, fontSize = 10.sp,
+            fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
+        BasicTextField(
+            value = value, onValueChange = onChange,
+            textStyle = TextStyle(color = T.txt, fontSize = 15.sp, fontWeight = FontWeight.SemiBold),
+            keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+            singleLine = true,
+            cursorBrush = SolidColor(T.acc),
+            decorationBox = { inner ->
+                Box(
+                    Modifier.fillMaxWidth()
+                        .clip(RoundedCornerShape(T.radiusS))
+                        .background(T.c2)
+                        .border(1.dp, T.brd, RoundedCornerShape(T.radiusS))
+                        .padding(horizontal = 12.dp, vertical = 11.dp)
+                ) {
+                    if (value.isEmpty()) Text(placeholder, color = T.mut, fontSize = 15.sp)
+                    inner()
+                }
+            }
+        )
+    }
+}
+
+// MARK: - Effort mode selector pills (RIR / RPE / FAIL)
+@Composable
+fun EffortModeSelector(effortMode: String?, onChange: (String?) -> Unit) {
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(t("wk.effort").uppercase(), color = T.sub, fontSize = 9.sp,
+            fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp,
+            modifier = Modifier.align(Alignment.CenterVertically))
+        com.marco.fittracker.data.EffortMode.entries.forEach { mode ->
+            val tap = rememberTap()
+            val active = effortMode == mode.raw
+            Text(mode.label, color = if (active) T.bg else T.sub, fontSize = 10.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .background(if (active) T.acc2 else T.c2)
+                    .border(1.dp, if (active) T.acc2 else T.brd, CircleShape)
+                    .clickable { tap(); onChange(if (active) null else mode.raw) }
+                    .padding(horizontal = 9.dp, vertical = 5.dp)
+            )
+        }
+    }
+}
+
+// MARK: - Effort value field (per-set RIR/RPE/FAIL value)
+@Composable
+fun EffortValField(value: Int?, onChange: (Int?) -> Unit) {
+    var txt by remember(value) { mutableStateOf(value?.toString() ?: "") }
+    Box(
+        Modifier.width(48.dp).padding(horizontal = 3.dp)
+            .clip(RoundedCornerShape(8.dp)).background(T.acc2.copy(alpha = 0.06f))
+            .border(1.dp, T.acc2.copy(alpha = 0.18f), RoundedCornerShape(8.dp))
+            .padding(vertical = 10.dp),
+        Alignment.Center
+    ) {
+        BasicTextField(
+            value = txt,
+            onValueChange = { txt = it; onChange(it.toIntOrNull()) },
+            textStyle = TextStyle(
+                color = T.acc2, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.Center),
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            cursorBrush = SolidColor(T.acc2),
+            decorationBox = { inner ->
+                Box(Modifier.fillMaxWidth(), Alignment.Center) {
+                    if (txt.isEmpty()) Text("—", color = T.mut, fontSize = 14.sp, textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth())
+                    inner()
+                }
+            }
+        )
+    }
+}
+
+// MARK: - Macro tile (large value + small label, used in quantity sheets)
+@Composable
+fun MacroTile(value: String, label: String, color: Color) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(value, color = color, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+        Text(label, color = T.sub, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+    }
+}
