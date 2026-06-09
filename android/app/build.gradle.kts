@@ -55,5 +55,5 @@ dependencies {
     // ML Kit barcode scanning
     implementation("com.google.mlkit:barcode-scanning:17.3.0")
     // Health Connect
-    implementation("androidx.health.connect:connect-client:1.0.0")
+    implementation("androidx.health.connect:connect-client:1.1.0-alpha07")
 }
