@@ -42,6 +42,9 @@ final class WatchSync: NSObject, ObservableObject {
             let s = WCSession.default
             s.delegate = self
             s.activate()
+            print("📱 WatchSync: activate() called")
+        } else {
+            print("📱 WatchSync: WCSession not supported")
         }
         #endif
 
@@ -63,8 +66,12 @@ final class WatchSync: NSObject, ObservableObject {
     /// Build the activity catalog from the Store and send it to the watch.
     func pushContext() {
         #if canImport(WatchConnectivity)
-        guard let store, WCSession.isSupported() else { return }
+        guard let store, WCSession.isSupported() else {
+            print("📱 WatchSync: pushContext skipped, store=\(store != nil) supported=\(WCSession.isSupported())")
+            return
+        }
         let session = WCSession.default
+        print("📱 WatchSync: pushContext, activationState=\(session.activationState.rawValue) paired=\(session.isPaired) watchAppInstalled=\(session.isWatchAppInstalled) reachable=\(session.isReachable)")
         guard session.activationState == .activated else { return }
 
         var activities: [WatchActivity] = store.plans.map { plan in
@@ -87,10 +94,18 @@ final class WatchSync: NSObject, ObservableObject {
         }
         let ctx = WatchContext(activities: activities, lang: store.prefs.langCode)
         let payload = WatchWire.encode(ctx, key: WatchWire.contextKey)
-        guard !payload.isEmpty else { return }
+        guard !payload.isEmpty else {
+            print("📱 WatchSync: pushContext payload empty (encode failed)")
+            return
+        }
         // applicationContext always carries the latest catalog (newer replaces
         // older), so a watch that was off still gets a fresh list when it wakes.
-        try? session.updateApplicationContext(payload)
+        do {
+            try session.updateApplicationContext(payload)
+            print("📱 WatchSync: pushContext sent \(activities.count) activities")
+        } catch {
+            print("📱 WatchSync: updateApplicationContext failed: \(error)")
+        }
         #endif
     }
 
