@@ -180,6 +180,7 @@ enum L {
         "nut.kcal":          ("Calorie", "Calories"),
         "nut.no_log":        ("Nessun dato nutrizionale", "No nutrition logged"),
         "nut.charts":        ("Grafici nutrizione", "Nutrition charts"),
+        "nut.weekly_avg":    ("media sett.", "weekly avg"),
         "nut.charts_hint":   ("Registra le calorie per 2+ giorni per vedere i grafici.", "Log calories for 2+ days to see charts."),
         "nut.saved":         ("Nutrizione salvata", "Nutrition saved"),
         "nut.cleared":       ("Dati nutrizionali rimossi", "Nutrition cleared"),

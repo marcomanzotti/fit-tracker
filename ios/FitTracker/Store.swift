@@ -666,6 +666,42 @@ extension Store {
         }
     }
 
+    /// Weekly-averaged nutrition series for the charts. Mirrors `metricSeries`:
+    /// groups logged days into ISO-week buckets and averages each macro, so the
+    /// nutrition charts show weekly means — consistent with every other overview
+    /// chart (sleep, steps, weight…) instead of noisy day-by-day values.
+    func nutritionWeeklySeries(months: Int = ChartGranularity.week.months) -> [NutPoint] {
+        let cal = Calendar.current
+        guard let cutoff = cal.date(byAdding: .month, value: -months, to: Date()) else { return [] }
+        struct Acc { var kcal = 0.0; var p = 0.0; var c = 0.0; var f = 0.0; var n = 0 }
+        var byBucket: [Date: Acc] = [:]
+        let comps = ChartGranularity.week.comps
+        for e in daily where e.hasNutrition {
+            guard let d = isoFormatter.date(from: e.date), d >= cutoff else { continue }
+            guard let bucket = cal.date(from: cal.dateComponents(comps, from: d)) else { continue }
+            var acc = byBucket[bucket] ?? Acc()
+            acc.kcal += Double(e.totalKcal); acc.p += e.totalProtein
+            acc.c += e.totalCarbs; acc.f += e.totalFat; acc.n += 1
+            byBucket[bucket] = acc
+        }
+        return byBucket.keys.sorted().map { b in
+            let a = byBucket[b]!; let n = Double(max(1, a.n))
+            return NutPoint(date: weekBucketLabel(b),
+                            kcal: Int((a.kcal / n).rounded()),
+                            protein: (a.p / n * 10).rounded() / 10,
+                            carbs: (a.c / n * 10).rounded() / 10,
+                            fat: (a.f / n * 10).rounded() / 10)
+        }
+    }
+
+    /// MM-dd label for a week bucket's start date (matches the day/week axis style).
+    private func weekBucketLabel(_ d: Date) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "MM-dd"
+        return f.string(from: d)
+    }
+
     // MARK: Apple Health import (optional, gap-fill only)
     /// Merge Health samples into daily entries. Imported values only fill missing
     /// fields so a manually typed number is never overwritten.

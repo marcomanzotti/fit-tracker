@@ -326,9 +326,16 @@ struct WorkoutView: View {
         // exercises stay recoverable in Progress and future plans.
         store.registerPlanExercises(p)
         let created = isNew
-        // Tear the editor down on the next runloop tick: clearing `editing` (which
-        // swaps PlanEditorView out for the grid) synchronously inside the Save
-        // action mutates state mid-render and can crash the editor's bindings.
+        // Resign the keyboard FIRST, while `editing` (and its exercises array) is
+        // still valid. Tearing the editor down immediately would remove the active
+        // exercise TextField, whose `didEndEditing` reads its element binding
+        // `$plan.exercises[i]` — and by then `editing` is nil, so the binding
+        // subscripts an empty array and traps (Array out-of-bounds on save).
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder),
+                                        to: nil, from: nil, for: nil)
+        // Then tear the editor down on the next runloop tick: clearing `editing`
+        // (which swaps PlanEditorView out for the grid) synchronously inside the
+        // Save action mutates state mid-render and can crash the editor's bindings.
         DispatchQueue.main.async {
             editing = nil
             toast.show(created ? t("wk.day_created") : t("wk.day_updated"))
@@ -337,6 +344,10 @@ struct WorkoutView: View {
 
     private func deletePlan() {
         guard let p = editing else { return }
+        // Resign first responder before teardown (same binding-safety reason as
+        // commitPlan): a still-focused exercise field would read a stale binding.
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder),
+                                        to: nil, from: nil, for: nil)
         store.plans.removeAll { $0.id == p.id }
         DispatchQueue.main.async {
             editing = nil

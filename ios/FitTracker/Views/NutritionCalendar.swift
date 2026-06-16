@@ -334,16 +334,19 @@ struct NutritionDayEditor: View {
 struct NutritionChartsSection: View {
     @EnvironmentObject var store: Store
     var body: some View {
-        let s = store.nutritionSeries(days: 90)
+        // Weekly averages (like every other overview chart) instead of noisy
+        // day-by-day points.
+        let s = store.nutritionWeeklySeries()
         let target = store.energyTargets()
+        let avg = " · \(t("nut.weekly_avg"))"
         return Group {
             if s.count < 2 {
                 Card { EmptyBox(title: t("nut.no_log"), text: t("nut.charts_hint")) }
             } else {
-                macroChart(t("nut.kcal"), s.map { ($0.date, Double($0.kcal)) }, Theme.acc, target: target.target)
-                macroChart("\(t("nut.protein")) (g)", s.map { ($0.date, $0.protein) }, Theme.blue, target: target.protein)
-                macroChart("\(t("nut.carbs")) (g)", s.map { ($0.date, $0.carbs) }, Theme.acc2, target: target.carbs)
-                macroChart("\(t("nut.fat")) (g)", s.map { ($0.date, $0.fat) }, Theme.good, target: target.fat)
+                macroChart("\(t("nut.kcal"))\(avg)", s.map { ($0.date, Double($0.kcal)) }, Theme.acc, target: target.target)
+                macroChart("\(t("nut.protein")) (g)\(avg)", s.map { ($0.date, $0.protein) }, Theme.blue, target: target.protein)
+                macroChart("\(t("nut.carbs")) (g)\(avg)", s.map { ($0.date, $0.carbs) }, Theme.acc2, target: target.carbs)
+                macroChart("\(t("nut.fat")) (g)\(avg)", s.map { ($0.date, $0.fat) }, Theme.good, target: target.fat)
             }
         }
     }
