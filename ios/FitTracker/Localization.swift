@@ -353,6 +353,8 @@ enum L {
         "wk.timer":          ("Timer", "Timer"),
         "wk.vol":            ("Vol", "Vol"),
         "wk.max":            ("Max", "Max"),
+        "wk.round":          ("Round", "Round"),
+        "wk.rounds_done":    ("Round fatti", "Rounds done"),
         "wk.add_note":       ("+ Note", "+ Note"),
         "wk.note_ph":        ("Note…", "Notes…"),
         "wk.add_ex_ph":      ("es. Dip alle parallele", "e.g. Parallel bar dips"),
@@ -377,6 +379,22 @@ enum L {
         "pe.delete_day":     ("Elimina giorno", "Delete day"),
         "pe.delete_day_q":   ("Eliminare questo giorno?", "Delete this day?"),
         "pe.group":          ("Gruppo", "Group"),
+        // Exercise kinds (reps / timed hold / HIIT interval)
+        "pe.kind":           ("Tipo", "Type"),
+        "pe.target_sec":     ("Tempo (s)", "Time (s)"),
+        "pe.work_sec":       ("Lavoro", "Work"),
+        "pe.rest_sec":       ("Riposo", "Rest"),
+        "pe.rounds":         ("Round", "Rounds"),
+        "exkind.reps":       ("Ripetizioni", "Reps"),
+        "exkind.timed":      ("A tempo", "Timed"),
+        "exkind.interval":   ("Intervalli", "Interval"),
+        "mg.title":          ("Gruppo muscolare", "Muscle group"),
+        // Exercise browse / picker
+        "pe.browse":         ("Sfoglia", "Browse"),
+        "pe.blank":          ("Vuoto", "Blank"),
+        "pe.search_ex":      ("Cerca esercizio…", "Search exercise…"),
+        "pe.no_ex_found":    ("Nessun esercizio trovato", "No exercises found"),
+        "pe.create":         ("Crea", "Create"),
 
         // --- Stats (legacy) -------------------------------------------------
         "st.maxes":          ("I tuoi massimali", "Your maxes"),
@@ -539,6 +557,31 @@ enum L {
         "info.acwr.body": (
             "Il rapporto Acuto:Cronico (ACWR) misura il tuo equilibrio tra allenamento recente e capacità di recupero abituale. Confronta quanto hai fatto nell'ultima settimana rispetto a ciò che il tuo corpo è abituato a gestire nelle ultime quattro settimane, usando una media mobile che dà più peso ai giorni recenti.\n\nPerché è utile: è uno degli indicatori più studiati per prevenire gli infortuni da sovraccarico. Aumentare troppo il volume in poco tempo — senza aver costruito la base — è la causa più comune di infortuni da overuse nello sport.\n\nRange:\n• Sotto 0,8 — stai allenandoti meno del solito (detraining)\n• 0,8–1,3 — zona ottimale: stress sufficiente senza eccessivo rischio\n• 1,3–1,5 — attenzione, rischio infortuni in aumento\n• Sopra 1,5 — zona di rischio elevato\n\nCosa influenza il valore: il carico TRIMP di ogni sessione nelle ultime sette e ventotto settimane. Più sessioni registri con durata e frequenza cardiaca, più l'indicatore è preciso.",
             "The Acute:Chronic Workload Ratio (ACWR) measures the balance between your recent training and your habitual recovery capacity. It compares what you have done in the last week against what your body is used to handling over the last four weeks, using a rolling average that weights recent days more heavily.\n\nWhy it matters: it is one of the most researched indicators for preventing overuse injuries. Increasing volume too quickly — without having built the necessary base — is the most common cause of overuse injuries in sport.\n\nRanges:\n• Below 0.8 — you are training less than usual (detraining)\n• 0.8–1.3 — optimal zone: enough stress without excessive risk\n• 1.3–1.5 — caution, injury risk rising\n• Above 1.5 — high-risk zone\n\nWhat influences the value: the TRIMP load from each session over the last seven and twenty-eight days. The more sessions you log with duration and heart rate, the more accurate this indicator becomes."),
+
+        // --- Phase 3 metrics: labels, trend words, and "i" explanations --------
+        "metric.muscle_vol":      ("Volume per muscolo", "Volume per muscle"),
+        "metric.muscle_vol_hint": ("Serie allenanti questa settimana. ~10–20 per muscolo è un buon range per l'ipertrofia.",
+                                   "Working sets this week. ~10–20 per muscle is a good hypertrophy range."),
+        "metric.vitals":          ("Recupero · trend", "Recovery · trend"),
+        "metric.fitness":         ("Fitness cardio", "Cardio fitness"),
+        "metric.hr_zones":        ("Zone FC", "HR zones"),
+        "metric.estimated":       ("Stima", "Est."),
+        "trend.improving":        ("In miglioramento", "Improving"),
+        "trend.declining":        ("In calo", "Declining"),
+        "trend.stable":           ("Stabile", "Stable"),
+        "trend.none":             ("—", "—"),
+        "info.muscle_vol.title":  ("Volume per gruppo muscolare", "Volume per muscle group"),
+        "info.muscle_vol.body": (
+            "Conta le serie allenanti che hai registrato questa settimana per ogni gruppo muscolare. Una serie conta quando ha ripetizioni o una tenuta a tempo.\n\nPerché è utile: il volume settimanale per muscolo è uno dei fattori più correlati alla crescita muscolare. La ricerca indica circa 10–20 serie a settimana per gruppo come range produttivo per la maggior parte delle persone.\n\nIl gruppo muscolare di ogni esercizio viene dalla classificazione in libreria, che puoi modificare nell'editor del piano.",
+            "Counts the working sets you logged this week for each muscle group. A set counts when it has reps or a timed hold.\n\nWhy it matters: weekly volume per muscle is one of the factors most correlated with muscle growth. Research points to roughly 10–20 sets per week per group as a productive range for most people.\n\nEach exercise's muscle group comes from its library classification, which you can edit in the plan editor."),
+        "info.vitals.title":      ("Trend recupero (FC riposo / HRV)", "Recovery trend (resting HR / HRV)"),
+        "info.vitals.body": (
+            "Mostra la direzione, nelle ultime settimane, della tua frequenza cardiaca a riposo e della variabilità (HRV), calcolata con una regressione lineare sui dati di Apple Salute.\n\nCome leggerla: una FC a riposo che scende e un'HRV che sale indicano in genere un miglioramento della forma e del recupero. L'opposto, prolungato, può segnalare affaticamento, stress o malattia in arrivo.\n\nServe qualche settimana di dati perché il trend sia affidabile.",
+            "Shows the direction, over the last few weeks, of your resting heart rate and heart-rate variability (HRV), computed with a linear regression on Apple Health data.\n\nHow to read it: a falling resting HR and a rising HRV usually indicate improving fitness and recovery. The opposite, if sustained, can flag accumulated fatigue, stress, or oncoming illness.\n\nIt needs a few weeks of data before the trend is reliable."),
+        "info.fitness.title":     ("Fitness cardio (VO₂max e zone)", "Cardio fitness (VO₂max & zones)"),
+        "info.fitness.body": (
+            "VO₂max stima la tua capacità aerobica massima. Se Apple Salute ne registra uno misurato, usiamo quello; altrimenti lo stimiamo dalla tua corsa più intensa recente combinando velocità e frequenza cardiaca media (equazione ACSM corretta per la riserva di FC).\n\nLe zone FC dividono lo sforzo in cinque fasce calcolate con il metodo di Karvonen (% della riserva di frequenza cardiaca), dalla FC a riposo alla FC massima del tuo profilo. Usale per dosare l'intensità: Z1–Z2 per il fondo aerobico, Z4–Z5 per il lavoro ad alta intensità.",
+            "VO₂max estimates your maximal aerobic capacity. If Apple Health has a measured value we use it; otherwise we estimate it from your most intense recent run, combining speed and average heart rate (ACSM equation adjusted for heart-rate reserve).\n\nThe HR zones split effort into five bands using the Karvonen method (% of heart-rate reserve), from your profile's resting HR to max HR. Use them to dose intensity: Z1–Z2 for aerobic base, Z4–Z5 for high-intensity work."),
 
         "info.readiness.title": ("Prontezza", "Readiness"),
         "info.readiness.body": (

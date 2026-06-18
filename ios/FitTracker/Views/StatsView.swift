@@ -91,6 +91,9 @@ struct StatsView: View {
             if withW.count < 2 {
                 Card { EmptyBox(title: t("st.no_data"), text: t("st.charts_hint")) }
             }
+            MuscleVolumeCard()
+            VitalsTrendCard()
+            FitnessCard()
             profileCard
         }
     }

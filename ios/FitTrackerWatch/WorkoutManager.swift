@@ -101,6 +101,36 @@ final class WorkoutManager: NSObject, ObservableObject {
         }
     }
 
+    // MARK: Crash / relaunch recovery
+    /// Reattach to a workout that was still running when the app was terminated
+    /// (a watch crash, a force-quit, or the system reclaiming memory mid-session).
+    /// HealthKit keeps the HKWorkoutSession alive in the background, so we can
+    /// recover it instead of losing the workout and its data. Best-effort: if there
+    /// is nothing to recover, or recovery fails, we stay idle as before.
+    func recoverSession() async {
+        guard available, session == nil, phase == .idle else { return }
+        let recovered: HKWorkoutSession?
+        do {
+            recovered = try await store.recoverActiveWorkoutSession()
+        } catch {
+            return
+        }
+        guard let session = recovered else { return }
+        let builder = session.associatedWorkoutBuilder()
+        builder.dataSource = HKLiveWorkoutDataSource(healthStore: store, workoutConfiguration: session.workoutConfiguration)
+        session.delegate = self
+        builder.delegate = self
+        self.session = session
+        self.builder = builder
+        // We can't recover the original picker activity (its strength exercises),
+        // but the live metrics, duration and the summary all survive — far better
+        // than dropping the session. Restore the elapsed clock from the builder.
+        startDate = builder.startDate ?? Date()
+        phase = .active
+        paused = session.state == .paused
+        startTicker()
+    }
+
     private func startTicker() {
         ticker = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
             .sink { [weak self] _ in

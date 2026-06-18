@@ -51,14 +51,25 @@ final class ActiveWorkout: ObservableObject {
         planId = plan.id
         minimized = false
         log = plan.exercises.map { ex in
-            LoggedExercise(name: ex.name,
-                           sets: (0..<max(1, ex.sets)).map { _ in SetEntry() },
+            // A timed hold seeds each set's `seconds` from the plan's target so the
+            // user only adjusts what they actually held; interval carries its HIIT
+            // prescription (work/rest/rounds) forward unchanged.
+            let targetSec = ex.exKind == .timed ? Double(ex.reps.split(whereSeparator: { !$0.isNumber }).compactMap { Int($0) }.max() ?? 0) : 0
+            let sets = (0..<max(1, ex.sets)).map { _ in
+                SetEntry(seconds: ex.exKind == .timed && targetSec > 0 ? targetSec : nil)
+            }
+            return LoggedExercise(name: ex.name,
+                           sets: ex.exKind == .interval ? [] : sets,
                            notes: "",
-                           target: "\(ex.sets)×\(ex.reps)",
+                           target: ex.exKind == .interval ? "\(ex.rounds ?? 0)×\(ex.workSec ?? 0)s" : "\(ex.sets)×\(ex.reps)",
                            supersetGroup: ex.supersetGroup,
                            method: ex.method,
                            effortMode: ex.effortMode,
-                           isBodyweight: ex.isBodyweight)
+                           isBodyweight: ex.isBodyweight,
+                           kind: ex.kind,
+                           workSec: ex.workSec,
+                           restSec: ex.restSec,
+                           rounds: ex.rounds)
         }
         startDate = Date()
     }

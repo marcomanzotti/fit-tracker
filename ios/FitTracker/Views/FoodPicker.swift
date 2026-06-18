@@ -96,7 +96,10 @@ struct FoodLogRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(log.name).font(.system(size: 13, weight: .semibold)).foregroundColor(Theme.txt)
                     .lineLimit(1)
-                Text("\(trimNum(log.grams)) g · P \(trimNum(log.protein)) C \(trimNum(log.carbs)) F \(trimNum(log.fat))")
+                // A portion-based recipe stores grams = portions × 100; show the
+                // portion count instead of the internal grams so it reads naturally.
+                let amount = log.portions.map { "\(trimNum($0)) \(t("recipe.serving"))" } ?? "\(trimNum(log.grams)) g"
+                Text("\(amount) · P \(trimNum(log.protein)) C \(trimNum(log.carbs)) F \(trimNum(log.fat))")
                     .font(.system(size: 10)).foregroundColor(Theme.sub)
             }
             Spacer()
@@ -149,6 +152,22 @@ struct FoodPickerSheet: View {
     @State private var looking = false
     @State private var sortKey: FoodSortKey = .recent
     @State private var sortAsc = false
+    @State private var sortLoaded = false
+
+    /// Apply the remembered sort once, on first appear (prefs aren't available at
+    /// State init, so we can't seed it there).
+    private func loadSort() {
+        guard !sortLoaded else { return }
+        sortLoaded = true
+        if let raw = store.prefs.foodSort, let k = FoodSortKey(rawValue: raw) { sortKey = k }
+        sortAsc = store.prefs.foodSortAsc ?? false
+    }
+
+    /// Persist the current sort so the picker reopens the way it was left.
+    private func persistSort() {
+        store.prefs.foodSort = sortKey.rawValue
+        store.prefs.foodSortAsc = sortAsc
+    }
 
     private var filtered: [FoodItem] {
         var all = store.recentFoods()
@@ -172,6 +191,20 @@ struct FoodPickerSheet: View {
         return all
     }
 
+    /// `filtered` grouped under its leading letter (digits/symbols fall under "#"),
+    /// preserving the alphabetical order already applied above.
+    private var alphaSections: [(letter: String, items: [FoodItem])] {
+        var order: [String] = []
+        var groups: [String: [FoodItem]] = [:]
+        for f in filtered {
+            let first = f.name.trimmingCharacters(in: .whitespaces).first.map(String.init)?.uppercased() ?? "#"
+            let letter = first.range(of: "[A-Z]", options: .regularExpression) != nil ? first : "#"
+            if groups[letter] == nil { order.append(letter) }
+            groups[letter, default: []].append(f)
+        }
+        return order.map { ($0, groups[$0] ?? []) }
+    }
+
     var body: some View {
         ZStack {
             Theme.bg.ignoresSafeArea()
@@ -184,12 +217,27 @@ struct FoodPickerSheet: View {
                 InputField(placeholder: t("food.search"), text: $search, keyboard: .default)
                 sortBar
                 ScrollView {
-                    LazyVStack(spacing: 8) {
+                    LazyVStack(spacing: 8, pinnedViews: [.sectionHeaders]) {
                         if filtered.isEmpty {
                             Text(t("food.none")).font(.system(size: 12)).foregroundColor(Theme.sub)
                                 .frame(maxWidth: .infinity).padding(.top, 24)
+                        } else if sortKey == .alpha {
+                            // Alphabetical mode: group under sticky letter headers so the
+                            // list is scannable ("where's my pasta?") instead of a flat run.
+                            ForEach(alphaSections, id: \.letter) { section in
+                                Section {
+                                    ForEach(section.items) { f in foodRow(f) }
+                                } header: {
+                                    Text(section.letter)
+                                        .font(.head(11, .bold)).foregroundColor(Theme.acc)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .padding(.vertical, 4).padding(.horizontal, 2)
+                                        .background(Theme.bg)
+                                }
+                            }
+                        } else {
+                            ForEach(filtered) { f in foodRow(f) }
                         }
-                        ForEach(filtered) { f in foodRow(f) }
                     }
                     .padding(.bottom, 30)
                 }
@@ -206,6 +254,7 @@ struct FoodPickerSheet: View {
             }
         }
         .preferredColorScheme(.dark)
+        .onAppear { loadSort() }
         .sheet(item: $sheet) { which in
             switch which {
             case .scan:
@@ -244,6 +293,7 @@ struct FoodPickerSheet: View {
                     Button {
                         tap()
                         if sortKey == key { sortAsc.toggle() } else { sortKey = key; sortAsc = false }
+                        persistSort()
                     } label: {
                         HStack(spacing: 3) {
                             Text(key.label).font(.head(10, .semibold)).tracking(0.5)

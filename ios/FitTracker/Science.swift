@@ -164,23 +164,50 @@ struct WeekLoad {
 
 extension Store {
     /// Monday-based week, offset 0 = current week.
+    ///
+    /// Foster's monotony divides by the number of days in the window, but a day we
+    /// have no information about must NOT be silently treated as a true zero: a
+    /// Tuesday the user simply forgot to log would drag the weekly mean down and
+    /// inflate monotony/strain, making one missed entry look like a recovery week.
+    /// So the denominator is the number of *known* days — days with a logged
+    /// session plus days explicitly marked as rest (`prefs.restDaySet`) — not a
+    /// fixed 7. A fully logged week still divides by 7 (identical to classic
+    /// Foster); a week with an untracked gap divides by fewer days, and an explicit
+    /// rest day still counts as a legitimate zero (which is what monotony should
+    /// reward). Past weeks (offset > 0) fall back to 7 when nothing is known, since
+    /// we can't retroactively distinguish rest from a gap.
     func weekLoad(offset: Int) -> WeekLoad {
         let cal = Calendar.current
         let now = Date()
         let dow = (cal.component(.weekday, from: now) + 5) % 7    // Monday = 0
         let mon = cal.startOfDay(for: cal.date(byAdding: .day, value: -dow - offset * 7, to: now)!)
+        let today = cal.startOfDay(for: now)
         var daily = [Double](repeating: 0, count: 7)
         var count = 0
         var trainingDays = Set<Int>()
+        var knownDays = Set<Int>()                 // days we have real information about
         for s in sessions {
             guard let l = measuredLoad(s), let d = isoFormatter.date(from: s.date) else { continue }
             let day = cal.startOfDay(for: d)
             let diff = cal.dateComponents([.day], from: mon, to: day).day ?? -1
-            if diff >= 0 && diff < 7 { daily[diff] += l; count += 1; trainingDays.insert(diff) }
+            if diff >= 0 && diff < 7 { daily[diff] += l; count += 1; trainingDays.insert(diff); knownDays.insert(diff) }
         }
+        // Explicit rest days are real zeros (they keep monotony honest); future days
+        // of the current week aren't known yet, so they don't dilute the mean.
+        let restSet = prefs.restDaySet
+        for diff in 0..<7 {
+            guard let day = cal.date(byAdding: .day, value: diff, to: mon) else { continue }
+            if restSet.contains(isoFormatter.string(from: day)) { knownDays.insert(diff) }
+            else if day > today { /* hasn't happened yet — leave unknown */ }
+        }
+        // Denominator: known days for the current week; classic 7 for past weeks
+        // where a gap can't be told apart from rest.
+        let denom = Double(offset == 0 ? max(1, knownDays.count) : 7)
         let total = daily.reduce(0, +)
-        let mean = total / 7
-        let variance = daily.reduce(0) { $0 + ($1 - mean) * ($1 - mean) } / 7
+        let mean = total / denom
+        // Variance over the same known-day set (or all 7 for past weeks).
+        let days = offset == 0 ? Array(knownDays).sorted() : Array(0..<7)
+        let variance = days.reduce(0.0) { $0 + (daily[$1] - mean) * (daily[$1] - mean) } / denom
         let sd = variance.squareRoot()
         // Monotony/strain are only meaningful with at least 2 training days in the
         // week; with a single session they are statistically degenerate, so leave
@@ -333,14 +360,24 @@ extension Store {
     ///      at the top with a prior fall-short stays at addReps (not yet confirmed).
     func progression(planId: String, exercise: String) -> ProgKind? {
         guard let plan = plan(planId),
-              let pe = plan.exercises.first(where: { $0.name == exercise }),
-              let (lo, hi) = repRange(pe.reps) else { return nil }
+              let pe = plan.exercises.first(where: { $0.name == exercise }) else { return nil }
 
-        // Health gates — check readiness and load FIRST.
+        // Health gates — check readiness and load FIRST (apply to every kind).
         let r = readiness()
         if let score = r.score, score < 30 { return .deload }
         let aw = acwr()
         if let ratio = aw.ratio, ratio > 1.3 { return .hold }
+
+        // Timed (isometric) and interval (HIIT) exercises progress on time / rounds,
+        // not on a rep range — route them to their own logic. Classic reps fall
+        // through to the established double-progression below.
+        switch pe.exKind {
+        case .timed:    return timedProgression(planId: planId, exercise: exercise)
+        case .interval: return intervalProgression(pe)
+        case .reps:     break
+        }
+
+        guard let (lo, hi) = repRange(pe.reps) else { return nil }
 
         // Collect the last two sessions for this plan.
         let planSessions = sessions
@@ -385,5 +422,53 @@ extension Store {
             }
         }
         return .addLoad   // only one session in history, give the benefit of the doubt
+    }
+
+    /// Progression for a timed (isometric) exercise. The plan's `reps` field holds
+    /// the target hold in seconds (e.g. "45" or "30-60"); we compare the longest
+    /// hold logged last time to that target. Reaching the target → ready to add load
+    /// or extend the hold (.addLoad); below it → keep chasing time (.addReps, shown
+    /// as "extend the hold" in the UI). The health gates already ran in the caller.
+    private func timedProgression(planId: String, exercise: String) -> ProgKind? {
+        guard let plan = plan(planId),
+              let pe = plan.exercises.first(where: { $0.name == exercise }) else { return nil }
+        let target = targetSeconds(pe.reps)
+        let planSessions = sessions
+            .filter { $0.planId == planId && $0.date != today() }
+            .sorted { $0.date > $1.date }
+        guard let last = planSessions.first,
+              let ex = last.exercises.first(where: { $0.name == exercise }) else { return nil }
+        let held = ex.maxSeconds
+        guard held > 0 else { return nil }
+        // Below target → extend the hold. At/above → ready for more load/time,
+        // confirmed by the previous session so one strong hold doesn't over-trigger.
+        guard let target, held >= target else { return .addReps }
+        if planSessions.count >= 2,
+           let prevEx = planSessions[1].exercises.first(where: { $0.name == exercise }),
+           prevEx.maxSeconds >= target {
+            return .addLoad
+        }
+        return .addLoad
+    }
+
+    /// Progression for an interval (HIIT) exercise — chase rounds. If last session's
+    /// rounds met or beat the plan target, add a round (.addLoad); otherwise hold the
+    /// current prescription and build consistency (.addReps = "add a round" in UI).
+    private func intervalProgression(_ pe: PlanExercise) -> ProgKind? {
+        guard let target = pe.rounds, target > 0 else { return nil }
+        // Most recent logged rounds for this exercise across any prior session.
+        let recent = sessions
+            .filter { $0.date != today() }
+            .sorted { $0.date > $1.date }
+            .compactMap { s in s.exercises.first { $0.name == pe.name }?.rounds }
+        guard let lastRounds = recent.first else { return nil }
+        return lastRounds >= target ? .addLoad : .addReps
+    }
+
+    /// Parse a timed target in seconds from a string like "45" or "30-60" (returns
+    /// the upper bound of a range). nil when no number is present.
+    func targetSeconds(_ s: String) -> Double? {
+        let nums = s.split(whereSeparator: { !$0.isNumber }).compactMap { Double($0) }
+        return nums.max()
     }
 }

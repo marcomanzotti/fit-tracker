@@ -123,11 +123,15 @@ struct FoodLog: Codable, Identifiable, Equatable {
     var id: UUID = UUID()
     var foodId: String?        // reference to a saved FoodItem (nil if one-off)
     var name: String
-    var grams: Double          // amount eaten (g or ml)
+    var grams: Double          // amount eaten (g or ml; for a portion recipe = portions × 100)
     var k100: Double           // per-100 snapshot at log time
     var p100: Double
     var c100: Double
     var f100: Double
+    /// Number of portions when this log came from a per-serving recipe (else nil).
+    /// Used purely for display so the row reads "2 porzioni" instead of "200 g";
+    /// the kcal/macro math always runs off `grams`, so this is backward compatible.
+    var portions: Double?
 
     private func scale(_ per100: Double) -> Double { (per100 * grams / 100 * 10).rounded() / 10 }
     var kcal: Int { Int((k100 * grams / 100).rounded()) }
@@ -161,6 +165,26 @@ enum MealSlot: String, CaseIterable, Identifiable {
     }
 }
 
+// MARK: - Exercise kind (how the exercise is performed & logged)
+/// How an exercise is performed, which decides what a "set" means and how volume
+/// and progression are computed:
+///   • reps     — classic strength: reps × weight (the long-standing default).
+///   • timed    — isometric / hold (plank, wall sit): a duration in seconds, with
+///                optional added load. Progression chases time, not reps.
+///   • interval — HIIT / circuit: rounds of work/rest seconds. Progression chases
+///                rounds or density, and volume is total work time.
+enum ExKind: String, Codable, CaseIterable {
+    case reps, timed, interval
+    var labelKey: String { "exkind." + rawValue }
+    var icon: String {
+        switch self {
+        case .reps:     return "repeat"
+        case .timed:    return "timer"
+        case .interval: return "bolt.fill"
+        }
+    }
+}
+
 // MARK: - A single logged set
 struct SetEntry: Codable, Identifiable, Equatable {
     var id: UUID = UUID()
@@ -169,8 +193,13 @@ struct SetEntry: Codable, Identifiable, Equatable {
     /// Effort value for this set. Meaning depends on the parent exercise's effortMode:
     /// "rir" = reps in reserve (0-10), "rpe" = perceived exertion (1-10), "fail" = 1 if hit failure.
     var effortVal: Int? = nil
+    /// Hold duration in seconds for a timed (isometric) set. Optional + backward
+    /// compatible: nil/absent for the classic reps×weight sets that predate it.
+    var seconds: Double? = nil
 
-    var filled: Bool { pf(reps) > 0 || pf(weight) > 0 }
+    /// A set counts as logged when it carries reps, weight, OR a hold duration —
+    /// so a plank with no reps/weight still saves.
+    var filled: Bool { pf(reps) > 0 || pf(weight) > 0 || (seconds ?? 0) > 0 }
 }
 
 // MARK: - Training method for an exercise (supersets etc.)
@@ -215,9 +244,32 @@ struct LoggedExercise: Codable, Identifiable, Equatable {
     var effortMode: String? = nil
     /// True when this is a bodyweight exercise: weight field means additional load.
     var isBodyweight: Bool? = nil
+    /// How this exercise is performed (ExKind raw value); nil/absent => reps.
+    var kind: String? = nil
+    // Interval (HIIT) parameters — only meaningful when kind == .interval.
+    var workSec: Int? = nil    // work phase per round (seconds)
+    var restSec: Int? = nil    // rest phase per round (seconds)
+    var rounds: Int? = nil     // number of rounds
 
-    var volume: Double { sets.reduce(0) { $0 + pf($1.reps) * pf($1.weight) } }
+    var exKind: ExKind { ExKind(rawValue: kind ?? "reps") ?? .reps }
+    /// Kind-aware training volume:
+    ///   • reps     — Σ reps × weight (the classic tonnage).
+    ///   • timed    — Σ hold seconds × effective load (bodyweight holds use a
+    ///                nominal load of 1 so a plank still accrues "time volume").
+    ///   • interval — total work time = rounds × work seconds.
+    var volume: Double {
+        switch exKind {
+        case .reps:
+            return sets.reduce(0) { $0 + pf($1.reps) * pf($1.weight) }
+        case .timed:
+            return sets.reduce(0) { $0 + (($1.seconds ?? 0) * max(1, pf($1.weight))) }
+        case .interval:
+            return Double((rounds ?? 0) * (workSec ?? 0))
+        }
+    }
     var maxWeight: Double { sets.map { pf($0.weight) }.max() ?? 0 }
+    /// Longest hold logged (timed exercises) — the timed analogue of maxWeight.
+    var maxSeconds: Double { sets.compactMap { $0.seconds }.max() ?? 0 }
     var trainMethod: TrainMethod { TrainMethod(rawValue: method ?? "normal") ?? .normal }
     var effortScale: EffortMode? { effortMode.flatMap { EffortMode(rawValue: $0) } }
     var bodyweight: Bool { isBodyweight == true }
@@ -411,7 +463,14 @@ struct PlanExercise: Codable, Identifiable, Equatable {
     /// Muscle group (MuscleGroup raw value) assigned in the editor; propagated to
     /// the exercise library on save so Progress can browse by muscle.
     var muscle: String? = nil
+    /// How this exercise is performed (ExKind raw value); nil/absent => reps.
+    var kind: String? = nil
+    // Interval (HIIT) template parameters — only meaningful when kind == .interval.
+    var workSec: Int? = nil
+    var restSec: Int? = nil
+    var rounds: Int? = nil
 
+    var exKind: ExKind { ExKind(rawValue: kind ?? "reps") ?? .reps }
     var trainMethod: TrainMethod { TrainMethod(rawValue: method ?? "normal") ?? .normal }
     var effortScale: EffortMode? { effortMode.flatMap { EffortMode(rawValue: $0) } }
     var bodyweight: Bool { isBodyweight == true }
@@ -499,6 +558,15 @@ struct Prefs: Codable, Equatable {
     /// just a marker shown with a dedicated icon/color on the week strip and
     /// calendar so missed days can be logged as intentional recovery.
     var restDays: [String]?
+    /// Remembered sort for the food picker (FoodSortKey raw value) + direction, so
+    /// the list opens the way the user last left it instead of resetting to
+    /// "recent" every time. nil => the default (recent).
+    var foodSort: String?
+    var foodSortAsc: Bool?
+    /// True once the curated exercise library has been seeded into `exerciseItems`.
+    /// Seeding runs only when this is false, so a user who deletes seeded entries
+    /// never has them silently reappear on the next launch.
+    var seededExercises: Bool?
 
     // Convenience accessors -----------------------------------------------
     var langCode: String {
@@ -646,11 +714,20 @@ struct Recipe: Codable, Identifiable, Equatable {
     var effC100: Double { perServing && servings > 0 ? c100 / servings : c100 }
     var effF100: Double { perServing && servings > 0 ? f100 / servings : f100 }
 
-    /// Build a FoodLog for `grams` (or portions when perServing) of this recipe.
+    /// Build a FoodLog for an eaten amount of this recipe. The unit of `amount`
+    /// depends on the recipe type:
+    ///   • perServing = false → `amount` is grams; macros scale as a normal food.
+    ///   • perServing = true  → `amount` is the NUMBER OF PORTIONS.
+    /// FoodLog always does `per100 × grams / 100`, so for a portion-based recipe we
+    /// store the per-portion macros as the per-100 values and encode N portions as
+    /// `grams = N × 100`. That makes `kcal = effK100 × N` exactly — one portion of a
+    /// 600-kcal dish logs 600 kcal, not 6. (The old code treated portions as grams,
+    /// dividing by 100 and undercounting a portion-based recipe ~100×.)
     func log(_ amount: Double) -> FoodLog {
-        let scale = perServing ? amount : amount   // amount = grams always; caller decides unit
-        return FoodLog(foodId: nil, name: name, grams: scale,
-                       k100: effK100, p100: effP100, c100: effC100, f100: effF100)
+        let grams = perServing ? amount * 100 : amount
+        return FoodLog(foodId: nil, name: name, grams: grams,
+                       k100: effK100, p100: effP100, c100: effC100, f100: effF100,
+                       portions: perServing ? amount : nil)
     }
 
     /// Recompute the per-100 cache from ingredients totals (call after editing ingredients).
@@ -675,6 +752,13 @@ struct Recipe: Codable, Identifiable, Equatable {
 
 // MARK: - The whole persisted document
 struct AppData: Codable {
+    /// Schema version of this saved document. Optional so older backups (which
+    /// predate the field) still decode — a nil value means "version 1". Bump this
+    /// only when a change can't be handled by the additive-optional-field rule
+    /// (e.g. a rename or a semantic change), and add an explicit migration in
+    /// `Store.migrate(_:)`. Adding new optional fields never needs a bump.
+    var schemaVersion: Int? = AppData.currentSchemaVersion
+    static let currentSchemaVersion = 1
     var daily: [DailyEntry] = []
     var sessions: [WorkoutSession] = []
     var body: [BodyEntry] = []

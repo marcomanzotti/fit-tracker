@@ -41,7 +41,7 @@ final class Store: ObservableObject {
     // MARK: Persistence
     func load() {
         if let d = try? Data(contentsOf: dataURL),
-           let a = try? JSONDecoder().decode(AppData.self, from: d) {
+           let a = migrate(try? JSONDecoder().decode(AppData.self, from: d)) {
             daily = a.daily; sessions = a.sessions; body = a.body; plans = a.plans; prefs = a.prefs
             cardioTypes = a.cardioTypes ?? []
             foods = a.foods ?? []
@@ -50,9 +50,30 @@ final class Store: ObservableObject {
         }
         if plans.isEmpty { plans = Store.defaultPlans() }
         if cardioTypes.isEmpty { cardioTypes = Store.defaultCardioTypes() }
+        // Register the default plans' exercises so a fresh install's library isn't
+        // empty, then layer the curated catalog on top (once, never overwriting).
+        for p in plans { registerPlanExercises(p) }
+        seedExerciseLibraryIfNeeded()
         L.lang = prefs.langCode
         Units.imperial = prefs.imperial
         loaded = true
+    }
+
+    /// Upgrade a decoded document to the current schema. The guiding rule is "never
+    /// drop a user's data": every field added so far is optional, so old backups
+    /// decode untouched and only need their version normalized. When a future change
+    /// can't be expressed as an additive optional field (a rename, a semantic shift),
+    /// add an explicit `case` here that rewrites the data and bumps the version — the
+    /// historical record always survives the upgrade.
+    private func migrate(_ decoded: AppData?) -> AppData? {
+        guard var a = decoded else { return nil }
+        let version = a.schemaVersion ?? 1     // nil predates the field => version 1
+        switch version {
+        // case 1: <future migration to v2 goes here, then `fallthrough`>
+        default: break
+        }
+        a.schemaVersion = AppData.currentSchemaVersion
+        return a
     }
 
     /// Keep the global localization language + unit system in sync with prefs.
@@ -64,9 +85,26 @@ final class Store: ObservableObject {
                         cardioTypes: cardioTypes, foods: foods, exerciseItems: exerciseItems, recipes: recipes)
         guard let d = try? JSONEncoder().encode(a) else { return }
         try? d.write(to: dataURL, options: .atomic)
-        // Rolling dated backup in Documents (visible in the Files app).
+        // Rolling dated backup in Documents (visible in the Files app). The full
+        // history always lives in the primary file above; these dated copies are
+        // redundant safety snapshots, so we keep only the most recent ones to avoid
+        // accumulating hundreds of files. No user data is lost by pruning them.
         let bk = docsURL.appendingPathComponent("backup-\(today()).json")
         try? d.write(to: bk, options: .atomic)
+        pruneBackups(keep: 30)
+    }
+
+    /// Delete the oldest dated backups, keeping the `keep` most recent. Safe to call
+    /// on every save: the primary `fittracker.json` is untouched and holds the
+    /// complete history, so this only trims redundant snapshots.
+    private func pruneBackups(keep: Int) {
+        let fm = FileManager.default
+        guard let files = try? fm.contentsOfDirectory(at: docsURL, includingPropertiesForKeys: nil) else { return }
+        let backups = files
+            .filter { $0.lastPathComponent.hasPrefix("backup-") && $0.pathExtension == "json" }
+            .sorted { $0.lastPathComponent > $1.lastPathComponent }   // date in name => lexicographic = chronological
+        guard backups.count > keep else { return }
+        for url in backups.dropFirst(keep) { try? fm.removeItem(at: url) }
     }
 
     /// Produce a JSON file URL for sharing/export.

@@ -420,11 +420,18 @@ struct BodyweightChip: View {
             tap()
             isBodyweight = bw ? nil : true
         } label: {
-            Text(t("wk.bodyweight")).font(.head(9, .semibold)).tracking(0.5)
-                .foregroundColor(bw ? Theme.bg : Theme.sub)
-                .padding(.vertical, 4).padding(.horizontal, 7)
-                .background(bw ? Theme.good : Theme.c3)
-                .clipShape(Capsule())
+            HStack(spacing: 4) {
+                Image(systemName: "figure.strengthtraining.functional")
+                    .font(.system(size: 9, weight: .bold))
+                Text(t("wk.bodyweight")).font(.head(9, .semibold)).tracking(0.5)
+            }
+            .foregroundColor(bw ? Theme.bg : Theme.sub)
+            .padding(.vertical, 5).padding(.horizontal, 8)
+            .background(bw ? Theme.good : Theme.c3)
+            .clipShape(Capsule())
+            // A visible outline when inactive so it reads as a tappable toggle
+            // (a plain grey label looked like a disabled tag, not a control).
+            .overlay(Capsule().stroke(bw ? Theme.good : Theme.brd, lineWidth: 1))
         }
         .buttonStyle(.plain)
     }

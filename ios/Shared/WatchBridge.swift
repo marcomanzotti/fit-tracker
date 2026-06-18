@@ -39,6 +39,12 @@ public struct WatchActivity: Codable, Identifiable, Equatable {
 /// One exercise pushed to the watch for a strength plan. `reps` is the plan
 /// default; `lastReps`/`lastWeight` are the previous session's per-set values
 /// (empty when the exercise has never been logged) used as gray placeholders.
+///
+/// NOTE: timed (isometric) and interval (HIIT) exercises are fully supported on
+/// the phone but are not yet wired into this wrist format — they'd be tracked as
+/// plain reps×weight on the watch, producing inconsistent data. Native wrist
+/// support (hold stopwatch, interval timer, phase haptics) lands with the watch
+/// experience work (Phase 4); until then those kinds are logged on the phone.
 public struct WatchExercise: Codable, Equatable, Identifiable {
     public var id: String
     public var name: String

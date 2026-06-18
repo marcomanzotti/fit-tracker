@@ -284,6 +284,7 @@ struct LiveWorkoutView: View {
     private func exerciseCard(_ exB: Binding<LoggedExercise>) -> some View {
         let ex = exB.wrappedValue
         let bw = ex.bodyweight
+        let kind = ex.exKind
         let pr = store.exercisePR(ex.name)
         let prevEx = lastSess?.exercises.first { $0.name == ex.name }
         let sug = store.suggested(planId: plan.id, exercise: ex.name)
@@ -311,6 +312,11 @@ struct LiveWorkoutView: View {
                     VStack(alignment: .trailing, spacing: 3) {
                         Text("PR").font(.head(9, .semibold)).tracking(1.5).foregroundColor(Theme.sub)
                         Text(bw && pr == 0 ? "BW" : "\(trimNum(pr)) kg").font(.num(20)).foregroundColor(Theme.acc)
+                        // Estimated 1RM — the best single-effort strength signal,
+                        // more comparable across rep ranges than top weight alone.
+                        if let e = store.bestE1RM(ex.name), e > 0 {
+                            Text("e1RM \(trimNum(e)) kg").font(.system(size: 9, weight: .semibold)).foregroundColor(Theme.acc2)
+                        }
                     }
                 }
             }
@@ -354,43 +360,50 @@ struct LiveWorkoutView: View {
                 .padding(.bottom, 11)
             }
 
-            // Effort scale selector
-            EffortModeSelector(effortMode: exB.effortMode)
-                .padding(.bottom, 8)
+            switch kind {
+            case .interval:
+                intervalBlock(exB)
+            case .timed:
+                timedBlock(exB, bw: bw)
+            case .reps:
+                // Effort scale selector
+                EffortModeSelector(effortMode: exB.effortMode)
+                    .padding(.bottom, 8)
 
-            // Column headers
-            HStack(spacing: 9) {
-                Spacer().frame(width: 28)
-                Text(t("wk.reps").uppercased()).font(.head(9, .semibold)).tracking(1.5).foregroundColor(Theme.sub).frame(width: 66)
-                Text(bw ? "+KG" : "KG").font(.head(9, .semibold)).tracking(1.5).foregroundColor(bw ? Theme.good : Theme.sub).frame(width: 66)
-                if effortScale != nil {
-                    Text(effortScale!.label).font(.head(9, .semibold)).tracking(1.5).foregroundColor(Theme.acc2).frame(width: 48)
+                // Column headers
+                HStack(spacing: 9) {
+                    Spacer().frame(width: 28)
+                    Text(t("wk.reps").uppercased()).font(.head(9, .semibold)).tracking(1.5).foregroundColor(Theme.sub).frame(width: 66)
+                    Text(bw ? "+KG" : "KG").font(.head(9, .semibold)).tracking(1.5).foregroundColor(bw ? Theme.good : Theme.sub).frame(width: 66)
+                    if effortScale != nil {
+                        Text(effortScale!.label).font(.head(9, .semibold)).tracking(1.5).foregroundColor(Theme.acc2).frame(width: 48)
+                    }
+                    Spacer()
                 }
-                Spacer()
-            }
-            .padding(.bottom, 6)
+                .padding(.bottom, 6)
 
-            ForEach(exB.sets) { $set in
-                setRow($set, in: exB, pr: pr, bw: bw, effortScale: effortScale)
+                ForEach(exB.sets) { $set in
+                    setRow($set, in: exB, pr: pr, bw: bw, effortScale: effortScale)
+                }
+
+                // Bodyweight hint
+                if bw {
+                    Text(t("wk.bw_hint")).font(.system(size: 9)).foregroundColor(Theme.sub).padding(.top, 4)
+                }
             }
 
-            // Bodyweight hint
-            if bw {
-                Text(t("wk.bw_hint")).font(.system(size: 9)).foregroundColor(Theme.sub).padding(.top, 4)
-            }
-
-            // Footer controls
+            // Footer controls — the per-set add/timer only make sense for reps/timed.
             HStack {
                 HStack(spacing: 8) {
-                    GhostButton(title: t("wk.add_set")) { exB.wrappedValue.sets.append(SetEntry()) }
+                    if kind != .interval {
+                        GhostButton(title: t("wk.add_set")) { exB.wrappedValue.sets.append(SetEntry()) }
+                    }
                     GhostButton(title: "\(t("wk.timer")) \(store.prefs.timer)s", color: Theme.blue) { timer.start(store.prefs.timer) }
                 }
                 Spacer()
                 if ex.volume > 0 {
-                    let volLabel = bw
-                        ? "\(t("wk.max")) +\(trimNum(ex.maxWeight)) kg"
-                        : "\(t("wk.vol")) \(Int(ex.volume)) · \(t("wk.max")) \(trimNum(ex.maxWeight)) kg"
-                    Text(volLabel).font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.sub)
+                    Text(volumeLabel(ex, kind: kind, bw: bw))
+                        .font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.sub)
                 }
             }
             .padding(.top, 9)
@@ -414,6 +427,92 @@ struct LiveWorkoutView: View {
                 }
                 .padding(.top, 8)
             }
+        }
+    }
+
+    // MARK: Timed (isometric) logging — per-set hold seconds + optional added load
+    private func timedBlock(_ exB: Binding<LoggedExercise>, bw: Bool) -> some View {
+        VStack(spacing: 6) {
+            HStack(spacing: 9) {
+                Spacer().frame(width: 28)
+                Text(t("pe.target_sec").uppercased()).font(.head(9, .semibold)).tracking(1.5).foregroundColor(Theme.sub).frame(width: 66)
+                Text(bw ? "+KG" : "KG").font(.head(9, .semibold)).tracking(1.5).foregroundColor(bw ? Theme.good : Theme.sub).frame(width: 66)
+                Spacer()
+            }
+            .padding(.bottom, 2)
+            ForEach(exB.sets) { $set in
+                let idx = exB.wrappedValue.sets.firstIndex(where: { $0.id == $set.id }) ?? 0
+                HStack(spacing: 9) {
+                    Text("S\(idx + 1)").font(.num(11)).foregroundColor(Theme.sub).frame(width: 28)
+                    SmallNumField(text: secondsBinding($set))
+                    SmallNumField(text: $set.weight)
+                    Button { tap(); exB.wrappedValue.sets.removeAll { $0.id == $set.id } } label: {
+                        Image(systemName: "xmark").font(.system(size: 13)).foregroundColor(Theme.red.opacity(0.5))
+                            .frame(width: 34, height: 42)
+                    }.buttonStyle(.plain)
+                    Spacer(minLength: 0)
+                }
+            }
+        }
+    }
+
+    /// String binding over a set's optional `seconds` (decimal-friendly).
+    private func secondsBinding(_ set: Binding<SetEntry>) -> Binding<String> {
+        Binding(
+            get: { set.wrappedValue.seconds.map { trimNum($0) } ?? "" },
+            set: { set.wrappedValue.seconds = pf($0) > 0 ? pf($0) : nil }
+        )
+    }
+
+    // MARK: Interval (HIIT) logging — prescription + completed-rounds stepper
+    private func intervalBlock(_ exB: Binding<LoggedExercise>) -> some View {
+        let ex = exB.wrappedValue
+        let work = ex.workSec ?? 30, rest = ex.restSec ?? 15, target = ex.rounds ?? 8
+        let done = Binding(get: { exB.wrappedValue.rounds ?? target },
+                           set: { exB.wrappedValue.rounds = $0 })
+        return VStack(spacing: 10) {
+            HStack(spacing: 8) {
+                intervalChip("\(work)s", t("pe.work_sec"), Theme.acc)
+                intervalChip("\(rest)s", t("pe.rest_sec"), Theme.blue)
+                intervalChip("\(work + rest)s", t("wk.round"), Theme.sub)
+            }
+            HStack(spacing: 10) {
+                Text(t("wk.rounds_done").uppercased()).font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
+                Spacer()
+                Button { tap(); done.wrappedValue = max(0, done.wrappedValue - 1) } label: {
+                    Image(systemName: "minus").font(.system(size: 12, weight: .bold)).foregroundColor(Theme.txt)
+                        .frame(width: 30, height: 30).background(Theme.c3).clipShape(Circle())
+                }.buttonStyle(.plain)
+                Text("\(done.wrappedValue)/\(target)").font(.num(18)).frame(minWidth: 50)
+                Button { tap(); done.wrappedValue += 1 } label: {
+                    Image(systemName: "plus").font(.system(size: 12, weight: .bold)).foregroundColor(Theme.txt)
+                        .frame(width: 30, height: 30).background(Theme.c3).clipShape(Circle())
+                }.buttonStyle(.plain)
+            }
+        }
+    }
+
+    private func intervalChip(_ value: String, _ label: String, _ color: Color) -> some View {
+        VStack(spacing: 2) {
+            Text(value).font(.num(16)).foregroundColor(color)
+            Text(label.uppercased()).font(.head(8, .semibold)).tracking(1).foregroundColor(Theme.sub)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+        .background(Theme.c2)
+        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+    }
+
+    private func volumeLabel(_ ex: LoggedExercise, kind: ExKind, bw: Bool) -> String {
+        switch kind {
+        case .reps:
+            return bw
+                ? "\(t("wk.max")) +\(trimNum(ex.maxWeight)) kg"
+                : "\(t("wk.vol")) \(Int(ex.volume)) · \(t("wk.max")) \(trimNum(ex.maxWeight)) kg"
+        case .timed:
+            return "\(t("wk.max")) \(trimNum(ex.maxSeconds))s"
+        case .interval:
+            return "\(t("wk.vol")) \(fmtDuration(Int(ex.volume)))"
         }
     }
 
@@ -443,6 +542,11 @@ struct LiveWorkoutView: View {
         .padding(.vertical, 2)
         .background(isPR && !bw ? Theme.acc.opacity(0.05) : .clear)
         .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+        // Celebrate the moment a typed weight first crosses the exercise's PR.
+        .onChange(of: set.wrappedValue.weight) { newVal in
+            let w = pf(newVal)
+            if !bw && pr > 0 && w > pr { prHaptic() }
+        }
     }
 
     // MARK: Add exercise on the fly
@@ -492,7 +596,11 @@ struct LiveWorkoutView: View {
             var copy = e
             copy.sets = e.sets.filter { $0.filled }
             return copy
-        }.filter { !$0.sets.isEmpty }
+        }.filter {
+            // Interval exercises carry their data in rounds (no sets); keep them when
+            // any round was completed. Everything else needs at least one filled set.
+            $0.exKind == .interval ? (($0.rounds ?? 0) > 0) : !$0.sets.isEmpty
+        }
         guard !exercises.isEmpty else { toast.show(t("wk.nothing_save")); return }
 
         // Auto-save every exercise to the library and update their bodyweight flag.

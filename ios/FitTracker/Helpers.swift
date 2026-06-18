@@ -88,6 +88,17 @@ func tap() {
     UIImpactFeedbackGenerator(style: .light).impactOccurred()
 }
 
+/// A celebratory burst when a set crosses into personal-record territory: a
+/// success notification followed by a quick light tap so it feels distinct from
+/// the rest-timer alert.
+func prHaptic() {
+    let notif = UINotificationFeedbackGenerator()
+    notif.notificationOccurred(.success)
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.14) {
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+    }
+}
+
 /// A stronger, unmistakable alert when the rest timer finishes — a success
 /// notification plus two heavy impacts spaced out, so it's felt even mid-set.
 func restDoneHaptic() {

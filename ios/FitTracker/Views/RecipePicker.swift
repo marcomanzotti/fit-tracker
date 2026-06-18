@@ -163,9 +163,11 @@ struct RecipeQuantitySheet: View {
 
     @State private var amount = ""
 
-    private var grams: Double { max(0, pf(amount)) }
-    private var log: FoodLog { recipe.log(grams) }
-    private var unit: String { recipe.perServing ? t("recipe.servings_short") : "g" }
+    /// The entered amount, in the recipe's native unit (grams, or portions when
+    /// perServing). `recipe.log` interprets it according to `perServing`.
+    private var enteredAmount: Double { max(0, pf(amount)) }
+    private var log: FoodLog { recipe.log(enteredAmount) }
+    private var unit: String { recipe.perServing ? t("recipe.serving") : "g" }
 
     var body: some View {
         ZStack {
@@ -197,7 +199,7 @@ struct RecipeQuantitySheet: View {
                 }
 
                 BigButton(title: t("food.add")) {
-                    guard grams > 0 else { return }
+                    guard enteredAmount > 0 else { return }
                     haptic(.success); onAdd(log); dismiss()
                 }
                 Spacer()

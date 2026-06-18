@@ -33,6 +33,9 @@ struct WatchRootView: View {
             }
         }
         .animation(.easeInOut(duration: 0.2), value: workout.phase)
+        // After a relaunch, reattach to any workout HealthKit kept alive while the
+        // app was gone (crash / force-quit / memory reclaim) so it isn't lost.
+        .task { await workout.recoverSession() }
         // The phone can ask the wrist to start a workout: launch the matching
         // activity when we're idle, then clear the request.
         .onReceive(link.$startRequest) { id in
