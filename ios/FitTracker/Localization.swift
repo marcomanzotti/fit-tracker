@@ -826,7 +826,6 @@ enum L {
         "st.manage":          ("Gestisci", "Manage"),
         "st.manage_hint":     ("Unisci esercizi salvati con nomi simili, rinominane uno in tutto lo storico, o cancellalo del tutto. Le azioni riscrivono allenamenti, schede e libreria.",
                                "Merge exercises saved under similar names, rename one across the whole history, or delete it. Actions rewrite workouts, plans and the library."),
-        "st.all_exercises":   ("Tutti gli esercizi", "All exercises"),
         "st.dupes":           ("Possibili duplicati", "Possible duplicates"),
         "st.variants_similar":("nomi simili", "similar names"),
         "st.merge":           ("Unisci", "Merge"),
