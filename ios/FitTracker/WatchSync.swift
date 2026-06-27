@@ -80,10 +80,18 @@ final class WatchSync: NSObject, ObservableObject {
             let last = store.lastSession(forPlan: plan.id)
             let exs = plan.exercises.map { pe -> WatchExercise in
                 let logged = last?.exercises.first { $0.name == pe.name }
+                // Timed (isometric) exercises track a hold countdown on the wrist:
+                // the target seconds default to the plan's rep field (a number of
+                // seconds), and lastSeconds carries the previous session's holds.
+                let targetSec = pe.exKind == .timed ? (firstSeconds(pe.reps) ?? 30) : nil
+                let lastSeconds = pe.exKind == .timed
+                    ? logged?.sets.map { $0.seconds.map { s in fmtSecs(s) } ?? "" }
+                    : nil
                 return WatchExercise(id: pe.id.uuidString, name: pe.name, sets: max(1, pe.sets),
                                      reps: pe.reps,
                                      lastReps: logged?.sets.map { $0.reps } ?? [],
-                                     lastWeight: logged?.sets.map { $0.weight } ?? [])
+                                     lastWeight: logged?.sets.map { $0.weight } ?? [],
+                                     kind: pe.kind, targetSec: targetSec, lastSeconds: lastSeconds)
             }
             return WatchActivity(id: plan.id, kind: WatchKind.strength.rawValue, name: plan.name,
                                  color: plan.color, sub: plan.sub, sport: nil, exercises: exs)
@@ -209,14 +217,19 @@ extension Store {
                 // target/superset/method metadata when the exercise is known.
                 exercises = rex.map { e in
                     let pe = plan?.exercises.first { $0.name == e.name }
-                    let n = max(e.reps.count, e.weight.count)
+                    let secs = e.seconds ?? []
+                    let n = max(max(e.reps.count, e.weight.count), secs.count)
                     let sets = (0..<max(1, n)).map { i in
                         SetEntry(reps: i < e.reps.count ? e.reps[i] : "",
-                                 weight: i < e.weight.count ? e.weight[i] : "")
+                                 weight: i < e.weight.count ? e.weight[i] : "",
+                                 seconds: (i < secs.count ? pf(secs[i]) : 0) > 0 ? pf(secs[i]) : nil)
                     }
-                    return LoggedExercise(name: e.name, sets: sets,
-                                          target: pe.map { "\($0.sets)×\($0.reps)" } ?? "",
-                                          supersetGroup: pe?.supersetGroup, method: pe?.method)
+                    var le = LoggedExercise(name: e.name, sets: sets,
+                                            target: pe.map { "\($0.sets)×\($0.reps)" } ?? "",
+                                            supersetGroup: pe?.supersetGroup, method: pe?.method)
+                    le.kind = e.kind ?? pe?.kind
+                    le.isBodyweight = pe?.isBodyweight
+                    return le
                 }
             } else if let plan {
                 // Fallback (older watch builds): empty sets from the plan template.
@@ -240,4 +253,24 @@ extension Store {
         if let k = r.activeKcal, k > 0 { s.caloriesManual = k }
         sessions.append(s)
     }
+}
+
+// MARK: - Timed-exercise parsing helpers (phone -> watch)
+/// Whole-second string of a duration (drops a trailing .0). Used to seed the
+/// wrist countdown's "last hold" placeholders from past sessions.
+func fmtSecs(_ v: Double) -> String { String(Int(v.rounded())) }
+
+/// Read a seconds value out of a timed exercise's free-text rep field, which a
+/// user may type as "30", "30s", "45 sec" or "0:45". Returns nil when there's no
+/// usable number, so the caller can fall back to a sensible default.
+func firstSeconds(_ s: String) -> Int? {
+    let lower = s.lowercased()
+    // "m:ss" form (e.g. a 1:30 plank target).
+    if lower.contains(":") {
+        let parts = lower.split(separator: ":")
+        if parts.count == 2, let m = Int(parts[0]), let sec = Int(parts[1]) { return m * 60 + sec }
+    }
+    var out = ""
+    for ch in lower { if ch.isNumber { out.append(ch) } else if !out.isEmpty { break } }
+    return Int(out)
 }

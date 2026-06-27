@@ -12,6 +12,7 @@ struct StatsView: View {
     @State private var selVariant: String?  // chosen variant within the selected family
     @State private var exSortKey: ExSortKey = .recent
     @State private var exSortAsc = false
+    @State private var showManage = false
 
     private var tabs: [(String, String)] {
         [("overview", t("st.overview")), ("pr", t("st.records")), ("prog", t("st.progress")), ("storico", t("st.history"))]
@@ -155,7 +156,21 @@ struct StatsView: View {
         let variants = selEx.isEmpty ? [] : (families.first { $0.base == selEx }?.names ?? [])
         return Group {
             Card {
-                Lbl(text: t("st.select_ex")).padding(.bottom, 8)
+                HStack {
+                    Lbl(text: t("st.select_ex"))
+                    Spacer()
+                    Button { tap(); showManage = true } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: "slider.horizontal.3").font(.system(size: 11, weight: .bold))
+                            Text(t("st.manage")).font(.head(10, .semibold)).tracking(0.5)
+                        }
+                        .foregroundColor(Theme.sub)
+                        .padding(.vertical, 6).padding(.horizontal, 10)
+                        .background(Theme.c2).clipShape(Capsule())
+                        .overlay(Capsule().stroke(Theme.brd, lineWidth: 1))
+                    }.buttonStyle(.plain)
+                }
+                .padding(.bottom, 8)
                 InputField(placeholder: t("st.search_ex"), text: $exSearch, keyboard: .default)
                     .padding(.bottom, 8)
                 if !selEx.isEmpty {
@@ -209,6 +224,14 @@ struct StatsView: View {
             }
         }
         .sheet(item: $editingFam) { fam in ExerciseFamilyEditor(base: fam.base) }
+        .sheet(isPresented: $showManage) {
+            ExerciseManagerView()
+                .onDisappear {
+                    // The managed name may have changed/disappeared; reset selection
+                    // so the progress view never points at a deleted exercise.
+                    selEx = ""; selVariant = nil
+                }
+        }
     }
 
     private var selectedFamilyChip: some View {
@@ -512,5 +535,251 @@ struct ExerciseFamilyEditor: View {
         for r in rows { store.setExerciseFamily(r.name, base: r.base, category: r.category) }
         haptic(.success)
         dismiss()
+    }
+}
+
+// MARK: - Manage exercises (rename · merge similar · delete from history)
+/// A single screen to clean up the exercise list: merge accidental duplicates
+/// (same name up to case/spacing/accents), rename an exercise across the whole
+/// history, or delete one entirely. Every action rewrites past sessions, plans
+/// and the library through the Store, so PRs and progress recompute on close.
+struct ExerciseManagerView: View {
+    @EnvironmentObject var store: Store
+    @EnvironmentObject var toast: ToastCenter
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var search = ""
+    @State private var renaming: ManageTarget?     // rename sheet
+    @State private var merging: MergeTarget?       // merge sheet (pick which name wins)
+    @State private var confirmDelete: ManageTarget?
+
+    struct ManageTarget: Identifiable { let id = UUID(); let name: String }
+    struct MergeTarget: Identifiable { let id = UUID(); let names: [String] }
+
+    private var allNames: [String] {
+        let q = search.trimmingCharacters(in: .whitespaces)
+        let names = store.allExerciseNames().map { $0.name }
+        let filtered = q.isEmpty ? names : names.filter { $0.localizedCaseInsensitiveContains(q) }
+        return filtered.sorted { store.sessionCount(forExercise: $0) > store.sessionCount(forExercise: $1) }
+    }
+
+    var body: some View {
+        ZStack {
+            Theme.bg.ignoresSafeArea()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    header
+                    Text(t("st.manage_hint")).font(.system(size: 11)).foregroundColor(Theme.sub).lineSpacing(2)
+
+                    let dupes = store.similarExerciseGroups()
+                    if !dupes.isEmpty && search.isEmpty {
+                        Card(accent: Theme.acc2) {
+                            HStack(spacing: 6) {
+                                Image(systemName: "wand.and.stars").font(.system(size: 12)).foregroundColor(Theme.acc2)
+                                Lbl(text: t("st.dupes"), color: Theme.acc2)
+                            }
+                            .padding(.bottom, 8)
+                            ForEach(dupes.indices, id: \.self) { i in
+                                dupeRow(dupes[i])
+                                if i != dupes.count - 1 { Rectangle().fill(Theme.brd).frame(height: 1).padding(.vertical, 4) }
+                            }
+                        }
+                    }
+
+                    Card {
+                        Lbl(text: t("st.all_exercises")).padding(.bottom, 8)
+                        InputField(placeholder: t("st.search_ex"), text: $search, keyboard: .default).padding(.bottom, 8)
+                        if allNames.isEmpty {
+                            Text(t("st.maxes_hint")).font(.system(size: 12)).foregroundColor(Theme.sub).padding(.vertical, 8)
+                        }
+                        ForEach(allNames, id: \.self) { name in
+                            exerciseRow(name)
+                            if name != allNames.last { Rectangle().fill(Theme.brd).frame(height: 1) }
+                        }
+                    }
+                    Spacer().frame(height: 24)
+                }
+                .padding(.horizontal, 18)
+            }
+            .scrollDismissesKeyboard(.interactively)
+        }
+        .preferredColorScheme(.dark)
+        .sheet(item: $renaming) { tgt in
+            RenameExerciseSheet(oldName: tgt.name) { newName in
+                let merged = store.exerciseItems.contains { $0.name == newName }
+                    || store.sessionCount(forExercise: newName) > 0
+                store.renameExercise(from: tgt.name, to: newName)
+                haptic(.success)
+                toast.show(merged ? t("st.merged") : t("st.renamed"))
+            }
+        }
+        .sheet(item: $merging) { tgt in
+            MergeExerciseSheet(names: tgt.names) { keep, others in
+                for o in others { store.renameExercise(from: o, to: keep) }
+                haptic(.success)
+                toast.show(t("st.merged"))
+            }
+        }
+        .confirmationDialog(t("st.delete_q"), isPresented: Binding(
+            get: { confirmDelete != nil }, set: { if !$0 { confirmDelete = nil } }),
+            titleVisibility: .visible) {
+            if let tgt = confirmDelete {
+                Button("\(t("st.delete")) \"\(tgt.name)\"", role: .destructive) {
+                    store.deleteExercise(tgt.name); haptic(.warning); toast.show(t("st.deleted"))
+                }
+            }
+            Button(t("cancel"), role: .cancel) {}
+        } message: {
+            if let tgt = confirmDelete {
+                Text("\(store.sessionCount(forExercise: tgt.name)) \(t("st.sessions_affected"))")
+            }
+        }
+    }
+
+    private var header: some View {
+        HStack {
+            Text(t("st.manage").uppercased()).font(.head(16, .bold)).tracking(1).foregroundColor(Theme.txt)
+            Spacer()
+            Button { tap(); dismiss() } label: {
+                Image(systemName: "xmark").foregroundColor(Theme.sub).frame(width: 34, height: 34)
+            }
+        }
+        .padding(.top, 18)
+    }
+
+    /// A suggested-duplicate group: tap to open the merge picker.
+    private func dupeRow(_ names: [String]) -> some View {
+        Button { tap(); merging = MergeTarget(names: names) } label: {
+            HStack {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(names.joined(separator: "  ·  ")).font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(Theme.txt).lineLimit(2).multilineTextAlignment(.leading)
+                    Text("\(names.count) \(t("st.variants_similar"))").font(.system(size: 10)).foregroundColor(Theme.sub)
+                }
+                Spacer()
+                Text(t("st.merge")).font(.head(10, .bold)).tracking(0.5).foregroundColor(Theme.bg)
+                    .padding(.vertical, 6).padding(.horizontal, 12).background(Theme.acc2).clipShape(Capsule())
+            }
+            .padding(.vertical, 6)
+        }.buttonStyle(.plain)
+    }
+
+    private func exerciseRow(_ name: String) -> some View {
+        let n = store.sessionCount(forExercise: name)
+        return HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(name).font(.system(size: 13, weight: .semibold)).foregroundColor(Theme.txt).lineLimit(1)
+                Text(n == 1 ? "1 \(t("st.session_one"))" : "\(n) \(t("st.sessions_n"))")
+                    .font(.system(size: 10)).foregroundColor(Theme.sub)
+            }
+            Spacer()
+            Button { tap(); renaming = ManageTarget(name: name) } label: {
+                Image(systemName: "pencil").font(.system(size: 13)).foregroundColor(Theme.blue).frame(width: 34, height: 34)
+            }.buttonStyle(.plain)
+            Button { tap(); confirmDelete = ManageTarget(name: name) } label: {
+                Image(systemName: "trash").font(.system(size: 13)).foregroundColor(Theme.red.opacity(0.7)).frame(width: 34, height: 34)
+            }.buttonStyle(.plain)
+        }
+        .padding(.vertical, 8)
+    }
+}
+
+// MARK: - Rename / merge-into sheet
+/// Rename an exercise. If the typed name already exists, the Store merges the two
+/// histories — the sheet surfaces that with a live hint so it's never a surprise.
+struct RenameExerciseSheet: View {
+    @EnvironmentObject var store: Store
+    @Environment(\.dismiss) private var dismiss
+    let oldName: String
+    var onConfirm: (String) -> Void
+    @State private var text = ""
+
+    private var willMerge: Bool {
+        let n = text.trimmingCharacters(in: .whitespaces)
+        guard !n.isEmpty, n != oldName else { return false }
+        return store.exerciseItems.contains { $0.name == n } || store.sessionCount(forExercise: n) > 0
+            || store.plans.contains { $0.exercises.contains { $0.name == n } }
+    }
+
+    var body: some View {
+        ZStack {
+            Theme.bg.ignoresSafeArea()
+            VStack(alignment: .leading, spacing: 14) {
+                HStack {
+                    Text(t("st.rename").uppercased()).font(.head(16, .bold)).tracking(1).foregroundColor(Theme.txt)
+                    Spacer()
+                    Button { tap(); dismiss() } label: { Image(systemName: "xmark").foregroundColor(Theme.sub).frame(width: 34, height: 34) }
+                }
+                .padding(.top, 18)
+                Text("\(t("st.rename_from")) \"\(oldName)\"").font(.system(size: 12)).foregroundColor(Theme.sub)
+                InputField(placeholder: oldName, text: $text, keyboard: .default)
+                if willMerge {
+                    HStack(spacing: 6) {
+                        Image(systemName: "arrow.triangle.merge").font(.system(size: 11)).foregroundColor(Theme.acc2)
+                        Text(t("st.merge_warn")).font(.system(size: 11)).foregroundColor(Theme.acc2)
+                    }
+                }
+                BigButton(title: willMerge ? t("st.merge") : t("st.rename"),
+                          color: willMerge ? Theme.acc2 : Theme.acc) {
+                    let n = text.trimmingCharacters(in: .whitespaces)
+                    guard !n.isEmpty else { return }
+                    onConfirm(n); dismiss()
+                }
+                Spacer()
+            }
+            .padding(.horizontal, 18)
+        }
+        .preferredColorScheme(.dark)
+        .onAppear { text = oldName }
+    }
+}
+
+// MARK: - Merge picker (choose which name to keep)
+/// Pick which of several similar names survives; the rest are rewritten into it.
+struct MergeExerciseSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let names: [String]
+    var onMerge: (_ keep: String, _ others: [String]) -> Void
+    @State private var keep: String = ""
+
+    var body: some View {
+        ZStack {
+            Theme.bg.ignoresSafeArea()
+            VStack(alignment: .leading, spacing: 14) {
+                HStack {
+                    Text(t("st.merge").uppercased()).font(.head(16, .bold)).tracking(1).foregroundColor(Theme.txt)
+                    Spacer()
+                    Button { tap(); dismiss() } label: { Image(systemName: "xmark").foregroundColor(Theme.sub).frame(width: 34, height: 34) }
+                }
+                .padding(.top, 18)
+                Text(t("st.merge_pick")).font(.system(size: 12)).foregroundColor(Theme.sub)
+                VStack(spacing: 0) {
+                    ForEach(names, id: \.self) { n in
+                        Button { tap(); keep = n } label: {
+                            HStack {
+                                Image(systemName: keep == n ? "largecircle.fill.circle" : "circle")
+                                    .foregroundColor(keep == n ? Theme.acc : Theme.sub)
+                                Text(n).font(.system(size: 14, weight: .semibold)).foregroundColor(Theme.txt)
+                                Spacer()
+                            }
+                            .padding(.vertical, 12).padding(.horizontal, 4)
+                        }.buttonStyle(.plain)
+                        if n != names.last { Rectangle().fill(Theme.brd).frame(height: 1) }
+                    }
+                }
+                .padding(.horizontal, 10)
+                .background(Theme.c2).clipShape(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous).stroke(Theme.brd, lineWidth: 1))
+
+                BigButton(title: t("st.merge_into"), color: Theme.acc2) {
+                    guard !keep.isEmpty else { return }
+                    onMerge(keep, names.filter { $0 != keep }); dismiss()
+                }
+                Spacer()
+            }
+            .padding(.horizontal, 18)
+        }
+        .preferredColorScheme(.dark)
+        .onAppear { keep = names.first ?? "" }
     }
 }

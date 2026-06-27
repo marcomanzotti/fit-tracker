@@ -3,6 +3,7 @@
 
 # Xcode / build output
 build/
+build-device/
 DerivedData/
 *.ipa
 Payload/

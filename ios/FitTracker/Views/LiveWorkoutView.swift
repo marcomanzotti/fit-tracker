@@ -150,14 +150,17 @@ struct LiveWorkoutView: View {
     }
 
     /// Fill empty set fields from the wrist's per-set values (never overwrites).
+    /// Timed (isometric) exercises carry per-set hold seconds instead of reps.
     private func mergeWatchExercises(_ exs: [WatchResultExercise]) {
         for we in exs {
             guard let li = log.firstIndex(where: { $0.name == we.name }) else { continue }
-            let n = max(we.reps.count, we.weight.count)
+            let secs = we.seconds ?? []
+            let n = max(max(we.reps.count, we.weight.count), secs.count)
             while log[li].sets.count < n { log[li].sets.append(SetEntry()) }
             for j in 0..<n where j < log[li].sets.count {
                 if log[li].sets[j].reps.isEmpty, j < we.reps.count, pf(we.reps[j]) > 0 { log[li].sets[j].reps = we.reps[j] }
                 if log[li].sets[j].weight.isEmpty, j < we.weight.count, pf(we.weight[j]) > 0 { log[li].sets[j].weight = we.weight[j] }
+                if (log[li].sets[j].seconds ?? 0) == 0, j < secs.count, pf(secs[j]) > 0 { log[li].sets[j].seconds = pf(secs[j]) }
             }
         }
     }
@@ -308,24 +311,44 @@ struct LiveWorkoutView: View {
                     }
                 }
                 Spacer()
-                if pr > 0 {
+                // PR badge, top-right. For timed (isometric) exercises the record is
+                // the longest hold (seconds); for everything else it's the top weight
+                // (plus an estimated 1RM). Bodyweight reps with no added load show BW.
+                let prSeconds = kind == .timed ? store.exerciseMaxSeconds(ex.name) : 0
+                if kind == .timed ? prSeconds > 0 : pr > 0 {
                     VStack(alignment: .trailing, spacing: 3) {
                         Text("PR").font(.head(9, .semibold)).tracking(1.5).foregroundColor(Theme.sub)
-                        Text(bw && pr == 0 ? "BW" : "\(trimNum(pr)) kg").font(.num(20)).foregroundColor(Theme.acc)
-                        // Estimated 1RM — the best single-effort strength signal,
-                        // more comparable across rep ranges than top weight alone.
-                        if let e = store.bestE1RM(ex.name), e > 0 {
-                            Text("e1RM \(trimNum(e)) kg").font(.system(size: 9, weight: .semibold)).foregroundColor(Theme.acc2)
+                        if kind == .timed {
+                            Text("\(trimNum(prSeconds))s").font(.num(20)).foregroundColor(Theme.acc)
+                        } else {
+                            Text(bw && pr == 0 ? "BW" : "\(trimNum(pr)) kg").font(.num(20)).foregroundColor(Theme.acc)
+                            // Estimated 1RM — the best single-effort strength signal,
+                            // more comparable across rep ranges than top weight alone.
+                            if let e = store.bestE1RM(ex.name), e > 0 {
+                                Text("e1RM \(trimNum(e)) kg").font(.system(size: 9, weight: .semibold)).foregroundColor(Theme.acc2)
+                            }
                         }
                     }
                 }
             }
             .padding(.bottom, 10)
 
-            if let prevEx, !prevEx.sets.isEmpty {
+            // "Last time" — the same exercise's sets from the most recent session of
+            // THIS plan, so the numbers shown are the ones to beat for this routine
+            // (not a different day's plan). Timed holds show seconds; everything else
+            // shows weight×reps. The date makes it clear how recent the reference is.
+            if let prevEx, !prevEx.sets.isEmpty, let last = lastSess {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(t("wk.last_time_label").uppercased()).font(.head(9, .semibold)).tracking(2).foregroundColor(Theme.blue)
-                    FlowText(items: prevEx.sets.enumerated().map { "S\($0.offset + 1): \(disp($0.element.weight))×\(disp($0.element.reps))" })
+                    HStack(spacing: 6) {
+                        Text(t("wk.last_time_label").uppercased()).font(.head(9, .semibold)).tracking(2).foregroundColor(Theme.blue)
+                        Spacer()
+                        Text(fmtShort(last.date)).font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
+                    }
+                    FlowText(items: prevEx.sets.enumerated().map { i, s in
+                        kind == .timed
+                            ? "S\(i + 1): \(s.seconds.map { trimNum($0) } ?? "?")s\(pf(s.weight) > 0 ? " +\(disp(s.weight))kg" : "")"
+                            : "S\(i + 1): \(disp(s.weight))×\(disp(s.reps))"
+                    })
                 }
                 .padding(.vertical, 9).padding(.horizontal, 12)
                 .frame(maxWidth: .infinity, alignment: .leading)

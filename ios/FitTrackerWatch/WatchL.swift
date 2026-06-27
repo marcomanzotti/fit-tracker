@@ -50,6 +50,9 @@ enum WL {
         "set":          ("Serie", "Set"),
         "done":         ("Fatto", "Done"),
         "controls":     ("Controlli", "Controls"),
+        "stop":         ("Stop", "Stop"),
+        "hold":         ("Tieni", "Hold"),
+        "sec":          ("sec", "sec"),
 
         // Sport labels (match the phone's sport.* keys)
         "sport.strength": ("Forza", "Strength"),

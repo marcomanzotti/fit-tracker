@@ -40,11 +40,10 @@ public struct WatchActivity: Codable, Identifiable, Equatable {
 /// default; `lastReps`/`lastWeight` are the previous session's per-set values
 /// (empty when the exercise has never been logged) used as gray placeholders.
 ///
-/// NOTE: timed (isometric) and interval (HIIT) exercises are fully supported on
-/// the phone but are not yet wired into this wrist format — they'd be tracked as
-/// plain reps×weight on the watch, producing inconsistent data. Native wrist
-/// support (hold stopwatch, interval timer, phase haptics) lands with the watch
-/// experience work (Phase 4); until then those kinds are logged on the phone.
+/// Timed (isometric) exercises — plank, wall sit, hollow hold — are tracked
+/// natively on the wrist with a per-set countdown timer (see `kind`/`targetSec`).
+/// `lastSeconds` carries the previous session's hold per set, used as the default
+/// countdown start. Interval (HIIT) exercises are still logged on the phone for now.
 public struct WatchExercise: Codable, Equatable, Identifiable {
     public var id: String
     public var name: String
@@ -52,12 +51,23 @@ public struct WatchExercise: Codable, Equatable, Identifiable {
     public var reps: String
     public var lastReps: [String]
     public var lastWeight: [String]
+    /// ExKind raw value ("reps" | "timed" | "interval"); nil/absent => reps.
+    public var kind: String?
+    /// Default hold duration (seconds) for a timed exercise: the plan target.
+    public var targetSec: Int?
+    /// Previous session's per-set hold seconds (timed exercises) as strings.
+    public var lastSeconds: [String]?
 
     public init(id: String, name: String, sets: Int, reps: String,
-                lastReps: [String], lastWeight: [String]) {
+                lastReps: [String], lastWeight: [String],
+                kind: String? = nil, targetSec: Int? = nil, lastSeconds: [String]? = nil) {
         self.id = id; self.name = name; self.sets = sets; self.reps = reps
         self.lastReps = lastReps; self.lastWeight = lastWeight
+        self.kind = kind; self.targetSec = targetSec; self.lastSeconds = lastSeconds
     }
+
+    /// True when this exercise should be tracked as a timed isometric hold.
+    public var isTimed: Bool { kind == "timed" }
 }
 
 /// Phone -> watch sync payload: the catalog of startable activities plus a bit
@@ -102,13 +112,21 @@ public struct WatchResult: Codable, Equatable {
 }
 
 /// One exercise's logged sets coming back from the watch (parallel reps/weight
-/// arrays, strings to match the phone's free-text set fields).
+/// arrays, strings to match the phone's free-text set fields). For timed
+/// (isometric) exercises `seconds` carries the per-set hold duration and
+/// `kind` is "timed" so the phone fills the right fields; reps/weight stay empty.
 public struct WatchResultExercise: Codable, Equatable {
     public var name: String
     public var reps: [String]
     public var weight: [String]
-    public init(name: String, reps: [String], weight: [String]) {
+    /// Per-set hold seconds for a timed exercise (parallel to reps/weight).
+    public var seconds: [String]?
+    /// ExKind raw value; nil/absent => reps.
+    public var kind: String?
+    public init(name: String, reps: [String], weight: [String],
+                seconds: [String]? = nil, kind: String? = nil) {
         self.name = name; self.reps = reps; self.weight = weight
+        self.seconds = seconds; self.kind = kind
     }
 }
 

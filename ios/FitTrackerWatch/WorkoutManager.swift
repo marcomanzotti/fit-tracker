@@ -24,6 +24,13 @@ final class WorkoutManager: NSObject, ObservableObject {
         var setWeight: [Double?]
         var phReps: [Double]      // placeholder reps (last session, else plan default)
         var phWeight: [Double]    // placeholder weight (last session, else 0)
+        // Timed (isometric) exercises: a per-set hold duration in seconds. `timed`
+        // switches the card to a countdown UI; `setSeconds` is the value confirmed
+        // for each set (nil until the user runs/edits the timer) and `phSeconds` is
+        // the default countdown start (last session's hold, else the plan target).
+        var timed: Bool = false
+        var setSeconds: [Double?] = []
+        var phSeconds: [Double] = []
     }
     @Published var exLogs: [ExLog] = []
 
@@ -148,6 +155,17 @@ final class WorkoutManager: NSObject, ObservableObject {
     func resultExercises() -> [WatchResultExercise]? {
         guard activity?.kindValue == .strength, !exLogs.isEmpty else { return nil }
         return exLogs.map { ex in
+            if ex.timed {
+                // Timed isometric: report the per-set hold seconds; reps stay empty,
+                // weight carries any added load (vest/belt) shown on the wrist.
+                var secs: [String] = [], wt: [String] = []
+                for i in 0..<ex.setSeconds.count {
+                    secs.append(fmtNum(ex.setSeconds[i] ?? ex.phSeconds[i]))
+                    wt.append(fmtNum(ex.setWeight[i] ?? ex.phWeight[i]))
+                }
+                return WatchResultExercise(name: ex.name, reps: [], weight: wt,
+                                           seconds: secs, kind: "timed")
+            }
             var reps: [String] = [], wt: [String] = []
             for i in 0..<ex.setReps.count {
                 reps.append(fmtNum(ex.setReps[i] ?? ex.phReps[i]))
@@ -197,15 +215,21 @@ final class WorkoutManager: NSObject, ObservableObject {
         exLogs = exs.map { e in
             let n = max(1, e.sets)
             let def = firstNumber(e.reps) ?? 10
-            var phR: [Double] = [], phW: [Double] = []
+            var phR: [Double] = [], phW: [Double] = [], phS: [Double] = []
+            let defSec = Double(e.targetSec ?? 30)
             for i in 0..<n {
                 phR.append(i < e.lastReps.count ? (parseNum(e.lastReps[i]) ?? def) : def)
                 phW.append(i < e.lastWeight.count ? (parseNum(e.lastWeight[i]) ?? 0) : 0)
+                let last = e.lastSeconds ?? []
+                phS.append(i < last.count ? (parseNum(last[i]) ?? defSec) : defSec)
             }
             return ExLog(name: e.name,
                          setReps: Array(repeating: nil, count: n),
                          setWeight: Array(repeating: nil, count: n),
-                         phReps: phR, phWeight: phW)
+                         phReps: phR, phWeight: phW,
+                         timed: e.isTimed,
+                         setSeconds: Array(repeating: nil, count: n),
+                         phSeconds: phS)
         }
     }
 
@@ -216,6 +240,11 @@ final class WorkoutManager: NSObject, ObservableObject {
     func isWeightEntered(_ ex: Int, _ set: Int) -> Bool { exLogs[ex].setWeight[set] != nil }
     func setReps(_ ex: Int, _ set: Int, _ v: Double) { exLogs[ex].setReps[set] = max(0, v); sendLive(ended: false) }
     func setWeight(_ ex: Int, _ set: Int, _ v: Double) { exLogs[ex].setWeight[set] = max(0, v); sendLive(ended: false) }
+
+    // Timed (isometric) accessors — mirror the reps/weight ones for hold seconds.
+    func effSeconds(_ ex: Int, _ set: Int) -> Double { exLogs[ex].setSeconds[set] ?? exLogs[ex].phSeconds[set] }
+    func isSecondsEntered(_ ex: Int, _ set: Int) -> Bool { exLogs[ex].setSeconds[set] != nil }
+    func setSeconds(_ ex: Int, _ set: Int, _ v: Double) { exLogs[ex].setSeconds[set] = max(0, v); sendLive(ended: false) }
 
     // MARK: Finalize
     private func finish() async {

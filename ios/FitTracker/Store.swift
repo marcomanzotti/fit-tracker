@@ -271,6 +271,11 @@ extension Store {
         return sessions.filter { s in s.exercises.contains { names.contains($0.name) } }.count
     }
 
+    /// Number of past sessions that logged this exact exercise name.
+    func sessionCount(forExercise name: String) -> Int {
+        sessions.filter { s in s.exercises.contains { $0.name == name } }.count
+    }
+
     /// Latest known VO2 max (carried forward — Apple records it sparsely).
     var latestVO2: Double? { sortedDaily.last(where: { ($0.vo2max ?? 0) > 0 })?.vo2max }
 
@@ -476,6 +481,18 @@ extension Store {
         for s in sessions {
             for e in s.exercises where e.name == name {
                 mx = max(mx, e.maxWeight)
+            }
+        }
+        return mx
+    }
+
+    /// Longest hold ever logged for a timed (isometric) exercise, in seconds — the
+    /// timed analogue of `exercisePR`. 0 when never held.
+    func exerciseMaxSeconds(_ name: String) -> Double {
+        var mx = 0.0
+        for s in sessions {
+            for e in s.exercises where e.name == name {
+                mx = max(mx, e.maxSeconds)
             }
         }
         return mx
@@ -1114,6 +1131,96 @@ extension Store {
                                               base: (cleanBase?.isEmpty ?? true) ? Store.normalizedBase(name) : cleanBase,
                                               category: category ?? Store.guessCategory(name).rawValue))
         }
+    }
+
+    // MARK: Exercise rename / merge / delete (rewrites historical data)
+
+    /// Rename an exercise everywhere it appears — every logged set in past
+    /// sessions, every plan, and the library — so the whole history follows the new
+    /// name. When `to` already exists this is a MERGE: the two histories combine
+    /// under the destination name, and the source library entry is dropped (the
+    /// destination's bodyweight/base/category metadata wins). PRs, progress charts
+    /// and "last session" all recompute automatically off the rewritten sessions.
+    /// Returns false (no-op) for an empty/identical target.
+    @discardableResult
+    func renameExercise(from oldName: String, to newRaw: String) -> Bool {
+        let newName = newRaw.trimmingCharacters(in: .whitespaces)
+        guard !newName.isEmpty, newName != oldName else { return false }
+        let isMerge = exerciseItems.contains { $0.name == newName }
+            || plans.contains { $0.exercises.contains { $0.name == newName } }
+            || sessions.contains { $0.exercises.contains { $0.name == newName } }
+
+        // 1) Rewrite every logged exercise in past sessions.
+        for si in sessions.indices {
+            for ei in sessions[si].exercises.indices where sessions[si].exercises[ei].name == oldName {
+                sessions[si].exercises[ei].name = newName
+            }
+        }
+        // 2) Rewrite plan templates.
+        for pi in plans.indices {
+            for ei in plans[pi].exercises.indices where plans[pi].exercises[ei].name == oldName {
+                plans[pi].exercises[ei].name = newName
+            }
+        }
+        // 3) Library: on merge drop the old entry (keep the destination's metadata);
+        //    on a plain rename, carry the old entry's metadata over to the new name.
+        if let oi = exerciseItems.firstIndex(where: { $0.name == oldName }) {
+            if isMerge {
+                // Preserve the freshest lastUsed across the two entries.
+                if let di = exerciseItems.firstIndex(where: { $0.name == newName }) {
+                    let merged = max(exerciseItems[di].lastUsed ?? "", exerciseItems[oi].lastUsed ?? "")
+                    exerciseItems[di].lastUsed = merged.isEmpty ? exerciseItems[di].lastUsed : merged
+                }
+                exerciseItems.remove(at: oi)
+            } else {
+                exerciseItems[oi].name = newName
+            }
+        } else if !isMerge {
+            touchExerciseInLibrary(newName)
+        }
+        return true
+    }
+
+    /// Delete an exercise from the whole history: remove its sets from every past
+    /// session (dropping a session that becomes empty), from every plan, and from
+    /// the library. Irreversible — used by the manage-exercises screen behind a
+    /// confirmation.
+    func deleteExercise(_ name: String) {
+        for si in sessions.indices {
+            sessions[si].exercises.removeAll { $0.name == name }
+        }
+        // Drop strength sessions left with no exercises (cardio sessions never have
+        // exercises, so only remove a now-empty session if it was a strength log).
+        sessions.removeAll { $0.sportType == .strength && $0.exercises.isEmpty }
+        for pi in plans.indices {
+            plans[pi].exercises.removeAll { $0.name == name }
+        }
+        exerciseItems.removeAll { $0.name == name }
+    }
+
+    /// Groups of exercise names that look like accidental duplicates (same name up
+    /// to case, spacing and accents), surfaced as merge suggestions. Only groups
+    /// with more than one real variant are returned, most-recent first.
+    func similarExerciseGroups() -> [[String]] {
+        func key(_ s: String) -> String {
+            s.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: nil)
+             .replacingOccurrences(of: "-", with: " ")
+             .components(separatedBy: .whitespaces).filter { !$0.isEmpty }.joined(separator: " ")
+        }
+        let names = Set(allExerciseNames().map { $0.name })
+        var byKey: [String: [String]] = [:]
+        for n in names { byKey[key(n), default: []].append(n) }
+        return byKey.values.filter { $0.count > 1 }
+            .map { $0.sorted { recencyOf($0) > recencyOf($1) } }
+            .sorted { (recencyOf($0.first ?? "")) > (recencyOf($1.first ?? "")) }
+    }
+
+    /// Most recent date this exact exercise name was logged or marked used.
+    private func recencyOf(_ name: String) -> String {
+        let lib = exerciseItems.first { $0.name == name }?.lastUsed ?? ""
+        let logged = sessions.filter { $0.exercises.contains { $0.name == name } }
+            .map { $0.date }.max() ?? ""
+        return max(lib, logged)
     }
 
     /// The movement family an exercise rolls up to (its saved base, else a

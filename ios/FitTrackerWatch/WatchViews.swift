@@ -198,6 +198,7 @@ struct CardioLiveView: View {
 struct StrengthLiveView: View {
     @EnvironmentObject var workout: WorkoutManager
     @State private var edit: EditTarget?
+    @State private var hold: HoldTarget?
 
     var body: some View {
         TabView {
@@ -224,6 +225,16 @@ struct StrengthLiveView: View {
                 else { workout.setWeight(target.ex, target.set, v) }
             }
         }
+        // Countdown timer for an isometric hold: counts DOWN from the set's target
+        // seconds and writes the actual hold back on stop.
+        .sheet(item: $hold) { target in
+            HoldTimerSheet(
+                title: "\(target.exName) · \(wt("set")) \(target.set + 1)",
+                seconds: target.current
+            ) { actual in
+                workout.setSeconds(target.ex, target.set, actual)
+            }
+        }
     }
 
     private var metricsHeader: some View {
@@ -243,20 +254,14 @@ struct StrengthLiveView: View {
     private func exerciseCard(_ ex: Int) -> some View {
         let log = workout.exLogs[ex]
         return VStack(alignment: .leading, spacing: 7) {
-            Text(log.name).font(.system(size: 14, weight: .bold)).foregroundColor(T.txt).lineLimit(2)
-            ForEach(log.setReps.indices, id: \.self) { s in
-                HStack(spacing: 6) {
-                    Text("\(s + 1)").font(.system(size: 11, weight: .bold)).foregroundColor(T.sub).frame(width: 16)
-                    numberPill(value: workout.effReps(ex, s), entered: workout.isRepsEntered(ex, s)) {
-                        edit = EditTarget(ex: ex, set: s, field: .reps, exName: log.name, current: workout.effReps(ex, s))
-                    }
-                    Text("×").font(.system(size: 13)).foregroundColor(T.sub)
-                    numberPill(value: workout.effWeight(ex, s), entered: workout.isWeightEntered(ex, s)) {
-                        edit = EditTarget(ex: ex, set: s, field: .weight, exName: log.name, current: workout.effWeight(ex, s))
-                    }
-                    Text("kg").font(.system(size: 10)).foregroundColor(T.sub)
-                    Spacer(minLength: 0)
-                }
+            HStack(spacing: 5) {
+                if log.timed { Image(systemName: "timer").font(.system(size: 11, weight: .bold)).foregroundColor(T.acc2) }
+                Text(log.name).font(.system(size: 14, weight: .bold)).foregroundColor(T.txt).lineLimit(2)
+            }
+            if log.timed {
+                ForEach(log.setSeconds.indices, id: \.self) { s in timedRow(ex, s, log.name) }
+            } else {
+                ForEach(log.setReps.indices, id: \.self) { s in repsRow(ex, s, log.name) }
             }
         }
         .padding(.vertical, 10).padding(.horizontal, 10)
@@ -264,6 +269,43 @@ struct StrengthLiveView: View {
         .background(T.c1)
         .clipShape(RoundedRectangle(cornerRadius: T.radius, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: T.radius, style: .continuous).stroke(T.brd, lineWidth: 1))
+    }
+
+    // Classic reps × weight row.
+    private func repsRow(_ ex: Int, _ s: Int, _ name: String) -> some View {
+        HStack(spacing: 6) {
+            Text("\(s + 1)").font(.system(size: 11, weight: .bold)).foregroundColor(T.sub).frame(width: 16)
+            numberPill(value: workout.effReps(ex, s), entered: workout.isRepsEntered(ex, s)) {
+                edit = EditTarget(ex: ex, set: s, field: .reps, exName: name, current: workout.effReps(ex, s))
+            }
+            Text("×").font(.system(size: 13)).foregroundColor(T.sub)
+            numberPill(value: workout.effWeight(ex, s), entered: workout.isWeightEntered(ex, s)) {
+                edit = EditTarget(ex: ex, set: s, field: .weight, exName: name, current: workout.effWeight(ex, s))
+            }
+            Text("kg").font(.system(size: 10)).foregroundColor(T.sub)
+            Spacer(minLength: 0)
+        }
+    }
+
+    // Isometric hold row: tap the time pill to run a countdown timer for that set.
+    private func timedRow(_ ex: Int, _ s: Int, _ name: String) -> some View {
+        let entered = workout.isSecondsEntered(ex, s)
+        return HStack(spacing: 6) {
+            Text("\(s + 1)").font(.system(size: 11, weight: .bold)).foregroundColor(T.sub).frame(width: 16)
+            Button { wkTap(); hold = HoldTarget(ex: ex, set: s, exName: name, current: workout.effSeconds(ex, s)) } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: entered ? "checkmark" : "play.fill").font(.system(size: 11, weight: .bold))
+                    Text("\(fmtNum(workout.effSeconds(ex, s)))s").font(.num(17))
+                }
+                .foregroundColor(entered ? T.txt : T.acc2)
+                .frame(minWidth: 76, minHeight: 34)
+                .background(entered ? T.acc.opacity(0.14) : T.c2)
+                .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).stroke(entered ? T.acc : T.brd, lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+            Spacer(minLength: 0)
+        }
     }
 
     private func numberPill(value: Double, entered: Bool, _ tapAction: @escaping () -> Void) -> some View {
@@ -324,6 +366,106 @@ struct NumberCrownEditor: View {
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
         .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Isometric hold countdown timer
+/// Target for the hold sheet: which set, and its starting (target) seconds.
+struct HoldTarget: Identifiable {
+    let id = UUID()
+    let ex: Int; let set: Int
+    let exName: String; let current: Double
+}
+
+/// A countdown stopwatch for an isometric hold (plank, wall sit). It counts DOWN
+/// from the set's target seconds with a big ring; the crown lets you adjust the
+/// target before starting. A short haptic ticks the last 3 seconds and a success
+/// haptic fires at zero. Whatever time actually elapsed when the user stops (or
+/// when the countdown completes) is written back as the logged hold.
+struct HoldTimerSheet: View {
+    let title: String
+    @State var seconds: Double          // target / remaining bound to the crown before start
+    var onStop: (Double) -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var target: Double = 0
+    @State private var remaining: Double = 0
+    @State private var running = false
+    @State private var finished = false
+    private let tick = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+
+    private var elapsed: Double { max(0, target - remaining) }
+
+    var body: some View {
+        VStack(spacing: 8) {
+            Text(title).font(.system(size: 12, weight: .semibold)).foregroundColor(T.sub)
+                .multilineTextAlignment(.center).lineLimit(2)
+
+            ZStack {
+                Circle().stroke(T.c3, lineWidth: 8)
+                Circle()
+                    .trim(from: 0, to: target > 0 ? CGFloat(remaining / target) : 0)
+                    .stroke(finished ? T.good : T.acc2, style: StrokeStyle(lineWidth: 8, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                    .animation(.linear(duration: 0.25), value: remaining)
+                VStack(spacing: 0) {
+                    Text("\(Int(running || finished ? remaining : seconds))")
+                        .font(.num(40)).foregroundColor(finished ? T.good : T.acc2)
+                    Text("SEC").font(.head(9, .semibold)).tracking(2).foregroundColor(T.sub)
+                }
+            }
+            .frame(width: 104, height: 104)
+            .focusable(!running)
+            .digitalCrownRotation($seconds, from: 5, through: 600, by: 5,
+                                  sensitivity: .low, isContinuous: false, isHapticFeedbackEnabled: true)
+            .padding(.vertical, 2)
+
+            if running {
+                Button { wkTap(); stop(elapsed) } label: {
+                    Text(wt("stop").uppercased()).font(.head(13, .bold)).tracking(1).foregroundColor(T.red)
+                        .frame(maxWidth: .infinity, minHeight: 42).background(T.red.opacity(0.14))
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                }.buttonStyle(.plain)
+            } else {
+                Button { wkSuccess(); start() } label: {
+                    Text((finished ? wt("save") : wt("start")).uppercased())
+                        .font(.head(13, .bold)).tracking(1).foregroundColor(T.bg)
+                        .frame(maxWidth: .infinity, minHeight: 42).background(finished ? T.good : T.acc)
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                }.buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 8)
+        .onReceive(tick) { _ in countdown() }
+    }
+
+    private func start() {
+        if finished { onStop(target); dismiss(); return }
+        target = max(1, seconds)
+        remaining = target
+        running = true
+        finished = false
+        wkSuccess()
+    }
+
+    private func countdown() {
+        guard running else { return }
+        remaining = max(0, remaining - 1)
+        if remaining <= 3 && remaining > 0 { wkTap() }
+        if remaining == 0 {
+            running = false
+            finished = true
+            wkSuccess()
+            // Auto-log the full target hold; the user can still hit Save to confirm.
+            onStop(target)
+        }
+    }
+
+    /// Stopped early: log the time actually held (at least 1s) and close.
+    private func stop(_ held: Double) {
+        running = false
+        onStop(max(1, held.rounded()))
+        dismiss()
     }
 }
 
