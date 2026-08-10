@@ -283,6 +283,7 @@ struct SettingsView: View {
     @State private var showHealthHistory = false
     @State private var healthCats: Set<String>
     @State private var importWk: Bool
+    @State private var exportHK: Bool
     @State private var autoRest: Bool
     @State private var liveAct: Bool
     @State private var holdPrep: String
@@ -297,6 +298,7 @@ struct SettingsView: View {
         _unitSys = State(initialValue: store.prefs.imperial ? "imperial" : "metric")
         _healthCats = State(initialValue: store.prefs.healthCategories)
         _importWk = State(initialValue: store.prefs.importWorkoutsEnabled)
+        _exportHK = State(initialValue: store.prefs.exportsToHealth)
         _autoRest = State(initialValue: store.prefs.autoRest)
         _liveAct = State(initialValue: store.prefs.liveActivityEnabled)
         _holdPrep = State(initialValue: String(store.prefs.holdPrep))
@@ -437,6 +439,14 @@ struct SettingsView: View {
                     }
                     .tint(Theme.acc)
                     Rectangle().fill(Theme.brd).frame(height: 1).padding(.vertical, 10)
+                    Toggle(isOn: $exportHK) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(t("hk.export")).font(.system(size: 13, weight: .medium)).foregroundColor(Theme.txt)
+                            Text(t("hk.export_hint")).font(.system(size: 10)).foregroundColor(Theme.sub)
+                        }
+                    }
+                    .tint(Theme.acc)
+                    Rectangle().fill(Theme.brd).frame(height: 1).padding(.vertical, 10)
                     // Past daily data: pick a window, import it, and see exactly
                     // which categories actually arrived.
                     Button { tap(); showHealthHistory = true } label: {
@@ -486,6 +496,7 @@ struct SettingsView: View {
         p.healthKit = hkOn
         p.healthImport = Array(healthCats)
         p.importWorkouts = importWk
+        p.exportToHealth = exportHK
         if let ts = Int(timerSec), ts > 0 { p.timer = ts }
         p.autoRestTimer = autoRest
         p.liveActivity = liveAct

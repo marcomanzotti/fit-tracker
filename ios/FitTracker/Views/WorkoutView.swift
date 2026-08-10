@@ -13,6 +13,9 @@ struct WorkoutView: View {
     @State private var loggingCardio: CardioType?
     @State private var editingCardio: CardioType?
     @State private var isNewCardio = false
+    // Recent-sessions list: free-text filter over the whole history + cap toggle.
+    @State private var sessionQuery = ""
+    @State private var showAllSessions = false
 
     var body: some View {
         if let pid = activeWorkout.planId, let plan = store.plan(pid), !activeWorkout.minimized {
@@ -242,13 +245,42 @@ struct WorkoutView: View {
     }
 
     private var recentSessions: some View {
-        // Last 10 only here; every older session stays saved and is still
-        // openable/editable by tapping its day in the calendar above.
-        let recent = store.sessions.sorted { $0.date > $1.date }.prefix(10)
+        // Ten most recent by default — enough to glance at without a wall of rows.
+        // Search looks across the WHOLE history (by workout name, exercise name or
+        // date), and "show all" lifts the cap, so nothing is unreachable from here.
+        let all = store.sessions.sorted { $0.date > $1.date }
+        let q = sessionQuery.trimmingCharacters(in: .whitespaces).lowercased()
+        let filtered = q.isEmpty ? all : all.filter { s in
+            s.planName.lowercased().contains(q)
+                || s.date.contains(q)
+                || s.exercises.contains { $0.name.lowercased().contains(q) }
+        }
+        let recent = (showAllSessions || !q.isEmpty) ? filtered : Array(filtered.prefix(10))
         return Group {
-            if !recent.isEmpty {
+            if !all.isEmpty {
                 Card {
-                    Lbl(text: t("wk.recent")).padding(.bottom, 4)
+                    Lbl(text: t("wk.recent")).padding(.bottom, 8)
+                    HStack(spacing: 8) {
+                        Image(systemName: "magnifyingglass").font(.system(size: 12)).foregroundColor(Theme.sub)
+                        TextField("", text: $sessionQuery,
+                                  prompt: Text(t("wk.search")).foregroundColor(Theme.sub))
+                            .font(.system(size: 13)).foregroundColor(Theme.txt)
+                        if !sessionQuery.isEmpty {
+                            Button { tap(); sessionQuery = "" } label: {
+                                Image(systemName: "xmark.circle.fill").font(.system(size: 13)).foregroundColor(Theme.sub)
+                            }.buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.vertical, 9).padding(.horizontal, 12)
+                    .background(Theme.c2)
+                    .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).stroke(Theme.brd, lineWidth: 1))
+                    .padding(.bottom, 4)
+
+                    if recent.isEmpty {
+                        Text(t("wk.no_match")).font(.system(size: 12)).foregroundColor(Theme.sub)
+                            .padding(.vertical, 12)
+                    }
                     ForEach(Array(recent)) { s in
                         Button { tap(); editingSession = s } label: {
                             HStack {
@@ -272,6 +304,13 @@ struct WorkoutView: View {
                             .overlay(alignment: .bottom) { Rectangle().fill(Theme.brd).frame(height: 1) }
                         }
                         .buttonStyle(.plain)
+                    }
+                    if q.isEmpty, filtered.count > 10 {
+                        Button { tap(); showAllSessions.toggle() } label: {
+                            Text((showAllSessions ? t("wk.show_less") : t("wk.show_all", filtered.count)).uppercased())
+                                .font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.acc2)
+                                .frame(maxWidth: .infinity, minHeight: 40)
+                        }.buttonStyle(.plain)
                     }
                 }
             }

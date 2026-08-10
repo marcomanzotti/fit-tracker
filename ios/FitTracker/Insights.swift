@@ -152,6 +152,24 @@ struct LoadCard: View {
         Group {
                 Card {
                     InfoLbl(text: t("load.title"), info: "load", color: Theme.acc2).padding(.bottom, 12)
+                    // Runaway acute load plus a monotonous week is Foster's classic
+                    // overreaching signature — the one combination worth acting on.
+                    if store.deloadAdvice() {
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack(spacing: 6) {
+                                Image(systemName: "exclamationmark.triangle.fill").font(.system(size: 11))
+                                Text(t("load.deload")).font(.head(12, .bold)).tracking(0.3)
+                            }
+                            .foregroundColor(Theme.red)
+                            Text(t("load.deload_why")).font(.system(size: 10)).foregroundColor(Theme.sub)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .padding(.vertical, 9).padding(.horizontal, 11)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Theme.red.opacity(0.08))
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .padding(.bottom, 12)
+                    }
                     if let ratio = acwr.ratio {
                         HStack(spacing: 2) {
                             Text(t("load.acwr")).font(.system(size: 12, weight: .medium)).foregroundColor(Theme.sub)
@@ -569,6 +587,26 @@ struct SessionEditorView: View {
 
                     BigButton(title: t("save")) {
                         store.updateSession(session); haptic(.success); dismiss()
+                    }
+                    // Repeat this workout today: same exercises and weights, fresh
+                    // ids, no heart rate or Health provenance carried over. Hidden
+                    // when the session already IS today's.
+                    if session.date != today() {
+                        Button {
+                            tap()
+                            store.duplicateSession(session.id)
+                            haptic(.success); toast.show(t("wk.repeated")); dismiss()
+                        } label: {
+                            HStack(spacing: 7) {
+                                Image(systemName: "arrow.trianglehead.2.clockwise").font(.system(size: 13, weight: .bold))
+                                Text(t("wk.repeat_today")).font(.head(13, .semibold))
+                            }
+                            .foregroundColor(Theme.blue)
+                            .frame(maxWidth: .infinity, minHeight: 46)
+                            .background(Theme.blue.opacity(0.08))
+                            .clipShape(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous))
+                            .overlay(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous).stroke(Theme.blue, lineWidth: 1))
+                        }
                     }
                     // Bring a deleted strength plan back as a Train-page card, rebuilt
                     // from this session's exercises. Only shown when the original plan

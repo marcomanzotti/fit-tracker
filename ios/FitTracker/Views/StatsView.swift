@@ -110,7 +110,48 @@ struct StatsView: View {
     }
 
     // MARK: Records
+    @ViewBuilder
     private var records: some View {
+        prFeed
+        currentMaxes
+    }
+
+    /// The history of getting stronger: every moment a top weight, an estimated 1RM
+    /// or a hold beat its own previous best, newest first. The maxima table below
+    /// answers "what can I lift"; this answers "when did that change".
+    private var prFeed: some View {
+        let events = store.prTimeline()
+        return Card(accent: Theme.acc) {
+            Lbl(text: t("st.pr_feed"), color: Theme.acc2).padding(.bottom, 4)
+            if events.isEmpty {
+                Text(t("st.pr_none")).font(.system(size: 12)).foregroundColor(Theme.sub).padding(.vertical, 8)
+            }
+            ForEach(events) { e in
+                HStack(spacing: 10) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(e.exercise).font(.system(size: 13, weight: .semibold)).foregroundColor(Theme.txt)
+                            .lineLimit(1)
+                        Text("\(fmtDM(e.date)) · \(t(e.labelKey))")
+                            .font(.system(size: 10)).foregroundColor(Theme.sub)
+                    }
+                    Spacer()
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text("\(trimNum(e.value))\(e.unit)").font(.num(19)).foregroundColor(Theme.acc)
+                        if let d = e.delta, d > 0 {
+                            Text("+\(trimNum(d))\(e.unit)").font(.system(size: 10, weight: .semibold))
+                                .foregroundColor(Theme.good)
+                        } else {
+                            Text(t("st.pr_first")).font(.system(size: 9)).foregroundColor(Theme.sub)
+                        }
+                    }
+                }
+                .padding(.vertical, 9)
+                .overlay(alignment: .bottom) { Rectangle().fill(Theme.brd).frame(height: 1) }
+            }
+        }
+    }
+
+    private var currentMaxes: some View {
         let prs = store.allPRs()
         let names = store.allExerciseNames()
         return Card {

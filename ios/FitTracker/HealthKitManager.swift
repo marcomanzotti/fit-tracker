@@ -54,10 +54,17 @@ final class HealthKitManager {
         #endif
     }
 
-    /// Ask the user to grant read access to steps / resting HR / HRV.
+    /// Ask the user to grant read access to steps / resting HR / HRV, plus write
+    /// access for workouts and active energy so logged sessions can be pushed back
+    /// into Health. Asking for write here (rather than at export time) means the
+    /// permission sheet appears once; iOS never reveals whether write was granted,
+    /// so the export path treats a failed save as "not permitted" and says so.
     func requestAuthorization(_ completion: @escaping (Bool) -> Void) {
         #if canImport(HealthKit)
         guard isAvailable else { completion(false); return }
+        var share = Set<HKSampleType>()
+        share.insert(HKObjectType.workoutType())
+        if let t = HKObjectType.quantityType(forIdentifier: .activeEnergyBurned) { share.insert(t) }
         var types = Set<HKObjectType>()
         if let t = HKObjectType.quantityType(forIdentifier: .stepCount) { types.insert(t) }
         if let t = HKObjectType.quantityType(forIdentifier: .restingHeartRate) { types.insert(t) }
@@ -71,7 +78,7 @@ final class HealthKitManager {
         if let t = HKObjectType.categoryType(forIdentifier: .sleepAnalysis) { types.insert(t) }
         if let t = HKObjectType.quantityType(forIdentifier: .vo2Max) { types.insert(t) }
         types.insert(HKObjectType.workoutType())
-        store.requestAuthorization(toShare: nil, read: types) { ok, _ in
+        store.requestAuthorization(toShare: share, read: types) { ok, _ in
             DispatchQueue.main.async { completion(ok) }
         }
         #else
@@ -235,7 +242,82 @@ final class HealthKitManager {
         #endif
     }
 
+    // MARK: Writing a session back into Health
+    /// Save a logged session as an HKWorkout so it counts toward the activity rings
+    /// and shows up in Fitness. Uses HKWorkoutBuilder (the HKWorkout initialiser is
+    /// deprecated from iOS 17), and returns the new sample's UUID so the caller can
+    /// record it and avoid writing the same session twice.
+    ///
+    /// The end time is "now" and the start is `end - duration`: a session logged in
+    /// the app has a date and a length but no wall-clock start, and back-dating a
+    /// guess would put the workout at the wrong hour in Health.
+    func save(session: WorkoutSession, sport: Sport, durationSec: Int, kcal: Int?, distanceKm: Double?,
+              completion: @escaping (String?) -> Void) {
+        #if canImport(HealthKit)
+        guard isAvailable, durationSec > 0 else { completion(nil); return }
+        let config = HKWorkoutConfiguration()
+        config.activityType = Self.activityType(for: sport)
+        config.locationType = .unknown
+
+        let end = Date()
+        let start = end.addingTimeInterval(-Double(durationSec))
+        let builder = HKWorkoutBuilder(healthStore: store, configuration: config, device: .local())
+
+        var samples: [HKSample] = []
+        if let kcal, kcal > 0, let t = HKObjectType.quantityType(forIdentifier: .activeEnergyBurned) {
+            let q = HKQuantity(unit: .kilocalorie(), doubleValue: Double(kcal))
+            samples.append(HKQuantitySample(type: t, quantity: q, start: start, end: end))
+        }
+        if let km = distanceKm, km > 0, let id = Self.distanceIdentifier(for: sport),
+           let t = HKObjectType.quantityType(forIdentifier: id) {
+            let q = HKQuantity(unit: .meter(), doubleValue: km * 1000)
+            samples.append(HKQuantitySample(type: t, quantity: q, start: start, end: end))
+        }
+
+        builder.beginCollection(withStart: start) { ok, _ in
+            guard ok else { DispatchQueue.main.async { completion(nil) }; return }
+            let finish = {
+                builder.endCollection(withEnd: end) { ok2, _ in
+                    guard ok2 else { DispatchQueue.main.async { completion(nil) }; return }
+                    builder.finishWorkout { workout, _ in
+                        DispatchQueue.main.async { completion(workout?.uuid.uuidString) }
+                    }
+                }
+            }
+            if samples.isEmpty {
+                finish()
+            } else {
+                builder.add(samples) { _, _ in finish() }
+            }
+        }
+        #else
+        completion(nil)
+        #endif
+    }
+
     #if canImport(HealthKit)
+    /// The app's Sport mapped to the HealthKit activity type we write.
+    private static func activityType(for s: Sport) -> HKWorkoutActivityType {
+        switch s {
+        case .strength: return .traditionalStrengthTraining
+        case .running:  return .running
+        case .cycling:  return .cycling
+        case .swimming: return .swimming
+        case .walking:  return .walking
+        case .other:    return .other
+        }
+    }
+
+    /// Which distance quantity applies to a sport (nil when distance is meaningless).
+    private static func distanceIdentifier(for s: Sport) -> HKQuantityTypeIdentifier? {
+        switch s {
+        case .running, .walking: return .distanceWalkingRunning
+        case .cycling:           return .distanceCycling
+        case .swimming:          return .distanceSwimming
+        default:                 return nil
+        }
+    }
+
     /// Reduce one HKWorkout to the fields the app stores in a WorkoutSession.
     private func summarize(_ w: HKWorkout, appBundle: String) -> HealthWorkout {
         let bpmUnit = HKUnit.count().unitDivided(by: .minute())

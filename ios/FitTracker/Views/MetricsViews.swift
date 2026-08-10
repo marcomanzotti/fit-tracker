@@ -9,32 +9,61 @@ struct MuscleVolumeCard: View {
     @EnvironmentObject var store: Store
     var body: some View {
         let vols = store.weeklyMuscleVolume()
-        let maxSets = max(1, vols.map { $0.sets }.max() ?? 1)
+        // Scale bars against the highest of "most sets done" and "highest target", so
+        // an under-trained group reads as short against its own goal rather than
+        // filling the row just because nothing else was trained.
+        let maxSets = max(1, vols.map { max($0.sets, $0.target) }.max() ?? 1)
         return Group {
             if !vols.isEmpty {
                 Card {
                     InfoLbl(text: t("metric.muscle_vol"), info: "muscle_vol", color: Theme.acc2).padding(.bottom, 10)
-                    VStack(spacing: 8) {
+                    VStack(spacing: 10) {
                         ForEach(vols) { v in
                             HStack(spacing: 10) {
                                 Circle().fill(Color(hex: v.group.color)).frame(width: 8, height: 8)
-                                Text(t(v.group.labelKey)).font(.system(size: 12, weight: .semibold)).foregroundColor(Theme.txt)
-                                    .frame(width: 92, alignment: .leading)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(t(v.group.labelKey)).font(.system(size: 12, weight: .semibold)).foregroundColor(Theme.txt)
+                                    if v.target > 0 {
+                                        Text(t("st.vol_target", v.range.low, v.range.high))
+                                            .font(.system(size: 9)).foregroundColor(Theme.sub)
+                                    }
+                                }
+                                .frame(width: 92, alignment: .leading)
                                 GeometryReader { geo in
                                     ZStack(alignment: .leading) {
                                         Capsule().fill(Theme.c2).frame(height: 7)
+                                        // Target marker: where the bar should reach.
+                                        if v.target > 0 {
+                                            Rectangle().fill(Theme.sub.opacity(0.6))
+                                                .frame(width: 1.5, height: 13)
+                                                .offset(x: geo.size.width * CGFloat(v.target) / CGFloat(maxSets))
+                                        }
                                         Capsule().fill(Color(hex: v.group.color))
                                             .frame(width: max(7, geo.size.width * CGFloat(v.sets) / CGFloat(maxSets)), height: 7)
                                     }
                                 }
-                                .frame(height: 7)
+                                .frame(height: 13)
                                 Text("\(v.sets)").font(.num(14)).foregroundColor(Theme.txt).frame(width: 24, alignment: .trailing)
+                                if v.target > 0 {
+                                    Text(t("st.vol_" + v.status).uppercased())
+                                        .font(.head(8, .semibold)).tracking(0.5)
+                                        .foregroundColor(statusColor(v.status))
+                                        .frame(width: 46, alignment: .leading)
+                                }
                             }
                         }
                     }
                     Text(t("metric.muscle_vol_hint")).font(.system(size: 9)).foregroundColor(Theme.sub).padding(.top, 8)
                 }
             }
+        }
+    }
+
+    private func statusColor(_ s: String) -> Color {
+        switch s {
+        case "low":  return Theme.acc2
+        case "high": return Theme.red
+        default:     return Theme.good
         }
     }
 }

@@ -348,6 +348,9 @@ struct WorkoutSession: Codable, Identifiable, Equatable {
     /// Without this a merged-away Health import would look un-imported and come
     /// straight back on the next sync.
     var mergedHealthUUIDs: [String]?
+    /// UUID of the HKWorkout this app WROTE for this session (opt-in export). Set
+    /// means "already in Health" — it stops a second save creating a duplicate.
+    var exportedHealthUUID: String?
 
     /// Every Health UUID this session accounts for — its own plus any it absorbed.
     var allHealthUUIDs: [String] { (healthUUID.map { [$0] } ?? []) + (mergedHealthUUIDs ?? []) }

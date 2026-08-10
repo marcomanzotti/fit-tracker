@@ -1000,8 +1000,64 @@ extension Store {
         }
     }
 
+    // MARK: Export a session to Apple Health (opt-in)
+    /// Write a session into Health so a workout logged by hand still closes the
+    /// rings. Deliberately narrow:
+    ///   • off unless the user turned it on;
+    ///   • never re-exports (`exportedHealthUUID` already set);
+    ///   • never exports a session that CAME from Health or a file — writing it back
+    ///     would duplicate the original record;
+    ///   • needs a duration, since an HKWorkout without one carries no information.
+    func exportToHealth(_ session: WorkoutSession, completion: ((Bool) -> Void)? = nil) {
+        guard prefs.exportsToHealth,
+              session.exportedHealthUUID == nil,
+              session.healthUUID == nil, session.source == nil,
+              let sec = session.durationSeconds, sec > 0 else { completion?(false); return }
+        let kcal = estimateCalories(session)
+        HealthKitManager.shared.save(session: session, sport: session.sportType,
+                                     durationSec: sec, kcal: kcal > 0 ? kcal : nil,
+                                     distanceKm: session.distanceKm) { uuid in
+            guard let uuid else { completion?(false); return }
+            if let i = self.sessions.firstIndex(where: { $0.id == session.id }) {
+                self.sessions[i].exportedHealthUUID = uuid
+            }
+            completion?(true)
+        }
+    }
+
     // MARK: Session editing
     func deleteSession(_ id: UUID) { sessions.removeAll { $0.id == id } }
+
+    /// Copy a past session to another day (default today), keeping its exercises and
+    /// their weights but clearing what belongs to the original performance: the
+    /// Health provenance, the exported marker and the measured heart rate.
+    @discardableResult
+    func duplicateSession(_ id: UUID, to date: String = today()) -> WorkoutSession? {
+        guard let src = sessions.first(where: { $0.id == id }) else { return nil }
+        var copy = src
+        copy.id = UUID()
+        copy.date = date
+        copy.healthUUID = nil
+        copy.mergedHealthUUIDs = nil
+        copy.exportedHealthUUID = nil
+        copy.source = nil
+        copy.avgHR = nil
+        copy.maxHRSes = nil
+        // Fresh set ids, so editing the copy can never touch the original's rows.
+        copy.exercises = src.exercises.map { e in
+            var ex = e
+            ex.id = UUID()
+            ex.sets = e.sets.map { s in
+                var set = s
+                set.id = UUID()
+                return set
+            }
+            return ex
+        }
+        setRestDay(date, on: false)
+        sessions.append(copy)
+        return copy
+    }
     func updateSession(_ s: WorkoutSession) {
         if let i = sessions.firstIndex(where: { $0.id == s.id }) { sessions[i] = s }
     }

@@ -165,7 +165,36 @@ extension Store {
     struct MuscleVolume: Identifiable {
         var group: MuscleGroup
         var sets: Int            // working sets this week
+        var target: Int          // weekly working-set target for this group
         var id: String { group.rawValue }
+
+        /// Where this week's volume sits against the target: "low" below the range,
+        /// "ok" inside it, "high" above. The range is target ± half, i.e. the usual
+        /// 10-20 sets/week band around a target of ~15.
+        var status: String {
+            let lower = Int((Double(target) * 0.67).rounded())
+            let upper = Int((Double(target) * 1.33).rounded())
+            if sets < lower { return "low" }
+            if sets > upper { return "high" }
+            return "ok"
+        }
+        var range: (low: Int, high: Int) {
+            (Int((Double(target) * 0.67).rounded()), Int((Double(target) * 1.33).rounded()))
+        }
+    }
+
+    /// Weekly working-set target for a muscle group. The literature's hypertrophy
+    /// band is ~10-20 sets/week for the big movers; small groups (arms, core) get
+    /// plenty of indirect work, so their direct target sits lower. The user can
+    /// override any of them.
+    func volumeTarget(_ g: MuscleGroup) -> Int {
+        if let v = prefs.volumeTargets?[g.rawValue], v > 0 { return v }
+        switch g {
+        case .chest, .back, .legs, .shoulders: return 15
+        case .arms, .core:                     return 10
+        case .fullbody:                        return 12
+        case .cardio, .other:                  return 0     // not a hypertrophy target
+        }
     }
 
     /// Working sets per muscle group in a Monday-based week (offset 0 = current).
@@ -190,8 +219,92 @@ extension Store {
         }
         return MuscleGroup.allCases.compactMap { g in
             let n = counts[g.rawValue] ?? 0
-            return n > 0 ? MuscleVolume(group: g, sets: n) : nil
+            return n > 0 ? MuscleVolume(group: g, sets: n, target: volumeTarget(g)) : nil
         }
+    }
+
+    /// Whether the week's numbers say to back off. Deloading is warranted when the
+    /// acute load has run away from the chronic baseline (ACWR high) AND training has
+    /// been monotonous — the classic Foster combination that precedes overreaching.
+    /// Returns nil unless the load data is trustworthy: a deload suggestion off two
+    /// logged sessions would be noise.
+    func deloadAdvice() -> Bool {
+        guard loadDataStatus().reliable else { return false }
+        let a = acwr()
+        guard let ratio = a.ratio else { return false }
+        let w = weekLoad(offset: 0)
+        guard let mono = w.monotony else { return false }
+        return ratio > 1.5 && mono > 2.0
+    }
+}
+
+// MARK: - Personal-record timeline
+extension Store {
+    /// One moment a record was set. `delta` is the improvement over the previous
+    /// best (nil for the first one, which isn't an improvement over anything).
+    struct PREvent: Identifiable {
+        var id = UUID()
+        var date: String
+        var exercise: String
+        var kind: String       // "weight" | "e1rm" | "hold"
+        var value: Double
+        var delta: Double?
+        var unit: String { kind == "hold" ? "s" : "kg" }
+        var labelKey: String {
+            switch kind {
+            case "e1rm": return "st.pr_e1rm"
+            case "hold": return "st.pr_hold"
+            default:     return "st.pr_weight"
+            }
+        }
+    }
+
+    /// Every record-setting moment, newest first. Walks the sessions in order and
+    /// emits an event whenever an exercise's top weight, best estimated 1RM or
+    /// longest hold beats its own previous best — so the list is the history of
+    /// actually getting stronger, not a snapshot of current maxima.
+    func prTimeline(limit: Int = 60) -> [PREvent] {
+        var bestWeight: [String: Double] = [:]
+        var bestE1RM: [String: Double] = [:]
+        var bestHold: [String: Double] = [:]
+        var out: [PREvent] = []
+
+        for s in sessions.sorted(by: { $0.date < $1.date }) {
+            for e in s.exercises {
+                let name = e.name
+                switch e.exKind {
+                case .timed:
+                    let hold = e.maxSeconds
+                    if hold > 0, hold > (bestHold[name] ?? 0) {
+                        let prev = bestHold[name]
+                        out.append(PREvent(date: s.date, exercise: name, kind: "hold",
+                                           value: hold, delta: prev.map { hold - $0 }))
+                        bestHold[name] = hold
+                    }
+                case .reps:
+                    let w = e.maxWeight
+                    if w > 0, w > (bestWeight[name] ?? 0) {
+                        let prev = bestWeight[name]
+                        out.append(PREvent(date: s.date, exercise: name, kind: "weight",
+                                           value: w, delta: prev.map { w - $0 }))
+                        bestWeight[name] = w
+                    }
+                    // Best single-set e1RM in this session: a heavy triple can be a
+                    // bigger record than a lighter single, which top weight misses.
+                    let e1 = e.sets.compactMap { e1RM(weight: pf($0.weight), reps: pf($0.reps)) }.max() ?? 0
+                    if e1 > 0, e1 > (bestE1RM[name] ?? 0) + 0.05 {
+                        let prev = bestE1RM[name]
+                        out.append(PREvent(date: s.date, exercise: name, kind: "e1rm",
+                                           value: (e1 * 10).rounded() / 10,
+                                           delta: prev.map { ((e1 - $0) * 10).rounded() / 10 }))
+                        bestE1RM[name] = e1
+                    }
+                case .interval:
+                    break   // rounds are a prescription, not a record
+                }
+            }
+        }
+        return Array(out.reversed().prefix(limit))
     }
 }
 
