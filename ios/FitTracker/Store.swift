@@ -449,13 +449,7 @@ extension Store {
         return nextPlanRotation().map { .plan($0) }
     }
 
-    /// Next strength plan only (used by progressive-overload suggestions).
-    func nextStrengthPlan() -> WorkoutPlan? {
-        if prefs.hasSchedule, case .plan(let p)? = nextUp() { return p }
-        return nextPlanRotation()
-    }
-
-    /// Rotation: the plan after the most recent session's plan, looping.
+    /// Next plan by simple rotation: the one after whatever was trained last.
     func nextPlanRotation() -> WorkoutPlan? {
         guard !plans.isEmpty else { return nil }
         guard let last = sessions.sorted(by: { $0.date > $1.date }).first,

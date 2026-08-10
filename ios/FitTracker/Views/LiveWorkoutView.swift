@@ -632,7 +632,11 @@ struct LiveWorkoutView: View {
         store.sessions.append(sess)
         // Push it to Apple Health when the user opted in, so a session logged here
         // still closes the rings. Silent no-op when the toggle is off.
-        store.exportToHealth(sess) { ok in if ok { toast.show(t("hk.exported")) } }
+        if store.prefs.exportsToHealth {
+            store.exportToHealth(sess) { ok in
+                toast.show(t(ok ? "hk.exported" : "hk.export_failed"))
+            }
+        }
         saved = true
         timer.stop()
         haptic(.success)

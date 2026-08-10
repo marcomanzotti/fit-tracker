@@ -62,34 +62,6 @@ struct MetricChartCard: View {
     }
 }
 
-/// Non-interactive chart body for use in expanded sheet (has its own selection).
-struct MetricPlot: View {
-    let data: [Store.WeekPoint]
-    let color: Color
-    let kind: MetricChartCard.Kind
-    var showPoints = false
-
-    var body: some View {
-        Chart(data) { p in
-            if kind == .bar {
-                BarMark(x: .value("g", p.date), y: .value("v", p.value))
-                    .foregroundStyle(color.opacity(0.65)).cornerRadius(4)
-            } else {
-                LineMark(x: .value("g", p.date), y: .value("v", p.value))
-                    .interpolationMethod(.catmullRom).foregroundStyle(color)
-                AreaMark(x: .value("g", p.date), y: .value("v", p.value))
-                    .interpolationMethod(.catmullRom)
-                    .foregroundStyle(LinearGradient(colors: [color.opacity(0.22), .clear],
-                                                    startPoint: .top, endPoint: .bottom))
-                if showPoints {
-                    PointMark(x: .value("g", p.date), y: .value("v", p.value))
-                        .foregroundStyle(color).symbolSize(18)
-                }
-            }
-        }
-    }
-}
-
 /// Interactive chart with tap/drag selection. Shows a vertical rule + dot on the
 /// selected bucket; the parent card header displays the selected date + value.
 struct InteractiveMetricPlot: View {

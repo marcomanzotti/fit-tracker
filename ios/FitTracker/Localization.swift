@@ -39,15 +39,8 @@ enum L {
         "save":        ("Salva", "Save"),
         "cancel":      ("Annulla", "Cancel"),
         "delete":      ("Elimina", "Delete"),
-        "edit":        ("Modifica", "Edit"),
-        "done":        ("Fatto", "Done"),
         "add":         ("Aggiungi", "Add"),
         "close":       ("Chiudi", "Close"),
-        "next":        ("Avanti", "Next"),
-        "back":        ("Indietro", "Back"),
-        "start":       ("Inizia", "Start"),
-        "finish":      ("Termina", "Finish"),
-        "today":       ("Oggi", "Today"),
         "optional":    ("opzionale", "optional"),
         "none":        ("Nessuno", "None"),
         "kg":          ("kg", "kg"),
@@ -65,7 +58,6 @@ enum L {
         "sub.nutrition": ("Alimentazione", "Nutrition"),
         "sub.stats":     ("Statistiche", "Statistics"),
         // Nutrition page + body recovery
-        "body.recovery":  ("Recupero", "Recovery"),
         "nutp.today":     ("Oggi", "Today"),
         "nutp.log_today": ("Registra oggi", "Log today"),
         "nutp.edit_today":("Modifica oggi", "Edit today"),
@@ -76,18 +68,11 @@ enum L {
         "home.checkin":      ("Check-in di oggi", "Today's check-in"),
         "home.weight":       ("Peso", "Weight"),
         "home.sleep":        ("Sonno", "Sleep"),
-        "home.sleep_score":  ("Punteggio sonno", "Sleep score"),
         "home.save_checkin": ("Salva check-in", "Save check-in"),
         "home.streak":       ("Streak", "Streak"),
         "home.days":         ("giorni", "days"),
-        "home.bmi":          ("BMI", "BMI"),
-        "home.goal_weight":  ("Obiettivo peso", "Weight goal"),
-        "home.goal_bf":      ("Obiettivo grasso", "Body-fat goal"),
         "home.next_workout": ("Prossimo allenamento", "Next workout"),
         "home.week_activity": ("Attività settimana", "This week"),
-        "home.weight_14":    ("Peso ultimi 14 giorni", "Weight last 14 days"),
-        "home.recent_pr":    ("Record recenti", "Recent PRs"),
-        "home.week_cmp":     ("Confronto settimanale", "Weekly comparison"),
         "home.backup":       ("Backup dati", "Data backup"),
         "home.export":       ("Esporta JSON", "Export JSON"),
         "home.import":       ("Importa JSON", "Import JSON"),
@@ -107,8 +92,6 @@ enum L {
         "load.weekly":       ("Carico settimanale", "Weekly load"),
         "load.deload":       ("Valuta una settimana di scarico", "Consider a deload week"),
         "load.title":        ("Carico interno", "Internal load"),
-        "load.srpe":         ("sRPE (durata × RPE)", "sRPE (duration × RPE)"),
-        "load.trimp":        ("TRIMP", "TRIMP"),
         "load.building":     ("Baseline in costruzione", "Building baseline"),
         "load.building_body": (
             "ACWR, monotonia e strain confrontano il carico recente (7 giorni) con quello abituale (28 giorni): con poche sessioni il valore è completamente fuori scala e non affidabile.\n\nServono almeno %d sessioni con durata + FC media, distribuite su almeno %d giorni. L'ideale sono circa 4 settimane di dati costanti.",
@@ -118,20 +101,16 @@ enum L {
 
         // --- Nutrition ------------------------------------------------------
         "nut.title":         ("Nutrizione", "Nutrition"),
-        "nut.mode":          ("Modalità energetica", "Energy mode"),
         "nut.cut":           ("Definizione", "Cut"),
         "nut.maintain":      ("Mantenimento", "Maintenance"),
         "nut.bulk":          ("Massa", "Bulk"),
         "nut.target":        ("Calorie obiettivo", "Calorie target"),
-        "nut.tdee":          ("TDEE", "TDEE"),
-        "nut.bmr":           ("Metabolismo basale", "Basal metabolism"),
         "nut.protein":       ("Proteine", "Protein"),
         "nut.carbs":         ("Carboidrati", "Carbs"),
         "nut.fat":           ("Grassi", "Fat"),
         "nut.salt":          ("Sale (max)", "Salt (max)"),
         "nut.carb_high":     ("Carbo giorno ON", "Carbs training day"),
         "nut.carb_low":      ("Carbo giorno OFF", "Carbs rest day"),
-        "nut.rate_target":   ("Variazione obiettivo", "Target change"),
         "nut.per_week":      ("kg/sett", "kg/wk"),
         "nut.trend":         ("Trend peso reale", "Real weight trend"),
         "nut.trend_ok":      ("In linea con l'obiettivo", "On target"),
@@ -139,10 +118,8 @@ enum L {
         "nut.trend_slow":    ("Troppo lento", "Too slow"),
         "nut.trend_wrong":   ("Direzione sbagliata", "Wrong direction"),
         "nut.adjust":        ("Aggiusta di %d kcal", "Adjust by %d kcal"),
-        "nut.lea":           ("Disponibilità energetica", "Energy availability"),
         "nut.lea_risk":      ("Rischio bassa disponibilità energetica", "Low energy availability risk"),
         "nut.lea_warn":      ("Disponibilità energetica bassa sotto carico", "Low energy availability under load"),
-        "nut.intake_today":  ("Assunzione di oggi", "Today's intake"),
         "nut.who_note":      ("Range basati su linee guida WHO / ISSN", "Ranges based on WHO / ISSN guidance"),
 
         // --- Nutrition calendar & per-meal logging --------------------------
@@ -150,7 +127,6 @@ enum L {
         "meal.lunch":        ("Pranzo", "Lunch"),
         "meal.dinner":       ("Cena", "Dinner"),
         "meal.snacks":       ("Spuntini", "Snacks"),
-        "nut.calendar":      ("Calendario nutrizione", "Nutrition calendar"),
         "nut.cal_hint_tap":  ("Tocca un giorno per inserire o modificare le calorie", "Tap a day to add or edit calories"),
         "nut.edit_day":      ("Modifica nutrizione", "Edit nutrition"),
         "nut.quick":         ("Totale rapido", "Quick total"),
@@ -179,7 +155,6 @@ enum L {
         "nut.day_total":     ("Totale giornaliero", "Daily total"),
         "nut.kcal":          ("Calorie", "Calories"),
         "nut.no_log":        ("Nessun dato nutrizionale", "No nutrition logged"),
-        "nut.charts":        ("Grafici nutrizione", "Nutrition charts"),
         "nut.weekly_avg":    ("media sett.", "weekly avg"),
         "nut.charts_hint":   ("Registra le calorie per 2+ giorni per vedere i grafici.", "Log calories for 2+ days to see charts."),
         "nut.saved":         ("Nutrizione salvata", "Nutrition saved"),
@@ -192,24 +167,17 @@ enum L {
         "wk.add_ex":         ("Aggiungi esercizio", "Add exercise"),
         "wk.set":            ("Serie", "Set"),
         "wk.reps":           ("Rip", "Reps"),
-        "wk.suggested":      ("Suggerito", "Suggested"),
-        "wk.last_time":      ("Ultima volta", "Last time"),
-        "wk.notes":          ("Note", "Notes"),
-        "wk.rpe":            ("RPE sessione", "Session RPE"),
         "wk.duration":       ("Durata", "Duration"),
         "dur.h":             ("ore", "hrs"),
         "dur.m":             ("min", "min"),
         "dur.s":             ("sec", "sec"),
         "wk.avg_hr":         ("FC media", "Avg HR"),
-        "wk.rmssd":          ("RMSSD", "RMSSD"),
         "wk.superset":       ("Superset", "Superset"),
         "wk.method":         ("Metodo", "Method"),
-        "wk.sport":          ("Sport", "Sport"),
         "wk.distance":       ("Distanza", "Distance"),
         "wk.pace":           ("Ritmo", "Pace"),
         "wk.speed":          ("Velocità", "Speed"),
         "wk.pace_auto":      ("Auto da distanza e durata", "Auto from distance & duration"),
-        "wk.finish_ask":     ("Terminare e salvare la sessione?", "Finish and save the session?"),
         "wk.edit_session":   ("Modifica sessione", "Edit session"),
         "wk.del_session":    ("Elimina sessione", "Delete session"),
         "wk.add_reps":       ("Aumenta le ripetizioni", "Add reps"),
@@ -218,15 +186,12 @@ enum L {
         "wk.deload_ex":      ("Scarica / tecnica", "Deload / technique"),
 
         // --- Calendar -------------------------------------------------------
-        "cal.title":         ("Calendario", "Calendar"),
-        "cal.no_sessions":   ("Nessuna sessione questo mese", "No sessions this month"),
 
         // --- Stats tabs -----------------------------------------------------
         "st.overview":       ("Panoramica", "Overview"),
         "st.records":        ("Record", "Records"),
         "st.progress":       ("Progressi", "Progress"),
         "st.history":        ("Storico", "History"),
-        "st.profile":        ("Profilo", "Profile"),
 
         // --- Onboarding -----------------------------------------------------
         "ob.welcome":        ("Benvenuto", "Welcome"),
@@ -262,10 +227,8 @@ enum L {
         // --- Settings / profile --------------------------------------------
         "set.title":         ("Impostazioni", "Settings"),
         "set.profile":       ("Profilo & obiettivi", "Profile & goals"),
-        "set.language":      ("Lingua", "Language"),
         "set.sleep_track":   ("Traccia il sonno", "Track sleep"),
         "set.timer":         ("Timer recupero (s)", "Rest timer (s)"),
-        "set.edit_profile":  ("Modifica profilo", "Edit profile"),
         "set.units":         ("Unità di misura", "Units"),
         "set.metric":        ("Metrico (kg, cm, km)", "Metric (kg, cm, km)"),
         "set.imperial":      ("Imperiale (lb, in, mi)", "Imperial (lb, in, mi)"),
@@ -276,18 +239,10 @@ enum L {
         "home.total":        ("totali", "total"),
         "home.goals":        ("Obiettivi", "Goals"),
         "home.fat":          ("Grasso", "Body fat"),
-        "home.exercises":    ("esercizi", "exercises"),
-        "home.week_cmp_title": ("Confronto settimane", "Weekly comparison"),
-        "home.avg_weight":   ("Peso medio", "Avg weight"),
-        "home.workouts":     ("Allenamenti", "Workouts"),
-        "home.total_volume": ("Volume totale", "Total volume"),
-        "home.prev":         ("prec.", "prev"),
-        "home.lifetime":     ("lifetime", "lifetime"),
         "home.backup_auto":  ("Salvataggio automatico locale", "Automatic local save"),
         "home.export_data":  ("Esporta dati", "Export data"),
         "home.checkin_done": ("Check-in completato", "Check-in done"),
         "home.checkin_saved":("Check-in salvato", "Check-in saved"),
-        "home.weight14":     ("Peso · ultimi 14 giorni", "Weight · last 14 days"),
 
         // --- Body (legacy) --------------------------------------------------
         "body.analysis":     ("Analisi corporea", "Body analysis"),
@@ -329,7 +284,6 @@ enum L {
 
         // --- Live workout (legacy) ------------------------------------------
         "wk.saved":          ("Salvata", "Saved"),
-        "wk.save_session":   ("Salva sessione", "Save session"),
         "wk.finish_session": ("Termina sessione", "Finish session"),
         "wk.finish":         ("Termina", "Finish"),
         "wk.pause":          ("Pausa", "Pause"),
@@ -345,9 +299,6 @@ enum L {
         "wk.minimize":       ("Riduci", "Minimize"),
         "wk.cal_at_finish":  ("Le calorie vengono stimate al termine dell'allenamento.",
                               "Calories are estimated when you finish the workout."),
-        "wk.last":           ("Ultima", "Last"),
-        "wk.others":         ("altri", "others"),
-        "wk.last_time_label":("Ultima volta", "Last time"),
         "wk.try":            ("Prova", "Try"),
         "wk.add_set":        ("+ Serie", "+ Set"),
         "wk.timer":          ("Timer", "Timer"),
@@ -400,7 +351,6 @@ enum L {
         "st.maxes":          ("I tuoi massimali", "Your maxes"),
         "st.maxes_hint":     ("Crea un giorno con esercizi per tracciare i record.", "Create a day with exercises to track records."),
         "st.select_ex":      ("Seleziona esercizio", "Select exercise"),
-        "st.choose":         ("— Scegli —", "— Choose —"),
         "st.max_per_session":("Peso massimo per sessione", "Max weight per session"),
         "st.vol_per_session":("Volume totale per sessione", "Total volume per session"),
         "st.first":          ("Prima", "First"),
@@ -408,9 +358,6 @@ enum L {
         "st.delta":          ("Delta", "Delta"),
         "st.progress_hint":  ("Seleziona un esercizio per vedere la progressione.", "Select an exercise to see progression."),
         "st.no_data":        ("Nessun dato", "No data"),
-        "st.empty_history":  ("Storico vuoto", "No history"),
-        "st.no_workouts":    ("Nessun allenamento registrato.", "No workouts logged."),
-        "st.weight90":       ("Peso · 90 giorni", "Weight · 90 days"),
         "st.sleep":          ("Sleep score", "Sleep score"),
         "st.bmi_time":       ("BMI", "BMI"),
         "st.composition":    ("Composizione corporea", "Body composition"),
@@ -457,7 +404,6 @@ enum L {
         "wk.cardio_types":   ("Attività cardio", "Cardio activities"),
         "wk.new_cardio":     ("Nuova attività", "New activity"),
         "wk.edit_cardio":    ("Modifica attività", "Edit activity"),
-        "wk.add_cardio":     ("Aggiungi attività", "Add activity"),
         "wk.cardio_kind":    ("Tipo di sport", "Sport kind"),
         "wk.activity_name":  ("Nome attività", "Activity name"),
         "wk.activity_name_ph": ("es. Padel, Sci, HIIT…", "e.g. Padel, Ski, HIIT…"),
@@ -493,10 +439,8 @@ enum L {
                               "Assign a workout to each day. The next workout follows this order. Leave empty for automatic rotation."),
         "plan.rest":         ("Riposo", "Rest"),
         "plan.auto":         ("Automatico", "Auto"),
-        "plan.none":         ("—", "—"),
         "plan.rotation":     ("Rotazione automatica", "Automatic rotation"),
         "plan.scheduled":    ("Da piano settimanale", "From weekly plan"),
-        "plan.edit_week":    ("Pianifica la settimana", "Plan your week"),
         "plan.clear":        ("Azzera piano", "Clear plan"),
         "plan.today":        ("Oggi", "Today"),
         "plan.saved":        ("Piano salvato", "Plan saved"),
@@ -508,7 +452,6 @@ enum L {
 
         // --- Adherence / adaptive nutrition ---------------------------------
         "nut.adaptive":      ("Adattivo", "Adaptive"),
-        "nut.adaptive_on":   ("TDEE appreso dai tuoi dati reali", "TDEE learned from your real data"),
         "nut.adherence":     ("Costanza", "Adherence"),
         "nut.logging":       ("Giorni con dieta tracciata", "Days nutrition logged"),
         "nut.steps_avg":     ("Passi medi", "Avg steps"),
@@ -522,7 +465,6 @@ enum L {
         "hk.synced":         ("Dati sincronizzati", "Data synced"),
         "hk.hint":           ("Importa automaticamente passi, energia attiva, minuti di attività, frequenza cardiaca a riposo e HRV, e gli allenamenti registrati da qualsiasi orologio abbinato all'iPhone (Apple Watch, Garmin, Fitbit, Polar, Coros, Huawei…). Tutto facoltativo.",
                               "Automatically imports steps, active energy, exercise minutes, resting heart rate and HRV, plus workouts recorded by any watch paired to your iPhone (Apple Watch, Garmin, Fitbit, Polar, Coros, Huawei…). All optional."),
-        "hk.imported":       ("Da Apple Salute", "From Apple Health"),
         "hk.imported_n":     ("allenamenti importati", "workouts imported"),
         // --- Connect-your-watch guide ---------------------------------------
         "guide.open":        ("Collega il tuo orologio", "Connect your watch"),
@@ -537,15 +479,10 @@ enum L {
         "guide.import_ok":   ("Allenamento importato", "Workout imported"),
         "guide.import_fail": ("File non riconosciuto. Usa un .gpx o .tcx valido.", "Unrecognized file. Use a valid .gpx or .tcx."),
         "hk.unavailable":    ("Apple Salute non disponibile su questo dispositivo", "Apple Health unavailable on this device"),
-        "hk.optional_note":  ("Questi dati non sono obbligatori ma migliorano prontezza, carico e nutrizione.",
-                              "This data is not required but improves readiness, load and nutrition."),
 
         // --- Sleep / steps quick labels -------------------------------------
         "lbl.steps":         ("Passi", "Steps"),
-        "metric.dfa":        ("DFA-alpha1 (soglia aerobica)", "DFA-alpha1 (aerobic threshold)"),
-        "metric.dfa_soon":   ("Richiede una fascia cardio Bluetooth · in arrivo", "Needs a Bluetooth chest strap · coming soon"),
         "load.trend_title":  ("Andamento carico · 14 giorni", "Load trend · 14 days"),
-        "load.no_load_yet":  ("Inserisci durata + RPE (o FC) per vedere il carico", "Enter duration + RPE (or HR) to see load"),
 
         // --- Info popups (scientific metrics) -------------------------------
         "info.trimp.title": ("TRIMP", "TRIMP"),
@@ -723,8 +660,6 @@ enum L {
         "day.health_recheck": ("Ricontrolla", "Re-check"),
         "day.health_unavailable": ("Apple Salute non è disponibile su questo dispositivo.", "Apple Health isn't available on this device."),
         "cal.tap_hint":      ("Tocca un giorno per registrare un allenamento o il riposo", "Tap a day to log a workout or rest"),
-        "load.recommended":  ("Consigliato", "Recommended"),
-        "load.sensor":       ("Sensore HRV", "HRV sensor"),
         "load.trimp_hint":   ("Carico cardio della sessione", "Session cardio load"),
 
         // --- TRIMP card -----------------------------------------------------
@@ -741,11 +676,6 @@ enum L {
         // --- Per-set effort tracking ----------------------------------------
         "wk.effort":          ("Sforzo", "Effort"),
         "wk.effort.off":      ("—", "—"),
-        "wk.effort.rir":      ("RIR", "RIR"),
-        "wk.effort.rpe":      ("RPE", "RPE"),
-        "wk.effort.fail":     ("FAIL", "FAIL"),
-        "wk.effort.hint":     ("RIR = ripetizioni prima del cedimento · RPE = sforzo 1-10 · FAIL = cedimento raggiunto",
-                               "RIR = reps before failure · RPE = perceived effort 1-10 · FAIL = hit failure"),
 
         // --- Bodyweight exercise --------------------------------------------
         "wk.bodyweight":      ("Corpo libero", "Bodyweight"),
@@ -764,18 +694,11 @@ enum L {
         "st.all_exercises":   ("Tutti gli esercizi", "All exercises"),
 
         // --- v8.1: recovery inputs, daily-metric history --------------------
-        "home.wake_hr":       ("FC riposo/risveglio", "Resting/waking HR"),
-        "home.health_autofill": ("Compilato da Apple Salute quando disponibile · modificabile",
-                                 "Filled from Apple Health when available · editable"),
         "body.sleep_hr":      ("FC nel sonno", "Sleeping HR"),
         "body.hips":          ("Fianchi", "Hips"),
         "body.navy_need_hips": ("Aggiungi la misura dei fianchi per stimare il grasso (formula femminile Navy).",
                                 "Add your hip measurement to estimate body fat (women's Navy formula)."),
         "st.steps_time":      ("Passi", "Steps"),
-        "st.hr_time":         ("Frequenza cardiaca", "Heart rate"),
-        "st.hrv_time":        ("HRV", "HRV"),
-        "st.rest_hr":         ("Riposo", "Resting"),
-        "st.sleep_hr":        ("Sonno", "Sleep"),
 
         // --- v8.1: readiness factor chips -----------------------------------
         "load.from":          ("Da", "From"),
@@ -798,12 +721,10 @@ enum L {
         "hk.cat.exerciseMin": ("Minuti di attività", "Exercise minutes"),
 
         // --- v8.1: Apple Watch live sync ------------------------------------
-        "wk.start":           ("Inizia", "Start"),
         "wk.workout_live":    ("Allenamento in corso", "Workout in progress"),
         "wk.watch_live":      ("In diretta da Apple Watch", "Live from Apple Watch"),
         "wk.watch_synced":    ("Allenamento sincronizzato dall'orologio", "Workout synced from your watch"),
         "wk.started_on_watch": ("Avviato su Apple Watch", "Started on Apple Watch"),
-        "wk.watch_unreachable": ("Apple Watch non raggiungibile", "Apple Watch not reachable"),
 
         // --- v8.1: muscle groups + exercise families ------------------------
         "mg.chest":           ("Petto", "Chest"),
@@ -873,14 +794,12 @@ enum L {
         "recipe.ingredients": ("Ingredienti", "Ingredients"),
         "recipe.add_ingredient": ("Aggiungi ingrediente", "Add ingredient"),
         "recipe.serving":     ("porzione", "serving"),
-        "recipe.servings_short": ("porz", "srv"),
 
         // --- Sleep manual entry (v10) ----------------------------------------
         "body.sleep_manual":  ("Inserimento manuale", "Manual entry"),
         "body.sleep_hours":   ("Ore di sonno", "Sleep hours"),
 
         // --- v10: Apple Health history (past days) ---------------------------
-        "body.day":           ("Giorno", "Day"),
         "body.today":         ("Oggi", "Today"),
         "body.past_day":      ("Giorno passato", "Past day"),
         "hk.history":         ("Storico Apple Salute", "Apple Health history"),
@@ -907,12 +826,10 @@ enum L {
         // --- v10: merge sessions ---------------------------------------------
         "day.merge":          ("Unisci", "Merge"),
         "day.merge_n":        ("Unisci %d allenamenti", "Merge %d workouts"),
-        "day.merge_title":    ("Unisci allenamenti", "Merge workouts"),
         "day.merge_hint":     ("Le serie, la durata, la distanza e le calorie vengono sommate in un unico allenamento. Scegli quale nome e colore tenere.",
                                "Sets, duration, distance and calories are summed into one workout. Choose which name and colour to keep."),
         "day.merge_keep":     ("Tieni nome e colore di", "Keep the name and colour of"),
         "day.merged":         ("Allenamenti uniti", "Workouts merged"),
-        "day.merge_select":   ("Seleziona almeno due allenamenti", "Select at least two workouts"),
 
         // --- v10: isometric hold timer ---------------------------------------
         "wk.hold_start":      ("Avvia tenuta", "Start hold"),
@@ -958,7 +875,6 @@ enum L {
         "plate.title":        ("Dischi e riscaldamento", "Plates and warm-up"),
         "plate.per_side":     ("Per lato", "Per side"),
         "plate.bar":          ("Bilanciere", "Bar"),
-        "plate.total":        ("Totale", "Total"),
         "plate.unreachable":  ("Peso non raggiungibile con i dischi disponibili — il più vicino è %@ kg.",
                                "Not reachable with the available plates — closest is %@ kg."),
         "plate.warmup":       ("Riscaldamento", "Warm-up"),
@@ -1004,8 +920,6 @@ enum L {
         "set.live_activity":  ("Allenamento su schermata di blocco", "Workout on Lock Screen"),
         "set.live_activity_hint": ("Mostra cronometro, esercizio in corso e recupero su schermata di blocco e Dynamic Island.",
                                    "Shows the clock, current exercise and rest on the Lock Screen and Dynamic Island."),
-        "la.rest":            ("Recupero", "Rest"),
-        "la.sets":            ("serie", "sets"),
     ]
 }
 

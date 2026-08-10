@@ -18,6 +18,7 @@ struct RestChip: View {
 // back the created session so the caller can open the editor to fine-tune it.
 struct DayPickerSheet: View {
     @EnvironmentObject var store: Store
+    @EnvironmentObject var toast: ToastCenter
     @Environment(\.dismiss) private var dismiss
     let date: String
     /// Called with the created session (to edit) or nil for rest / clear.
@@ -306,6 +307,7 @@ struct DayPickerSheet: View {
         merging = false
         selected = []
         haptic(.success)
+        toast.show(t("day.merged"))
         finish(merged)
     }
 

@@ -33,9 +33,6 @@ extension Store {
         trimp(s)
     }
 
-    /// Any session that carries a usable internal-load signal.
-    func hasMeasuredLoad(_ s: WorkoutSession) -> Bool { measuredLoad(s) != nil }
-
     /// Sum of session TRIMP in a Monday-based week (offset 0 = current week).
     func weeklyTrimp(offset: Int = 0) -> Double {
         let cal = Calendar.current
@@ -323,7 +320,6 @@ extension Store {
 
     /// DFA-alpha1 aerobic-threshold estimation requires a continuous R-R interval
     /// stream from a chest strap. Stubbed until BLE support lands.
-    func dfaAlpha1Available() -> Bool { false }
 }
 
 // MARK: - Progressive overload (double progression)

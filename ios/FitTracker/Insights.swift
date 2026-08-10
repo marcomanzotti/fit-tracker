@@ -373,38 +373,6 @@ struct NutritionCard: View {
     }
 }
 
-// MARK: - Progressive-overload suggestions card
-struct OverloadCard: View {
-    @EnvironmentObject var store: Store
-    var body: some View {
-        let plan = store.nextStrengthPlan()
-        let items: [(String, ProgKind)] = plan.map { p in
-            p.exercises.compactMap { ex in
-                store.progression(planId: p.id, exercise: ex.name).map { (ex.name, $0) }
-            }
-        } ?? []
-        let actionable = items.filter { $0.1 == .addLoad || $0.1 == .addReps }
-        return Group {
-            if !actionable.isEmpty {
-                Card(accent: Theme.acc2) {
-                    InfoLbl(text: t("wk.suggested"), info: "overload", color: Theme.acc2).padding(.bottom, 4)
-                    ForEach(actionable.prefix(4).indices, id: \.self) { i in
-                        let it = actionable[i]
-                        HStack {
-                            Text(it.0).font(.system(size: 12, weight: .medium)).foregroundColor(Theme.txt).lineLimit(1)
-                            Spacer()
-                            Text(t(it.1.key)).font(.head(11, .semibold)).tracking(0.3)
-                                .foregroundColor(it.1 == .addLoad ? Theme.acc : Theme.blue)
-                        }
-                        .padding(.vertical, 7)
-                        .overlay(alignment: .bottom) { Rectangle().fill(Theme.brd).frame(height: 1) }
-                    }
-                }
-            }
-        }
-    }
-}
-
 // MARK: - Calendar (sessions colored by workout type)
 struct CalendarCard: View {
     @EnvironmentObject var store: Store

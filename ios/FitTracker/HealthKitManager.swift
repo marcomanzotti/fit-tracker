@@ -440,15 +440,16 @@ final class HealthKitManager {
         let q = HKSampleQuery(sampleType: sleepType, predicate: predicate,
                               limit: HKObjectQueryNoLimit, sortDescriptors: nil) { _, samples, _ in
             let cats = (samples as? [HKCategorySample]) ?? []
-            var asleep: Set<Int> = [HKCategoryValueSleepAnalysis.asleep.rawValue]
-            if #available(iOS 16.0, watchOS 9.0, *) {
-                asleep.formUnion([
-                    HKCategoryValueSleepAnalysis.asleepUnspecified.rawValue,
-                    HKCategoryValueSleepAnalysis.asleepCore.rawValue,
-                    HKCategoryValueSleepAnalysis.asleepDeep.rawValue,
-                    HKCategoryValueSleepAnalysis.asleepREM.rawValue
-                ])
-            }
+            // Every "asleep" flavour counts toward time asleep. The old umbrella
+            // `.asleep` value was renamed to `.asleepUnspecified` in iOS 16, which is
+            // the minimum deployment target here — so the availability check and the
+            // deprecated spelling are both gone.
+            let asleep: Set<Int> = [
+                HKCategoryValueSleepAnalysis.asleepUnspecified.rawValue,
+                HKCategoryValueSleepAnalysis.asleepCore.rawValue,
+                HKCategoryValueSleepAnalysis.asleepDeep.rawValue,
+                HKCategoryValueSleepAnalysis.asleepREM.rawValue
+            ]
             var hours: [String: Double] = [:]
             var intervals: [(start: Date, end: Date, day: String)] = []
             for s in cats where asleep.contains(s.value) {

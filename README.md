@@ -6,13 +6,21 @@ sport-science utilizzabili ogni giorno. L'obiettivo e' uno solo: darti carico,
 recupero, nutrizione e progressi calcolati con formule validate, senza abbonamenti,
 senza cloud e senza account, tenendo **tutti i dati in locale sul tuo dispositivo**.
 
-E' disponibile in **due versioni native** che condividono layout, palette, logica e
-formato dati, cosi' un backup esportato da una si importa nell'altra:
+E' un'app **iOS nativa**, con un'app companion per **Apple Watch** e una
+**Live Activity** che tiene l'allenamento in corso sulla schermata di blocco.
 
-| Piattaforma | Cartella | Tecnologia | Build / distribuzione |
-|---|---|---|---|
-| iOS | [`ios/`](ios/) | SwiftUI | `.ipa` via SideStore — [ios/README.md](ios/README.md) |
-| Android | [`android/`](android/) | Kotlin + Jetpack Compose | `.apk` via GitHub Actions — [android/README.md](android/README.md) |
+| Componente | Cartella | Tecnologia |
+|---|---|---|
+| App iPhone | [`ios/FitTracker/`](ios/FitTracker/) | SwiftUI |
+| App Apple Watch | [`ios/FitTrackerWatch/`](ios/FitTrackerWatch/) | SwiftUI + HealthKit |
+| Live Activity | [`ios/FitTrackerWidgets/`](ios/FitTrackerWidgets/) | WidgetKit + ActivityKit |
+
+Build e installazione: [ios/README.md](ios/README.md), oppure `python3 ios/build_and_run.py`
+per compilare e installare sull'iPhone collegato.
+
+Un port Android in Kotlin/Compose e' esistito fino ad agosto 2026; e' stato rimosso
+perche' non veniva piu' mantenuto in pari con le funzioni iOS. Resta nella storia git
+se dovesse servire.
 
 ## Obiettivi del progetto
 
@@ -116,14 +124,9 @@ di allenamento**:
 - I dati Apple Salute (passi, FC a riposo, HRV) sono opzionali e riempiono solo i campi
   mancanti, senza sovrascrivere cio' che inserisci a mano.
 
-## Distribuzione rapida (Android)
-
-Apri **Actions -> Build Android APK**, scarica l'artifact `FitTracker-android`
-(`FitTracker.apk`) e condividilo. Nessun account sviluppatore richiesto: e' un APK
-installabile direttamente. Dettagli in [android/README.md](android/README.md).
-
 ## Compatibilita' dei dati
 
-Le due app usano lo **stesso schema JSON**: un backup esportato da iOS si importa su
-Android e viceversa. Ogni campo aggiunto dopo lo schema iniziale e' opzionale, quindi i
-backup vecchi continuano a caricarsi.
+Tutto e' salvato in un unico documento JSON locale, con backup datati. **Ogni campo
+aggiunto dopo lo schema iniziale e' opzionale**, quindi un backup vecchio continua a
+caricarsi dopo qualsiasi aggiornamento: e' la regola che rende sicuro aggiungere
+funzioni senza mai perdere lo storico.
