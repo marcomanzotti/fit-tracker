@@ -17,12 +17,11 @@ import ActivityKit
 // its own `Activity` (the TDEE activity level in Models.swift), which shadows
 // ActivityKit's inside this module.
 enum LiveActivityController {
-    #if canImport(ActivityKit)
-    @available(iOS 16.2, *)
-    private static var current: ActivityKit.Activity<WorkoutActivityAttributes>? {
-        ActivityKit.Activity<WorkoutActivityAttributes>.activities.first
-    }
-    #endif
+    /// Id of the activity THIS session started. Ending an activity is asynchronous,
+    /// so right after a restart the system list can still contain the outgoing one;
+    /// looking up by id means an update can never land on the activity we just
+    /// dismissed.
+    private static var activeId: String?
 
     static func start(planName: String, planColor: String, startDate: Date, enabled: Bool) {
         #if canImport(ActivityKit)
@@ -33,16 +32,19 @@ enum LiveActivityController {
         let attrs = WorkoutActivityAttributes(planName: planName, planColor: planColor)
         let state = WorkoutActivityAttributes.ContentState(
             startDate: startDate, exercise: "", setsDone: 0, restEndsAt: nil)
-        _ = try? ActivityKit.Activity<WorkoutActivityAttributes>.request(
+        let activity = try? ActivityKit.Activity<WorkoutActivityAttributes>.request(
             attributes: attrs,
             content: ActivityContent(state: state, staleDate: nil),
             pushType: nil)
+        activeId = activity?.id
         #endif
     }
 
     static func update(exercise: String, setsDone: Int, restEndsAt: Date?) {
         #if canImport(ActivityKit)
-        guard #available(iOS 16.2, *), let activity = current else { return }
+        guard #available(iOS 16.2, *), let id = activeId,
+              let activity = ActivityKit.Activity<WorkoutActivityAttributes>.activities
+                  .first(where: { $0.id == id }) else { return }
         var state = activity.content.state
         state.exercise = exercise
         state.setsDone = setsDone
@@ -61,6 +63,7 @@ enum LiveActivityController {
     #if canImport(ActivityKit)
     @available(iOS 16.2, *)
     private static func endAll() {
+        activeId = nil
         for a in ActivityKit.Activity<WorkoutActivityAttributes>.activities {
             Task { await a.end(nil, dismissalPolicy: ActivityUIDismissalPolicy.immediate) }
         }
