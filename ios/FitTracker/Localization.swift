@@ -878,6 +878,134 @@ enum L {
         // --- Sleep manual entry (v10) ----------------------------------------
         "body.sleep_manual":  ("Inserimento manuale", "Manual entry"),
         "body.sleep_hours":   ("Ore di sonno", "Sleep hours"),
+
+        // --- v10: Apple Health history (past days) ---------------------------
+        "body.day":           ("Giorno", "Day"),
+        "body.today":         ("Oggi", "Today"),
+        "body.past_day":      ("Giorno passato", "Past day"),
+        "hk.history":         ("Storico Apple Salute", "Apple Health history"),
+        "hk.history_hint":    ("Importa i dati giornalieri già registrati in Apple Salute (passi, sonno, HRV, frequenza cardiaca…). Serve anche a controllare cosa è davvero arrivato: se una voce resta a zero, quel permesso non è attivo in Impostazioni › Privacy › Salute.",
+                               "Import the daily data already recorded in Apple Health (steps, sleep, HRV, heart rate…). It also shows what actually arrived: if a row stays at zero, that permission is off in Settings › Privacy › Health."),
+        "hk.range":           ("Intervallo", "Range"),
+        "hk.range_days":      ("%d giorni", "%d days"),
+        "hk.coverage":        ("Giorni con dato", "Days with data"),
+        "hk.import_now":      ("Importa", "Import"),
+        "hk.reimport":        ("Re-importa (sovrascrivi)", "Re-import (overwrite)"),
+        "hk.reimport_hint":   ("Re-importa sostituisce anche i valori già presenti, compresi quelli scritti a mano.",
+                               "Re-import replaces stored values too, including ones you typed by hand."),
+        "hk.importing":       ("Importazione…", "Importing…"),
+        "hk.days_written":    ("%d giorni aggiornati", "%d days updated"),
+        "hk.nothing_new":     ("Nessun dato nuovo", "No new data"),
+        "hk.denied":          ("Accesso ad Apple Salute negato", "Apple Health access denied"),
+        "hk.recent_days":     ("Ultimi giorni", "Recent days"),
+        "hk.day_health":      ("Salute di questo giorno", "Health on this day"),
+        "hk.no_day_data":     ("Nessun dato Salute per questo giorno", "No Health data for this day"),
+
+        // --- v10: last-time hint inside the set fields ------------------------
+        "wk.last_short":      ("Ultima", "Last"),
+
+        // --- v10: merge sessions ---------------------------------------------
+        "day.merge":          ("Unisci", "Merge"),
+        "day.merge_n":        ("Unisci %d allenamenti", "Merge %d workouts"),
+        "day.merge_title":    ("Unisci allenamenti", "Merge workouts"),
+        "day.merge_hint":     ("Le serie, la durata, la distanza e le calorie vengono sommate in un unico allenamento. Scegli quale nome e colore tenere.",
+                               "Sets, duration, distance and calories are summed into one workout. Choose which name and colour to keep."),
+        "day.merge_keep":     ("Tieni nome e colore di", "Keep the name and colour of"),
+        "day.merged":         ("Allenamenti uniti", "Workouts merged"),
+        "day.merge_select":   ("Seleziona almeno due allenamenti", "Select at least two workouts"),
+
+        // --- v10: isometric hold timer ---------------------------------------
+        "wk.hold_start":      ("Avvia tenuta", "Start hold"),
+        "hold.title":         ("Tenuta isometrica", "Isometric hold"),
+        "hold.get_ready":     ("Mettiti in posizione", "Get into position"),
+        "hold.hold_now":      ("Tieni!", "Hold!"),
+        "hold.prep":          ("Preparazione", "Get ready"),
+        "hold.target":        ("Obiettivo", "Target"),
+        "hold.free":          ("Libera", "Free"),
+        "hold.free_hint":     ("Senza obiettivo il cronometro sale: fermalo quando molli.",
+                               "With no target the clock counts up: stop it when you drop."),
+        "hold.stop":          ("Ferma e salva", "Stop and save"),
+        "hold.done":          ("Tenuta registrata", "Hold logged"),
+        "set.hold_prep":      ("Secondi di preparazione", "Preparation seconds"),
+        "set.hold_prep_hint": ("Il countdown prima che parta la tenuta, per mettersi in posizione. 0 per disattivarlo.",
+                               "The countdown before the hold starts, to get into position. 0 turns it off."),
+        "pe.target_sec_field": ("Secondi obiettivo", "Target seconds"),
+
+        // --- v10: FFMI --------------------------------------------------------
+        "body.ffmi":          ("FFMI", "FFMI"),
+        "body.ffmi_norm":     ("FFMI norm.", "FFMI norm."),
+        "body.ffmi_need_bf":  ("Serve la % di grasso", "Needs body fat %"),
+        "st.ffmi_time":       ("FFMI nel tempo", "FFMI over time"),
+        "ffmi.below":         ("Sotto la media", "Below average"),
+        "ffmi.average":       ("Nella media", "Average"),
+        "ffmi.good":          ("Buona", "Good"),
+        "ffmi.great":         ("Ottima", "Great"),
+        "ffmi.excellent":     ("Eccellente", "Excellent"),
+        "ffmi.elite":         ("Al limite naturale", "At the natural limit"),
+        "info.ffmi.title":    ("FFMI — indice di massa magra", "FFMI — fat-free mass index"),
+        "info.ffmi.body":     ("Il FFMI è il BMI della sola massa magra: massa magra (kg) ÷ altezza² (m). A differenza del BMI non ti penalizza se sei muscoloso — un atleta con poco grasso ha BMI \"sovrappeso\" ma FFMI ottimo.\n\nIl FFMI normalizzato aggiunge 6,1 × (1,80 − altezza) per confrontare persone di statura diversa.\n\nRiferimenti (uomini): sotto 18 poca massa, 18-20 media, 20-22 buona, 22-23 ottima, 23-26 eccellente. Oltre 26 è molto raro senza farmaci. Per le donne sposta i valori di circa 3 punti verso il basso.\n\nServe una percentuale di grasso: inseriscila a mano o lascia che la stimi la formula Navy da collo e vita.",
+                               "FFMI is the BMI of your lean mass alone: fat-free mass (kg) ÷ height² (m). Unlike BMI it doesn't punish you for being muscular — a lean athlete reads \"overweight\" on BMI but excellent on FFMI.\n\nNormalized FFMI adds 6.1 × (1.80 − height) so people of different heights can be compared.\n\nReference (men): below 18 low mass, 18-20 average, 20-22 good, 22-23 great, 23-26 excellent. Above 26 is very rare drug-free. For women shift the bands down about 3 points.\n\nIt needs a body-fat percentage: enter one by hand or let the Navy formula estimate it from neck and waist."),
+
+        // --- v10: automatic rest timer ---------------------------------------
+        "set.auto_rest":      ("Timer di recupero automatico", "Automatic rest timer"),
+        "set.auto_rest_hint": ("Il recupero parte da solo quando completi una serie. Puoi impostare una durata diversa per ogni esercizio nell'editor del piano.",
+                               "Rest starts on its own when you complete a set. You can set a different duration per exercise in the plan editor."),
+        "pe.rest_timer":      ("Recupero", "Rest"),
+        "wk.rest_over":       ("Recupero finito", "Rest is over"),
+        "wk.rest_over_body":  ("Torna sotto il bilanciere.", "Back under the bar."),
+
+        // --- v10: plate calculator + warm-up ---------------------------------
+        "plate.title":        ("Dischi e riscaldamento", "Plates and warm-up"),
+        "plate.per_side":     ("Per lato", "Per side"),
+        "plate.bar":          ("Bilanciere", "Bar"),
+        "plate.total":        ("Totale", "Total"),
+        "plate.unreachable":  ("Peso non raggiungibile con i dischi disponibili — il più vicino è %@ kg.",
+                               "Not reachable with the available plates — closest is %@ kg."),
+        "plate.warmup":       ("Riscaldamento", "Warm-up"),
+        "plate.working":      ("Serie allenante", "Working set"),
+        "plate.no_target":    ("Inserisci un peso in una serie per vedere i dischi.",
+                               "Enter a weight in a set to see the plates."),
+        "set.bar_weight":     ("Peso bilanciere (kg)", "Bar weight (kg)"),
+        "set.plates":         ("Dischi disponibili (kg)", "Available plates (kg)"),
+
+        // --- v10: export to Apple Health -------------------------------------
+        "hk.export":          ("Scrivi gli allenamenti su Apple Salute", "Write workouts to Apple Health"),
+        "hk.export_hint":     ("Gli allenamenti che registri qui vengono salvati anche in Apple Salute, così chiudono gli anelli e appaiono in Fitness. Quelli importati da Salute non vengono riscritti.",
+                               "Workouts you log here are also saved into Apple Health, so they close your rings and show up in Fitness. Workouts imported from Health are never written back."),
+        "hk.exported":        ("Salvato su Apple Salute", "Saved to Apple Health"),
+        "hk.export_failed":   ("Scrittura su Apple Salute non riuscita", "Couldn't write to Apple Health"),
+
+        // --- v10: muscle volume targets + deload -----------------------------
+        "st.vol_target":      ("obiettivo %d-%d serie", "target %d-%d sets"),
+        "st.vol_low":         ("sotto", "under"),
+        "st.vol_ok":          ("in target", "on target"),
+        "st.vol_high":        ("sopra", "over"),
+        "load.deload_why":    ("Carico e monotonia sono alti insieme: taglia volume e intensità di circa il 40% per una settimana.",
+                               "Load and monotony are high together: cut volume and intensity by about 40% for a week."),
+
+        // --- v10: duplicate session + history search --------------------------
+        "wk.repeat_today":    ("Ripeti oggi", "Repeat today"),
+        "wk.repeated":        ("Allenamento copiato a oggi", "Workout copied to today"),
+        "wk.search":          ("Cerca negli allenamenti", "Search workouts"),
+        "wk.show_all":        ("Mostra tutti (%d)", "Show all (%d)"),
+        "wk.show_less":       ("Mostra meno", "Show less"),
+        "wk.no_match":        ("Nessun allenamento trovato", "No workouts found"),
+
+        // --- v10: PR feed ------------------------------------------------------
+        "st.pr_feed":         ("Record nel tempo", "Records over time"),
+        "st.pr_none":         ("Nessun record ancora. Registra qualche serie con il peso.",
+                               "No records yet. Log a few sets with a weight."),
+        "st.pr_weight":       ("peso max", "top weight"),
+        "st.pr_e1rm":         ("e1RM", "e1RM"),
+        "st.pr_hold":         ("tenuta", "hold"),
+        "st.pr_first":        ("primo record", "first record"),
+
+        // --- v10: Live Activity ------------------------------------------------
+        "set.live_activity":  ("Allenamento su schermata di blocco", "Workout on Lock Screen"),
+        "set.live_activity_hint": ("Mostra cronometro, esercizio in corso e recupero su schermata di blocco e Dynamic Island.",
+                                   "Shows the clock, current exercise and rest on the Lock Screen and Dynamic Island."),
+        "la.rest":            ("Recupero", "Rest"),
+        "la.sets":            ("serie", "sets"),
     ]
 }
 

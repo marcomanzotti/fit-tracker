@@ -18,17 +18,28 @@ struct BodyView: View {
     @State private var sleepHRVInput = ""
     @State private var sleepHRInput = ""
     @State private var showManualSleep = false
+    // The day every entry card reads and writes. Defaults to today; stepping back
+    // lets the user see and correct what Apple Health imported for a past day
+    // (yesterday's steps, last week's sleep) instead of only ever seeing today.
+    @State private var day = today()
+    @State private var showHealthHistory = false
+
+    private var isToday: Bool { day == today() }
 
     var body: some View {
-        let lw = store.lastWeight
+        // Analysis follows the selected day when that day carries its own numbers,
+        // otherwise it falls back to the most recent record — so stepping back never
+        // shows an empty page, just the values that were true then.
+        let lw = store.dailyEntry(day)?.weight ?? store.lastWeight
         let bmi = store.bmi(lw)
         let cat = store.bmiComment(weight: lw)
-        let bl = store.bodyLatest
+        let bl = store.body.first { $0.date == day } ?? store.bodyLatest
         let navy = store.bfNavy(waist: bl?.waist, neck: bl?.neck, hip: bl?.hips)
         let bf = bl?.bfManual ?? navy
         let lean = bf.map { ((lw * (1 - $0 / 100)) * 10).rounded() / 10 }
         let fat = bf.map { ((lw * $0 / 100) * 10).rounded() / 10 }
 
+        dayBar
         checkInCard
         sleepCard
         stepsCard
@@ -38,9 +49,70 @@ struct BodyView: View {
         backupCard
     }
 
+    // MARK: Day selector — drives every entry card below it
+    private var dayBar: some View {
+        Card(accent: isToday ? Theme.acc : Theme.blue) {
+            HStack(spacing: 10) {
+                Button { tap(); shiftDay(-1) } label: {
+                    Image(systemName: "chevron.left").font(.system(size: 13, weight: .bold))
+                        .foregroundColor(Theme.txt).frame(width: 34, height: 34)
+                        .background(Theme.c2).clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                }.buttonStyle(.plain)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(prettyDay).font(.head(14, .bold)).tracking(0.5)
+                        .foregroundColor(isToday ? Theme.acc : Theme.blue)
+                    Text(isToday ? t("body.today") : t("body.past_day"))
+                        .font(.system(size: 10)).foregroundColor(Theme.sub)
+                }
+                Spacer()
+
+                // Forward is disabled on today: there is nothing to log in the future.
+                Button { tap(); shiftDay(1) } label: {
+                    Image(systemName: "chevron.right").font(.system(size: 13, weight: .bold))
+                        .foregroundColor(isToday ? Theme.mut : Theme.txt).frame(width: 34, height: 34)
+                        .background(Theme.c2).clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .disabled(isToday)
+
+                Button { tap(); showHealthHistory = true } label: {
+                    Image(systemName: "heart.text.square.fill").font(.system(size: 15))
+                        .foregroundColor(Color(hex: Theme.appleGreen))
+                        .frame(width: 34, height: 34)
+                        .background(Theme.c2).clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                }.buttonStyle(.plain)
+            }
+        }
+        .sheet(isPresented: $showHealthHistory) { HealthHistoryView() }
+        .onChange(of: day) { _ in
+            // Every card prefills from the store, so clear typed-but-unsaved text
+            // when the day changes — otherwise yesterday's draft leaks into today.
+            weightInput = ""; bfInput = ""; measInputs = [:]
+            showManualSleep = false
+            prefillSteps()
+        }
+    }
+
+    private func shiftDay(_ delta: Int) {
+        guard let d = isoFormatter.date(from: day),
+              let next = Calendar.current.date(byAdding: .day, value: delta, to: d) else { return }
+        let ds = isoFormatter.string(from: next)
+        guard ds <= today() else { return }
+        day = ds
+    }
+
+    private var prettyDay: String {
+        guard let d = isoFormatter.date(from: day) else { return day }
+        let f = DateFormatter()
+        f.locale = Locale(identifier: L.lang == "en" ? "en_US" : "it_IT")
+        f.dateFormat = "EEEE d MMMM"
+        return f.string(from: d).capitalized
+    }
+
     // MARK: Sleep card — shows Health data when available, otherwise a manual entry form.
     private var sleepCard: some View {
-        let e = store.daily.first(where: { $0.date == today() })
+        let e = store.dailyEntry(day)
         let hrv = (e?.hrvSDNN ?? 0) > 0 ? e?.hrvSDNN : nil
         let score = (e?.sleep ?? 0) > 0 ? e?.sleep : nil
         let sHR = (e?.sleepHR ?? 0) > 0 ? e?.sleepHR : nil
@@ -119,7 +191,7 @@ struct BodyView: View {
         let score = Int(sleepScoreInput)
         let hrv = pf(sleepHRVInput) > 0 ? pf(sleepHRVInput) : nil
         let sHR = Int(sleepHRInput)
-        store.saveManualSleep(hours: hours, score: score, hrv: hrv, sleepHR: sHR)
+        store.saveManualSleep(hours: hours, score: score, hrv: hrv, sleepHR: sHR, date: day)
         sleepHoursInput = ""; sleepScoreInput = ""; sleepHRVInput = ""; sleepHRInput = ""
         showManualSleep = false
         toast.show(t("save"))
@@ -140,8 +212,8 @@ struct BodyView: View {
                 InputField(placeholder: "8000", text: $stepsInput)
                 FilledButton(title: t("save")) {
                     guard let v = Int(stepsInput), v > 0 else { return }
-                    store.saveDailyExtras(steps: v)
-                    stepsInput = ""; toast.show(t("save"))
+                    store.saveDailyExtras(date: day, steps: v)
+                    toast.show(t("save"))
                 }
                 .frame(width: 90)
             }
@@ -150,14 +222,19 @@ struct BodyView: View {
         .onReceive(store.$daily) { _ in prefillSteps() }
     }
 
-    /// Keep the field showing today's live Health steps (they refresh on every
-    /// foreground sync and only climb). Once the user has manually overridden the
-    /// count (`stepsManual`), we stop touching the field so their value stays put;
-    /// likewise we never clobber a value the user is mid-typing into an empty field.
+    /// Keep the field showing the selected day's Health steps. For today they refresh
+    /// on every foreground sync and only climb; for a past day this is simply what
+    /// Health imported, editable. Once the user has manually overridden the count
+    /// (`stepsManual`), we stop touching the field so their value stays put.
     private func prefillSteps() {
-        guard let e = store.daily.first(where: { $0.date == today() }),
-              let v = e.steps, v > 0 else { return }
-        if e.stepsManual == true { return }
+        guard let e = store.dailyEntry(day), let v = e.steps, v > 0 else {
+            if store.dailyEntry(day)?.steps == nil { stepsInput = "" }
+            return
+        }
+        if e.stepsManual == true {
+            if stepsInput.isEmpty { stepsInput = "\(v)" }
+            return
+        }
         let shown = Int(stepsInput)
         if shown == nil || shown != v { stepsInput = "\(v)" }
     }
@@ -166,14 +243,16 @@ struct BodyView: View {
     // Body weight only — sleep score is imported from Apple Health and shown on
     // the Sleep card above, so the daily check-in stays a single quick field.
     private var checkInCard: some View {
-        Card {
-            Lbl(text: "\(t("home.checkin")) · \(today())", color: Theme.acc2).padding(.bottom, 10)
-            field("\(t("home.weight")) (\(Units.wLabel.uppercased()))", Units.imperial ? "193" : "87,5", $weightInput)
+        let saved = store.dailyEntry(day)?.weight
+        return Card {
+            Lbl(text: "\(t("home.checkin")) · \(day)", color: Theme.acc2).padding(.bottom, 10)
+            field("\(t("home.weight")) (\(Units.wLabel.uppercased()))",
+                  saved.map(dispW) ?? (Units.imperial ? "193" : "87,5"), $weightInput)
                 .padding(.bottom, 12)
             FilledButton(title: t("home.save_checkin")) {
                 let w = Units.wIn(pf(weightInput))
                 guard w >= 30 && w <= 250 else { return }
-                store.saveCheckIn(weight: w, sleep: nil)
+                store.saveCheckIn(weight: w, sleep: nil, date: day)
                 weightInput = ""; toast.show(t("home.checkin_saved"))
             }
         }
@@ -217,7 +296,7 @@ struct BodyView: View {
                 FilledButton(title: t("save")) {
                     let v = pf(bfInput)
                     guard v >= 1 && v <= 60 else { return }
-                    store.saveBodyFat(v); bfInput = ""; toast.show(t("body.fat_saved"))
+                    store.saveBodyFat(v, date: day); bfInput = ""; toast.show(t("body.fat_saved"))
                 }
                 .frame(width: 90)
             }
@@ -250,7 +329,7 @@ struct BodyView: View {
                     if v > 0 { vals[m.key] = v }
                 }
                 guard !vals.isEmpty else { return }
-                store.saveMeasurements(vals)
+                store.saveMeasurements(vals, date: day)
                 measInputs = [:]
                 toast.show(t("body.measures_saved"))
             }

@@ -424,15 +424,16 @@ extension Store {
         return .addLoad   // only one session in history, give the benefit of the doubt
     }
 
-    /// Progression for a timed (isometric) exercise. The plan's `reps` field holds
-    /// the target hold in seconds (e.g. "45" or "30-60"); we compare the longest
-    /// hold logged last time to that target. Reaching the target → ready to add load
-    /// or extend the hold (.addLoad); below it → keep chasing time (.addReps, shown
-    /// as "extend the hold" in the UI). The health gates already ran in the caller.
+    /// Progression for a timed (isometric) exercise. The target hold comes from the
+    /// plan's `targetSec` (older plans kept it as text in `reps`, which
+    /// `effectiveTargetSec` still parses); we compare the longest hold logged last
+    /// time to that target. Reaching the target → ready to add load or extend the
+    /// hold (.addLoad); below it → keep chasing time (.addReps, shown as "extend the
+    /// hold" in the UI). The health gates already ran in the caller.
     private func timedProgression(planId: String, exercise: String) -> ProgKind? {
         guard let plan = plan(planId),
               let pe = plan.exercises.first(where: { $0.name == exercise }) else { return nil }
-        let target = targetSeconds(pe.reps)
+        let target: Double? = pe.effectiveTargetSec > 0 ? Double(pe.effectiveTargetSec) : nil
         let planSessions = sessions
             .filter { $0.planId == planId && $0.date != today() }
             .sorted { $0.date > $1.date }
@@ -465,10 +466,4 @@ extension Store {
         return lastRounds >= target ? .addLoad : .addReps
     }
 
-    /// Parse a timed target in seconds from a string like "45" or "30-60" (returns
-    /// the upper bound of a range). nil when no number is present.
-    func targetSeconds(_ s: String) -> Double? {
-        let nums = s.split(whereSeparator: { !$0.isNumber }).compactMap { Double($0) }
-        return nums.max()
-    }
 }

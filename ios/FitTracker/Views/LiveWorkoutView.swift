@@ -21,6 +21,8 @@ struct LiveWorkoutView: View {
     @State private var sessAvgHR = ""
     @State private var sessCalManual = ""
     @State private var confirmDiscard = false
+    /// Set currently being timed by the isometric hold sheet.
+    @State private var hold: HoldTarget?
     // Drives the live elapsed clock (counts up from the workout start).
     @State private var now = Date()
     private let tick = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
@@ -71,6 +73,20 @@ struct LiveWorkoutView: View {
         .onReceive(tick) { now = $0 }
         .onReceive(watch.$live) { if let s = $0 { applyLive(s) } }
         .onReceive(watch.$pendingResult) { if let r = $0 { applyResult(r) } }
+        .sheet(item: $hold) { target in
+            HoldTimerSheet(title: target.name, target: target.target,
+                           prepSeconds: store.prefs.holdPrep) { seconds in
+                writeHold(seconds, to: target)
+            }
+        }
+    }
+
+    /// Write a timed set's measured hold back into the log.
+    private func writeHold(_ seconds: Double, to target: HoldTarget) {
+        guard let ei = log.firstIndex(where: { $0.id == target.exerciseId }),
+              let si = log[ei].sets.firstIndex(where: { $0.id == target.setId }) else { return }
+        log[ei].sets[si].seconds = seconds
+        toast.show(t("hold.done"))
     }
 
     // MARK: Live elapsed timer (replaces the last-session block while active)
@@ -263,26 +279,6 @@ struct LiveWorkoutView: View {
         }
     }
 
-    private func lastSessionBlock(_ last: WorkoutSession) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Lbl(text: "\(t("wk.last")) · \(last.date)", color: Theme.acc2).padding(.bottom, 3)
-            ForEach(last.exercises.prefix(3)) { e in
-                (Text(e.name).foregroundColor(Theme.txt.opacity(0.7)).fontWeight(.semibold)
-                 + Text(": " + e.sets.map { "\(disp($0.weight))×\(disp($0.reps))" }.joined(separator: " · "))
-                    .foregroundColor(Theme.sub))
-                    .font(.system(size: 11))
-            }
-            if last.exercises.count > 3 {
-                Text("+\(last.exercises.count - 3) \(t("wk.others"))").font(.system(size: 10, weight: .semibold)).foregroundColor(Theme.sub)
-            }
-        }
-        .padding(.vertical, 11).padding(.horizontal, 14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Theme.acc.opacity(0.04))
-        .overlay(alignment: .leading) { Rectangle().fill(Theme.acc).frame(width: 2) }
-        .clipShape(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous))
-    }
-
     // MARK: Exercise card
     private func exerciseCard(_ exB: Binding<LoggedExercise>) -> some View {
         let ex = exB.wrappedValue
@@ -333,30 +329,11 @@ struct LiveWorkoutView: View {
             }
             .padding(.bottom, 10)
 
-            // "Last time" — the same exercise's sets from the most recent session of
-            // THIS plan, so the numbers shown are the ones to beat for this routine
-            // (not a different day's plan). Timed holds show seconds; everything else
-            // shows weight×reps. The date makes it clear how recent the reference is.
-            if let prevEx, !prevEx.sets.isEmpty, let last = lastSess {
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack(spacing: 6) {
-                        Text(t("wk.last_time_label").uppercased()).font(.head(9, .semibold)).tracking(2).foregroundColor(Theme.blue)
-                        Spacer()
-                        Text(fmtShort(last.date)).font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
-                    }
-                    FlowText(items: prevEx.sets.enumerated().map { i, s in
-                        kind == .timed
-                            ? "S\(i + 1): \(s.seconds.map { trimNum($0) } ?? "?")s\(pf(s.weight) > 0 ? " +\(disp(s.weight))kg" : "")"
-                            : "S\(i + 1): \(disp(s.weight))×\(disp(s.reps))"
-                    })
-                }
-                .padding(.vertical, 9).padding(.horizontal, 12)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Theme.blue.opacity(0.05))
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Theme.blue.opacity(0.12), lineWidth: 1))
-                .padding(.bottom, 10)
-            }
+            // "Last time" is NOT a banner: each previous set's numbers appear as the
+            // grey placeholder inside the very field you type them into, so reps land
+            // under REPS and kilos under KG — no separate block to read, no chance of
+            // reading the pair in the wrong order. Only the reference date is shown,
+            // in the column-header row below.
 
             if let sug {
                 HStack(spacing: 6) {
@@ -387,13 +364,14 @@ struct LiveWorkoutView: View {
             case .interval:
                 intervalBlock(exB)
             case .timed:
-                timedBlock(exB, bw: bw)
+                timedBlock(exB, bw: bw, prev: prevEx, lastDate: lastSess?.date)
             case .reps:
                 // Effort scale selector
                 EffortModeSelector(effortMode: exB.effortMode)
                     .padding(.bottom, 8)
 
-                // Column headers
+                // Column headers — the "last time" date rides here, at the head of the
+                // columns whose placeholders it explains.
                 HStack(spacing: 9) {
                     Spacer().frame(width: 28)
                     Text(t("wk.reps").uppercased()).font(.head(9, .semibold)).tracking(1.5).foregroundColor(Theme.sub).frame(width: 66)
@@ -402,11 +380,15 @@ struct LiveWorkoutView: View {
                         Text(effortScale!.label).font(.head(9, .semibold)).tracking(1.5).foregroundColor(Theme.acc2).frame(width: 48)
                     }
                     Spacer()
+                    if let prevEx, !prevEx.sets.isEmpty, let d = lastSess?.date {
+                        Text("\(t("wk.last_short").uppercased()) \(fmtDM(d))")
+                            .font(.head(8, .semibold)).tracking(0.8).foregroundColor(Theme.blue.opacity(0.8))
+                    }
                 }
                 .padding(.bottom, 6)
 
                 ForEach(exB.sets) { $set in
-                    setRow($set, in: exB, pr: pr, bw: bw, effortScale: effortScale)
+                    setRow($set, in: exB, pr: pr, bw: bw, effortScale: effortScale, prev: prevEx)
                 }
 
                 // Bodyweight hint
@@ -454,29 +436,61 @@ struct LiveWorkoutView: View {
     }
 
     // MARK: Timed (isometric) logging — per-set hold seconds + optional added load
-    private func timedBlock(_ exB: Binding<LoggedExercise>, bw: Bool) -> some View {
+    private func timedBlock(_ exB: Binding<LoggedExercise>, bw: Bool,
+                            prev: LoggedExercise?, lastDate: String?) -> some View {
         VStack(spacing: 6) {
             HStack(spacing: 9) {
                 Spacer().frame(width: 28)
                 Text(t("pe.target_sec").uppercased()).font(.head(9, .semibold)).tracking(1.5).foregroundColor(Theme.sub).frame(width: 66)
                 Text(bw ? "+KG" : "KG").font(.head(9, .semibold)).tracking(1.5).foregroundColor(bw ? Theme.good : Theme.sub).frame(width: 66)
                 Spacer()
+                if let prev, !prev.sets.isEmpty, let d = lastDate {
+                    Text("\(t("wk.last_short").uppercased()) \(fmtDM(d))")
+                        .font(.head(8, .semibold)).tracking(0.8).foregroundColor(Theme.blue.opacity(0.8))
+                }
             }
             .padding(.bottom, 2)
             ForEach(exB.sets) { $set in
                 let idx = exB.wrappedValue.sets.firstIndex(where: { $0.id == $set.id }) ?? 0
+                let prevSet = prev.flatMap { idx < $0.sets.count ? $0.sets[idx] : nil }
                 HStack(spacing: 9) {
                     Text("S\(idx + 1)").font(.num(11)).foregroundColor(Theme.sub).frame(width: 28)
-                    SmallNumField(text: secondsBinding($set))
-                    SmallNumField(text: $set.weight)
+                    SmallNumField(text: secondsBinding($set),
+                                  placeholder: hint(prevSet?.seconds.map { trimNum($0) }))
+                    SmallNumField(text: $set.weight, placeholder: hint(prevSet?.weight))
+                    // Run the hold with a lead-in countdown instead of typing seconds.
+                    Button { tap(); hold = HoldTarget(setId: $set.id, exerciseId: exB.wrappedValue.id,
+                                                      name: exB.wrappedValue.name,
+                                                      target: targetHold(exB.wrappedValue, prevSet: prevSet)) } label: {
+                        Image(systemName: "play.circle.fill").font(.system(size: 22))
+                            .foregroundColor(Theme.acc)
+                            .frame(width: 34, height: 42)
+                    }.buttonStyle(.plain)
                     Button { tap(); exB.wrappedValue.sets.removeAll { $0.id == $set.id } } label: {
                         Image(systemName: "xmark").font(.system(size: 13)).foregroundColor(Theme.red.opacity(0.5))
-                            .frame(width: 34, height: 42)
+                            .frame(width: 30, height: 42)
                     }.buttonStyle(.plain)
                     Spacer(minLength: 0)
                 }
             }
         }
+    }
+
+    /// Grey hint shown inside an empty field: what was logged for this same set the
+    /// last time. Empty/zero values fall back to the neutral dash so a blank set from
+    /// last time never reads as a real target.
+    private func hint(_ v: String?) -> String {
+        guard let v, !v.isEmpty, pf(v) > 0 else { return "–" }
+        return v
+    }
+
+    /// Starting seconds for the hold timer: the plan's target if set, else what was
+    /// held last time, else a plain 30 s so the timer always has somewhere to begin.
+    private func targetHold(_ ex: LoggedExercise, prevSet: SetEntry?) -> Double {
+        if let planned = store.plan(plan.id)?.exercises.first(where: { $0.name == ex.name })?.effectiveTargetSec,
+           planned > 0 { return Double(planned) }
+        if let p = prevSet?.seconds, p > 0 { return p }
+        return 30
     }
 
     /// String binding over a set's optional `seconds` (decimal-friendly).
@@ -540,15 +554,19 @@ struct LiveWorkoutView: View {
     }
 
     private func setRow(_ set: Binding<SetEntry>, in exB: Binding<LoggedExercise>,
-                        pr: Double, bw: Bool, effortScale: EffortMode?) -> some View {
+                        pr: Double, bw: Bool, effortScale: EffortMode?,
+                        prev: LoggedExercise?) -> some View {
         let id = set.wrappedValue.id
         let idx = exB.wrappedValue.sets.firstIndex(where: { $0.id == id }) ?? 0
+        // Same-numbered set from the last time this exercise was done in this plan.
+        // nil past the end (an extra set today has nothing to compare against).
+        let prevSet = prev.flatMap { idx < $0.sets.count ? $0.sets[idx] : nil }
         let w = pf(set.wrappedValue.weight)
         let isPR = w > pr && w > 0
         return HStack(spacing: 9) {
             Text("S\(idx + 1)").font(.num(11)).foregroundColor(Theme.sub).frame(width: 28)
-            SmallNumField(text: set.reps, highlight: isPR)
-            SmallNumField(text: set.weight, highlight: isPR && !bw)
+            SmallNumField(text: set.reps, placeholder: hint(prevSet?.reps), highlight: isPR)
+            SmallNumField(text: set.weight, placeholder: hint(prevSet?.weight), highlight: isPR && !bw)
             if let scale = effortScale {
                 EffortField(scale: scale, value: set.effortVal)
             }
@@ -655,20 +673,5 @@ struct LiveWorkoutView: View {
         haptic(.warning)
         toast.show(t("wk.discarded"))
         onSaved()   // tears down the active workout without saving anything
-    }
-
-    private func disp(_ s: String) -> String { s.isEmpty ? "?" : s }
-}
-
-// MARK: - Simple wrapping row of small tags
-struct FlowText: View {
-    let items: [String]
-    var body: some View {
-        FlexWrap(items, spacing: 5) { item in
-            Text(item).font(.num(11)).foregroundColor(Theme.blue)
-                .padding(.vertical, 3).padding(.horizontal, 8)
-                .background(Theme.blue.opacity(0.1))
-                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-        }
     }
 }

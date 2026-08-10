@@ -85,11 +85,21 @@ final class HealthKitManager {
     /// pass a selection.
     func fetch(days: Int, categories: Set<String> = Set(HealthCategory.allKeys),
                completion: @escaping ([HealthDaySample]) -> Void) {
-        #if canImport(HealthKit)
-        guard isAvailable else { completion([]); return }
         let cal = Calendar.current
         let end = cal.startOfDay(for: Date())
         guard let start = cal.date(byAdding: .day, value: -(days - 1), to: end) else { completion([]); return }
+        fetch(from: start, to: end, categories: categories, completion: completion)
+    }
+
+    /// Pull daily aggregates for an explicit day range (both ends are day starts,
+    /// `to` inclusive). The `days:` variant above is a convenience wrapper; this is
+    /// what the Health-history screen calls so the user can pick any window.
+    func fetch(from start: Date, to end: Date,
+               categories: Set<String> = Set(HealthCategory.allKeys),
+               completion: @escaping ([HealthDaySample]) -> Void) {
+        #if canImport(HealthKit)
+        guard isAvailable else { completion([]); return }
+        let cal = Calendar.current
 
         var steps: [String: Int] = [:]
         var rest: [String: Int] = [:]
@@ -322,9 +332,13 @@ final class HealthKitManager {
                                                     options: .strictStartDate)
         let query = HKStatisticsCollectionQuery(quantityType: type, quantitySamplePredicate: predicate,
                                                 options: options, anchorDate: anchor, intervalComponents: interval)
+        // Enumerate through the day AFTER `end`: the range behaves as half-open, so
+        // passing `end` itself (a day start) can drop that final bucket — which is
+        // today's, the one the user checks first.
+        let enumEnd = cal.date(byAdding: .day, value: 1, to: end) ?? end
         query.initialResultsHandler = { _, results, _ in
             var map: [String: Double] = [:]
-            results?.enumerateStatistics(from: anchor, to: end) { stat, _ in
+            results?.enumerateStatistics(from: anchor, to: enumEnd) { stat, _ in
                 let qty = options == .cumulativeSum ? stat.sumQuantity() : stat.averageQuantity()
                 if let qty { map[isoFormatter.string(from: stat.startDate)] = qty.doubleValue(for: unit) }
             }

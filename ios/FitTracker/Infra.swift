@@ -51,17 +51,21 @@ final class ActiveWorkout: ObservableObject {
         planId = plan.id
         minimized = false
         log = plan.exercises.map { ex in
-            // A timed hold seeds each set's `seconds` from the plan's target so the
-            // user only adjusts what they actually held; interval carries its HIIT
+            // Timed sets start EMPTY: the hold timer writes the seconds actually held,
+            // and the plan's target drives that timer. Pre-filling the target used to
+            // make an untouched set look already logged. Interval carries its HIIT
             // prescription (work/rest/rounds) forward unchanged.
-            let targetSec = ex.exKind == .timed ? Double(ex.reps.split(whereSeparator: { !$0.isNumber }).compactMap { Int($0) }.max() ?? 0) : 0
-            let sets = (0..<max(1, ex.sets)).map { _ in
-                SetEntry(seconds: ex.exKind == .timed && targetSec > 0 ? targetSec : nil)
+            let sets = (0..<max(1, ex.sets)).map { _ in SetEntry() }
+            let target: String
+            switch ex.exKind {
+            case .interval: target = "\(ex.rounds ?? 0)×\(ex.workSec ?? 0)s"
+            case .timed:    target = "\(ex.sets)×\(ex.effectiveTargetSec)s"
+            case .reps:     target = "\(ex.sets)×\(ex.reps)"
             }
             return LoggedExercise(name: ex.name,
                            sets: ex.exKind == .interval ? [] : sets,
                            notes: "",
-                           target: ex.exKind == .interval ? "\(ex.rounds ?? 0)×\(ex.workSec ?? 0)s" : "\(ex.sets)×\(ex.reps)",
+                           target: target,
                            supersetGroup: ex.supersetGroup,
                            method: ex.method,
                            effortMode: ex.effortMode,

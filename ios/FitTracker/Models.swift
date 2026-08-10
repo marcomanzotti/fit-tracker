@@ -469,11 +469,31 @@ struct PlanExercise: Codable, Identifiable, Equatable {
     var workSec: Int? = nil
     var restSec: Int? = nil
     var rounds: Int? = nil
+    /// Target hold in seconds for a timed exercise. Before this field the target had
+    /// to be typed into `reps` as free text ("45", "30-60") and parsed back out; it
+    /// stays the fallback so plans saved that way keep working.
+    var targetSec: Int? = nil
+    /// Rest between sets for this exercise, in seconds. nil => the global
+    /// `Prefs.timer` default. Lets a heavy squat rest 3 min while a curl rests 60 s.
+    var restTimerSec: Int? = nil
 
     var exKind: ExKind { ExKind(rawValue: kind ?? "reps") ?? .reps }
     var trainMethod: TrainMethod { TrainMethod(rawValue: method ?? "normal") ?? .normal }
     var effortScale: EffortMode? { effortMode.flatMap { EffortMode(rawValue: $0) } }
     var bodyweight: Bool { isBodyweight == true }
+    /// Target hold seconds: the dedicated field wins, else the number parsed out of
+    /// the legacy `reps` text, which users typed as "30", "45s", "1:30" or "30-60".
+    /// 0 when this isn't a timed exercise or carries no target.
+    var effectiveTargetSec: Int {
+        if let t = targetSec, t > 0 { return t }
+        let lower = reps.lowercased()
+        // "m:ss" form (a 1:30 plank target).
+        if lower.contains(":") {
+            let parts = lower.split(separator: ":")
+            if parts.count == 2, let m = Int(parts[0]), let s = Int(parts[1]) { return m * 60 + s }
+        }
+        return lower.split(whereSeparator: { !$0.isNumber }).compactMap { Int($0) }.max() ?? 0
+    }
 }
 
 struct WorkoutPlan: Codable, Identifiable, Equatable {
@@ -553,6 +573,26 @@ struct Prefs: Codable, Equatable {
     /// Import past workouts recorded by other watches (Garmin/Fitbit/…). Default
     /// OFF: different watch formats don't always translate cleanly into the app.
     var importWorkouts: Bool?
+    /// True once a full-year backfill of daily Health metrics has run. The first
+    /// sync after connecting Health pulls 365 days so the charts start with real
+    /// history; every later sync only needs the recent window.
+    var healthBackfilled: Bool?
+    /// Lead-in countdown before an isometric hold starts, in seconds — time to get
+    /// into position. nil => 7 (the default); 0 turns it off.
+    var holdPrepSec: Int?
+    /// Start the rest timer automatically when a set is completed. nil => on.
+    var autoRestTimer: Bool?
+    /// Barbell weight in kg for the plate calculator. nil => 20.
+    var barWeight: Double?
+    /// Plate denominations available in the gym (kg, per plate). nil => a standard set.
+    var plates: [Double]?
+    /// Write logged workouts into Apple Health. nil/false => off (opt-in).
+    var exportToHealth: Bool?
+    /// Show the running workout on the Lock Screen / Dynamic Island. nil => on.
+    var liveActivity: Bool?
+    /// Per-muscle weekly working-set targets (MuscleGroup raw value → sets). Missing
+    /// entries use the default hypertrophy range.
+    var volumeTargets: [String: Int]?
     var units: String?         // "metric" | "imperial"; nil => metric
     /// Days explicitly marked as rest (yyyy-MM-dd). A rest day is not a session,
     /// just a marker shown with a dedicated icon/color on the week strip and
@@ -600,6 +640,17 @@ struct Prefs: Codable, Equatable {
     /// The user can turn it off in Settings if they prefer not to import.
     var importWorkoutsEnabled: Bool { importWorkouts != false }
     var imperial: Bool { units == "imperial" }
+    /// Lead-in before an isometric hold. Clamped to 0-30 s: longer than that and the
+    /// countdown outlives the hold it's preparing for.
+    var holdPrep: Int { min(30, max(0, holdPrepSec ?? 7)) }
+    var autoRest: Bool { autoRestTimer != false }
+    var bar: Double { (barWeight ?? 0) > 0 ? barWeight! : 20 }
+    var plateSet: [Double] {
+        let p = (plates ?? []).filter { $0 > 0 }
+        return p.isEmpty ? [25, 20, 15, 10, 5, 2.5, 1.25] : p.sorted(by: >)
+    }
+    var exportsToHealth: Bool { exportToHealth == true }
+    var liveActivityEnabled: Bool { liveActivity != false }
     var restDaySet: Set<String> { Set(restDays ?? []) }
     /// Schedule normalized to exactly 7 slots (Mon..Sun); missing -> all empty.
     var weekSchedule: [String] {

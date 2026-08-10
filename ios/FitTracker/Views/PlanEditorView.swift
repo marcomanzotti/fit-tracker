@@ -204,6 +204,8 @@ struct PlanEditorView: View {
             case .reps, .timed: setsParamRow(ex, idx: idx, kind: kind)
             case .interval:     intervalParamRow(ex, idx: idx)
             }
+            // Interval exercises pace themselves; everything else can rest between sets.
+            if kind != .interval { restRow(ex) }
             // Method/superset + effort only apply to the classic rep-based mode.
             if kind == .reps {
                 methodRow(ex)
@@ -269,17 +271,52 @@ struct PlanEditorView: View {
                 }.buttonStyle(.plain)
             }
             Spacer()
-            // For a timed hold, the "reps" field carries the target hold in seconds.
-            Text((kind == .timed ? t("pe.target_sec") : t("wk.reps")).uppercased())
-                .font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
-            TextField("", text: ex.reps,
-                      prompt: Text(kind == .timed ? "45" : "10").foregroundColor(Theme.sub))
-                .multilineTextAlignment(.center)
-                .font(.system(size: 14, weight: .semibold)).foregroundColor(Theme.txt)
-                .frame(width: 64).padding(.vertical, 7)
-                .background(Theme.c2).clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(Theme.brd, lineWidth: 1))
+            if kind == .timed {
+                // A hold's target is a real number now, not seconds smuggled into the
+                // free-text reps field. Old plans that stored "45" there still work:
+                // `effectiveTargetSec` falls back to parsing them.
+                intStepper(t("pe.target_sec_field"), value: Binding(
+                    get: { ex.wrappedValue.effectiveTargetSec > 0 ? ex.wrappedValue.effectiveTargetSec : 45 },
+                    set: { ex.wrappedValue.targetSec = $0 }), step: 5, min: 5, suffix: "s")
+            } else {
+                Text(t("wk.reps").uppercased())
+                    .font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
+                TextField("", text: ex.reps, prompt: Text("10").foregroundColor(Theme.sub))
+                    .multilineTextAlignment(.center)
+                    .font(.system(size: 14, weight: .semibold)).foregroundColor(Theme.txt)
+                    .frame(width: 64).padding(.vertical, 7)
+                    .background(Theme.c2).clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(Theme.brd, lineWidth: 1))
+            }
             reorderButtons(idx: idx)
+        }
+    }
+
+    // MARK: Per-exercise rest time (feeds the automatic rest timer)
+    /// A heavy squat and a curl don't deserve the same rest. nil keeps the global
+    /// default from Settings, so a plan only carries the exercises that differ.
+    private func restRow(_ ex: Binding<PlanExercise>) -> some View {
+        let cur = ex.wrappedValue.restTimerSec
+        return HStack(spacing: 8) {
+            Image(systemName: "hourglass").font(.system(size: 10)).foregroundColor(Theme.blue)
+            Text(t("pe.rest_timer").uppercased()).font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
+            Spacer()
+            Button { tap(); ex.wrappedValue.restTimerSec = Swift.max(0, (cur ?? store.prefs.timer) - 15) } label: {
+                Image(systemName: "minus").font(.system(size: 10, weight: .bold)).foregroundColor(Theme.txt)
+                    .frame(width: 24, height: 24).background(Theme.c3).clipShape(Circle())
+            }.buttonStyle(.plain)
+            Text(cur.map { "\($0)s" } ?? "\(store.prefs.timer)s")
+                .font(.num(14)).foregroundColor(cur == nil ? Theme.sub : Theme.txt).frame(minWidth: 38)
+            Button { tap(); ex.wrappedValue.restTimerSec = (cur ?? store.prefs.timer) + 15 } label: {
+                Image(systemName: "plus").font(.system(size: 10, weight: .bold)).foregroundColor(Theme.txt)
+                    .frame(width: 24, height: 24).background(Theme.c3).clipShape(Circle())
+            }.buttonStyle(.plain)
+            if cur != nil {
+                Button { tap(); ex.wrappedValue.restTimerSec = nil } label: {
+                    Image(systemName: "arrow.uturn.backward").font(.system(size: 10, weight: .bold))
+                        .foregroundColor(Theme.sub).frame(width: 24, height: 24)
+                }.buttonStyle(.plain)
+            }
         }
     }
 

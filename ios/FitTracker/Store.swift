@@ -617,22 +617,24 @@ extension Store {
     }
 
     // MARK: Daily nutrition & recovery
-    func saveDailyExtras(kcal: Int? = nil, protein: Double? = nil, carbs: Double? = nil,
+    /// Write daily extras for `date` (defaults to today, so existing call sites are
+    /// unchanged). Routing through `upsertDaily` means any past day can be corrected
+    /// by hand — the Body page's day picker relies on this.
+    func saveDailyExtras(date: String = today(),
+                         kcal: Int? = nil, protein: Double? = nil, carbs: Double? = nil,
                          fat: Double? = nil, salt: Double? = nil, steps: Int? = nil,
                          rmssd: Double? = nil, restHR: Int? = nil, sleepHR: Int? = nil) {
-        let day = today()
-        var e = daily.first(where: { $0.date == day }) ?? DailyEntry(date: day)
-        if let kcal { e.kcal = kcal }
-        if let protein { e.protein = protein }
-        if let carbs { e.carbs = carbs }
-        if let fat { e.fat = fat }
-        if let salt { e.salt = salt }
-        if let steps { e.steps = steps; e.stepsManual = true }
-        if let rmssd { e.rmssd = rmssd }
-        if let restHR { e.restHR = restHR }
-        if let sleepHR { e.sleepHR = sleepHR }
-        daily.removeAll { $0.date == day }
-        daily.append(e)
+        upsertDaily(date) { e in
+            if let kcal { e.kcal = kcal }
+            if let protein { e.protein = protein }
+            if let carbs { e.carbs = carbs }
+            if let fat { e.fat = fat }
+            if let salt { e.salt = salt }
+            if let steps { e.steps = steps; e.stepsManual = true }
+            if let rmssd { e.rmssd = rmssd }
+            if let restHR { e.restHR = restHR }
+            if let sleepHR { e.sleepHR = sleepHR }
+        }
     }
 
     // MARK: Nutrition (quick total OR per-meal, for any date)
@@ -767,27 +769,91 @@ extension Store {
         return max(0, min(100, Int((100 - penalty).rounded())))
     }
 
-    func applyHealthSamples(_ samples: [HealthDaySample]) {
+    /// Merge Health day samples into the daily entries.
+    ///
+    /// `overwrite: false` (the automatic sync) only fills gaps, so a value typed by
+    /// hand is never clobbered. `overwrite: true` is the explicit "re-import" the
+    /// user triggers from the Health-history screen: there they've asked for Health
+    /// to win, so every imported field replaces what's stored. Steps are the one
+    /// exception in gap-fill mode — they climb all day, so they refresh unless the
+    /// user has manually overridden the count for that day.
+    @discardableResult
+    func applyHealthSamples(_ samples: [HealthDaySample], overwrite: Bool = false) -> Int {
+        var touched = 0
         for s in samples {
             var e = daily.first(where: { $0.date == s.date }) ?? DailyEntry(date: s.date)
-            // Steps refresh live from Health throughout the day (they only climb),
-            // UNLESS the user manually overrode the count — then their value wins.
-            if e.stepsManual != true, let v = s.steps, v > 0 { e.steps = v }
-            if e.restHR == nil, let v = s.restHR, v > 0 { e.restHR = v }
-            if e.hrvSDNN == nil, let v = s.hrvSDNN, v > 0 { e.hrvSDNN = v }
-            if e.activeKcal == nil, let v = s.activeKcal, v > 0 { e.activeKcal = v }
-            if e.exerciseMin == nil, let v = s.exerciseMin, v > 0 { e.exerciseMin = v }
-            if e.sleepHours == nil, let v = s.sleepHours, v > 0 { e.sleepHours = v }
-            if e.sleepHR == nil, let v = s.sleepHR, v > 0 { e.sleepHR = v }
-            if e.vo2max == nil, let v = s.vo2max, v > 0 { e.vo2max = v }
+            let before = e
+            func fill<T>(_ kp: WritableKeyPath<DailyEntry, T?>, _ v: T?, positive: (T) -> Bool) {
+                guard let v, positive(v) else { return }
+                if overwrite || e[keyPath: kp] == nil { e[keyPath: kp] = v }
+            }
+            if (overwrite || e.stepsManual != true), let v = s.steps, v > 0 {
+                e.steps = v
+                if overwrite { e.stepsManual = nil }   // Health is authoritative again
+            }
+            fill(\.restHR, s.restHR) { $0 > 0 }
+            fill(\.hrvSDNN, s.hrvSDNN) { $0 > 0 }
+            fill(\.activeKcal, s.activeKcal) { $0 > 0 }
+            fill(\.exerciseMin, s.exerciseMin) { $0 > 0 }
+            fill(\.sleepHours, s.sleepHours) { $0 > 0 }
+            fill(\.sleepHR, s.sleepHR) { $0 > 0 }
+            fill(\.vo2max, s.vo2max) { $0 > 0 }
             // Derive a 0-100 sleep score from Health sleep duration when the user
             // hasn't entered one — Apple exposes asleep hours, not a score, so we map
             // hours to a score peaking around 8 h (7.5-8.5 h ≈ 95-100).
-            if e.sleep == nil, let h = e.sleepHours ?? s.sleepHours, h > 0 {
+            if overwrite || e.sleep == nil, let h = e.sleepHours ?? s.sleepHours, h > 0 {
                 e.sleep = Store.sleepScore(fromHours: h)
             }
+            guard e != before else { continue }
             daily.removeAll { $0.date == s.date }
             daily.append(e)
+            touched += 1
+        }
+        return touched
+    }
+
+    /// How many days in `[from, to]` already carry a value for each Health category.
+    /// Feeds the Health-history screen so a category that never imported is visible
+    /// as a plain "0 / N" instead of being silently absent.
+    func healthCoverage(from: String, to: String) -> [String: Int] {
+        let days = daily.filter { $0.date >= from && $0.date <= to }
+        var out: [String: Int] = [:]
+        for c in HealthCategory.allCases {
+            out[c.rawValue] = days.filter { e in
+                switch c {
+                case .steps:       return (e.steps ?? 0) > 0
+                case .restHR:      return (e.restHR ?? 0) > 0
+                case .hrv:         return (e.hrvSDNN ?? 0) > 0
+                case .sleep:       return (e.sleepHours ?? 0) > 0 || (e.sleep ?? 0) > 0
+                case .sleepHR:     return (e.sleepHR ?? 0) > 0
+                case .activeKcal:  return (e.activeKcal ?? 0) > 0
+                case .exerciseMin: return (e.exerciseMin ?? 0) > 0
+                case .vo2max:      return (e.vo2max ?? 0) > 0
+                }
+            }.count
+        }
+        return out
+    }
+
+    /// Import an explicit window from Apple Health on demand (the history screen).
+    /// Reports how many days were written so the user gets a real answer instead of
+    /// a silent no-op. `overwrite` makes Health win over stored values.
+    func importHealthRange(days: Int, overwrite: Bool,
+                           completion: @escaping (_ ok: Bool, _ daysWritten: Int) -> Void) {
+        let hk = HealthKitManager.shared
+        guard hk.isAvailable else { completion(false, 0); return }
+        let cal = Calendar.current
+        let end = cal.startOfDay(for: Date())
+        guard let start = cal.date(byAdding: .day, value: -(days - 1), to: end) else {
+            completion(false, 0); return
+        }
+        hk.requestAuthorization { granted in
+            guard granted else { completion(false, 0); return }
+            hk.fetch(from: start, to: end, categories: self.prefs.healthCategories) { samples in
+                let n = self.applyHealthSamples(samples, overwrite: overwrite)
+                self.prefs.healthBackfilled = true
+                completion(true, n)
+            }
         }
     }
 
@@ -906,19 +972,24 @@ extension Store {
     /// Sync Apple Health. The completion reports success plus how many workouts
     /// were newly imported and from which source apps, so the UI can confirm to
     /// the user that their watch is feeding the app.
-    func syncHealth(days: Int = 90, completion: ((_ ok: Bool, _ imported: Int, _ sources: [String]) -> Void)? = nil) {
+    func syncHealth(days: Int? = nil, completion: ((_ ok: Bool, _ imported: Int, _ sources: [String]) -> Void)? = nil) {
         let hk = HealthKitManager.shared
         guard hk.isAvailable else { completion?(false, 0, []); return }
+        // First sync after connecting Health backfills a full year, so the charts
+        // open with real history instead of building up over three months. Later
+        // syncs only need the recent window.
+        let window = days ?? (prefs.healthBackfilled == true ? 90 : 365)
         hk.requestAuthorization { granted in
             guard granted else { completion?(false, 0, []); return }
-            hk.fetch(days: days, categories: self.prefs.healthCategories) { samples in
+            hk.fetch(days: window, categories: self.prefs.healthCategories) { samples in
                 self.applyHealthSamples(samples)
+                self.prefs.healthBackfilled = true
                 // Keep resting HR profile fresh from the most recent reading.
                 if let last = samples.compactMap({ $0.restHR }).last, last > 0 { self.prefs.restingHR = last }
                 // Importing past workouts from other watches is opt-in (formats
                 // don't always translate cleanly), so honor the user's choice.
                 guard self.prefs.importWorkoutsEnabled else { completion?(true, 0, []); return }
-                hk.fetchWorkouts(days: days) { workouts in
+                hk.fetchWorkouts(days: window) { workouts in
                     let r = self.applyHealthWorkouts(workouts)
                     completion?(true, r.count, r.sources)
                 }
@@ -1326,44 +1397,46 @@ extension Store {
     }
 
     // MARK: Mutations
-    func saveCheckIn(weight: Double?, sleep: Int?, restHR: Int? = nil, sleepHR: Int? = nil) {
-        let t = today()
-        var entry = daily.first(where: { $0.date == t }) ?? DailyEntry(date: t)
-        if let weight { entry.weight = weight }
-        if let sleep { entry.sleep = sleep }
-        if let restHR { entry.restHR = restHR }
-        if let sleepHR { entry.sleepHR = sleepHR }
-        daily.removeAll { $0.date == t }
-        daily.append(entry)
+    // Every mutation below takes an explicit `date` defaulting to today, so the Body
+    // page can log or correct a past day without a second set of functions.
+    func saveCheckIn(weight: Double?, sleep: Int?, restHR: Int? = nil, sleepHR: Int? = nil,
+                     date: String = today()) {
+        upsertDaily(date) { entry in
+            if let weight { entry.weight = weight }
+            if let sleep { entry.sleep = sleep }
+            if let restHR { entry.restHR = restHR }
+            if let sleepHR { entry.sleepHR = sleepHR }
+        }
     }
 
-    func saveBodyFat(_ v: Double) {
-        let t = today()
-        var rec = (bodyLatest?.date == t ? bodyLatest! : BodyEntry(date: t))
-        rec.bfManual = v
-        body.removeAll { $0.date == t }
+    /// Upsert a body-measurement record for `date` by mutation (mirrors `upsertDaily`).
+    private func upsertBody(_ date: String, _ mutate: (inout BodyEntry) -> Void) {
+        var rec = body.first(where: { $0.date == date }) ?? BodyEntry(date: date)
+        mutate(&rec)
+        body.removeAll { $0.date == date }
         body.append(rec)
     }
 
-    func saveMeasurements(_ values: [String: Double]) {
-        let t = today()
-        var rec = (bodyLatest?.date == t ? bodyLatest! : BodyEntry(date: t))
-        for (k, v) in values where v > 0 { rec.set(k, v) }
-        body.removeAll { $0.date == t }
-        body.append(rec)
+    func saveBodyFat(_ v: Double, date: String = today()) {
+        upsertBody(date) { $0.bfManual = v }
+    }
+
+    func saveMeasurements(_ values: [String: Double], date: String = today()) {
+        upsertBody(date) { rec in
+            for (k, v) in values where v > 0 { rec.set(k, v) }
+        }
     }
 
     // MARK: Manual sleep entry (when Health has no data for the day)
-    /// Save sleep data manually for today (all fields optional; only provided ones are written).
-    func saveManualSleep(hours: Double?, score: Int?, hrv: Double?, sleepHR: Int?) {
-        let t = today()
-        var e = daily.first(where: { $0.date == t }) ?? DailyEntry(date: t)
-        if let hours, hours > 0 { e.sleepHours = hours }
-        if let score { e.sleep = min(100, max(0, score)) }
-        if let hrv, hrv > 0 { e.hrvSDNN = hrv }
-        if let sleepHR, sleepHR > 0 { e.sleepHR = sleepHR }
-        daily.removeAll { $0.date == t }
-        daily.append(e)
+    /// Save sleep data manually (all fields optional; only provided ones are written).
+    func saveManualSleep(hours: Double?, score: Int?, hrv: Double?, sleepHR: Int?,
+                         date: String = today()) {
+        upsertDaily(date) { e in
+            if let hours, hours > 0 { e.sleepHours = hours }
+            if let score { e.sleep = min(100, max(0, score)) }
+            if let hrv, hrv > 0 { e.hrvSDNN = hrv }
+            if let sleepHR, sleepHR > 0 { e.sleepHR = sleepHR }
+        }
     }
 
     // MARK: Saved recipes

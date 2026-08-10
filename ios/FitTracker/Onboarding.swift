@@ -280,8 +280,14 @@ struct SettingsView: View {
     @State private var hkOn: Bool
     @State private var unitSys: String
     @State private var showGuide = false
+    @State private var showHealthHistory = false
     @State private var healthCats: Set<String>
     @State private var importWk: Bool
+    @State private var autoRest: Bool
+    @State private var liveAct: Bool
+    @State private var holdPrep: String
+    @State private var barWeight: String
+    @State private var platesText: String
 
     init(store: Store) {
         _f = State(initialValue: ProfileFields(store.prefs, currentWeight: store.lastWeight))
@@ -291,6 +297,11 @@ struct SettingsView: View {
         _unitSys = State(initialValue: store.prefs.imperial ? "imperial" : "metric")
         _healthCats = State(initialValue: store.prefs.healthCategories)
         _importWk = State(initialValue: store.prefs.importWorkoutsEnabled)
+        _autoRest = State(initialValue: store.prefs.autoRest)
+        _liveAct = State(initialValue: store.prefs.liveActivityEnabled)
+        _holdPrep = State(initialValue: String(store.prefs.holdPrep))
+        _barWeight = State(initialValue: trimNum(store.prefs.bar))
+        _platesText = State(initialValue: store.prefs.plateSet.map { trimNum($0) }.joined(separator: " "))
     }
 
     var body: some View {
@@ -330,6 +341,39 @@ struct SettingsView: View {
                         FieldRow(label: t("set.timer")) {
                             InputField(placeholder: "60", text: $timerSec, keyboard: .numberPad)
                         }
+                        Spacer().frame(height: 14)
+                        Toggle(isOn: $autoRest) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(t("set.auto_rest")).font(.system(size: 14, weight: .medium)).foregroundColor(Theme.txt)
+                                Text(t("set.auto_rest_hint")).font(.system(size: 10)).foregroundColor(Theme.sub)
+                            }
+                        }
+                        .tint(Theme.acc)
+                        Spacer().frame(height: 14)
+                        Toggle(isOn: $liveAct) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(t("set.live_activity")).font(.system(size: 14, weight: .medium)).foregroundColor(Theme.txt)
+                                Text(t("set.live_activity_hint")).font(.system(size: 10)).foregroundColor(Theme.sub)
+                            }
+                        }
+                        .tint(Theme.acc)
+                    }
+
+                    // Isometric holds + barbell maths
+                    Card {
+                        FieldRow(label: t("set.hold_prep")) {
+                            InputField(placeholder: "7", text: $holdPrep, keyboard: .numberPad)
+                        }
+                        Text(t("set.hold_prep_hint")).font(.system(size: 10)).foregroundColor(Theme.sub)
+                            .padding(.top, 6)
+                        Spacer().frame(height: 14)
+                        FieldRow(label: t("set.bar_weight")) {
+                            InputField(placeholder: "20", text: $barWeight)
+                        }
+                        Spacer().frame(height: 14)
+                        FieldRow(label: t("set.plates")) {
+                            InputField(placeholder: "25 20 15 10 5 2.5 1.25", text: $platesText)
+                        }
                     }
 
                     healthCard
@@ -343,6 +387,7 @@ struct SettingsView: View {
         }
         .preferredColorScheme(.dark)
         .sheet(isPresented: $showGuide) { WatchSetupGuide() }
+        .sheet(isPresented: $showHealthHistory) { HealthHistoryView() }
     }
 
     // MARK: Apple Health (optional data source)
@@ -391,6 +436,20 @@ struct SettingsView: View {
                         }
                     }
                     .tint(Theme.acc)
+                    Rectangle().fill(Theme.brd).frame(height: 1).padding(.vertical, 10)
+                    // Past daily data: pick a window, import it, and see exactly
+                    // which categories actually arrived.
+                    Button { tap(); showHealthHistory = true } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "clock.arrow.circlepath").font(.system(size: 13, weight: .bold))
+                            Text(t("hk.history")).font(.system(size: 13, weight: .semibold))
+                            Spacer()
+                            Image(systemName: "chevron.right").font(.system(size: 11))
+                        }
+                        .foregroundColor(Theme.acc2)
+                        .padding(.vertical, 10)
+                    }
+                    .buttonStyle(.plain)
                 } else {
                     FilledButton(title: t("hk.connect")) {
                         store.syncHealth { ok, n, sources in
@@ -428,6 +487,19 @@ struct SettingsView: View {
         p.healthImport = Array(healthCats)
         p.importWorkouts = importWk
         if let ts = Int(timerSec), ts > 0 { p.timer = ts }
+        p.autoRestTimer = autoRest
+        p.liveActivity = liveAct
+        // 0 is a valid choice here (skip the lead-in), so only a non-numeric entry
+        // falls back to the stored value.
+        if let hp = Int(holdPrep) { p.holdPrepSec = max(0, min(30, hp)) }
+        if pf(barWeight) > 0 { p.barWeight = pf(barWeight) }
+        // Split on spaces/semicolons only — a comma is a decimal separator here
+        // ("2,5" is one plate, not two), and pf() already accepts both forms.
+        let plates = platesText
+            .split(whereSeparator: { $0.isWhitespace || $0 == ";" })
+            .map { pf(String($0)) }
+            .filter { $0 > 0 }
+        p.plates = plates.isEmpty ? nil : plates.sorted(by: >)
         store.prefs = p
         store.syncLang()
         haptic(.success)

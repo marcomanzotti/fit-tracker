@@ -82,6 +82,11 @@ struct DayPickerSheet: View {
                         .buttonStyle(.plain)
                     }
 
+                    // What Apple Health recorded that day (steps, energy, sleep, HRV,
+                    // resting HR) — the daily metrics, distinct from the workout
+                    // import below.
+                    dayHealthSection
+
                     // Apple Health import — ALWAYS shown so the action is findable.
                     // Tapping queries Health for that day's workouts (Apple Watch /
                     // Apple Fitness, Garmin, etc.) and lists any not yet in the app.
@@ -183,6 +188,73 @@ struct DayPickerSheet: View {
     }
 
     private var divider: some View { Rectangle().fill(Theme.brd).frame(height: 1).padding(.vertical, 2) }
+
+    // MARK: Daily Health metrics for this day
+    /// The numbers Apple Health holds for this date. Reads straight from the store
+    /// (the sync already imported them), with a refresh that re-pulls just this day
+    /// so a value that landed in Health after the last sync shows up on demand.
+    @ViewBuilder private var dayHealthSection: some View {
+        let e = store.dailyEntry(date)
+        let tiles: [(String, String, String?)] = [
+            ("figure.walk", t("lbl.steps"), e?.steps.map { "\($0)" }),
+            ("flame.fill", t("hk.cat.activeKcal"), e?.activeKcal.map { "\($0)" }),
+            ("timer", t("hk.cat.exerciseMin"), e?.exerciseMin.map { "\($0)" }),
+            ("bed.double.fill", t("hk.cat.sleep"), e?.sleepHours.map { "\(trimNum(($0 * 10).rounded() / 10))h" }),
+            ("waveform.path.ecg", "HRV", e?.hrvSDNN.map { trimNum($0.rounded()) }),
+            ("heart.fill", t("hk.cat.restHR"), e?.restHR.map { "\($0)" })
+        ]
+        let any = tiles.contains { $0.2 != nil }
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Lbl(text: t("hk.day_health"), color: Theme.acc2)
+                Spacer()
+                Button { tap(); refreshDayHealth() } label: {
+                    Image(systemName: "arrow.clockwise").font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(Theme.sub)
+                }.buttonStyle(.plain)
+            }
+            Card {
+                if any {
+                    let cols = [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8),
+                                GridItem(.flexible(), spacing: 8)]
+                    LazyVGrid(columns: cols, spacing: 10) {
+                        ForEach(Array(tiles.enumerated()), id: \.offset) { _, tile in
+                            VStack(spacing: 3) {
+                                Image(systemName: tile.0).font(.system(size: 11))
+                                    .foregroundColor(tile.2 == nil ? Theme.sub.opacity(0.5) : Theme.acc2)
+                                Text(tile.2 ?? "—").font(.num(15))
+                                    .foregroundColor(tile.2 == nil ? Theme.sub.opacity(0.5) : Theme.txt)
+                                    .lineLimit(1).minimumScaleFactor(0.6)
+                                Text(tile.1.uppercased()).font(.head(8, .semibold)).tracking(0.5)
+                                    .foregroundColor(Theme.sub).lineLimit(1).minimumScaleFactor(0.6)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 8)
+                            .background(Theme.c2)
+                            .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                        }
+                    }
+                } else {
+                    Text(t("hk.no_day_data")).font(.system(size: 12)).foregroundColor(Theme.sub)
+                        .padding(.vertical, 4)
+                }
+            }
+        }
+    }
+
+    /// Re-pull the daily metrics for just this date from Health (gap-fill, so a
+    /// value the user typed for the day is never overwritten by the refresh).
+    private func refreshDayHealth() {
+        let hk = HealthKitManager.shared
+        guard hk.isAvailable, let d = isoFormatter.date(from: date) else { return }
+        let start = Calendar.current.startOfDay(for: d)
+        hk.requestAuthorization { granted in
+            guard granted else { return }
+            hk.fetch(from: start, to: start, categories: store.prefs.healthCategories) { samples in
+                store.applyHealthSamples(samples)
+            }
+        }
+    }
 
     /// A workout already logged on this day. Tapping hands it back to the caller
     /// so the calendar opens its editor — same as tapping the day used to do.
