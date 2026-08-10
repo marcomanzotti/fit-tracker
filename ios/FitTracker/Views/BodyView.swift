@@ -264,6 +264,10 @@ struct BodyView: View {
                               lean: Double?, fat: Double?) -> some View {
         // Body-fat category (sex-specific) drives the BMI comment and the fat tile.
         let bfCat = bf.map { store.bfCategory($0, sex: store.prefs.sex_) }
+        // FFMI is BMI's lean-mass counterpart: it needs the fat split, so it only
+        // appears once a body-fat figure exists (manual or Navy-estimated).
+        let ffmi = store.ffmi()
+        let ffmiCat = ffmi.map { store.ffmiCategory($0.normalized, sex: store.prefs.sex_) }
         return Card {
             Lbl(text: t("body.analysis"), color: Theme.acc2).padding(.bottom, 12)
             HStack(spacing: 9) {
@@ -274,6 +278,20 @@ struct BodyView: View {
                          note: bfCat.map { t($0.key) } ?? "\(t("body.goal")) \(trimNum(store.prefs.goalBF))%", info: "bodyfat")
                 StatTile(label: t("body.lean"), value: lean.map(dispW) ?? "—", unit: lean != nil ? Units.wLabel : nil,
                          valueColor: Theme.blue, note: fat != nil ? "\(dispW(fat!))\(Units.wLabel) \(t("body.fat"))" : "—", info: "bodyfat")
+            }
+            .padding(.bottom, 9)
+
+            // Second row: the lean-mass side of the same picture.
+            HStack(spacing: 9) {
+                StatTile(label: t("body.ffmi"), value: ffmi.map { trimNum($0.raw) } ?? "—",
+                         valueColor: ffmiCat?.color ?? Theme.sub,
+                         note: ffmiCat.map { t($0.key) } ?? t("body.ffmi_need_bf"), info: "ffmi")
+                StatTile(label: t("body.ffmi_norm"), value: ffmi.map { trimNum($0.normalized) } ?? "—",
+                         valueColor: ffmiCat?.color ?? Theme.sub,
+                         note: "\(trimNum(Units.heightOut(store.prefs.height))) \(Units.heightLabel)", info: "ffmi")
+                StatTile(label: t("st.lean"), value: ffmi.map { dispW($0.lean) } ?? "—",
+                         unit: ffmi != nil ? Units.wLabel : nil, valueColor: Theme.blue,
+                         note: t("body.lean"), info: "ffmi")
             }
             .padding(.bottom, 12)
 

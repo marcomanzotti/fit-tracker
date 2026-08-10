@@ -870,9 +870,12 @@ extension Store {
     func applyHealthWorkouts(_ workouts: [HealthWorkout]) -> (count: Int, sources: [String]) {
         var imported = 0
         var srcs = Set<String>()
+        // Includes UUIDs absorbed by a merge — otherwise a workout merged into
+        // another session reads as never-imported and comes straight back.
+        let known = Set(sessions.flatMap { $0.allHealthUUIDs })
         for w in workouts {
             if w.fromThisApp { continue }
-            if sessions.contains(where: { $0.healthUUID == w.uuid }) { continue }
+            if known.contains(w.uuid) { continue }
             let isStrength = w.sport == "strength"
             let overlaps = sessions.contains { s in
                 guard s.date == w.date else { return false }
@@ -917,7 +920,7 @@ extension Store {
     /// Returns the created (or existing) session so the caller can open its editor.
     @discardableResult
     func importHealthWorkout(_ w: HealthWorkout) -> WorkoutSession {
-        if let existing = sessions.first(where: { $0.healthUUID == w.uuid }) { return existing }
+        if let existing = sessions.first(where: { $0.allHealthUUIDs.contains(w.uuid) }) { return existing }
         let s = sessionFromHealth(w)
         sessions.append(s)
         save()
@@ -961,7 +964,7 @@ extension Store {
             hk.fetchWorkouts(onDate: date) { workouts in
                 // Hide ones already saved (by UUID) and ones recorded by this app's
                 // own watch companion (those arrive over WatchConnectivity).
-                let existing = Set(self.sessions.compactMap { $0.healthUUID })
+                let existing = Set(self.sessions.flatMap { $0.allHealthUUIDs })
                 let out = workouts.filter { !$0.fromThisApp && !existing.contains($0.uuid) }
                 completion(out)
             }
@@ -1001,6 +1004,77 @@ extension Store {
     func deleteSession(_ id: UUID) { sessions.removeAll { $0.id == id } }
     func updateSession(_ s: WorkoutSession) {
         if let i = sessions.firstIndex(where: { $0.id == s.id }) { sessions[i] = s }
+    }
+
+    /// Fold several sessions from the same day into one — a gym session logged in
+    /// two halves, or a manual log plus the watch's own record of the same workout.
+    /// `primary` decides the identity kept (name, colour, plan, sport); everything
+    /// measurable is combined:
+    ///   • exercises concatenate, and an exercise present in both gets its sets appended
+    ///   • duration, distance and calories sum
+    ///   • average HR is weighted by each session's duration (a 10-minute warm-up
+    ///     shouldn't drag down the average of an hour of work); max HR takes the peak
+    ///   • absorbed Health UUIDs are recorded so the import dedupe still recognises them
+    /// Returns the merged session, or nil if fewer than two ids resolve.
+    @discardableResult
+    func mergeSessions(_ ids: [UUID], keeping primary: UUID) -> WorkoutSession? {
+        let picked = ids.compactMap { id in sessions.first { $0.id == id } }
+        guard picked.count >= 2, var merged = picked.first(where: { $0.id == primary }) else { return nil }
+        let others = picked.filter { $0.id != primary }
+
+        for o in others {
+            for ex in o.exercises {
+                if let i = merged.exercises.firstIndex(where: { $0.name == ex.name }) {
+                    merged.exercises[i].sets.append(contentsOf: ex.sets)
+                    // Rounds are the interval equivalent of sets, so they add up too.
+                    if let r = ex.rounds { merged.exercises[i].rounds = (merged.exercises[i].rounds ?? 0) + r }
+                    let notes = [merged.exercises[i].notes, ex.notes].filter { !$0.isEmpty }
+                    merged.exercises[i].notes = notes.joined(separator: " · ")
+                } else {
+                    merged.exercises.append(ex)
+                }
+            }
+        }
+
+        let totalSec = picked.compactMap { $0.durationSeconds }.reduce(0, +)
+        if totalSec > 0 { merged.durationSec = totalSec; merged.durationMin = nil }
+
+        // Duration-weighted average HR; sessions without a duration fall back to an
+        // equal share so their HR still counts for something.
+        let hrParts = picked.compactMap { s -> (Double, Double)? in
+            guard let hr = s.avgHR, hr > 0 else { return nil }
+            return (Double(hr), Double(s.durationSeconds ?? 0))
+        }
+        if !hrParts.isEmpty {
+            let totalW = hrParts.reduce(0) { $0 + $1.1 }
+            if totalW > 0 {
+                merged.avgHR = Int((hrParts.reduce(0) { $0 + $1.0 * $1.1 } / totalW).rounded())
+            } else {
+                merged.avgHR = Int((hrParts.reduce(0) { $0 + $1.0 } / Double(hrParts.count)).rounded())
+            }
+        }
+        if let mx = picked.compactMap({ $0.maxHRSes }).max() { merged.maxHRSes = mx }
+
+        let dist = picked.compactMap { $0.distanceKm }.reduce(0, +)
+        if dist > 0 { merged.distanceKm = dist }
+        if let elev = picked.compactMap({ $0.elevationM }).max() { merged.elevationM = elev }
+        // Calories: sum what each session actually accounts for (manual override when
+        // present, else its estimate), so the merged total matches the day's real burn.
+        let kcal = picked.reduce(0) { $0 + estimateCalories($1) }
+        if kcal > 0 { merged.caloriesManual = kcal }
+        // A merged pace would be meaningless across different efforts — let it
+        // recompute from the summed distance and duration.
+        merged.paceManual = nil
+
+        let absorbed = others.flatMap { $0.allHealthUUIDs }
+        if !absorbed.isEmpty {
+            merged.mergedHealthUUIDs = ((merged.mergedHealthUUIDs ?? []) + absorbed).uniqued()
+        }
+        if merged.source == nil, let src = others.compactMap({ $0.source }).first { merged.source = src }
+
+        sessions.removeAll { s in others.contains { $0.id == s.id } }
+        updateSession(merged)
+        return merged
     }
 
     // MARK: Rest days (markers, not sessions)

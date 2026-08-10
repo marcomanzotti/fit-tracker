@@ -344,6 +344,13 @@ struct WorkoutSession: Codable, Identifiable, Equatable {
     /// ("Garmin Connect", "Polar Flow") or an imported file name. nil = logged in
     /// the app. Drives the "imported" badge.
     var source: String?
+    /// HKWorkout UUIDs absorbed when other sessions were merged into this one.
+    /// Without this a merged-away Health import would look un-imported and come
+    /// straight back on the next sync.
+    var mergedHealthUUIDs: [String]?
+
+    /// Every Health UUID this session accounts for — its own plus any it absorbed.
+    var allHealthUUIDs: [String] { (healthUUID.map { [$0] } ?? []) + (mergedHealthUUIDs ?? []) }
 
     var totalSets: Int { exercises.reduce(0) { $0 + $1.sets.count } }
     var volume: Double { exercises.reduce(0) { $0 + $1.volume } }

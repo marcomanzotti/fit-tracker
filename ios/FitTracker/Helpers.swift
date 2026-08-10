@@ -110,6 +110,15 @@ func restDoneHaptic() {
 }
 
 
+// MARK: - Collection helpers
+extension Array where Element: Hashable {
+    /// Duplicate-free copy that keeps the original order (Set loses it).
+    func uniqued() -> [Element] {
+        var seen = Set<Element>()
+        return filter { seen.insert($0).inserted }
+    }
+}
+
 // MARK: - Text helpers
 /// Capitalise the first letter of every word; rest lowercase.
 func titleCased(_ s: String) -> String {

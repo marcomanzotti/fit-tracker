@@ -67,6 +67,11 @@ struct StatsView: View {
             MetricChartCard(title: t("st.bmi_time"), color: Color(hex: "b08fff")) {
                 e in e.weight.map { store.bmi($0) }
             }
+            // FFMI alongside BMI: same weight series, but read as lean mass. Only
+            // plots once a body-fat figure exists (ffmiFor returns nil otherwise).
+            MetricChartCard(title: t("st.ffmi_time"), info: "ffmi", color: Theme.blue) {
+                e in e.weight.flatMap { store.ffmiFor(weight: $0) }
+            }
             if withW.count > 1 {
                 if let bf {
                     Card {

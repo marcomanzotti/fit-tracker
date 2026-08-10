@@ -27,6 +27,10 @@ struct DayPickerSheet: View {
     // for manual import when automatic matching missed them.
     @State private var importable: [HealthWorkout] = []
     @State private var healthState: HealthState = .idle
+    // Merge mode: pick two or more of the day's sessions and fold them into one.
+    @State private var merging = false
+    @State private var selected: Set<UUID> = []
+    @State private var confirmMerge = false
 
     enum HealthState { case idle, loading, loaded, unavailable }
 
@@ -55,12 +59,43 @@ struct DayPickerSheet: View {
                     // straight into one session's editor).
                     let logged = store.sessions.filter { $0.date == date }.sorted { $0.planName < $1.planName }
                     if !logged.isEmpty {
-                        Lbl(text: t("day.logged"))
+                        HStack {
+                            Lbl(text: t("day.logged"))
+                            Spacer()
+                            // Two workouts on one day are often one workout logged
+                            // twice (a split session, or a manual log alongside the
+                            // watch's own record) — merging is only offered then.
+                            if logged.count >= 2 {
+                                Button { tap(); toggleMergeMode(logged) } label: {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: merging ? "xmark" : "arrow.triangle.merge")
+                                            .font(.system(size: 10, weight: .bold))
+                                        Text((merging ? t("cancel") : t("day.merge")).uppercased())
+                                            .font(.head(9, .semibold)).tracking(0.5)
+                                    }
+                                    .foregroundColor(Theme.acc2)
+                                    .padding(.vertical, 5).padding(.horizontal, 10)
+                                    .background(Theme.acc2.opacity(0.12)).clipShape(Capsule())
+                                }.buttonStyle(.plain)
+                            }
+                        }
                         Card {
                             ForEach(logged) { s in
                                 loggedRow(s)
                                 if s.id != logged.last?.id { divider }
                             }
+                        }
+                        if merging {
+                            Button { tap(); confirmMerge = true } label: {
+                                Text(t("day.merge_n", selected.count).uppercased())
+                                    .font(.head(13, .bold)).tracking(1)
+                                    .foregroundColor(selected.count >= 2 ? Theme.bg : Theme.sub)
+                                    .frame(maxWidth: .infinity, minHeight: 48)
+                                    .background(selected.count >= 2 ? Theme.acc : Theme.c2)
+                                    .clipShape(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous))
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(selected.count < 2)
                         }
                     }
 
@@ -126,6 +161,14 @@ struct DayPickerSheet: View {
             // Auto-query once on open so workouts usually appear without a tap.
             if healthState == .idle { loadHealth() }
         }
+        .confirmationDialog(t("day.merge_keep"), isPresented: $confirmMerge, titleVisibility: .visible) {
+            ForEach(mergeCandidates) { s in
+                Button("\(s.planName) · \(s.exercises.count) \(t("wk.exercises_n"))") {
+                    performMerge(keeping: s.id)
+                }
+            }
+            Button(t("cancel"), role: .cancel) {}
+        } message: { Text(t("day.merge_hint")) }
     }
 
     private func loadHealth() {
@@ -242,6 +285,30 @@ struct DayPickerSheet: View {
         }
     }
 
+    // MARK: Merge
+    /// Enter merge mode with every session of the day preselected (merging all of
+    /// them is the common case), or leave it and drop the selection.
+    private func toggleMergeMode(_ logged: [WorkoutSession]) {
+        merging.toggle()
+        selected = merging ? Set(logged.map { $0.id }) : []
+    }
+
+    /// Which session's name and colour the merged result keeps. Defaults to the one
+    /// with the most exercises — that's usually the "real" log, with the other being
+    /// a stray import or a short second half.
+    private var mergeCandidates: [WorkoutSession] {
+        store.sessions.filter { selected.contains($0.id) }
+            .sorted { ($0.exercises.count, $0.durationSeconds ?? 0) > ($1.exercises.count, $1.durationSeconds ?? 0) }
+    }
+
+    private func performMerge(keeping primary: UUID) {
+        guard let merged = store.mergeSessions(Array(selected), keeping: primary) else { return }
+        merging = false
+        selected = []
+        haptic(.success)
+        finish(merged)
+    }
+
     /// Re-pull the daily metrics for just this date from Health (gap-fill, so a
     /// value the user typed for the day is never overwritten by the refresh).
     private func refreshDayHealth() {
@@ -256,11 +323,23 @@ struct DayPickerSheet: View {
         }
     }
 
-    /// A workout already logged on this day. Tapping hands it back to the caller
-    /// so the calendar opens its editor — same as tapping the day used to do.
+    /// A workout already logged on this day. Tapping hands it back to the caller so
+    /// the calendar opens its editor — or, in merge mode, toggles its selection.
     private func loggedRow(_ s: WorkoutSession) -> some View {
-        Button { tap(); finish(s) } label: {
+        Button {
+            tap()
+            if merging {
+                if selected.contains(s.id) { selected.remove(s.id) } else { selected.insert(s.id) }
+            } else {
+                finish(s)
+            }
+        } label: {
             HStack(spacing: 12) {
+                if merging {
+                    Image(systemName: selected.contains(s.id) ? "checkmark.circle.fill" : "circle")
+                        .font(.system(size: 19))
+                        .foregroundColor(selected.contains(s.id) ? Theme.acc : Theme.brd2)
+                }
                 ZStack {
                     RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color(hex: s.planColor).opacity(0.16)).frame(width: 38, height: 38)
                     Image(systemName: s.sportType.isCardio ? s.sportType.icon : "dumbbell.fill")

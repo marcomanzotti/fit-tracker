@@ -1,4 +1,4 @@
-import Foundation
+import SwiftUI
 
 // MARK: - Phase 3 derived metrics
 // Insight metrics computed from data the app already stores, each with a clear
@@ -49,6 +49,57 @@ extension Store {
             if best > 0 { pts.append(E1RMPoint(date: s.date, value: (best * 10).rounded() / 10)) }
         }
         return pts
+    }
+}
+
+// MARK: - FFMI (fat-free mass index)
+// BMI counts every kilo the same, so a lean, muscular person reads "overweight".
+// FFMI measures only the lean mass against height, which is what strength training
+// actually moves — it's the honest companion to body fat %.
+extension Store {
+    struct FFMIResult {
+        var raw: Double          // fat-free mass (kg) / height² (m)
+        var normalized: Double   // height-adjusted, comparable across statures
+        var lean: Double         // fat-free mass in kg
+    }
+
+    /// FFMI from the current weight and body fat. nil without a body-fat figure —
+    /// the whole point is separating lean mass from fat, which needs that split.
+    /// Normalization (Kouri et al.) adds 6.1 × (1.80 − height) so a 1.65 m and a
+    /// 1.95 m lifter can be compared on the same scale.
+    func ffmi() -> FFMIResult? {
+        let h = prefs.height
+        guard h > 1.0, h < 2.5, let lean = fatFreeMass(), lean > 0 else { return nil }
+        let raw = lean / (h * h)
+        let norm = raw + 6.1 * (1.80 - h)
+        return FFMIResult(raw: (raw * 10).rounded() / 10,
+                          normalized: (norm * 10).rounded() / 10,
+                          lean: (lean * 10).rounded() / 10)
+    }
+
+    /// Band for a normalized FFMI, sex-adjusted (women's bands sit ~3 points lower).
+    /// Above the top band is very rare without drugs, so it's labelled as the
+    /// natural limit rather than as another rung to climb.
+    func ffmiCategory(_ v: Double, sex: String) -> (key: String, color: Color) {
+        let shift: Double = sex == "f" ? -3 : 0
+        switch v {
+        case ..<(18 + shift):  return ("ffmi.below", Theme.sub)
+        case ..<(20 + shift):  return ("ffmi.average", Theme.blue)
+        case ..<(22 + shift):  return ("ffmi.good", Theme.good)
+        case ..<(23 + shift):  return ("ffmi.great", Theme.acc2)
+        case ..<(26 + shift):  return ("ffmi.excellent", Theme.acc)
+        default:               return ("ffmi.elite", Theme.fat)
+        }
+    }
+
+    /// FFMI for a past day, for the trend chart: that day's weight against the
+    /// current body-fat reading (Health gives weight daily, body fat rarely — so the
+    /// line tracks how lean mass moved with weight, holding composition constant).
+    func ffmiFor(weight: Double) -> Double? {
+        let h = prefs.height
+        guard h > 1.0, h < 2.5, let bf = currentBF, bf > 0, bf < 60, weight > 0 else { return nil }
+        let lean = weight * (1 - bf / 100)
+        return ((lean / (h * h)) * 10).rounded() / 10
     }
 }
 
