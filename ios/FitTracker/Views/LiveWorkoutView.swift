@@ -23,6 +23,8 @@ struct LiveWorkoutView: View {
     @State private var confirmDiscard = false
     /// Set currently being timed by the isometric hold sheet.
     @State private var hold: HoldTarget?
+    /// Exercise whose plate breakdown is open.
+    @State private var plates: PlateTarget?
     // Drives the live elapsed clock (counts up from the workout start).
     @State private var now = Date()
     private let tick = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
@@ -79,6 +81,16 @@ struct LiveWorkoutView: View {
                 writeHold(seconds, to: target)
             }
         }
+        .sheet(item: $plates) { p in PlateSheet(exercise: p.name, target: p.weight) }
+    }
+
+    /// Weight the plate sheet loads for: the heaviest weight typed in this session's
+    /// sets, else the suggested next load, else last time's top weight.
+    private func plateTarget(_ ex: LoggedExercise, sug: Double?) -> Double {
+        let typed = ex.sets.map { pf($0.weight) }.max() ?? 0
+        if typed > 0 { return typed }
+        if let sug, sug > 0 { return sug }
+        return lastSess?.exercises.first { $0.name == ex.name }?.maxWeight ?? 0
     }
 
     /// Write a timed set's measured hold back into the log.
@@ -304,6 +316,15 @@ struct LiveWorkoutView: View {
                         if let scale = effortScale {
                             Badge(text: scale.label, color: Theme.acc2, bg: Theme.acc2.opacity(0.14))
                         }
+                        // Plate maths for loaded exercises — the alternative is doing
+                        // the arithmetic on chalky hands between sets.
+                        if kind == .reps, !bw {
+                            Button { tap(); plates = PlateTarget(name: ex.name, weight: plateTarget(ex, sug: sug)) } label: {
+                                Image(systemName: "circle.hexagongrid.fill").font(.system(size: 13))
+                                    .foregroundColor(Theme.acc2)
+                                    .frame(width: 26, height: 22)
+                            }.buttonStyle(.plain)
+                        }
                     }
                 }
                 Spacer()
@@ -362,9 +383,18 @@ struct LiveWorkoutView: View {
 
             switch kind {
             case .interval:
-                intervalBlock(exB)
+                IntervalSetBlock(exercise: exB,
+                                 prescribedRounds: store.plan(plan.id)?.exercises
+                                     .first { $0.name == ex.name }?.rounds)
             case .timed:
-                timedBlock(exB, bw: bw, prev: prevEx, lastDate: lastSess?.date)
+                TimedSetRows(exercise: exB, bodyweight: bw, previous: prevEx,
+                             lastDate: lastSess?.date,
+                             holdTarget: { set in
+                                 targetHold(ex, prevSet: previousSet(prevEx, exB.wrappedValue.sets.firstIndex { $0.id == set.id } ?? 0))
+                             },
+                             onStartHold: { setId, target in
+                                 hold = HoldTarget(setId: setId, exerciseId: ex.id, name: ex.name, target: target)
+                             })
             case .reps:
                 // Effort scale selector
                 EffortModeSelector(effortMode: exB.effortMode)
@@ -380,10 +410,7 @@ struct LiveWorkoutView: View {
                         Text(effortScale!.label).font(.head(9, .semibold)).tracking(1.5).foregroundColor(Theme.acc2).frame(width: 48)
                     }
                     Spacer()
-                    if let prevEx, !prevEx.sets.isEmpty, let d = lastSess?.date {
-                        Text("\(t("wk.last_short").uppercased()) \(fmtDM(d))")
-                            .font(.head(8, .semibold)).tracking(0.8).foregroundColor(Theme.blue.opacity(0.8))
-                    }
+                    LastTimeCaption(prev: prevEx, date: lastSess?.date)
                 }
                 .padding(.bottom, 6)
 
@@ -403,7 +430,8 @@ struct LiveWorkoutView: View {
                     if kind != .interval {
                         GhostButton(title: t("wk.add_set")) { exB.wrappedValue.sets.append(SetEntry()) }
                     }
-                    GhostButton(title: "\(t("wk.timer")) \(store.prefs.timer)s", color: Theme.blue) { timer.start(store.prefs.timer) }
+                    let rest = restSeconds(for: ex)
+                    GhostButton(title: "\(t("wk.timer")) \(rest)s", color: Theme.blue) { startRest(rest) }
                 }
                 Spacer()
                 if ex.volume > 0 {
@@ -435,53 +463,18 @@ struct LiveWorkoutView: View {
         }
     }
 
-    // MARK: Timed (isometric) logging — per-set hold seconds + optional added load
-    private func timedBlock(_ exB: Binding<LoggedExercise>, bw: Bool,
-                            prev: LoggedExercise?, lastDate: String?) -> some View {
-        VStack(spacing: 6) {
-            HStack(spacing: 9) {
-                Spacer().frame(width: 28)
-                Text(t("pe.target_sec").uppercased()).font(.head(9, .semibold)).tracking(1.5).foregroundColor(Theme.sub).frame(width: 66)
-                Text(bw ? "+KG" : "KG").font(.head(9, .semibold)).tracking(1.5).foregroundColor(bw ? Theme.good : Theme.sub).frame(width: 66)
-                Spacer()
-                if let prev, !prev.sets.isEmpty, let d = lastDate {
-                    Text("\(t("wk.last_short").uppercased()) \(fmtDM(d))")
-                        .font(.head(8, .semibold)).tracking(0.8).foregroundColor(Theme.blue.opacity(0.8))
-                }
-            }
-            .padding(.bottom, 2)
-            ForEach(exB.sets) { $set in
-                let idx = exB.wrappedValue.sets.firstIndex(where: { $0.id == $set.id }) ?? 0
-                let prevSet = prev.flatMap { idx < $0.sets.count ? $0.sets[idx] : nil }
-                HStack(spacing: 9) {
-                    Text("S\(idx + 1)").font(.num(11)).foregroundColor(Theme.sub).frame(width: 28)
-                    SmallNumField(text: secondsBinding($set),
-                                  placeholder: hint(prevSet?.seconds.map { trimNum($0) }))
-                    SmallNumField(text: $set.weight, placeholder: hint(prevSet?.weight))
-                    // Run the hold with a lead-in countdown instead of typing seconds.
-                    Button { tap(); hold = HoldTarget(setId: $set.id, exerciseId: exB.wrappedValue.id,
-                                                      name: exB.wrappedValue.name,
-                                                      target: targetHold(exB.wrappedValue, prevSet: prevSet)) } label: {
-                        Image(systemName: "play.circle.fill").font(.system(size: 22))
-                            .foregroundColor(Theme.acc)
-                            .frame(width: 34, height: 42)
-                    }.buttonStyle(.plain)
-                    Button { tap(); exB.wrappedValue.sets.removeAll { $0.id == $set.id } } label: {
-                        Image(systemName: "xmark").font(.system(size: 13)).foregroundColor(Theme.red.opacity(0.5))
-                            .frame(width: 30, height: 42)
-                    }.buttonStyle(.plain)
-                    Spacer(minLength: 0)
-                }
-            }
-        }
+    // MARK: Rest
+    /// Rest for this exercise: its own value from the plan, else the global default.
+    private func restSeconds(for ex: LoggedExercise) -> Int {
+        let planned = store.plan(plan.id)?.exercises.first { $0.name == ex.name }?.restTimerSec
+        return (planned ?? 0) > 0 ? planned! : store.prefs.timer
     }
 
-    /// Grey hint shown inside an empty field: what was logged for this same set the
-    /// last time. Empty/zero values fall back to the neutral dash so a blank set from
-    /// last time never reads as a real target.
-    private func hint(_ v: String?) -> String {
-        guard let v, !v.isEmpty, pf(v) > 0 else { return "–" }
-        return v
+    /// Start the rest countdown and schedule the notification that fires if the
+    /// phone is pocketed or locked before it ends.
+    private func startRest(_ seconds: Int) {
+        timer.start(seconds)
+        RestNotifier.schedule(after: seconds)
     }
 
     /// Starting seconds for the hold timer: the plan's target if set, else what was
@@ -491,53 +484,6 @@ struct LiveWorkoutView: View {
            planned > 0 { return Double(planned) }
         if let p = prevSet?.seconds, p > 0 { return p }
         return 30
-    }
-
-    /// String binding over a set's optional `seconds` (decimal-friendly).
-    private func secondsBinding(_ set: Binding<SetEntry>) -> Binding<String> {
-        Binding(
-            get: { set.wrappedValue.seconds.map { trimNum($0) } ?? "" },
-            set: { set.wrappedValue.seconds = pf($0) > 0 ? pf($0) : nil }
-        )
-    }
-
-    // MARK: Interval (HIIT) logging — prescription + completed-rounds stepper
-    private func intervalBlock(_ exB: Binding<LoggedExercise>) -> some View {
-        let ex = exB.wrappedValue
-        let work = ex.workSec ?? 30, rest = ex.restSec ?? 15, target = ex.rounds ?? 8
-        let done = Binding(get: { exB.wrappedValue.rounds ?? target },
-                           set: { exB.wrappedValue.rounds = $0 })
-        return VStack(spacing: 10) {
-            HStack(spacing: 8) {
-                intervalChip("\(work)s", t("pe.work_sec"), Theme.acc)
-                intervalChip("\(rest)s", t("pe.rest_sec"), Theme.blue)
-                intervalChip("\(work + rest)s", t("wk.round"), Theme.sub)
-            }
-            HStack(spacing: 10) {
-                Text(t("wk.rounds_done").uppercased()).font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
-                Spacer()
-                Button { tap(); done.wrappedValue = max(0, done.wrappedValue - 1) } label: {
-                    Image(systemName: "minus").font(.system(size: 12, weight: .bold)).foregroundColor(Theme.txt)
-                        .frame(width: 30, height: 30).background(Theme.c3).clipShape(Circle())
-                }.buttonStyle(.plain)
-                Text("\(done.wrappedValue)/\(target)").font(.num(18)).frame(minWidth: 50)
-                Button { tap(); done.wrappedValue += 1 } label: {
-                    Image(systemName: "plus").font(.system(size: 12, weight: .bold)).foregroundColor(Theme.txt)
-                        .frame(width: 30, height: 30).background(Theme.c3).clipShape(Circle())
-                }.buttonStyle(.plain)
-            }
-        }
-    }
-
-    private func intervalChip(_ value: String, _ label: String, _ color: Color) -> some View {
-        VStack(spacing: 2) {
-            Text(value).font(.num(16)).foregroundColor(color)
-            Text(label.uppercased()).font(.head(8, .semibold)).tracking(1).foregroundColor(Theme.sub)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 8)
-        .background(Theme.c2)
-        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
     }
 
     private func volumeLabel(_ ex: LoggedExercise, kind: ExKind, bw: Bool) -> String {
@@ -565,8 +511,8 @@ struct LiveWorkoutView: View {
         let isPR = w > pr && w > 0
         return HStack(spacing: 9) {
             Text("S\(idx + 1)").font(.num(11)).foregroundColor(Theme.sub).frame(width: 28)
-            SmallNumField(text: set.reps, placeholder: hint(prevSet?.reps), highlight: isPR)
-            SmallNumField(text: set.weight, placeholder: hint(prevSet?.weight), highlight: isPR && !bw)
+            SmallNumField(text: set.reps, placeholder: lastTimeHint(prevSet?.reps), highlight: isPR)
+            SmallNumField(text: set.weight, placeholder: lastTimeHint(prevSet?.weight), highlight: isPR && !bw)
             if let scale = effortScale {
                 EffortField(scale: scale, value: set.effortVal)
             }
@@ -587,6 +533,13 @@ struct LiveWorkoutView: View {
         .onChange(of: set.wrappedValue.weight) { newVal in
             let w = pf(newVal)
             if !bw && pr > 0 && w > pr { prHaptic() }
+        }
+        // A set becoming complete is the moment rest starts — that's when you rack
+        // the bar. Only on the transition into "filled", so editing a logged number
+        // doesn't restart the clock.
+        .onChange(of: set.wrappedValue.filled) { nowFilled in
+            guard nowFilled, store.prefs.autoRest, !timer.active else { return }
+            startRest(restSeconds(for: exB.wrappedValue))
         }
     }
 

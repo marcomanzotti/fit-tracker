@@ -610,15 +610,45 @@ struct SessionEditorView: View {
         let scale = ex.effortScale
         let cur = ex.trainMethod
         let isGrouped = cur == .superset || cur == .giant
+        let kind = ex.exKind
         return Card {
-            // Name + bodyweight toggle
+            // Name + kind badge + bodyweight toggle
             HStack(spacing: 8) {
                 Text(ex.name).font(.system(size: 14, weight: .semibold)).foregroundColor(Theme.txt)
+                if kind != .reps {
+                    Badge(text: t(kind.labelKey), color: Theme.acc2, bg: Theme.acc2.opacity(0.14))
+                }
                 Spacer()
-                BodyweightChip(isBodyweight: exB.isBodyweight)
+                if kind == .reps { BodyweightChip(isBodyweight: exB.isBodyweight) }
             }
             .padding(.bottom, 10)
 
+            // A hold or a HIIT block is logged in its own units — seconds, or rounds
+            // of work and rest — so the editor draws the same blocks the live workout
+            // does. Drawing reps × weight here used to make a plank's seconds
+            // uncorrectable once the session was saved.
+            switch kind {
+            case .timed:
+                TimedSetRows(exercise: exB, bodyweight: bw)
+                if bw {
+                    Text(t("wk.bw_hint")).font(.system(size: 9)).foregroundColor(Theme.sub).padding(.top, 4)
+                }
+                GhostButton(title: t("wk.add_set")) { exB.wrappedValue.sets.append(SetEntry()) }
+                    .padding(.top, 10)
+            case .interval:
+                IntervalSetBlock(exercise: exB)
+            case .reps:
+                repsEditor(exB, bw: bw, scale: scale, cur: cur, isGrouped: isGrouped)
+            }
+        }
+    }
+
+    /// Classic reps × weight editing, with the method/superset and effort controls
+    /// that only make sense for it.
+    @ViewBuilder
+    private func repsEditor(_ exB: Binding<LoggedExercise>, bw: Bool, scale: EffortMode?,
+                            cur: TrainMethod, isGrouped: Bool) -> some View {
+        Group {
             // Training method (superset / drop / rest-pause / giant) + group
             HStack(spacing: 10) {
                 Text(t("wk.method").uppercased()).font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
@@ -670,6 +700,8 @@ struct SessionEditorView: View {
             if bw {
                 Text(t("wk.bw_hint")).font(.system(size: 9)).foregroundColor(Theme.sub).padding(.top, 4)
             }
+            GhostButton(title: t("wk.add_set")) { exB.wrappedValue.sets.append(SetEntry()) }
+                .padding(.top, 10)
         }
     }
 

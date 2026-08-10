@@ -1,5 +1,6 @@
 import SwiftUI
 import Combine
+import UserNotifications
 
 // MARK: - Rest timer
 final class RestTimer: ObservableObject {
@@ -24,13 +25,61 @@ final class RestTimer: ObservableObject {
             }
     }
     func reset() { start(total) }
-    func stop() { cancellable?.cancel(); active = false; done = false }
+    func stop() {
+        cancellable?.cancel(); active = false; done = false
+        RestNotifier.cancel()   // no alert for a rest that was cut short
+    }
 
     var label: String {
         let m = remaining / 60, s = remaining % 60
         return String(format: "%d:%02d", m, s)
     }
     var progress: Double { total > 0 ? Double(remaining) / Double(total) : 0 }
+}
+
+// MARK: - Rest-timer notification
+// The in-app countdown and its haptic only reach you with the phone in hand. A
+// local notification covers the rest: pocketed phone, locked screen, another app.
+// Local notifications need no capability beyond the user's permission, which we
+// ask for the first time a rest actually starts rather than at launch.
+enum RestNotifier {
+    private static let id = "fittracker.rest"
+
+    static func schedule(after seconds: Int) {
+        guard seconds > 0 else { return }
+        let center = UNUserNotificationCenter.current()
+        center.getNotificationSettings { settings in
+            switch settings.authorizationStatus {
+            case .notDetermined:
+                center.requestAuthorization(options: [.alert, .sound]) { granted, _ in
+                    if granted { post(after: seconds) }
+                }
+            case .authorized, .provisional, .ephemeral:
+                post(after: seconds)
+            default:
+                break   // denied: the in-app timer and haptic still work
+            }
+        }
+    }
+
+    /// Cancel a pending alert — the rest was stopped or the workout ended, and a
+    /// notification firing after that would be noise.
+    static func cancel() {
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [id])
+    }
+
+    private static func post(after seconds: Int) {
+        let content = UNMutableNotificationContent()
+        content.title = L.t("wk.rest_over")
+        content.body = L.t("wk.rest_over_body")
+        content.sound = .default
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: Double(seconds), repeats: false)
+        let req = UNNotificationRequest(identifier: id, content: content, trigger: trigger)
+        let center = UNUserNotificationCenter.current()
+        // Only one rest is ever pending: a new set replaces the old alert.
+        center.removePendingNotificationRequests(withIdentifiers: [id])
+        center.add(req)
+    }
 }
 
 // MARK: - Active workout session (survives tab switching)

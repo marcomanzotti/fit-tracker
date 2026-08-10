@@ -103,6 +103,63 @@ extension Store {
     }
 }
 
+// MARK: - Barbell plate maths + warm-up ramp
+extension Store {
+    struct PlateLoad {
+        var plates: [Double]     // plates for ONE side, heaviest first
+        var achieved: Double     // total bar weight these plates actually make
+        var exact: Bool          // false when the gym's plates can't hit the target
+    }
+
+    /// Which plates to hang on each side for a target bar weight. Greedy from the
+    /// heaviest denomination, which is optimal for the doubling-style plate sets
+    /// every gym uses. `exact` is false when the target isn't reachable, so the UI
+    /// can name the closest weight instead of silently loading something else.
+    func plateBreakdown(target: Double, bar: Double? = nil, available: [Double]? = nil) -> PlateLoad? {
+        let barKg = bar ?? prefs.bar
+        let denoms = (available ?? prefs.plateSet).sorted(by: >)
+        guard target > 0, !denoms.isEmpty else { return nil }
+        guard target >= barKg else {
+            // Below bar weight there is nothing to load — a dumbbell or a machine.
+            return PlateLoad(plates: [], achieved: barKg, exact: abs(target - barKg) < 0.01)
+        }
+        var perSide = (target - barKg) / 2
+        var out: [Double] = []
+        for d in denoms {
+            while perSide >= d - 0.001 {
+                out.append(d)
+                perSide -= d
+            }
+        }
+        let achieved = barKg + out.reduce(0, +) * 2
+        return PlateLoad(plates: out, achieved: (achieved * 100).rounded() / 100,
+                         exact: abs(achieved - target) < 0.01)
+    }
+
+    struct WarmupStep: Identifiable {
+        var pct: Double
+        var reps: Int
+        var weight: Double
+        var id: Double { pct }
+    }
+
+    /// A standard ramp to the working weight: enough to groove the movement and wake
+    /// the nervous system without spending the session's energy. Each step is rounded
+    /// down to something the available plates can actually make, and steps that land
+    /// at or below the empty bar are dropped.
+    func warmupRamp(working: Double) -> [WarmupStep] {
+        guard working > prefs.bar else { return [] }
+        let plan: [(Double, Int)] = [(0.4, 5), (0.6, 3), (0.8, 1)]
+        return plan.compactMap { pct, reps in
+            let raw = working * pct
+            guard raw > prefs.bar else { return nil }
+            let w = plateBreakdown(target: raw)?.achieved ?? raw
+            guard w > prefs.bar else { return nil }
+            return WarmupStep(pct: pct, reps: reps, weight: w)
+        }
+    }
+}
+
 // MARK: - Weekly volume per muscle group (sets/week)
 extension Store {
     struct MuscleVolume: Identifiable {
