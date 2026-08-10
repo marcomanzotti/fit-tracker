@@ -328,6 +328,10 @@ struct WorkoutView: View {
     private func start(_ plan: WorkoutPlan) {
         UIApplication.shared.isIdleTimerDisabled = true
         activeWorkout.start(plan: plan)
+        // Put the running workout on the Lock Screen / Dynamic Island.
+        LiveActivityController.start(planName: plan.name, planColor: plan.color,
+                                     startDate: activeWorkout.startDate ?? Date(),
+                                     enabled: store.prefs.liveActivityEnabled)
         // If an Apple Watch app is paired and reachable, start the identical
         // session there too so the two run in sync (the watch streams live data
         // back). Other wearables (Garmin/Polar/…) can't be started from iOS, but
@@ -341,6 +345,7 @@ struct WorkoutView: View {
     private func endWorkout() {
         UIApplication.shared.isIdleTimerDisabled = false
         activeWorkout.end()
+        LiveActivityController.end()
     }
 
     private func newPlan() {

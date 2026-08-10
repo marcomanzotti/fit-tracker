@@ -470,11 +470,24 @@ struct LiveWorkoutView: View {
         return (planned ?? 0) > 0 ? planned! : store.prefs.timer
     }
 
-    /// Start the rest countdown and schedule the notification that fires if the
-    /// phone is pocketed or locked before it ends.
+    /// Start the rest countdown, schedule the notification that fires if the phone
+    /// is pocketed or locked before it ends, and push the countdown to the Lock
+    /// Screen activity.
     private func startRest(_ seconds: Int) {
         timer.start(seconds)
         RestNotifier.schedule(after: seconds)
+        pushLiveActivity(restEndsAt: Date().addingTimeInterval(Double(seconds)))
+    }
+
+    /// Mirror the session's progress onto the Lock Screen / Dynamic Island. Called
+    /// on the events that actually change what's shown, never on a timer.
+    private func pushLiveActivity(restEndsAt: Date? = nil) {
+        guard store.prefs.liveActivityEnabled else { return }
+        let sets = log.reduce(0) { $0 + $1.sets.filter { $0.filled }.count }
+        // "Current exercise" = the last one with a completed set, which is what you
+        // were just doing when the phone went into your pocket.
+        let current = log.last { $0.sets.contains { $0.filled } }?.name ?? ""
+        LiveActivityController.update(exercise: current, setsDone: sets, restEndsAt: restEndsAt)
     }
 
     /// Starting seconds for the hold timer: the plan's target if set, else what was
@@ -538,8 +551,12 @@ struct LiveWorkoutView: View {
         // the bar. Only on the transition into "filled", so editing a logged number
         // doesn't restart the clock.
         .onChange(of: set.wrappedValue.filled) { nowFilled in
-            guard nowFilled, store.prefs.autoRest, !timer.active else { return }
-            startRest(restSeconds(for: exB.wrappedValue))
+            guard nowFilled else { return }
+            if store.prefs.autoRest, !timer.active {
+                startRest(restSeconds(for: exB.wrappedValue))
+            } else {
+                pushLiveActivity()
+            }
         }
     }
 
