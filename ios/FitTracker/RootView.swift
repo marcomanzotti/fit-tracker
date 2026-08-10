@@ -98,7 +98,14 @@ struct RootView: View {
         }
         .animation(.spring(response: 0.4, dampingFraction: 0.75), value: toast.message)
         .sheet(isPresented: $showSettings) { SettingsView(store: store) }
-        .onAppear { if store.prefs.healthKitEnabled { store.syncHealth(completion: healthToast) } }
+        .onAppear {
+            if store.prefs.healthKitEnabled { store.syncHealth(completion: healthToast) }
+            // A workout interrupted by the app being killed leaves its Live Activity
+            // stranded on the Lock Screen, showing a clock that will never stop and
+            // that nothing can update any more. Clear it at launch — the running
+            // workout doesn't survive termination either.
+            if !activeWorkout.isActive { LiveActivityController.end() }
+        }
         // Re-sync Health (daily metrics + workouts from any paired watch) every
         // time the app returns to the foreground, so a session recorded on a
         // Garmin/Fitbit/etc. shows up without a manual refresh.

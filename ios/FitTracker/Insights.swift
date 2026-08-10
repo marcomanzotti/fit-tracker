@@ -562,6 +562,9 @@ struct SessionEditorView: View {
                     if session.date != today() {
                         Button {
                             tap()
+                            // Commit any open edits first: the copy is built from the
+                            // STORED session, so unsaved changes would be lost.
+                            store.updateSession(session)
                             store.duplicateSession(session.id)
                             haptic(.success); toast.show(t("wk.repeated")); dismiss()
                         } label: {
@@ -642,7 +645,11 @@ struct SessionEditorView: View {
                 GhostButton(title: t("wk.add_set")) { exB.wrappedValue.sets.append(SetEntry()) }
                     .padding(.top, 10)
             case .interval:
-                IntervalSetBlock(exercise: exB)
+                // Pull the prescription from the plan so the readout stays "done /
+                // target" instead of collapsing to n/n against the logged value.
+                IntervalSetBlock(exercise: exB,
+                                 prescribedRounds: store.plan(session.planId)?.exercises
+                                     .first { $0.name == ex.name }?.rounds)
             case .reps:
                 repsEditor(exB, bw: bw, scale: scale, cur: cur, isGrouped: isGrouped)
             }

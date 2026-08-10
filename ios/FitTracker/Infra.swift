@@ -30,6 +30,11 @@ final class RestTimer: ObservableObject {
         RestNotifier.cancel()   // no alert for a rest that was cut short
     }
 
+    /// True only while the countdown is actually running. `active` stays true after
+    /// it reaches zero so the strip can keep showing "GO" until dismissed, so it is
+    /// NOT the right test for "is a rest in progress".
+    var running: Bool { active && !done }
+
     var label: String {
         let m = remaining / 60, s = remaining % 60
         return String(format: "%d:%02d", m, s)

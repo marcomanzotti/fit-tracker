@@ -465,9 +465,13 @@ struct LiveWorkoutView: View {
 
     // MARK: Rest
     /// Rest for this exercise: its own value from the plan, else the global default.
+    /// An explicit 0 means "no rest here" and is honoured — the plan editor lets the
+    /// stepper reach zero, and a superset's first movement genuinely wants none.
     private func restSeconds(for ex: LoggedExercise) -> Int {
-        let planned = store.plan(plan.id)?.exercises.first { $0.name == ex.name }?.restTimerSec
-        return (planned ?? 0) > 0 ? planned! : store.prefs.timer
+        if let planned = store.plan(plan.id)?.exercises.first(where: { $0.name == ex.name })?.restTimerSec {
+            return max(0, planned)
+        }
+        return store.prefs.timer
     }
 
     /// Start the rest countdown, schedule the notification that fires if the phone
@@ -481,13 +485,19 @@ struct LiveWorkoutView: View {
 
     /// Mirror the session's progress onto the Lock Screen / Dynamic Island. Called
     /// on the events that actually change what's shown, never on a timer.
+    ///
+    /// When no rest end is passed, the one still running is recomputed rather than
+    /// cleared — otherwise logging a second set would wipe a countdown the user can
+    /// still see ticking inside the app.
     private func pushLiveActivity(restEndsAt: Date? = nil) {
         guard store.prefs.liveActivityEnabled else { return }
+        let restEnd = restEndsAt ?? (timer.running
+            ? Date().addingTimeInterval(Double(timer.remaining)) : nil)
         let sets = log.reduce(0) { $0 + $1.sets.filter { $0.filled }.count }
         // "Current exercise" = the last one with a completed set, which is what you
         // were just doing when the phone went into your pocket.
         let current = log.last { $0.sets.contains { $0.filled } }?.name ?? ""
-        LiveActivityController.update(exercise: current, setsDone: sets, restEndsAt: restEndsAt)
+        LiveActivityController.update(exercise: current, setsDone: sets, restEndsAt: restEnd)
     }
 
     /// Starting seconds for the hold timer: the plan's target if set, else what was
@@ -552,8 +562,11 @@ struct LiveWorkoutView: View {
         // doesn't restart the clock.
         .onChange(of: set.wrappedValue.filled) { nowFilled in
             guard nowFilled else { return }
-            if store.prefs.autoRest, !timer.active {
-                startRest(restSeconds(for: exB.wrappedValue))
+            // `running`, not `active`: a finished rest still shows its "GO" strip,
+            // and the next set must be able to start a fresh countdown.
+            let rest = restSeconds(for: exB.wrappedValue)
+            if store.prefs.autoRest, !timer.running, rest > 0 {
+                startRest(rest)
             } else {
                 pushLiveActivity()
             }

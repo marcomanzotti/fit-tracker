@@ -63,13 +63,19 @@ extension Store {
         var lean: Double         // fat-free mass in kg
     }
 
-    /// FFMI from the current weight and body fat. nil without a body-fat figure —
-    /// the whole point is separating lean mass from fat, which needs that split.
-    /// Normalization (Kouri et al.) adds 6.1 × (1.80 − height) so a 1.65 m and a
-    /// 1.95 m lifter can be compared on the same scale.
-    func ffmi() -> FFMIResult? {
+    /// FFMI for a given weight and body fat, defaulting to the current ones. nil
+    /// without a body-fat figure — the whole point is separating lean mass from fat,
+    /// which needs that split. Normalization (Kouri et al.) adds 6.1 × (1.80 −
+    /// height) so a 1.65 m and a 1.95 m lifter can be compared on the same scale.
+    func ffmi(weight: Double? = nil, bodyFat: Double? = nil) -> FFMIResult? {
         let h = prefs.height
-        guard h > 1.0, h < 2.5, let lean = fatFreeMass(), lean > 0 else { return nil }
+        let lean: Double?
+        if let w = weight, let bf = bodyFat, w > 0, bf > 0, bf < 60 {
+            lean = w * (1 - bf / 100)
+        } else {
+            lean = fatFreeMass()
+        }
+        guard h > 1.0, h < 2.5, let lean, lean > 0 else { return nil }
         let raw = lean / (h * h)
         let norm = raw + 6.1 * (1.80 - h)
         return FFMIResult(raw: (raw * 10).rounded() / 10,

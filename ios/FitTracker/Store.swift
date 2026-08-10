@@ -845,7 +845,9 @@ extension Store {
             guard granted else { completion(false, 0); return }
             hk.fetch(from: start, to: end, categories: self.prefs.healthCategories) { samples in
                 let n = self.applyHealthSamples(samples, overwrite: overwrite)
-                self.prefs.healthBackfilled = true
+                // Only a full-year pull counts as the backfill. A 30-day manual
+                // import must not cancel the automatic one that hasn't run yet.
+                if days >= 365 { self.prefs.healthBackfilled = true }
                 completion(true, n)
             }
         }
@@ -986,7 +988,10 @@ extension Store {
                 // Importing past workouts from other watches is opt-in (formats
                 // don't always translate cleanly), so honor the user's choice.
                 guard self.prefs.importWorkoutsEnabled else { completion?(true, 0, []); return }
-                hk.fetchWorkouts(days: window) { workouts in
+                // Workouts stay on the 90-day window even during the daily-metric
+                // backfill: a year of imported sessions from another watch would
+                // bury the user's own log, and importing them is a separate opt-in.
+                hk.fetchWorkouts(days: min(window, 90)) { workouts in
                     let r = self.applyHealthWorkouts(workouts)
                     completion?(true, r.count, r.sources)
                 }
