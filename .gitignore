@@ -13,3 +13,13 @@ xcuserdata/
 # Swift Package Manager
 .build/
 .swiftpm/
+
+# Android / Gradle
+.gradle/
+local.properties
+*.apk
+*.aab
+.cxx/
+.idea/
+*.iml
+captures/
