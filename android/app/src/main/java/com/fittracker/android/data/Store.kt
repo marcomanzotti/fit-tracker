@@ -5,6 +5,7 @@ import com.fittracker.android.science.ProgKind
 import com.fittracker.android.science.acwr
 import com.fittracker.android.science.progression
 import com.fittracker.android.science.readiness
+import com.fittracker.android.localization.L
 import com.fittracker.android.utils.Helpers.isoFormatter
 import com.fittracker.android.utils.Helpers.pf
 import com.fittracker.android.utils.Helpers.today
@@ -115,6 +116,13 @@ class Store(private val context: Context) {
 
     /** Keep the global localization language in sync with prefs. */
     fun syncLang() { L.lang = _prefs.value.langCode }
+
+    /** Generic prefs mutator (mirrors the many small `store.prefs.x = y` writes in
+     * the Swift source, which work directly since Prefs there is a class property). */
+    fun updatePrefs(mutate: (Prefs) -> Prefs) {
+        _prefs.value = mutate(_prefs.value)
+        save()
+    }
 
     fun save() {
         if (!loaded) return
@@ -1098,7 +1106,8 @@ class Store(private val context: Context) {
                 if (i >= 0) {
                     var e = exercises[i]
                     e = e.copy(sets = e.sets + ex.sets)
-                    if (ex.rounds != null) e = e.copy(rounds = (e.rounds ?: 0) + ex.rounds)
+                    val exRounds = ex.rounds
+                    if (exRounds != null) e = e.copy(rounds = (e.rounds ?: 0) + exRounds)
                     val notes = listOf(e.notes, ex.notes).filter { it.isNotEmpty() }
                     e = e.copy(notes = notes.joinToString(" · "))
                     exercises[i] = e
