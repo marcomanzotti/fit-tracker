@@ -686,6 +686,28 @@ class Store(private val context: Context) {
         return s
     }
 
+    /** Persist a freshly-finished live strength workout (LiveWorkout screen) as a
+     * new WorkoutSession — analogous to quickInsertSession but built from the
+     * user's actually-logged exercises/sets rather than a template. */
+    fun logSession(
+        plan: WorkoutPlan,
+        exercises: List<LoggedExercise>,
+        date: String = today(),
+        durationSec: Int? = null,
+        avgHR: Int? = null,
+        caloriesManual: Int? = null
+    ): WorkoutSession {
+        val s = WorkoutSession(
+            date = date, planId = plan.id, planName = plan.name, planColor = plan.color,
+            exercises = exercises, durationSec = durationSec, avgHR = avgHR, caloriesManual = caloriesManual
+        )
+        setRestDay(date, false)
+        _sessions.value = _sessions.value + s
+        for (e in exercises) if (e.name.isNotBlank()) touchExerciseInLibrary(e.name, e.isBodyweight ?: false)
+        save()
+        return s
+    }
+
     fun quickInsertCardio(type: CardioType, date: String): WorkoutSession {
         val pid = "cardio-${type.id}"
         val last = _sessions.value.filter { it.planId == pid }.maxByOrNull { it.date }

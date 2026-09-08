@@ -31,6 +31,8 @@ class StoreViewModel(val store: Store) {
     val sessions get() = store.sessions
     val daily get() = store.daily
     val prefs get() = store.prefs
+    val foods get() = store.foods
+    val recipes get() = store.recipes
 
     fun plan(id: String) = store.plan(id)
     fun cardioType(id: String) = store.cardioType(id)
@@ -38,6 +40,15 @@ class StoreViewModel(val store: Store) {
     fun deletePlan(plan: WorkoutPlan) = store.deletePlan(plan)
     fun commitCardioType(type: CardioType) = store.commitCardioType(type)
     fun deleteCardioType(id: String) = store.deleteCardioType(id)
+
+    fun dailyEntry(date: String) = store.dailyEntry(date)
+    fun recentFoods() = store.recentFoods()
+    fun saveFood(f: com.fittracker.android.data.FoodItem) = store.saveFood(f)
+    fun deleteFood(id: String) = store.deleteFood(id)
+    fun saveDayFoods(date: String, logs: List<com.fittracker.android.data.FoodLog>) = store.saveDayFoods(date, logs)
+    fun recentRecipes() = store.recentRecipes()
+    fun saveRecipe(r: com.fittracker.android.data.Recipe) = store.saveRecipe(r)
+    fun deleteRecipe(id: String) = store.deleteRecipe(id)
 }
 
 /** Simple transient toast/snackbar message queue. */
@@ -55,34 +66,40 @@ class ActiveWorkoutViewModel(private val store: Store) {
         private set
     var minimized by mutableStateOf(false)
 
-    /** Mutable log of exercises for the live session; committed to Store on save. */
-    var log: MutableList<LoggedExercise> = mutableListOf()
+    /** Mutable log of exercises for the live session; committed to Store on save.
+     * Backed by a Compose SnapshotStateList so in-place edits (add/remove/replace
+     * a set or exercise) recompose LiveWorkout without needing to reassign the
+     * whole `log` reference. */
+    var log: androidx.compose.runtime.snapshots.SnapshotStateList<LoggedExercise> = androidx.compose.runtime.mutableStateListOf()
         private set
 
     fun start(plan: WorkoutPlan) {
         planId = plan.id
         minimized = false
         val last = store.lastSession(plan.id)
-        log = if (last != null) {
+        val fresh = if (last != null) {
             last.exercises.map { e ->
                 e.copy(id = java.util.UUID.randomUUID().toString(), sets = e.sets.map { SetEntry() })
-            }.toMutableList()
+            }
         } else {
             plan.exercises.map { pe ->
                 LoggedExercise(
                     name = pe.name,
                     sets = (0 until max(1, pe.sets)).map { SetEntry() },
                     target = "${pe.sets}×${pe.reps}",
-                    supersetGroup = pe.supersetGroup, method = pe.method
+                    supersetGroup = pe.supersetGroup, method = pe.method,
+                    kind = pe.kind, workSec = pe.workSec, restSec = pe.restSec, rounds = pe.rounds
                 )
-            }.toMutableList()
+            }
         }
+        log.clear()
+        log.addAll(fresh)
     }
 
     fun end() {
         planId = null
         minimized = false
-        log = mutableListOf()
+        log.clear()
     }
 }
 
@@ -104,7 +121,11 @@ class ActiveCardioViewModel(private val store: Store) {
 }
 
 /** Body tab: parses free-text inputs and forwards them to Store. */
-class BodyViewModel(private val store: Store) {
+class BodyViewModel(val store: Store) {
+    val daily get() = store.daily
+    val body get() = store.body
+    val prefs get() = store.prefs
+
     fun saveCheckIn(weight: String) {
         val w = pf(weight).takeIf { it > 0 }
         store.saveCheckIn(weight = w, sleep = null)
@@ -116,6 +137,18 @@ class BodyViewModel(private val store: Store) {
     fun saveBf(bf: String) {
         val v = pf(bf).takeIf { it > 0 }
         if (v != null) store.saveBodyFat(v)
+    }
+    fun saveManualSleep(hours: String, score: String) {
+        store.saveManualSleep(
+            hours = hours.toDoubleOrNull(),
+            score = score.toIntOrNull(),
+            hrv = null,
+            sleepHR = null
+        )
+    }
+    fun saveMeasurements(values: Map<String, String>) {
+        val parsed = values.mapNotNull { (k, v) -> pf(v).takeIf { it > 0 }?.let { k to it } }.toMap()
+        if (parsed.isNotEmpty()) store.saveMeasurements(parsed)
     }
 }
 

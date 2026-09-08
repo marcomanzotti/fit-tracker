@@ -42,12 +42,12 @@ fun WorkoutScreen(
             val plan = activeWorkout.planId?.let { viewModel.plan(it) }
             if (plan != null) {
                 LiveWorkout(
+                    viewModel = viewModel,
                     plan = plan,
                     log = activeWorkout.log,
                     onBack = { activeWorkout.minimized = true },
-                    onSaved = { 
+                    onSaved = {
                         activeWorkout.end()
-                        // LiveActivityController equivalent here
                     }
                 )
             }
@@ -66,8 +66,8 @@ fun WorkoutScreen(
             PlanEditor(
                 plan = editingPlan!!,
                 isNew = isNew,
-                onSave = { 
-                    viewModel.commitPlan(editingPlan!!, isNew)
+                onSave = { edited ->
+                    viewModel.commitPlan(edited, isNew)
                     editingPlan = null
                     toast.show(if (isNew) "Day created" else "Day updated")
                 },
@@ -230,9 +230,96 @@ fun CardioTile(type: CardioType, onEdit: () -> Unit, onStart: () -> Unit, onLog:
     }
 }
 
-// Dummy composables for layout structure
-@Composable fun AddCard(onClick: () -> Unit) {}
-@Composable fun AddCardioTile(onClick: () -> Unit) {}
-@Composable fun CalendarCard() {}
-@Composable fun RecentSessionsList(sessions: List<WorkoutSession>, query: String, onQueryChange: (String) -> Unit, showAll: Boolean, onShowAllChange: (Boolean) -> Unit, onEditSession: (WorkoutSession) -> Unit) {}
-@Composable fun LiveCardioView(type: CardioType, onBack: () -> Unit, onSaved: () -> Unit) {}
+@Composable
+fun AddCard(onClick: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth().height(130.dp),
+        onClick = onClick
+    ) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text("+ New day", style = MaterialTheme.typography.titleMedium)
+        }
+    }
+}
+
+@Composable
+fun AddCardioTile(onClick: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth().height(112.dp),
+        onClick = onClick
+    ) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text("+ New cardio", style = MaterialTheme.typography.titleMedium)
+        }
+    }
+}
+
+@Composable
+fun CalendarCard() {}
+
+@Composable
+fun RecentSessionsList(
+    sessions: List<WorkoutSession>,
+    query: String,
+    onQueryChange: (String) -> Unit,
+    showAll: Boolean,
+    onShowAllChange: (Boolean) -> Unit,
+    onEditSession: (WorkoutSession) -> Unit
+) {
+    val filtered = remember(sessions, query, showAll) {
+        val base = sessions.sortedByDescending { it.date }
+        val bySearch = if (query.isBlank()) base else base.filter {
+            it.planName.contains(query, ignoreCase = true)
+        }
+        if (showAll) bySearch else bySearch.take(5)
+    }
+
+    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("Recent sessions", style = MaterialTheme.typography.titleMedium)
+        OutlinedTextField(
+            value = query,
+            onValueChange = onQueryChange,
+            placeholder = { Text("Search sessions...") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+        if (filtered.isEmpty()) {
+            Text("No sessions yet", style = MaterialTheme.typography.bodySmall)
+        } else {
+            filtered.forEach { s ->
+                Card(modifier = Modifier.fillMaxWidth(), onClick = { onEditSession(s) }) {
+                    Row(
+                        modifier = Modifier.padding(12.dp).fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(s.planName, style = MaterialTheme.typography.titleSmall)
+                            Text(s.date, style = MaterialTheme.typography.bodySmall)
+                        }
+                        Text("${s.exercises.size} ex", style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            }
+            if (!showAll && sessions.size > 5) {
+                TextButton(onClick = { onShowAllChange(true) }, modifier = Modifier.fillMaxWidth()) {
+                    Text("Show all (${sessions.size})")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun LiveCardioView(type: CardioType, onBack: () -> Unit, onSaved: () -> Unit) {
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+            TextButton(onClick = onBack) { Text("← Minimize") }
+            Text(type.name, style = MaterialTheme.typography.titleLarge)
+        }
+        Spacer(modifier = Modifier.weight(1f))
+        Button(onClick = onSaved, modifier = Modifier.fillMaxWidth()) {
+            Text("Finish")
+        }
+    }
+}

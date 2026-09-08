@@ -3,41 +3,58 @@ package com.fittracker.android.ui.train
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.fittracker.android.data.ExKind
 import com.fittracker.android.data.PlanExercise
 import com.fittracker.android.data.WorkoutPlan
+import com.fittracker.android.data.exKind
 
+// Kotlin port of ios/FitTracker/Views/PlanEditorView.swift. Fixes the
+// pre-existing bug where local `name`/`sub`/`exercises` edits never made it
+// back to the caller: onSave now hands back the fully-edited WorkoutPlan
+// instead of a bare Unit signal, and the caller commits *that* plan (not the
+// stale `editingPlan` it opened the editor with).
 @Composable
 fun PlanEditor(
     plan: WorkoutPlan,
     isNew: Boolean,
-    onSave: () -> Unit,
+    onSave: (WorkoutPlan) -> Unit,
     onDelete: () -> Unit,
     onCancel: () -> Unit
 ) {
     var name by remember { mutableStateOf(plan.name) }
     var sub by remember { mutableStateOf(plan.sub) }
     var confirmDelete by remember { mutableStateOf(false) }
-    var browsing by remember { mutableStateOf(false) }
-    
-    // Convert to mutable state list for UI driving
+
     val exercises = remember { mutableStateListOf(*plan.exercises.toTypedArray()) }
 
+    fun buildPlan(): WorkoutPlan = plan.copy(
+        name = name.trim().ifEmpty { plan.name },
+        sub = sub,
+        exercises = exercises.toList()
+    )
+
     Column(modifier = Modifier.fillMaxSize()) {
-        Row(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-            TextButton(onClick = onCancel) {
-                Text("← Cancel")
-            }
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            TextButton(onClick = onCancel) { Text("← Cancel") }
             Text(if (isNew) "NEW DAY" else "EDIT DAY", style = MaterialTheme.typography.titleLarge)
+            Spacer(modifier = Modifier.width(64.dp))
         }
 
         LazyColumn(modifier = Modifier.weight(1f).padding(horizontal = 16.dp)) {
             item {
                 Card(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
-                    Column(modifier = Modifier.padding(16.dp)) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedTextField(
                             value = name,
                             onValueChange = { name = it },
@@ -50,7 +67,6 @@ fun PlanEditor(
                             label = { Text("Subtitle") },
                             modifier = Modifier.fillMaxWidth()
                         )
-                        // Color picker would go here
                     }
                 }
             }
@@ -59,26 +75,28 @@ fun PlanEditor(
                 Text("Exercises (${exercises.size})", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(vertical = 8.dp))
             }
 
-            items(exercises) { ex ->
+            items(exercises, key = { it.id }) { ex ->
                 ExerciseEditRow(
                     exercise = ex,
-                    onDelete = { exercises.remove(ex) }
+                    onChange = { updated ->
+                        val i = exercises.indexOfFirst { it.id == ex.id }
+                        if (i >= 0) exercises[i] = updated
+                    },
+                    onDelete = { exercises.removeAll { it.id == ex.id } }
                 )
             }
 
             item {
                 Row(modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { browsing = true }, modifier = Modifier.weight(1f)) {
-                        Text("Browse")
-                    }
-                    OutlinedButton(onClick = { exercises.add(PlanExercise(name = "")) }, modifier = Modifier.weight(1f)) {
-                        Text("Blank")
-                    }
+                    OutlinedButton(
+                        onClick = { exercises.add(PlanExercise(name = "New exercise")) },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("+ Add exercise") }
                 }
             }
 
             item {
-                Button(onClick = onSave, modifier = Modifier.fillMaxWidth()) {
+                Button(onClick = { onSave(buildPlan()) }, modifier = Modifier.fillMaxWidth()) {
                     Text(if (isNew) "Create Day" else "Save Changes")
                 }
                 if (!isNew) {
@@ -89,6 +107,7 @@ fun PlanEditor(
                         Text("Delete Day", color = MaterialTheme.colorScheme.error)
                     }
                 }
+                Spacer(modifier = Modifier.height(24.dp))
             }
         }
     }
@@ -113,24 +132,92 @@ fun PlanEditor(
             }
         )
     }
-
-    if (browsing) {
-        // ExercisePickerSheet equivalent
-    }
 }
 
 @Composable
-fun ExerciseEditRow(exercise: PlanExercise, onDelete: () -> Unit) {
+fun ExerciseEditRow(exercise: PlanExercise, onChange: (PlanExercise) -> Unit, onDelete: () -> Unit) {
     Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row {
-                // ExerciseNameField equivalent
-                Text("Exercise Name Field", modifier = Modifier.weight(1f))
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                OutlinedTextField(
+                    value = exercise.name,
+                    onValueChange = { onChange(exercise.copy(name = it)) },
+                    label = { Text("Exercise name") },
+                    singleLine = true,
+                    modifier = Modifier.weight(1f)
+                )
                 IconButton(onClick = onDelete) {
-                    Text("X") // Replace with Icon
+                    Icon(Icons.Filled.Close, contentDescription = "Delete exercise")
                 }
             }
-            // Kind selector, params row, rest row...
+
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                ExKind.entries.forEach { k ->
+                    val active = exercise.exKind == k
+                    FilterChip(
+                        selected = active,
+                        onClick = { onChange(exercise.copy(kind = k.raw)) },
+                        label = { Text(k.raw) }
+                    )
+                }
+            }
+
+            when (exercise.exKind) {
+                ExKind.REPS -> {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = exercise.sets.toString(),
+                            onValueChange = { v -> v.toIntOrNull()?.let { onChange(exercise.copy(sets = it)) } },
+                            label = { Text("Sets") },
+                            modifier = Modifier.weight(1f)
+                        )
+                        OutlinedTextField(
+                            value = exercise.reps,
+                            onValueChange = { onChange(exercise.copy(reps = it)) },
+                            label = { Text("Reps") },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+                ExKind.TIMED -> {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = exercise.sets.toString(),
+                            onValueChange = { v -> v.toIntOrNull()?.let { onChange(exercise.copy(sets = it)) } },
+                            label = { Text("Sets") },
+                            modifier = Modifier.weight(1f)
+                        )
+                        OutlinedTextField(
+                            value = (exercise.targetSec ?: 0).toString(),
+                            onValueChange = { v -> v.toIntOrNull()?.let { onChange(exercise.copy(targetSec = it)) } },
+                            label = { Text("Hold (s)") },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+                ExKind.INTERVAL -> {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = (exercise.rounds ?: 1).toString(),
+                            onValueChange = { v -> v.toIntOrNull()?.let { onChange(exercise.copy(rounds = it)) } },
+                            label = { Text("Rounds") },
+                            modifier = Modifier.weight(1f)
+                        )
+                        OutlinedTextField(
+                            value = (exercise.workSec ?: 0).toString(),
+                            onValueChange = { v -> v.toIntOrNull()?.let { onChange(exercise.copy(workSec = it)) } },
+                            label = { Text("Work (s)") },
+                            modifier = Modifier.weight(1f)
+                        )
+                        OutlinedTextField(
+                            value = (exercise.restSec ?: 0).toString(),
+                            onValueChange = { v -> v.toIntOrNull()?.let { onChange(exercise.copy(restSec = it)) } },
+                            label = { Text("Rest (s)") },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
         }
     }
 }
