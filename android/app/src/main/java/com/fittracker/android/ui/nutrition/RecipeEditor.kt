@@ -1,5 +1,6 @@
 package com.fittracker.android.ui.nutrition
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -173,7 +174,7 @@ private fun RecipeRow(recipe: Recipe, onPick: () -> Unit, onEdit: () -> Unit) {
             modifier = Modifier.padding(vertical = 9.dp, horizontal = 12.dp).fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(modifier = Modifier.weight(1f).androidx_clickable(onPick)) {
+            Column(modifier = Modifier.weight(1f).clickable(onClick = onPick)) {
                 Text(recipe.name, style = MaterialTheme.typography.titleSmall, maxLines = 1)
                 val sub = if (recipe.perServing)
                     "${trimNum(recipe.effK100)} kcal/${L.t("recipe.serving")} · P ${trimNum(recipe.effP100)} C ${trimNum(recipe.effC100)} F ${trimNum(recipe.effF100)}"
@@ -187,9 +188,6 @@ private fun RecipeRow(recipe: Recipe, onPick: () -> Unit, onEdit: () -> Unit) {
         }
     }
 }
-
-private fun Modifier.androidx_clickable(onClick: () -> Unit): Modifier =
-    this.then(androidx.compose.foundation.clickable(onClick = onClick))
 
 // MARK: - Recipe quantity / portion picker -> produces a FoodLog
 @Composable
