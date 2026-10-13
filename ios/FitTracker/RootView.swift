@@ -107,7 +107,7 @@ struct RootView: View {
         }
         .overlay(alignment: .top) {
             if let m = toast.message {
-                ToastView(text: m)
+                ToastView(text: m, action: toast.action) { toast.runAction() }
                     .padding(.top, 6)
                     .transition(.move(edge: .top).combined(with: .opacity))
             }

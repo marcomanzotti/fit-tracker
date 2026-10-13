@@ -499,28 +499,63 @@ final class SessionKeeper {
 
 // MARK: - Toast
 final class ToastCenter: ObservableObject {
+    struct Action {
+        let title: String
+        let run: () -> Void
+    }
+
     @Published var message: String?
+    @Published private(set) var action: Action?
     private var work: DispatchWorkItem?
 
     static let defaultDuration = 1.8
-    /// For messages the user needs time to read (errors).
+    /// For messages the user needs time to read or act on (errors, Undo).
     static let longDuration = 4.0
 
-    func show(_ msg: String, duration: Double = ToastCenter.defaultDuration) {
+    func show(_ msg: String, duration: Double = ToastCenter.defaultDuration, action: Action? = nil) {
         message = msg
+        self.action = action
         work?.cancel()
-        let w = DispatchWorkItem { [weak self] in withAnimation { self?.message = nil } }
+        let w = DispatchWorkItem { [weak self] in self?.hide() }
         work = w
         DispatchQueue.main.asyncAfter(deadline: .now() + duration, execute: w)
+    }
+
+    /// A deletion that can still be taken back for a few seconds.
+    func showUndo(_ msg: String, undo: @escaping () -> Void) {
+        show(msg, duration: ToastCenter.longDuration, action: Action(title: t("undo"), run: undo))
+    }
+
+    func runAction() {
+        action?.run()
+        work?.cancel()
+        hide()
+    }
+
+    private func hide() {
+        withAnimation { message = nil }
+        action = nil
     }
 }
 
 struct ToastView: View {
     let text: String
+    var action: ToastCenter.Action? = nil
+    var onAction: () -> Void = {}
     var body: some View {
-        Text(text.uppercased())
-            .font(.head(12, .semibold)).tracking(1)
-            .foregroundColor(Theme.acc2)
+        HStack(spacing: 14) {
+            Text(text.uppercased())
+                .font(.head(12, .semibold)).tracking(1)
+                .foregroundColor(Theme.acc2)
+            if let action {
+                Button(action: onAction) {
+                    Text(action.title.uppercased()).font(.head(12, .bold)).tracking(1).foregroundColor(Theme.txt)
+                        .underline()
+                }
+                .buttonStyle(PressableStyle())
+                .hitArea()
+            }
+        }
             .padding(.vertical, 11).padding(.horizontal, 18)
             .chrome(14, stroke: Theme.brd2)
             .shadow(color: .black.opacity(0.5), radius: 16, y: 8)

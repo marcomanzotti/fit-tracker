@@ -365,11 +365,21 @@ struct FoodPickerSheet: View {
 // MARK: - Create / edit a saved food (per-100 macros)
 struct FoodFormSheet: View {
     @EnvironmentObject var store: Store
+    @EnvironmentObject var toast: ToastCenter
     @Environment(\.dismiss) private var dismiss
     let food: FoodItem
     /// A line shown above the fields, e.g. why a scanned product came back empty.
     var notice: String? = nil
     var onSave: (FoodItem) -> Void
+
+    /// Deleting closes the sheet; the toast that follows can still bring the food back.
+    private func deleteWithUndo() {
+        let index = store.foods.firstIndex { $0.id == food.id } ?? store.foods.count
+        let removed = food
+        store.deleteFood(food.id)
+        toast.showUndo(t("food.deleted")) { [store] in store.restoreFood(removed, at: index) }
+        dismiss()
+    }
 
     @State private var name = ""
     @State private var brand = ""
@@ -428,7 +438,7 @@ struct FoodFormSheet: View {
 
                     BigButton(title: t("food.save_food")) { save() }
                     if !food.name.isEmpty {
-                        Button { tap(); store.deleteFood(food.id); dismiss() } label: {
+                        Button { tap(); deleteWithUndo() } label: {
                             Text(t("delete")).font(.head(13, .semibold)).foregroundColor(Theme.red)
                                 .frame(maxWidth: .infinity, minHeight: 44)
                         }

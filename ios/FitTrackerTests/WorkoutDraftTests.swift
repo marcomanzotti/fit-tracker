@@ -260,3 +260,34 @@ final class WorkoutDraftTests: XCTestCase {
         XCTAssertFalse(timer.active)
     }
 }
+
+/// The end-of-workout recap compares the session with the history before it.
+final class WorkoutSummaryTests: XCTestCase {
+    private func session(_ sets: [(String, String)], exercise: String = "Bench") -> WorkoutSession {
+        WorkoutSession(date: "2026-10-13", planId: "p1", planName: "Push", planColor: "ff5a52",
+                       exercises: [LoggedExercise(name: exercise,
+                                                  sets: sets.map { SetEntry(reps: $0.0, weight: $0.1) },
+                                                  notes: "", target: "")])
+    }
+
+    func testVolumeIsComparedWithThePreviousSessionOfThePlan() {
+        let summary = WorkoutSummary.make(session: session([("8", "100"), ("8", "100")]),
+                                          previous: session([("8", "100"), ("7", "100")]),
+                                          recordBefore: { _ in 100 }, kcal: 300, trimp: nil)
+        XCTAssertEqual(summary.sets, 2)
+        XCTAssertEqual(summary.volume, 1_600)
+        XCTAssertEqual(summary.volumeChange ?? 0, 100.0 / 1_500, accuracy: 0.0001)
+        XCTAssertTrue(summary.records.isEmpty, "matching the record is not beating it")
+    }
+
+    func testAHeavierTopSetIsARecordButAFirstEverLogIsNot() {
+        let beaten = WorkoutSummary.make(session: session([("5", "105")]), previous: nil,
+                                         recordBefore: { _ in 100 }, kcal: 0, trimp: nil)
+        XCTAssertEqual(beaten.records, [WorkoutSummary.Record(name: "Bench", weight: 105, previous: 100)])
+        XCTAssertNil(beaten.volumeChange, "nothing to compare with the first time")
+
+        let first = WorkoutSummary.make(session: session([("5", "105")]), previous: nil,
+                                        recordBefore: { _ in 0 }, kcal: 0, trimp: nil)
+        XCTAssertTrue(first.records.isEmpty)
+    }
+}

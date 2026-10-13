@@ -16,8 +16,15 @@ struct WorkoutView: View {
     // Recent-sessions list: free-text filter over the whole history + cap toggle.
     @State private var sessionQuery = ""
     @State private var showAllSessions = false
+    /// Recap of the workout just finished; shown once.
+    @State private var summary: WorkoutSummary?
 
     var body: some View {
+        Group { content }
+            .sheet(item: $summary) { WorkoutSummaryView(summary: $0) }
+    }
+
+    @ViewBuilder private var content: some View {
         // The plan as it is now, or the snapshot taken at start if it was deleted
         // mid-workout: the session must stay reachable until it is saved.
         if let started = activeWorkout.plan, !activeWorkout.minimized {
@@ -25,7 +32,8 @@ struct WorkoutView: View {
                 plan: store.plan(started.id) ?? started,
                 log: $activeWorkout.log,
                 onBack: { activeWorkout.minimized = true },   // minimize, keep running
-                onSaved: { endWorkout() }                      // finish / discard ends it
+                onSaved: { endWorkout() },                     // discard ends it
+                onFinished: { endWorkout(); summary = $0 }     // finish ends it and shows the recap
             )
         } else if let started = activeCardio.type, !activeCardio.minimized {
             LiveCardioView(

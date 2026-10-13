@@ -224,9 +224,19 @@ struct RecipeQuantitySheet: View {
 //   2. From ingredients: add saved FoodItems with amounts; macros are computed.
 struct RecipeFormSheet: View {
     @EnvironmentObject var store: Store
+    @EnvironmentObject var toast: ToastCenter
     @Environment(\.dismiss) private var dismiss
     let recipe: Recipe
     var onSave: (Recipe) -> Void
+
+    /// Deleting closes the sheet; the toast that follows can still bring the recipe back.
+    private func deleteWithUndo() {
+        let index = store.recipes.firstIndex { $0.id == recipe.id } ?? store.recipes.count
+        let removed = recipe
+        store.deleteRecipe(recipe.id)
+        toast.showUndo(t("recipe.deleted")) { [store] in store.restoreRecipe(removed, at: index) }
+        dismiss()
+    }
 
     // Basic info
     @State private var name = ""
@@ -255,7 +265,7 @@ struct RecipeFormSheet: View {
                     else { ingredientsCard }
                     BigButton(title: t("food.save_food")) { save() }
                     if !recipe.name.isEmpty {
-                        Button { tap(); store.deleteRecipe(recipe.id); dismiss() } label: {
+                        Button { tap(); deleteWithUndo() } label: {
                             Text(t("delete")).font(.head(13, .semibold)).foregroundColor(Theme.red)
                                 .frame(maxWidth: .infinity, minHeight: 44)
                         }

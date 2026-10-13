@@ -868,6 +868,11 @@ extension Store {
         return f
     }
     func deleteFood(_ id: String) { foods.removeAll { $0.id == id } }
+    /// Undo of a delete: back at its old position (or the end, if the list shrank).
+    func restoreFood(_ food: FoodItem, at index: Int) {
+        guard !foods.contains(where: { $0.id == food.id }) else { return }
+        foods.insert(food, at: min(max(0, index), foods.count))
+    }
     /// Mark a food as used today so it floats to the top of the picker.
     func touchFood(_ id: String) {
         guard let i = foods.firstIndex(where: { $0.id == id }) else { return }
@@ -1774,5 +1779,9 @@ extension Store {
     }
 
     func deleteRecipe(_ id: String) { recipes.removeAll { $0.id == id } }
+    func restoreRecipe(_ recipe: Recipe, at index: Int) {
+        guard !recipes.contains(where: { $0.id == recipe.id }) else { return }
+        recipes.insert(recipe, at: min(max(0, index), recipes.count))
+    }
 
 }

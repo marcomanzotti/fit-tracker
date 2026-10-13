@@ -5,8 +5,10 @@ struct LiveWorkoutView: View {
     @Binding var log: [LoggedExercise]
     /// Called when the user minimizes (back) — keeps the workout running.
     var onBack: () -> Void
-    /// Called after a Finish or Discard — actually ends the session.
+    /// Called after a Discard — ends the session without saving.
     var onSaved: () -> Void
+    /// Called after a Finish with what the saved session amounted to.
+    var onFinished: (WorkoutSummary) -> Void
 
     @EnvironmentObject var store: Store
     @EnvironmentObject var timer: RestTimer
@@ -18,7 +20,6 @@ struct LiveWorkoutView: View {
     // (log, duration, heart rate, calories, open notes) is on ActiveWorkout, so it
     // survives this view being torn down by a tab switch, a minimise or a relaunch.
     @State private var addName = ""
-    @State private var saved = false
     @State private var confirmDiscard = false
     /// Set currently being timed by the isometric hold sheet.
     @State private var hold: HoldTarget?
@@ -58,9 +59,7 @@ struct LiveWorkoutView: View {
 
             // Finish (primary) + Discard (destructive). Back never ends the
             // workout — only these explicit actions do.
-            BigButton(title: saved ? t("wk.saved") : t("wk.finish_session"), color: saved ? Theme.good : Theme.acc) {
-                saveSession()
-            }
+            BigButton(title: t("wk.finish_session")) { saveSession() }
             Button { tap(); confirmDiscard = true } label: {
                 HStack(spacing: 6) {
                     Image(systemName: "trash").font(.system(size: 12, weight: .bold))
@@ -514,7 +513,7 @@ struct LiveWorkoutView: View {
                 Text("PR").font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.acc)
                     .transition(.scale(scale: 0.6).combined(with: .opacity))
             } else {
-                Button { tap(); exB.wrappedValue.sets.removeAll { $0.id == id } } label: {
+                Button { tap(); removeSet(id, from: exB.wrappedValue.id) } label: {
                     Image(systemName: "xmark").accessibilityLabel(t("a11y.remove")).font(.system(size: 13)).foregroundColor(Theme.red.opacity(0.85))
                         .frame(width: 34, height: 42)
                 }.buttonStyle(PressableStyle())
@@ -530,6 +529,20 @@ struct LiveWorkoutView: View {
         .onChange(of: set.wrappedValue.weight) { newVal in
             let w = pf(newVal)
             if !bw && pr > 0 && w > pr { prHaptic() }
+        }
+    }
+
+    /// Remove a set, leaving a few seconds to take it back: the X sits right next to
+    /// the fields, and a slip mid-workout should not cost the numbers just typed.
+    private func removeSet(_ setId: UUID, from exerciseId: UUID) {
+        guard let ei = log.firstIndex(where: { $0.id == exerciseId }),
+              let si = log[ei].sets.firstIndex(where: { $0.id == setId }) else { return }
+        let removed = log[ei].sets[si]
+        log[ei].sets.remove(at: si)
+        toast.showUndo(t("wk.set_removed")) { [activeWorkout] in
+            guard let ei = activeWorkout.log.firstIndex(where: { $0.id == exerciseId }),
+                  !activeWorkout.log[ei].sets.contains(where: { $0.id == setId }) else { return }
+            activeWorkout.log[ei].sets.insert(removed, at: min(si, activeWorkout.log[ei].sets.count))
         }
     }
 
@@ -600,8 +613,11 @@ struct LiveWorkoutView: View {
 
     // MARK: Finish / Discard
     private func saveSession() {
-        guard !saved else { return }
         guard let sess = activeWorkout.finishedSession() else { toast.show(t("wk.nothing_save")); return }
+        // Compared with the history as it stood before this session joins it.
+        let summary = WorkoutSummary.make(session: sess, previous: store.lastSession(forPlan: plan.id),
+                                          recordBefore: store.exercisePR,
+                                          kcal: store.estimateCalories(sess), trimp: store.trimp(sess))
 
         // Auto-save every exercise to the library and update their bodyweight flag.
         for ex in sess.exercises {
@@ -615,11 +631,9 @@ struct LiveWorkoutView: View {
                 toast.show(t(ok ? "hk.exported" : "hk.export_failed"))
             }
         }
-        saved = true
         timer.stop()
         haptic(.success)
-        toast.show(t("wk.session_saved"))
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { onSaved() }
+        onFinished(summary)
     }
 
     /// Explicit destructive discard — only reached via the red button + confirm.
