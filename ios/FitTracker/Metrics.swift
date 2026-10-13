@@ -194,11 +194,8 @@ extension Store {
     /// muscle group comes from the library/plan classification. This is the
     /// standard hypertrophy dashboard ("am I hitting ~10-20 sets/muscle/week?").
     func weeklyMuscleVolume(offset: Int = 0) -> [MuscleVolume] {
-        let cal = Calendar.current
-        let now = Date()
-        let dow = (cal.component(.weekday, from: now) + 5) % 7
-        let mon = cal.startOfDay(for: cal.date(byAdding: .day, value: -dow - offset * 7, to: now)!)
-        let sun = cal.date(byAdding: .day, value: 7, to: mon)!
+        let mon = weekStart(offset: offset)
+        let sun = weekStart(offset: offset - 1)
         var counts: [String: Int] = [:]
         for s in sessions {
             guard let d = isoFormatter.date(from: s.date), d >= mon, d < sun else { continue }

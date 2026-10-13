@@ -150,6 +150,8 @@ struct FoodPickerSheet: View {
     @State private var search = ""
     @State private var sheet: FoodSheet?
     @State private var looking = false
+    /// Why a scanned product came back empty; shown at the top of the form.
+    @State private var scanNotice: String?
     @State private var sortKey: FoodSortKey = .recent
     @State private var sortAsc = false
     @State private var sortLoaded = false
@@ -255,12 +257,12 @@ struct FoodPickerSheet: View {
         }
         .preferredColorScheme(.dark)
         .onAppear { loadSort() }
-        .sheet(item: $sheet) { which in
+        .sheet(item: $sheet, onDismiss: { if sheet == nil { scanNotice = nil } }) { which in
             switch which {
             case .scan:
                 BarcodeScannerSheet { code in handleScan(code) }
             case .form(let f):
-                FoodFormSheet(food: f) { saved in
+                FoodFormSheet(food: f, notice: scanNotice) { saved in
                     let s = store.saveFood(saved)
                     sheet = .qty(s)
                 }
@@ -343,9 +345,19 @@ struct FoodPickerSheet: View {
     private func handleScan(_ code: String) {
         if let existing = store.food(barcode: code) { sheet = .qty(existing); return }
         looking = true
-        OpenFoodFacts.lookup(barcode: code) { item in
+        OpenFoodFacts.lookup(barcode: code) { outcome in
             looking = false
-            sheet = .form(item ?? FoodItem(name: "", barcode: code))
+            // Either way the form opens for manual entry, and says which it was.
+            switch outcome {
+            case .found(let item):
+                sheet = .form(item)
+            case .notFound:
+                scanNotice = t("food.not_found")
+                sheet = .form(FoodItem(name: "", barcode: code))
+            case .unreachable:
+                scanNotice = t("food.lookup_failed")
+                sheet = .form(FoodItem(name: "", barcode: code))
+            }
         }
     }
 }
@@ -355,6 +367,8 @@ struct FoodFormSheet: View {
     @EnvironmentObject var store: Store
     @Environment(\.dismiss) private var dismiss
     let food: FoodItem
+    /// A line shown above the fields, e.g. why a scanned product came back empty.
+    var notice: String? = nil
     var onSave: (FoodItem) -> Void
 
     @State private var name = ""
@@ -376,6 +390,11 @@ struct FoodFormSheet: View {
                         }
                     }
                     .padding(.top, 18)
+
+                    if let notice {
+                        Text(notice).font(.system(size: 12, weight: .semibold)).foregroundColor(Theme.acc2)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
 
                     Card {
                         VStack(alignment: .leading, spacing: 12) {

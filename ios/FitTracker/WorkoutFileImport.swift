@@ -32,6 +32,8 @@ final class WorkoutFileParser: NSObject, XMLParserDelegate {
     private var coords: [(Double, Double)] = []  // lat/lon for distance fallback
     private var sportRaw: String?           // TCX Activity@Sport / GPX <type>
     private var lapDistance: Double = 0      // summed TCX Lap DistanceMeters (m)
+    private var trackDistance: Double = 0    // last cumulative TCX Trackpoint DistanceMeters (m)
+    private var inTrackpoint = false
     private var lapCalories: Int = 0         // summed TCX Lap Calories
     private var lapSeconds: Double = 0       // summed TCX Lap TotalTimeSeconds
     private var explicitAvg: Int?            // TCX AverageHeartRateBpm
@@ -71,6 +73,7 @@ final class WorkoutFileParser: NSObject, XMLParserDelegate {
         case "Activity":                       // TCX
             if let s = attributeDict["Sport"] { sportRaw = s }
         case "trkpt", "Trackpoint":            // GPX trackpoint carries lat/lon as attrs
+            inTrackpoint = true
             if let la = attributeDict["lat"], let lo = attributeDict["lon"],
                let lat = Double(la), let lon = Double(lo) { coords.append((lat, lon)) }
         case "AverageHeartRateBpm": hrContext = "avg"
@@ -93,10 +96,15 @@ final class WorkoutFileParser: NSObject, XMLParserDelegate {
             if sportRaw == nil, !value.isEmpty { sportRaw = value }
         case "ele", "AltitudeMeters":
             break                               // captured but unused for now
+        case "trkpt", "Trackpoint":
+            inTrackpoint = false
         case "DistanceMeters":
-            // TCX: Lap-level cumulative distance. Keep the max we ever see (the
-            // last lap's running total is the full distance).
-            if let v = Double(value) { lapDistance = max(lapDistance, v) }
+            // TCX has two of these. Inside a Trackpoint it is the running total for
+            // the whole activity (keep the largest); directly under a Lap it is that
+            // lap's own distance, so laps are summed.
+            if let v = Double(value) {
+                if inTrackpoint { trackDistance = max(trackDistance, v) } else { lapDistance += v }
+            }
         case "Calories":
             if let v = Int(value) { lapCalories += v }
         case "TotalTimeSeconds":
@@ -128,7 +136,8 @@ final class WorkoutFileParser: NSObject, XMLParserDelegate {
         if dur <= 0 { dur = Int(end.timeIntervalSince(start).rounded()) }
 
         var km: Double? = nil
-        if lapDistance > 0 { km = (lapDistance / 1000 * 100).rounded() / 100 }
+        let meters = trackDistance > 0 ? trackDistance : lapDistance
+        if meters > 0 { km = (meters / 1000 * 100).rounded() / 100 }
         else if coords.count > 1 {
             let m = WorkoutFileParser.distance(coords)
             if m > 0 { km = (m / 1000 * 100).rounded() / 100 }

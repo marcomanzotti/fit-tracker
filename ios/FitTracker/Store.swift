@@ -36,6 +36,7 @@ final class Store: ObservableObject {
     private static let autosaveDebounceSeconds = 0.5
 
     private var loaded = false
+    private var isSyncingHealth = false
     /// False only when an unreadable file could not be moved out of the way: saving
     /// would then overwrite the one copy of the user's history.
     private var canSave = true
@@ -351,7 +352,19 @@ extension Store {
         if let i = cardioTypes.firstIndex(where: { $0.id == ct.id }) { cardioTypes[i] = ct }
         else { cardioTypes.append(ct) }
     }
-    func deleteCardioType(_ id: String) { cardioTypes.removeAll { $0.id == id } }
+    func deleteCardioType(_ id: String) {
+        cardioTypes.removeAll { $0.id == id }
+        unschedule(id)
+    }
+    func deletePlan(_ id: String) {
+        plans.removeAll { $0.id == id }
+        unschedule(id)
+    }
+    /// A deleted plan or activity leaves the weekly schedule too.
+    private func unschedule(_ id: String) {
+        guard let schedule = prefs.schedule, schedule.contains(id) else { return }
+        prefs.schedule = schedule.map { $0 == id ? "" : $0 }
+    }
 }
 
 // MARK: - Derived data / domain logic (ports of the web app helpers)
@@ -528,6 +541,9 @@ extension Store {
     /// genuinely different: men use waist−neck; women use waist+hip−neck (the hip
     /// term is required, so a woman with no hip measurement returns nil rather than
     /// a wrong male-formula number). This was previously male-only for everyone.
+    static let plausibleBodyFat = 2.0...60.0
+    static let plausibleWeightKg = 30.0...250.0
+    static let plausibleLengthCm = 10.0...300.0
     func bfNavy(waist: Double?, neck: Double?, hip: Double? = nil) -> Double? {
         let h = prefs.height * 100                       // height in cm
         guard let waist, let neck, waist > neck, h > 0 else { return nil }
@@ -538,6 +554,9 @@ extension Store {
         } else {
             v = 86.010 * log10(waist - neck) - 70.041 * log10(h) + 36.76
         }
+        // Measurements that don't describe a human body give nonsense (a waist
+        // barely above the neck is a large negative %): report nothing instead.
+        guard Store.plausibleBodyFat.contains(v) else { return nil }
         return (v * 10).rounded() / 10
     }
 
@@ -547,9 +566,13 @@ extension Store {
     /// period: the streak stays alive all day even before today's check-in, and
     /// only breaks once a full day has passed with nothing logged. So if today is
     /// not logged yet we start counting from yesterday rather than zeroing out.
+    /// Consecutive days with something the user did: a weigh-in, logged food, a
+    /// typed step count, a session or a marked rest day. A day that only holds
+    /// numbers imported from Apple Health does not count — otherwise the streak is
+    /// just how many days the phone was carried.
     var streak: Int {
-        var dates = Set<String>()
-        daily.forEach { dates.insert($0.date) }
+        var dates = prefs.restDaySet
+        for e in daily where e.weight != nil || e.hasNutrition || e.stepsManual == true { dates.insert(e.date) }
         sessions.forEach { dates.insert($0.date) }
         let cal = Calendar.current
         var d = cal.startOfDay(for: Date())
@@ -609,7 +632,8 @@ extension Store {
                 if off == 0 && trainedToday { continue }
                 if let item = scheduleItem(sched[(todayMon + off) % 7]) { return item }
             }
-            return nil
+            // Every scheduled slot points at something that no longer exists: fall
+            // through to the rotation rather than showing no workout at all.
         }
         return nextPlanRotation().map { .plan($0) }
     }
@@ -677,12 +701,8 @@ extension Store {
         guard let last = lastSession(forPlan: planId),
               let ex = last.exercises.first(where: { $0.name == exercise }),
               !ex.sets.isEmpty else { return nil }
-        // Readiness gate: if HRV score is very low, don't suggest adding load.
-        let r = readiness()
-        if let score = r.score, score < 30 { return nil }
-        // ACWR gate: if in a high-load spike, hold rather than increase.
-        let aw = acwr()
-        if let ratio = aw.ratio, ratio > 1.3 { return nil }
+        // No recovery check here: progression() already ran it, and only returns
+        // .addLoad when readiness and load allow it.
         let allDone = ex.sets.allSatisfy { pf($0.reps) > 0 && pf($0.weight) > 0 }
         guard allDone else { return nil }
         return ex.maxWeight + 2.5
@@ -932,13 +952,22 @@ extension Store {
     /// user has manually overridden the count for that day.
     @discardableResult
     func applyHealthSamples(_ samples: [HealthDaySample], overwrite: Bool = false) -> Int {
+        // Worked on a copy and published once: a year-long backfill would otherwise
+        // fire a change (and a re-render) for every single day.
+        var byDate = Dictionary(daily.map { ($0.date, $0) }, uniquingKeysWith: { first, _ in first })
         var touched = 0
         for s in samples {
-            var e = daily.first(where: { $0.date == s.date }) ?? DailyEntry(date: s.date)
+            var e = byDate[s.date] ?? DailyEntry(date: s.date)
             let before = e
             func fill<T>(_ kp: WritableKeyPath<DailyEntry, T?>, _ v: T?, positive: (T) -> Bool) {
                 guard let v, positive(v) else { return }
                 if overwrite || e[keyPath: kp] == nil { e[keyPath: kp] = v }
+            }
+            // Day totals that climb until midnight: the first import of the day is a
+            // partial figure, so a later one may raise it (never lower it).
+            func grow<T: Comparable>(_ kp: WritableKeyPath<DailyEntry, T?>, _ v: T?, positive: (T) -> Bool) {
+                guard let v, positive(v) else { return }
+                e[keyPath: kp] = overwrite ? v : max(e[keyPath: kp] ?? v, v)
             }
             if (overwrite || e.stepsManual != true), let v = s.steps, v > 0 {
                 e.steps = v
@@ -946,22 +975,25 @@ extension Store {
             }
             fill(\.restHR, s.restHR) { $0 > 0 }
             fill(\.hrvSDNN, s.hrvSDNN) { $0 > 0 }
-            fill(\.activeKcal, s.activeKcal) { $0 > 0 }
-            fill(\.exerciseMin, s.exerciseMin) { $0 > 0 }
-            fill(\.sleepHours, s.sleepHours) { $0 > 0 }
+            grow(\.activeKcal, s.activeKcal) { $0 > 0 }
+            grow(\.exerciseMin, s.exerciseMin) { $0 > 0 }
+            grow(\.sleepHours, s.sleepHours) { $0 > 0 }
             fill(\.sleepHR, s.sleepHR) { $0 > 0 }
             fill(\.vo2max, s.vo2max) { $0 > 0 }
             // Derive a 0-100 sleep score from Health sleep duration when the user
             // hasn't entered one — Apple exposes asleep hours, not a score, so we map
             // hours to a score peaking around 8 h (7.5-8.5 h ≈ 95-100).
-            if overwrite || e.sleep == nil, let h = e.sleepHours ?? s.sleepHours, h > 0 {
+            // A score derived earlier from fewer hours follows the hours; a score the
+            // user typed (it differs from the derived one) is left alone.
+            let wasDerived = before.sleep == before.sleepHours.map { Store.sleepScore(fromHours: $0) }
+            if overwrite || e.sleep == nil || wasDerived, let h = e.sleepHours, h > 0 {
                 e.sleep = Store.sleepScore(fromHours: h)
             }
             guard e != before else { continue }
-            daily.removeAll { $0.date == s.date }
-            daily.append(e)
+            byDate[s.date] = e
             touched += 1
         }
+        if touched > 0 { daily = byDate.values.sorted { $0.date < $1.date } }
         return touched
     }
 
@@ -1002,12 +1034,13 @@ extension Store {
         }
         hk.requestAuthorization { granted in
             guard granted else { completion(false, 0); return }
-            hk.fetch(from: start, to: end, categories: self.prefs.healthCategories) { samples in
+            hk.fetch(from: start, to: end, categories: self.prefs.healthCategories) { samples, complete in
                 let n = self.applyHealthSamples(samples, overwrite: overwrite)
-                // Only a full-year pull counts as the backfill. A 30-day manual
-                // import must not cancel the automatic one that hasn't run yet.
-                if days >= 365 { self.prefs.healthBackfilled = true }
-                completion(true, n)
+                // Only a full-year pull that Health answered in full counts as the
+                // backfill. A 30-day manual import, or a year cut short by a locked
+                // phone, must not cancel the automatic one.
+                if complete, days >= Store.healthBackfillDays { self.prefs.healthBackfilled = true }
+                completion(complete, n)
             }
         }
     }
@@ -1031,15 +1064,8 @@ extension Store {
         for w in workouts {
             if w.fromThisApp { continue }
             if known.contains(w.uuid) { continue }
-            let isStrength = w.sport == "strength"
-            let overlaps = sessions.contains { s in
-                guard s.date == w.date else { return false }
-                let sameSport = isStrength ? (s.sport == nil) : (s.sport == w.sport)
-                guard sameSport else { return false }
-                let dur = s.durationSeconds ?? 0
-                return abs(dur - w.durationSec) <= 120
-            }
-            if overlaps { continue }
+            if hasSession(on: w.date, strength: w.sport == "strength", sport: w.sport,
+                          durationSec: w.durationSec) { continue }
 
             sessions.append(sessionFromHealth(w))
             imported += 1
@@ -1086,15 +1112,25 @@ extension Store {
     /// Parse a GPX/TCX file the user exported from a watch app that does NOT sync
     /// to Apple Health (e.g. Huawei Health) and turn it into a session. Returns
     /// the created session on success so the caller can confirm / let the user edit.
-    @discardableResult
-    func importWorkoutFile(_ url: URL) -> WorkoutSession? {
+    enum FileImportOutcome { case imported(WorkoutSession), alreadyLogged, unreadable }
+
+    func importWorkoutFile(_ url: URL) -> FileImportOutcome {
         let access = url.startAccessingSecurityScopedResource()
         defer { if access { url.stopAccessingSecurityScopedResource() } }
-        guard let data = try? Data(contentsOf: url),
-              let p = WorkoutFileParser.parse(data: data) else { return nil }
+        let data: Data
+        do {
+            data = try Data(contentsOf: url)
+        } catch {
+            appLog.error("Workout file unreadable: \(String(describing: error), privacy: .public)")
+            return .unreadable
+        }
+        guard let p = WorkoutFileParser.parse(data: data) else { return .unreadable }
 
         let sportType = Sport(rawValue: p.sport) ?? .other
         let isStrength = p.sport == "strength"
+        // The same file picked twice, or a workout Health already delivered.
+        guard !hasSession(on: p.date, strength: isStrength, sport: p.sport, durationSec: p.durationSec)
+        else { return .alreadyLogged }
         var s = WorkoutSession(date: p.date, planId: "file-\(p.sport)",
                                planName: sportType.label, planColor: Theme.appleGreen)
         s.sport = isStrength ? nil : p.sport
@@ -1104,9 +1140,19 @@ extension Store {
         s.distanceKm = (p.distanceKm ?? 0) > 0 ? p.distanceKm : nil
         if let k = p.kcal, k > 0 { s.caloriesManual = k }
         s.source = url.lastPathComponent
+        setRestDay(p.date, on: false)
         sessions.append(s)
-        return s
+        return .imported(s)
     }
+
+    /// Whether a session of this sport and about this length already exists that day.
+    private func hasSession(on date: String, strength: Bool, sport: String, durationSec: Int) -> Bool {
+        sessions.contains { s in
+            guard s.date == date, strength ? (s.sport == nil) : (s.sport == sport) else { return false }
+            return abs((s.durationSeconds ?? 0) - durationSec) <= Store.sameWorkoutToleranceSec
+        }
+    }
+    private static let sameWorkoutToleranceSec = 120
 
     /// Fetch Apple Health workouts recorded on a given day that are NOT already in
     /// the app, so the calendar can offer them for manual import when the automatic
@@ -1130,29 +1176,40 @@ extension Store {
     /// Sync Apple Health. The completion reports success plus how many workouts
     /// were newly imported and from which source apps, so the UI can confirm to
     /// the user that their watch is feeding the app.
+    private static let healthBackfillDays = 365
+    private static let healthRoutineDays = 90
     func syncHealth(days: Int? = nil, completion: ((_ ok: Bool, _ imported: Int, _ sources: [String]) -> Void)? = nil) {
         let hk = HealthKitManager.shared
         guard hk.isAvailable else { completion?(false, 0, []); return }
         // First sync after connecting Health backfills a full year, so the charts
         // open with real history instead of building up over three months. Later
         // syncs only need the recent window.
-        let window = days ?? (prefs.healthBackfilled == true ? 90 : 365)
+        // The launch sync and the first foreground sync would otherwise overlap,
+        // each pulling a year of samples.
+        guard !isSyncingHealth else { completion?(false, 0, []); return }
+        isSyncingHealth = true
+        let finish: (Bool, Int, [String]) -> Void = { [weak self] ok, imported, sources in
+            self?.isSyncingHealth = false
+            completion?(ok, imported, sources)
+        }
+        let window = days ?? (prefs.healthBackfilled == true ? Store.healthRoutineDays : Store.healthBackfillDays)
         hk.requestAuthorization { granted in
-            guard granted else { completion?(false, 0, []); return }
-            hk.fetch(days: window, categories: self.prefs.healthCategories) { samples in
+            guard granted else { finish(false, 0, []); return }
+            hk.fetch(days: window, categories: self.prefs.healthCategories) { samples, complete in
                 self.applyHealthSamples(samples)
-                self.prefs.healthBackfilled = true
+                // An incomplete answer leaves the backfill to run again next time.
+                if complete, window >= Store.healthBackfillDays { self.prefs.healthBackfilled = true }
                 // Keep resting HR profile fresh from the most recent reading.
                 if let last = samples.compactMap({ $0.restHR }).last, last > 0 { self.prefs.restingHR = last }
                 // Importing past workouts from other watches is opt-in (formats
                 // don't always translate cleanly), so honor the user's choice.
-                guard self.prefs.importWorkoutsEnabled else { completion?(true, 0, []); return }
+                guard self.prefs.importWorkoutsEnabled else { finish(true, 0, []); return }
                 // Workouts stay on the 90-day window even during the daily-metric
                 // backfill: a year of imported sessions from another watch would
                 // bury the user's own log, and importing them is a separate opt-in.
-                hk.fetchWorkouts(days: min(window, 90)) { workouts in
+                hk.fetchWorkouts(days: min(window, Store.healthRoutineDays)) { workouts in
                     let r = self.applyHealthWorkouts(workouts)
-                    completion?(true, r.count, r.sources)
+                    finish(true, r.count, r.sources)
                 }
             }
         }
@@ -1641,9 +1698,13 @@ extension Store {
     }
 
     var bodyLatest: BodyEntry? { body.sorted { $0.date > $1.date }.first }
-    var bodyPrev: BodyEntry? {
-        let s = body.sorted { $0.date > $1.date }
-        return s.count > 1 ? s[1] : nil
+    /// The newest body record on or before `date`: what was true on that day.
+    func bodyEntry(onOrBefore date: String) -> BodyEntry? {
+        body.filter { $0.date <= date }.max { $0.date < $1.date }
+    }
+    /// The newest body record strictly before `date`, for "change since last time".
+    func bodyEntry(before date: String) -> BodyEntry? {
+        body.filter { $0.date < date }.max { $0.date < $1.date }
     }
 
     /// Effective body-fat %: manual override wins, otherwise Navy estimate.

@@ -55,7 +55,8 @@ private struct DataScannerRepresentable: UIViewControllerRepresentable {
 
     func makeUIViewController(context: Context) -> DataScannerViewController {
         let vc = DataScannerViewController(
-            recognizedDataTypes: [.barcode()],
+            // Product codes only: a QR code is not a food barcode.
+            recognizedDataTypes: [.barcode(symbologies: [.ean13, .ean8, .upce])],
             qualityLevel: .balanced,
             recognizesMultipleItems: false,
             isHighFrameRateTrackingEnabled: false,

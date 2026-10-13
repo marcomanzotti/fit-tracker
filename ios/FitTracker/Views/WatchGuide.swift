@@ -152,10 +152,10 @@ struct WatchSetupGuide: View {
 
     private func handleImport(_ result: Result<[URL], Error>) {
         guard case .success(let urls) = result, let url = urls.first else { return }
-        if store.importWorkoutFile(url) != nil {
-            toast.show(t("guide.import_ok"))
-        } else {
-            toast.show(t("guide.import_fail"))
+        switch store.importWorkoutFile(url) {
+        case .imported:      toast.show(t("guide.import_ok"))
+        case .alreadyLogged: toast.show(t("guide.import_dup"), duration: ToastCenter.longDuration)
+        case .unreadable:    toast.show(t("guide.import_fail"), duration: ToastCenter.longDuration)
         }
     }
 }

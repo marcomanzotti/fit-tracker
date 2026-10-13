@@ -73,16 +73,21 @@ extension Store {
     func adaptiveTDEE(days: Int = 21) -> Double? {
         let tr = weightTrend(days: days)
         guard let rate = tr.ratePerWeek, tr.points >= 8 else { return nil }
-        let cal = Calendar.current
-        let cutoff = cal.date(byAdding: .day, value: -days, to: Date())!
-        let intakes = daily.compactMap { e -> Int? in
-            guard let k = e.kcal, k > 0, let d = isoFormatter.date(from: e.date), d >= cutoff else { return nil }
-            return k
-        }
+        let intakes = recentIntakes(days: days)
         guard intakes.count >= 8 else { return nil }
         let avgIntake = Double(intakes.reduce(0, +)) / Double(intakes.count)
         let dailyChangeKcal = rate * 7700 / 7          // energy implied by the trend
         return (avgIntake - dailyChangeKcal).rounded()
+    }
+
+    /// Energy eaten (kcal) on each of the last `days` days that has nutrition logged
+    /// in any form: quick total, per meal or per food.
+    private func recentIntakes(days: Int) -> [Int] {
+        guard let cutoff = Calendar.current.date(byAdding: .day, value: -days, to: Date()) else { return [] }
+        return daily.compactMap { e in
+            guard e.totalKcal > 0, let d = isoFormatter.date(from: e.date), d >= cutoff else { return nil }
+            return e.totalKcal
+        }
     }
 
     /// Adherence over a 2-3 week window: logging consistency, steps, volume.
@@ -90,12 +95,12 @@ extension Store {
         let cal = Calendar.current
         let cutoff = cal.date(byAdding: .day, value: -days, to: Date())!
         func recent(_ ds: String) -> Bool { (isoFormatter.date(from: ds) ?? .distantPast) >= cutoff }
-        let logged = daily.filter { recent($0.date) && ($0.kcal ?? 0) > 0 }
+        let logged = recentIntakes(days: days)
         let stepVals = daily.compactMap { e -> Int? in recent(e.date) ? (e.steps.flatMap { $0 > 0 ? $0 : nil }) : nil }
         let sess = sessions.filter { recent($0.date) }.count
         let loggingPct = Double(logged.count) / Double(days)
         let avgSteps = stepVals.isEmpty ? nil : stepVals.reduce(0, +) / stepVals.count
-        let avgIntake = logged.isEmpty ? nil : logged.compactMap { $0.kcal }.reduce(0, +) / logged.count
+        let avgIntake = logged.isEmpty ? nil : logged.reduce(0, +) / logged.count
         let status: String
         if logged.isEmpty { status = "none" }
         else if loggingPct < 0.5 { status = "low_logging" }
@@ -211,13 +216,11 @@ extension Store {
     /// <30 kcal/kg FFM/day = clinical LEA risk; 30-45 a caution under heavy load.
     func energyAvailability() -> LEAResult {
         guard let ffm = fatFreeMass(), ffm > 0 else { return LEAResult(ea: nil, risk: "none") }
-        let cal = Calendar.current
-        let cutoff = cal.date(byAdding: .day, value: -7, to: Date())!
-        let intakes = daily.compactMap { e -> Int? in
-            guard let k = e.kcal, k > 0, let d = isoFormatter.date(from: e.date), d >= cutoff else { return nil }
-            return k
-        }
-        guard !intakes.isEmpty else { return LEAResult(ea: nil, risk: "none") }
+        let window = 7
+        let intakes = recentIntakes(days: window)
+        guard !intakes.isEmpty,
+              let cutoff = Calendar.current.date(byAdding: .day, value: -window, to: Date())
+        else { return LEAResult(ea: nil, risk: "none") }
         let avgIntake = Double(intakes.reduce(0, +)) / Double(intakes.count)
         let exDays = sessions.filter { (isoFormatter.date(from: $0.date) ?? .distantPast) >= cutoff }
         let exEnergy = exDays.reduce(0.0) { $0 + Double($1.caloriesManual ?? estimateCalories($1)) }

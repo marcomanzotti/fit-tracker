@@ -35,11 +35,8 @@ extension Store {
 
     /// Sum of session TRIMP in a Monday-based week (offset 0 = current week).
     func weeklyTrimp(offset: Int = 0) -> Double {
-        let cal = Calendar.current
-        let now = Date()
-        let dow = (cal.component(.weekday, from: now) + 5) % 7   // Monday = 0
-        let mon = cal.startOfDay(for: cal.date(byAdding: .day, value: -dow - offset * 7, to: now)!)
-        let sun = cal.date(byAdding: .day, value: 7, to: mon)!
+        let mon = weekStart(offset: offset)
+        let sun = weekStart(offset: offset - 1)
         var total = 0.0
         for s in sessions {
             guard let v = trimp(s), let d = isoFormatter.date(from: s.date) else { continue }
@@ -175,10 +172,8 @@ extension Store {
     /// we can't retroactively distinguish rest from a gap.
     func weekLoad(offset: Int) -> WeekLoad {
         let cal = Calendar.current
-        let now = Date()
-        let dow = (cal.component(.weekday, from: now) + 5) % 7    // Monday = 0
-        let mon = cal.startOfDay(for: cal.date(byAdding: .day, value: -dow - offset * 7, to: now)!)
-        let today = cal.startOfDay(for: now)
+        let mon = weekStart(offset: offset)
+        let today = cal.startOfDay(for: Date())
         var daily = [Double](repeating: 0, count: 7)
         var count = 0
         var trainingDays = Set<Int>()
@@ -275,7 +270,7 @@ extension Store {
         for d in daily { if let v = d.sleep, v > 0 { sleepMap[d.date] = Double(v) } }
         if let f = zFactor(map: sleepMap, transform: { $0 }, higherIsBetter: true, minN: 5) {
             factors.append((name: "sleep", z: f.z, w: 0.20))
-        } else if let latestKey = sleepMap.keys.max(), let todayScore = sleepMap[latestKey] {
+        } else if let latestKey = sleepMap.keys.max(), isRecent(latestKey), let todayScore = sleepMap[latestKey] {
             factors.append((name: "sleep", z: max(-3, min(3, (todayScore - 72) / 12)), w: 0.20))
         }
 
@@ -299,13 +294,24 @@ extension Store {
     /// Standardize the latest reading of a daily metric against a personal baseline
     /// of the prior ~60 days. Returns today's z (sign flipped when lower is better,
     /// clamped to ±3 so one freak reading can't dominate), plus baseline stats.
+    /// Readiness is about now: the newest reading stands in for "today" only while
+    /// it is at most this many days old. An HRV value from weeks ago says nothing
+    /// about how recovered the user is this morning.
+    private static let readinessFreshDays = 3
+    private func isRecent(_ date: String) -> Bool {
+        guard let day = isoFormatter.date(from: date),
+              let cutoff = Calendar.current.date(byAdding: .day, value: -Store.readinessFreshDays,
+                                                 to: Calendar.current.startOfDay(for: Date())) else { return false }
+        return day >= cutoff
+    }
+
     private func zFactor(map: [String: Double], transform: (Double) -> Double,
                          higherIsBetter: Bool, minN: Int)
         -> (z: Double, today: Double, mean: Double, sd: Double, baseCount: Int)? {
         let pairs = map.filter { $0.value > 0 }.sorted { $0.key < $1.key }
-        guard !pairs.isEmpty else { return nil }
+        guard let latest = pairs.last, isRecent(latest.key) else { return nil }
         let vals = pairs.map { transform($0.value) }
-        let today = vals.last!
+        let today = transform(latest.value)
         let history = vals.count > 1 ? Array(vals.dropLast()) : vals
         let base = Array(history.suffix(60))
         guard base.count >= minN else { return nil }
@@ -354,15 +360,24 @@ extension Store {
     ///   4. Consistency check: if the exercise was hit at the top of the range
     ///      in the two most recent sessions, confirm addLoad; a single session
     ///      at the top with a prior fall-short stays at addReps (not yet confirmed).
+    /// What recovery data says about pushing today, or nil when it has nothing
+    /// trustworthy to say. The ACWR counts only once there is enough load history
+    /// for the ratio to mean something — the same test the dashboard applies before
+    /// showing it (one logged ride alone gives a ratio above 3).
+    private func recoveryGate() -> ProgKind? {
+        if let score = readiness().score, score < Store.deloadBelowReadiness { return .deload }
+        if loadDataStatus().reliable, let ratio = acwr().ratio, ratio > Store.holdAboveACWR { return .hold }
+        return nil
+    }
+    private static let deloadBelowReadiness = 30
+    private static let holdAboveACWR = 1.3
+
     func progression(planId: String, exercise: String) -> ProgKind? {
         guard let plan = plan(planId),
               let pe = plan.exercises.first(where: { $0.name == exercise }) else { return nil }
 
         // Health gates — check readiness and load FIRST (apply to every kind).
-        let r = readiness()
-        if let score = r.score, score < 30 { return .deload }
-        let aw = acwr()
-        if let ratio = aw.ratio, ratio > 1.3 { return .hold }
+        if let gate = recoveryGate() { return gate }
 
         // Timed (isometric) and interval (HIIT) exercises progress on time / rounds,
         // not on a rep range — route them to their own logic. Classic reps fall
@@ -412,9 +427,9 @@ extension Store {
             if let prevEx = prev.exercises.first(where: { $0.name == exercise }) {
                 let prevWorking = prevEx.sets.filter { pf($0.weight) > 0 }
                 let prevReps = prevWorking.compactMap { Int(pf($0.reps)) }
-                if let prevMin = prevReps.min(), prevMin >= hi {
-                    return .addLoad   // two sessions at ceiling → ready for more weight
-                }
+                // Two sessions at the ceiling → ready for more weight. One at the
+                // ceiling after a shortfall is not confirmed yet: keep chasing reps.
+                if let prevMin = prevReps.min() { return prevMin >= hi ? .addLoad : .addReps }
             }
         }
         return .addLoad   // only one session in history, give the benefit of the doubt
@@ -442,8 +457,8 @@ extension Store {
         guard let target, held >= target else { return .addReps }
         if planSessions.count >= 2,
            let prevEx = planSessions[1].exercises.first(where: { $0.name == exercise }),
-           prevEx.maxSeconds >= target {
-            return .addLoad
+           prevEx.maxSeconds > 0 {
+            return prevEx.maxSeconds >= target ? .addLoad : .addReps
         }
         return .addLoad
     }

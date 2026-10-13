@@ -92,6 +92,8 @@ struct FoodDatabaseCard: View {
     @EnvironmentObject var store: Store
     @State private var sheet: DBSheet?
     @State private var looking = false
+    /// Why a scanned product came back empty; shown at the top of the form.
+    @State private var scanNotice: String?
 
     var body: some View {
         let foods = store.recentFoods()
@@ -116,12 +118,12 @@ struct FoodDatabaseCard: View {
                 }
             }
         }
-        .sheet(item: $sheet) { which in
+        .sheet(item: $sheet, onDismiss: { if sheet == nil { scanNotice = nil } }) { which in
             switch which {
             case .scan:
                 BarcodeScannerSheet { code in handleScan(code) }
             case .form(let f):
-                FoodFormSheet(food: f) { saved in _ = store.saveFood(saved) }
+                FoodFormSheet(food: f, notice: scanNotice) { saved in _ = store.saveFood(saved) }
             }
         }
         .overlay {
@@ -161,9 +163,19 @@ struct FoodDatabaseCard: View {
     private func handleScan(_ code: String) {
         if let existing = store.food(barcode: code) { sheet = .form(existing); return }
         looking = true
-        OpenFoodFacts.lookup(barcode: code) { item in
+        OpenFoodFacts.lookup(barcode: code) { outcome in
             looking = false
-            sheet = .form(item ?? FoodItem(name: "", barcode: code))
+            // Either way the form opens for manual entry, and says which it was.
+            switch outcome {
+            case .found(let item):
+                sheet = .form(item)
+            case .notFound:
+                scanNotice = t("food.not_found")
+                sheet = .form(FoodItem(name: "", barcode: code))
+            case .unreachable:
+                scanNotice = t("food.lookup_failed")
+                sheet = .form(FoodItem(name: "", barcode: code))
+            }
         }
     }
 }

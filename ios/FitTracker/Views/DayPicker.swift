@@ -319,7 +319,7 @@ struct DayPickerSheet: View {
         let start = Calendar.current.startOfDay(for: d)
         hk.requestAuthorization { granted in
             guard granted else { return }
-            hk.fetch(from: start, to: start, categories: store.prefs.healthCategories) { samples in
+            hk.fetch(from: start, to: start, categories: store.prefs.healthCategories) { samples, _ in
                 store.applyHealthSamples(samples)
             }
         }

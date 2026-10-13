@@ -34,7 +34,7 @@ struct BodyView: View {
         let lw = store.dailyEntry(day)?.weight ?? store.lastWeight
         let bmi = store.bmi(lw)
         let cat = store.bmiComment(weight: lw)
-        let bl = store.body.first { $0.date == day } ?? store.bodyLatest
+        let bl = store.bodyEntry(onOrBefore: day)
         let navy = store.bfNavy(waist: bl?.waist, neck: bl?.neck, hip: bl?.hips)
         let bf = bl?.bfManual ?? navy
         let lean = bf.map { ((lw * (1 - $0 / 100)) * 10).rounded() / 10 }
@@ -309,7 +309,8 @@ struct BodyView: View {
 
     private func bodyMeasureRow(_ measure: MeasureField, bl: BodyEntry?) -> some View {
         let current = bl?.value(for: measure.key)
-        let previous = store.bodyPrev?.value(for: measure.key)
+        // Compared with the record before this one, not with whatever is newest.
+        let previous = bl.flatMap { store.bodyEntry(before: $0.date) }?.value(for: measure.key)
         let delta = current.flatMap { currentValue in
             previous.map { ((currentValue - $0) * 10).rounded() / 10 }
         }
@@ -342,31 +343,47 @@ struct BodyView: View {
         .padding(.vertical, 3)
     }
 
+    /// Save whatever was typed. Each field is checked on its own: the valid ones are
+    /// saved and cleared, the others stay in place and are named, so a typo is
+    /// never silently dropped behind a "saved" message.
     private func saveBodyLog() {
-        let weight = Units.wIn(pf(weightInput))
-        if weight >= 30 && weight <= 250 {
-            store.saveCheckIn(weight: weight, sleep: nil, date: day)
-        }
+        var rejected: [String] = []
+        var saved = false
+        func typed(_ text: String) -> Bool { !text.trimmingCharacters(in: .whitespaces).isEmpty }
 
-        let bodyFat = pf(bfInput)
-        if bodyFat >= 1 && bodyFat <= 60 {
-            store.saveBodyFat(bodyFat, date: day)
+        if typed(weightInput) {
+            let weight = Units.wIn(pf(weightInput))
+            if Store.plausibleWeightKg.contains(weight) {
+                store.saveCheckIn(weight: weight, sleep: nil, date: day)
+                weightInput = ""; saved = true
+            } else { rejected.append(t("home.weight")) }
         }
-
+        if typed(bfInput) {
+            let bodyFat = pf(bfInput)
+            if Store.plausibleBodyFat.contains(bodyFat) {
+                store.saveBodyFat(bodyFat, date: day)
+                bfInput = ""; saved = true
+            } else { rejected.append(t("home.fat")) }
+        }
         var measurements: [String: Double] = [:]
-        for measure in measureFields {
+        for measure in measureFields where typed(measInputs[measure.key] ?? "") {
             let value = Units.lenIn(pf(measInputs[measure.key] ?? ""))
-            if value > 0 { measurements[measure.key] = value }
+            if Store.plausibleLengthCm.contains(value) {
+                measurements[measure.key] = value
+                measInputs[measure.key] = nil
+            } else { rejected.append(measLabel(measure.key)) }
         }
         if !measurements.isEmpty {
             store.saveMeasurements(measurements, date: day)
+            saved = true
         }
 
-        guard weight >= 30 && weight <= 250 || bodyFat >= 1 && bodyFat <= 60 || !measurements.isEmpty else { return }
-        weightInput = ""
-        bfInput = ""
-        measInputs = [:]
-        toast.show(t("body.saved"))
+        if !rejected.isEmpty {
+            haptic(.error)
+            toast.show(t("body.rejected", rejected.joined(separator: ", ")), duration: ToastCenter.longDuration)
+        } else {
+            toast.show(t(saved ? "body.saved" : "body.nothing_to_save"))
+        }
     }
 
     // MARK: Body analysis

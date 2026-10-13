@@ -386,7 +386,7 @@ struct WorkoutView: View {
         // commitPlan): a still-focused exercise field would read a stale binding.
         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder),
                                         to: nil, from: nil, for: nil)
-        store.plans.removeAll { $0.id == p.id }
+        store.deletePlan(p.id)
         DispatchQueue.main.async {
             editing = nil
             toast.show(t("wk.day_deleted"))

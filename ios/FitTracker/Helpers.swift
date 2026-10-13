@@ -31,6 +31,14 @@ func headerDate() -> (full: String, day: String) {
     return ("\(d) \(L.months[max(0, min(11, m))]) \(y)", L.days[max(0, min(6, wd))])
 }
 
+/// Monday 00:00 of the week `offset` weeks before the one containing `now`. Weeks
+/// in this app always run Monday to Sunday, whatever the device's first weekday.
+func weekStart(offset: Int = 0, now: Date = Date(), calendar: Calendar = .current) -> Date {
+    let daysSinceMonday = (calendar.component(.weekday, from: now) + 5) % 7
+    let today = calendar.startOfDay(for: now)
+    return calendar.date(byAdding: .day, value: -daysSinceMonday - offset * 7, to: today) ?? today
+}
+
 /// Total seconds -> compact "1h 05m", "45m 30s" or "30s" for session summaries.
 func fmtDuration(_ seconds: Int) -> String {
     let h = seconds / 3600, m = (seconds % 3600) / 60, s = seconds % 60
