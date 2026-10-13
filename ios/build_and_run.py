@@ -8,10 +8,11 @@ Run this with the "Run"/play button in VS Code (or `python3 build_and_run.py`).
 No prompts, no arguments: it always does the same thing.
 """
 
+import json
 import subprocess
 import sys
 import os
-import re
+import tempfile
 from pathlib import Path
 
 IOS_DIR = Path(__file__).resolve().parent
@@ -26,6 +27,8 @@ SCHEME = os.environ.get("FIT_TRACKER_SCHEME", "FitTrackerWatchHost")
 CONFIGURATION = os.environ.get("FIT_TRACKER_CONFIGURATION", "Debug")
 TEAM = os.environ.get("DEVELOPMENT_TEAM", "Y63UKFMUPH")
 BUNDLE_ID = "com.marco.manzotti.fittracker"
+# devicectl's tunnelState for a device it knows about but cannot reach.
+UNREACHABLE_TUNNEL_STATE = "unavailable"
 
 
 def run(cmd, **kwargs):
@@ -38,34 +41,41 @@ def fail(message):
     sys.exit(1)
 
 
+def reachable_iphone_udid(device):
+    """UDID of a real iPhone devicectl can talk to right now, else None."""
+    hardware = device.get("hardwareProperties", {})
+    connection = device.get("connectionProperties", {})
+    if hardware.get("deviceType") != "iPhone" or hardware.get("reality") != "physical":
+        return None
+    # A paired phone that is unplugged or off the network reports "unavailable".
+    if connection.get("tunnelState") in (None, UNREACHABLE_TUNNEL_STATE):
+        return None
+    return hardware.get("udid")
+
+
 def connected_iphone():
     """Return the connected iPhone UDID, or an explicit FIT_TRACKER_DEVICE."""
     override = os.environ.get("FIT_TRACKER_DEVICE")
     if override:
         return override
 
-    try:
-        result = subprocess.run(
-            ["xcrun", "devicectl", "list", "devices"],
-            check=True, capture_output=True, text=True,
-        )
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        fail("Could not list Apple devices. Connect and unlock the iPhone, then retry.")
+    # The JSON listing, not the human table: the table's State column reads
+    # "unavailable" for a phone that is paired but not plugged in, and a substring
+    # test for "available" picks exactly that one.
+    with tempfile.TemporaryDirectory() as tmp:
+        listing = Path(tmp) / "devices.json"
+        try:
+            subprocess.run(
+                ["xcrun", "devicectl", "list", "devices", "--json-output", str(listing)],
+                check=True, capture_output=True, text=True,
+            )
+            devices = json.loads(listing.read_text())["result"]["devices"]
+        except (subprocess.CalledProcessError, FileNotFoundError, OSError, KeyError, ValueError):
+            fail("Could not list Apple devices. Connect and unlock the iPhone, then retry.")
 
-    uuid_pattern = re.compile(
-        r"(?:[0-9A-Fa-f]{8}(?:-[0-9A-Fa-f]{4}){3}-[0-9A-Fa-f]{12}"
-        r"|[0-9A-Fa-f]{8}-[0-9A-Fa-f]{16})"
-    )
-    candidates = []
-    # devicectl has emitted its table on stderr in some Xcode releases.
-    device_output = result.stdout + "\n" + result.stderr
-    for line in device_output.splitlines():
-        lowered = line.lower()
-        # Ignore simulator rows: devicectl lists them alongside real phones.
-        if "iphone" in lowered and "physical" in lowered and "available" in lowered:
-            match = uuid_pattern.search(line)
-            if match:
-                candidates.append(match.group(0))
+    candidates = [
+        udid for udid in (reachable_iphone_udid(device) for device in devices) if udid
+    ]
 
     if len(candidates) == 1:
         return candidates[0]
