@@ -11,6 +11,7 @@ struct BodyView: View {
     @State private var measInputs: [String: String] = [:]
     @State private var shareURL: IdentURL?
     @State private var importing = false
+    @State private var pendingImport: IdentURL?
     @State private var stepsInput = ""
     // Manual sleep entry (shown when Health has no data for today)
     @State private var sleepHoursInput = ""
@@ -531,6 +532,7 @@ struct BodyView: View {
             HStack(spacing: 10) {
                 GhostButton(title: t("home.export")) {
                     if let url = store.exportFile() { shareURL = IdentURL(url: url) }
+                    else { toast.show(t("home.export_failed")) }
                 }
                 GhostButton(title: t("home.import")) { importing = true }
             }
@@ -539,17 +541,27 @@ struct BodyView: View {
         .fileImporter(isPresented: $importing, allowedContentTypes: [.json]) { result in
             switch result {
             case .success(let url):
-                toast.show(store.importFile(url) ? t("body.imported") : t("body.invalid_file"))
+                pendingImport = IdentURL(url: url)
             case .failure:
                 toast.show(t("body.import_cancelled"))
             }
         }
+        // Importing replaces everything, so it is confirmed first. The store keeps a
+        // copy of the current data either way.
+        .confirmationDialog(t("body.import_q"), isPresented: Binding(
+            get: { pendingImport != nil }, set: { if !$0 { pendingImport = nil } }),
+            titleVisibility: .visible, presenting: pendingImport) { file in
+            Button(t("body.import_replace"), role: .destructive) { importBackup(file.url) }
+            Button(t("cancel"), role: .cancel) {}
+        } message: { _ in Text(t("body.import_q_body")) }
     }
 
-    private func field(_ label: String, _ ph: String, _ binding: Binding<String>) -> some View {
-        VStack(alignment: .leading, spacing: 7) {
-            FieldLabel(label)
-            InputField(placeholder: ph, text: binding)
+    private func importBackup(_ url: URL) {
+        switch store.importFile(url) {
+        case .imported:       haptic(.success); toast.show(t("body.imported"))
+        case .invalidFile:    haptic(.error); toast.show(t("body.invalid_file"))
+        case .snapshotFailed: haptic(.error); toast.show(t("body.import_snapshot_failed"))
         }
     }
+
 }

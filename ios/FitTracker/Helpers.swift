@@ -41,7 +41,9 @@ func fmtDuration(_ seconds: Int) -> String {
 
 // MARK: - Number formatting
 func trimNum(_ v: Double) -> String {
-    if v == v.rounded() { return String(Int(v)) }
+    guard v.isFinite else { return "—" }
+    // Int(v) traps outside Int's range, so only whole numbers well inside it.
+    if v == v.rounded(), abs(v) < 1e15 { return String(Int(v)) }
     return String(format: "%g", v)
 }
 

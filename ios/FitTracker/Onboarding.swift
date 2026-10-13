@@ -11,6 +11,38 @@ struct AppRootView: View {
         // Start the Apple Watch link (no-op without a paired watch) and keep the
         // wrist's workout catalog in sync with the saved plans / cardio types.
         .onAppear { WatchSync.shared.attach(store) }
+        .alert(t("store.unreadable_title"), isPresented: Binding(
+            get: { loadProblemText != nil }, set: { if !$0 { store.acknowledgeStorageProblem() } })) {
+            Button(t("ok")) { store.acknowledgeStorageProblem() }
+        } message: { Text(loadProblemText ?? "") }
+    }
+
+    /// Text for a problem found while loading. A failed save is shown as a banner
+    /// instead (`StorageBanner`), because it can repeat on every autosave.
+    private var loadProblemText: String? {
+        switch store.storageProblem {
+        case .unreadable:           return t("store.unreadable_body")
+        case .recovered(let name):  return t("store.recovered_body", name)
+        case .saveFailed, .none:    return nil
+        }
+    }
+}
+
+/// Shown above the tab bar for as long as saving keeps failing.
+struct StorageBanner: View {
+    let reason: String
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill").foregroundColor(Theme.red)
+            Text(t("store.save_failed", reason)).font(.system(size: 12, weight: .semibold))
+                .foregroundColor(Theme.txt).fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, 11).padding(.horizontal, 16)
+        .background(Theme.c2)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(Theme.red.opacity(0.5), lineWidth: 1))
+        .padding(.horizontal, 16)
     }
 }
 

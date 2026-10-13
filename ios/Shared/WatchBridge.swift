@@ -1,4 +1,9 @@
 import Foundation
+import os
+
+/// One logger for the phone app, the watch app and the widget extension. Errors go
+/// here instead of `print`, so they reach Console.app and are never just dropped.
+let appLog = Logger(subsystem: "com.marco.manzotti.fittracker", category: "app")
 
 // MARK: - Phone <-> Watch wire format
 // The only code shared between the iPhone app (FitTracker) and its watchOS

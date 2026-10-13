@@ -86,6 +86,7 @@ struct RootView: View {
                     }
                 }
                 if timer.active { TimerStrip() }
+                if case .saveFailed(let reason) = store.storageProblem { StorageBanner(reason: reason) }
                 NavBar(tab: $tab)
             }
         }
@@ -111,6 +112,8 @@ struct RootView: View {
         // Garmin/Fitbit/etc. shows up without a manual refresh.
         .onChange(of: scenePhase) { phase in
             if phase == .active, store.prefs.healthKitEnabled { store.syncHealth(completion: healthToast) }
+            // The autosave is debounced: write now, before the app can be suspended.
+            if phase != .active { store.flushNow() }
         }
     }
 
@@ -194,13 +197,6 @@ struct ActiveWorkoutStrip: View {
     @EnvironmentObject var activeWorkout: ActiveWorkout
     @EnvironmentObject var store: Store
     let onTap: () -> Void
-
-    private var elapsed: String {
-        guard let start = activeWorkout.startDate else { return "" }
-        let sec = Int(Date().timeIntervalSince(start))
-        let m = sec / 60, s = sec % 60
-        return String(format: "%d:%02d", m, s)
-    }
 
     private var planColor: Color {
         guard let pid = activeWorkout.planId, let plan = store.plan(pid) else { return Theme.acc }

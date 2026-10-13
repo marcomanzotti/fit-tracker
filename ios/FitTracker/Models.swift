@@ -1,9 +1,16 @@
 import Foundation
 
 // MARK: - Parsing helper (mirrors the web app's pf(): accepts "," or ".")
+/// Anything that is not a plain, sane number parses to 0: "inf", "nan" and absurd
+/// magnitudes would otherwise break JSON encoding (and so every later save) or
+/// trap in an `Int(...)` conversion.
 func pf(_ s: String) -> Double {
-    Double(s.replacingOccurrences(of: ",", with: ".")) ?? 0
+    guard let v = Double(s.replacingOccurrences(of: ",", with: ".")),
+          v.isFinite, abs(v) < maxParsedMagnitude else { return 0 }
+    return v
 }
+/// No weight, rep count, distance or duration in this app comes near this.
+private let maxParsedMagnitude = 1e9
 
 // IMPORTANT for backward compatibility: every field added after the original
 // schema is Optional. Swift's synthesized Codable throws on a missing key for a
@@ -334,7 +341,6 @@ struct WorkoutSession: Codable, Identifiable, Equatable {
     var distanceKm: Double?    // running / cycling / walking
     var paceManual: Double?    // user pace/speed override in the sport's native unit
     var elevationM: Double?    // optional climb
-    var poolLengthM: Int?      // swimming pool length
     var caloriesManual: Int?   // user override of the calorie estimate
     /// HKWorkout UUID when this session was imported from Apple Health (e.g. a
     /// Garmin/Fitbit/Polar/Huawei watch that synced to Health). Used to dedupe
@@ -525,13 +531,6 @@ enum GoalMode: String, Codable, CaseIterable {
         case .bulk:     return 0.25
         }
     }
-    var calorieAdjust: Double {     // fraction applied to TDEE as a starting point
-        switch self {
-        case .cut:      return -0.18
-        case .maintain: return 0.0
-        case .bulk:     return 0.12
-        }
-    }
 }
 
 // MARK: - Activity level (TDEE multiplier)
@@ -644,7 +643,6 @@ struct Prefs: Codable, Equatable {
     var healthKitEnabled: Bool { healthKit == true }
     /// Selected Health import categories — defaults to every daily metric on.
     var healthCategories: Set<String> { Set(healthImport ?? HealthCategory.allKeys) }
-    func importsHealth(_ key: String) -> Bool { healthCategories.contains(key) }
     /// Import workouts from Apple Health. Defaults ON when HealthKit is enabled —
     /// Apple Watch workouts written to Health should appear in the app automatically.
     /// The user can turn it off in Settings if they prefer not to import.
@@ -669,12 +667,6 @@ struct Prefs: Codable, Equatable {
     }
     /// True when at least one weekday has a real assignment (not "" / "rest").
     var hasSchedule: Bool { weekSchedule.contains { !$0.isEmpty && $0 != "rest" } }
-    /// +1 if the goal is to gain weight, -1 if to lose, 0 if maintain-ish.
-    func goalDirection(current: Double) -> Int {
-        let diff = goalWeight - current
-        if abs(diff) < 0.3 { return 0 }
-        return diff > 0 ? 1 : -1
-    }
 }
 
 // MARK: - Apple Health import categories (user-selectable)

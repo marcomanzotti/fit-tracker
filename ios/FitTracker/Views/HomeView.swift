@@ -263,6 +263,7 @@ struct HomeView: View {
             Spacer()
             GhostButton(title: t("home.export_data")) {
                 if let url = store.exportFile() { shareURL = IdentURL(url: url) }
+                else { toast.show(t("home.export_failed")) }
             }
         }
         .padding(.vertical, 10).padding(.horizontal, 14)

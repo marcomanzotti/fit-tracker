@@ -12,13 +12,45 @@ final class Store: ObservableObject {
     @Published var recipes: [Recipe] = []
     @Published var prefs: Prefs = Prefs()
 
+    /// Something went wrong reading or writing the saved file. The UI shows it; it
+    /// is never swallowed into "no data".
+    enum StorageProblem: Equatable {
+        /// The data file could not be decoded and no backup could replace it. The
+        /// file was set aside untouched and the app started empty.
+        case unreadable
+        /// The data file could not be decoded; this backup was loaded in its place.
+        case recovered(from: String)
+        /// The last write failed, with the system's reason.
+        case saveFailed(String)
+    }
+    @Published private(set) var storageProblem: StorageProblem?
+
+    enum ImportOutcome: Equatable { case imported, invalidFile, snapshotFailed }
+
+    private static let dataFileName = "fittracker.json"
+    private static let backupPrefix = "backup-"
+    private static let corruptPrefix = "fittracker.corrupt-"
+    private static let preImportPrefix = "pre-import-"
+    private static let backupsKept = 30
+    private static let preImportSnapshotsKept = 3
+    private static let autosaveDebounceSeconds = 0.5
+
     private var loaded = false
+    /// False only when an unreadable file could not be moved out of the way: saving
+    /// would then overwrite the one copy of the user's history.
+    private var canSave = true
     private var bag = Set<AnyCancellable>()
+    private let directory: URL
+    /// Serial, so writes land in the order the changes happened.
+    private let writeQueue = DispatchQueue(label: "fittracker.store.write", qos: .utility)
 
-    var docsURL: URL { FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0] }
-    var dataURL: URL { docsURL.appendingPathComponent("fittracker.json") }
+    static var documentsDirectory: URL {
+        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+    }
+    var dataURL: URL { directory.appendingPathComponent(Store.dataFileName) }
 
-    init() {
+    init(directory: URL = Store.documentsDirectory) {
+        self.directory = directory
         load()
         // Autosave: any change to the published collections persists after a short debounce.
         let pubs: [AnyPublisher<Void, Never>] = [
@@ -33,30 +65,86 @@ final class Store: ObservableObject {
             $prefs.map { _ in () }.eraseToAnyPublisher()
         ]
         Publishers.MergeMany(pubs)
-            .debounce(for: .seconds(0.5), scheduler: RunLoop.main)
+            .debounce(for: .seconds(Store.autosaveDebounceSeconds), scheduler: RunLoop.main)
             .sink { [weak self] in self?.save() }
             .store(in: &bag)
     }
 
     // MARK: Persistence
     func load() {
-        if let d = try? Data(contentsOf: dataURL),
-           let a = migrate(try? JSONDecoder().decode(AppData.self, from: d)) {
-            daily = a.daily; sessions = a.sessions; body = a.body; plans = a.plans; prefs = a.prefs
-            cardioTypes = a.cardioTypes ?? []
-            foods = a.foods ?? []
-            exerciseItems = a.exerciseItems ?? []
-            recipes = a.recipes ?? []
-        }
+        if let document = readDocument() { apply(document) }
         if plans.isEmpty { plans = Store.defaultPlans() }
         if cardioTypes.isEmpty { cardioTypes = Store.defaultCardioTypes() }
         // Register the default plans' exercises so a fresh install's library isn't
         // empty, then layer the curated catalog on top (once, never overwriting).
         for p in plans { registerPlanExercises(p) }
         seedExerciseLibraryIfNeeded()
-        L.lang = prefs.langCode
-        Units.imperial = prefs.imperial
+        syncLang()
         loaded = true
+    }
+
+    /// The saved document, or nil on a first launch. A file that exists but cannot
+    /// be decoded is never treated as "no data": it is moved aside under a dated
+    /// name and the newest readable backup takes its place, so the autosave that
+    /// follows launch has nothing of the user's left to overwrite.
+    private func readDocument() -> AppData? {
+        guard FileManager.default.fileExists(atPath: dataURL.path) else { return nil }
+        do {
+            return migrate(try Store.decodeDocument(at: dataURL))
+        } catch {
+            appLog.error("Data file unreadable: \(String(describing: error), privacy: .public)")
+            canSave = setAsideUnreadableFile()
+            if let backup = newestReadableBackup() {
+                storageProblem = .recovered(from: backup.name)
+                return migrate(backup.document)
+            }
+            storageProblem = .unreadable
+            return nil
+        }
+    }
+
+    private static func decodeDocument(at url: URL) throws -> AppData {
+        try JSONDecoder().decode(AppData.self, from: Data(contentsOf: url))
+    }
+
+    /// Move the unreadable file to `fittracker.corrupt-<timestamp>.json`. Returns
+    /// false when it could not be moved, in which case saving stays off.
+    private func setAsideUnreadableFile() -> Bool {
+        let stamp = Store.fileStampFormatter.string(from: Date())
+        let aside = directory.appendingPathComponent("\(Store.corruptPrefix)\(stamp).json")
+        do {
+            try FileManager.default.moveItem(at: dataURL, to: aside)
+            return true
+        } catch {
+            appLog.error("Could not set the unreadable file aside: \(String(describing: error), privacy: .public)")
+            return false
+        }
+    }
+
+    private func newestReadableBackup() -> (name: String, document: AppData)? {
+        for url in datedFiles(prefix: Store.backupPrefix) {
+            do {
+                return (url.lastPathComponent, try Store.decodeDocument(at: url))
+            } catch {
+                appLog.error("Backup \(url.lastPathComponent, privacy: .public) unreadable, trying an older one")
+            }
+        }
+        return nil
+    }
+
+    /// Files named `<prefix><sortable date>.json`, newest first (the date in the
+    /// name makes lexicographic order chronological).
+    private func datedFiles(prefix: String) -> [URL] {
+        let files: [URL]
+        do {
+            files = try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
+        } catch {
+            appLog.error("Could not list \(self.directory.path, privacy: .public): \(String(describing: error), privacy: .public)")
+            return []
+        }
+        return files
+            .filter { $0.lastPathComponent.hasPrefix(prefix) && $0.pathExtension == "json" }
+            .sorted { $0.lastPathComponent > $1.lastPathComponent }
     }
 
     /// Upgrade a decoded document to the current schema. The guiding rule is "never
@@ -65,8 +153,8 @@ final class Store: ObservableObject {
     /// can't be expressed as an additive optional field (a rename, a semantic shift),
     /// add an explicit `case` here that rewrites the data and bumps the version — the
     /// historical record always survives the upgrade.
-    private func migrate(_ decoded: AppData?) -> AppData? {
-        guard var a = decoded else { return nil }
+    private func migrate(_ decoded: AppData) -> AppData {
+        var a = decoded
         let version = a.schemaVersion ?? 1     // nil predates the field => version 1
         switch version {
         // case 1: <future migration to v2 goes here, then `fallthrough`>
@@ -76,60 +164,137 @@ final class Store: ObservableObject {
         return a
     }
 
-    /// Keep the global localization language + unit system in sync with prefs.
-    func syncLang() { L.lang = prefs.langCode; Units.imperial = prefs.imperial }
-
-    func save() {
-        guard loaded else { return }
-        let a = AppData(daily: daily, sessions: sessions, body: body, plans: plans, prefs: prefs,
-                        cardioTypes: cardioTypes, foods: foods, exerciseItems: exerciseItems, recipes: recipes)
-        guard let d = try? JSONEncoder().encode(a) else { return }
-        try? d.write(to: dataURL, options: .atomic)
-        // Rolling dated backup in Documents (visible in the Files app). The full
-        // history always lives in the primary file above; these dated copies are
-        // redundant safety snapshots, so we keep only the most recent ones to avoid
-        // accumulating hundreds of files. No user data is lost by pruning them.
-        let bk = docsURL.appendingPathComponent("backup-\(today()).json")
-        try? d.write(to: bk, options: .atomic)
-        pruneBackups(keep: 30)
-    }
-
-    /// Delete the oldest dated backups, keeping the `keep` most recent. Safe to call
-    /// on every save: the primary `fittracker.json` is untouched and holds the
-    /// complete history, so this only trims redundant snapshots.
-    private func pruneBackups(keep: Int) {
-        let fm = FileManager.default
-        guard let files = try? fm.contentsOfDirectory(at: docsURL, includingPropertiesForKeys: nil) else { return }
-        let backups = files
-            .filter { $0.lastPathComponent.hasPrefix("backup-") && $0.pathExtension == "json" }
-            .sorted { $0.lastPathComponent > $1.lastPathComponent }   // date in name => lexicographic = chronological
-        guard backups.count > keep else { return }
-        for url in backups.dropFirst(keep) { try? fm.removeItem(at: url) }
-    }
-
-    /// Produce a JSON file URL for sharing/export.
-    func exportFile() -> URL? {
-        let a = AppData(daily: daily, sessions: sessions, body: body, plans: plans, prefs: prefs,
-                        cardioTypes: cardioTypes, foods: foods, exerciseItems: exerciseItems, recipes: recipes)
-        guard let d = try? JSONEncoder.pretty.encode(a) else { return nil }
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("fittracker-\(today()).json")
-        try? d.write(to: url, options: .atomic)
-        return url
-    }
-
-    func importFile(_ url: URL) -> Bool {
-        let access = url.startAccessingSecurityScopedResource()
-        defer { if access { url.stopAccessingSecurityScopedResource() } }
-        guard let d = try? Data(contentsOf: url),
-              let a = try? JSONDecoder().decode(AppData.self, from: d) else { return false }
-        daily = a.daily; sessions = a.sessions; body = a.body
+    private func apply(_ a: AppData) {
+        daily = a.daily; sessions = a.sessions; body = a.body; prefs = a.prefs
         plans = a.plans.isEmpty ? Store.defaultPlans() : a.plans
-        cardioTypes = (a.cardioTypes?.isEmpty == false) ? a.cardioTypes! : Store.defaultCardioTypes()
+        let savedCardio = a.cardioTypes ?? []
+        cardioTypes = savedCardio.isEmpty ? Store.defaultCardioTypes() : savedCardio
         foods = a.foods ?? []
         exerciseItems = a.exerciseItems ?? []
         recipes = a.recipes ?? []
-        prefs = a.prefs
-        return true
+    }
+
+    private var currentDocument: AppData {
+        AppData(daily: daily, sessions: sessions, body: body, plans: plans, prefs: prefs,
+                cardioTypes: cardioTypes, foods: foods, exerciseItems: exerciseItems, recipes: recipes)
+    }
+
+    /// Keep the global localization language + unit system in sync with prefs.
+    func syncLang() { L.lang = prefs.langCode; Units.imperial = prefs.imperial }
+
+    /// Persist the current state. The snapshot is taken here; encoding and the disk
+    /// write happen off the main thread.
+    func save() {
+        guard loaded, canSave else { return }
+        let document = currentDocument
+        writeQueue.async { [weak self] in self?.write(document) }
+    }
+
+    /// Write the current state before returning. Called when the app leaves the
+    /// foreground, so an edit made inside the autosave debounce is not lost if the
+    /// system then suspends or kills the app.
+    func flushNow() {
+        guard loaded, canSave else { return }
+        let document = currentDocument
+        writeQueue.sync { write(document) }
+    }
+
+    private func write(_ document: AppData) {
+        do {
+            let data = try JSONEncoder().encode(document)
+            try keepDatedBackup()
+            try data.write(to: dataURL, options: .atomic)
+            prune(prefix: Store.backupPrefix, keep: Store.backupsKept)
+            reportSave(failure: nil)
+        } catch {
+            appLog.error("Save failed: \(String(describing: error), privacy: .public)")
+            reportSave(failure: error.localizedDescription)
+        }
+    }
+
+    /// Publish a failed write, or clear the previous failure once a write succeeds.
+    /// A load problem stays up until the user has acknowledged it.
+    private func reportSave(failure: String?) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            if let failure {
+                self.storageProblem = .saveFailed(failure)
+            } else if case .saveFailed = self.storageProblem {
+                self.storageProblem = nil
+            }
+        }
+    }
+
+    func acknowledgeStorageProblem() { storageProblem = nil }
+
+    /// One snapshot per day in Documents (visible in the Files app), taken from the
+    /// file as it stood before the day's first save. It is the previous state, so a
+    /// bad change made today can still be undone from it.
+    private func keepDatedBackup() throws {
+        let fm = FileManager.default
+        let backup = directory.appendingPathComponent("\(Store.backupPrefix)\(today()).json")
+        guard fm.fileExists(atPath: dataURL.path), !fm.fileExists(atPath: backup.path) else { return }
+        try fm.copyItem(at: dataURL, to: backup)
+    }
+
+    /// Delete the oldest files with this prefix, keeping the `keep` most recent. The
+    /// primary file holds the complete history, so this only trims redundant copies.
+    private func prune(prefix: String, keep: Int) {
+        for url in datedFiles(prefix: prefix).dropFirst(keep) {
+            do {
+                try FileManager.default.removeItem(at: url)
+            } catch {
+                appLog.error("Could not remove \(url.lastPathComponent, privacy: .public): \(String(describing: error), privacy: .public)")
+            }
+        }
+    }
+
+    private static let fileStampFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyy-MM-dd-HHmmss"
+        return f
+    }()
+
+    /// Produce a JSON file URL for sharing/export, or nil when it could not be written.
+    func exportFile() -> URL? {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("fittracker-\(today()).json")
+        do {
+            try JSONEncoder.pretty.encode(currentDocument).write(to: url, options: .atomic)
+            return url
+        } catch {
+            appLog.error("Export failed: \(String(describing: error), privacy: .public)")
+            return nil
+        }
+    }
+
+    /// Replace everything with the contents of a backup file. The state being
+    /// replaced is first written to `pre-import-<timestamp>.json`; without that
+    /// copy nothing is replaced.
+    func importFile(_ url: URL) -> ImportOutcome {
+        let access = url.startAccessingSecurityScopedResource()
+        defer { if access { url.stopAccessingSecurityScopedResource() } }
+        let incoming: AppData
+        do {
+            incoming = migrate(try Store.decodeDocument(at: url))
+        } catch {
+            appLog.error("Import file unreadable: \(String(describing: error), privacy: .public)")
+            return .invalidFile
+        }
+        do {
+            let stamp = Store.fileStampFormatter.string(from: Date())
+            let snapshot = directory.appendingPathComponent("\(Store.preImportPrefix)\(stamp).json")
+            try JSONEncoder().encode(currentDocument).write(to: snapshot, options: .atomic)
+            prune(prefix: Store.preImportPrefix, keep: Store.preImportSnapshotsKept)
+        } catch {
+            appLog.error("Pre-import snapshot failed: \(String(describing: error), privacy: .public)")
+            return .snapshotFailed
+        }
+        apply(incoming)
+        syncLang()
+        canSave = true
+        storageProblem = nil
+        return .imported
     }
 }
 
@@ -710,12 +875,6 @@ extension Store {
         var protein: Double; var carbs: Double; var fat: Double
         var id: String { date }
     }
-    func nutritionSeries(days: Int = 90) -> [NutPoint] {
-        Array(sortedDaily.filter { $0.hasNutrition }.suffix(days)).map {
-            NutPoint(date: $0.date, kcal: $0.totalKcal,
-                     protein: $0.totalProtein, carbs: $0.totalCarbs, fat: $0.totalFat)
-        }
-    }
 
     /// Weekly-averaged nutrition series for the charts. Mirrors `metricSeries`:
     /// groups logged days into ISO-week buckets and averages each macro, so the
@@ -1191,23 +1350,6 @@ extension Store {
         return s
     }
 
-    struct WeekStat { var avgWeight: Double?; var sessions: Int }
-    func weekStats(offset: Int) -> WeekStat {
-        let cal = Calendar.current
-        let now = Date()
-        let dow = (cal.component(.weekday, from: now) + 5) % 7   // Monday = 0
-        var mon = cal.date(byAdding: .day, value: -dow - offset * 7, to: cal.startOfDay(for: now))!
-        mon = cal.startOfDay(for: mon)
-        let sun = cal.date(byAdding: .day, value: 7, to: mon)!
-        func inRange(_ ds: String) -> Bool {
-            guard let d = isoFormatter.date(from: ds) else { return false }
-            return d >= mon && d < sun
-        }
-        let dw = daily.filter { inRange($0.date) && $0.weight != nil }.compactMap { $0.weight }
-        let avg = dw.isEmpty ? nil : ((dw.reduce(0, +) / Double(dw.count)) * 10).rounded() / 10
-        return WeekStat(avgWeight: avg, sessions: sessions.filter { inRange($0.date) }.count)
-    }
-
     struct PRInfo { var weight: Double; var date: String? }
     /// PR per exercise name across all plans + sessions.
     func allPRs() -> [String: PRInfo] {
@@ -1240,14 +1382,6 @@ extension Store {
     }
 
     // MARK: Exercise library
-    /// All known exercises, most-recently-used first.
-    func recentExercises() -> [ExerciseItem] {
-        exerciseItems.sorted {
-            ($0.lastUsed ?? "") != ($1.lastUsed ?? "")
-                ? ($0.lastUsed ?? "") > ($1.lastUsed ?? "")
-                : $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
-        }
-    }
 
     /// Auto-save an exercise the first time it is used; update its bodyweight flag.
     /// On first save it also gets a suggested movement family (base) and a guessed
@@ -1307,15 +1441,6 @@ extension Store {
                let i = exerciseItems.firstIndex(where: { $0.name == name }) {
                 exerciseItems[i].category = m
             }
-        }
-    }
-
-    /// Update the bodyweight flag for an exercise in the library.
-    func setExerciseBodyweight(_ name: String, _ flag: Bool) {
-        if let i = exerciseItems.firstIndex(where: { $0.name == name }) {
-            exerciseItems[i].isBodyweight = flag
-        } else {
-            exerciseItems.append(ExerciseItem(name: name, isBodyweight: flag, lastUsed: today()))
         }
     }
 
@@ -1386,12 +1511,14 @@ extension Store {
     /// the library. Irreversible — used by the manage-exercises screen behind a
     /// confirmation.
     func deleteExercise(_ name: String) {
-        for si in sessions.indices {
-            sessions[si].exercises.removeAll { $0.name == name }
+        // Only a session this delete emptied is dropped. Sessions that never had
+        // exercises (Health imports, watch sessions, cardio) are not touched.
+        sessions = sessions.compactMap { session in
+            guard session.exercises.contains(where: { $0.name == name }) else { return session }
+            var stripped = session
+            stripped.exercises.removeAll { $0.name == name }
+            return stripped.exercises.isEmpty ? nil : stripped
         }
-        // Drop strength sessions left with no exercises (cardio sessions never have
-        // exercises, so only remove a now-empty session if it was a strength log).
-        sessions.removeAll { $0.sportType == .strength && $0.exercises.isEmpty }
         for pi in plans.indices {
             plans[pi].exercises.removeAll { $0.name == name }
         }
@@ -1587,8 +1714,4 @@ extension Store {
 
     func deleteRecipe(_ id: String) { recipes.removeAll { $0.id == id } }
 
-    func touchRecipe(_ id: String) {
-        guard let i = recipes.firstIndex(where: { $0.id == id }) else { return }
-        recipes[i].lastUsed = today()
-    }
 }
