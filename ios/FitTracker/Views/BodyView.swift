@@ -60,7 +60,7 @@ struct BodyView: View {
                 }.buttonStyle(PressableStyle())
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(prettyDay).font(.head(14, .bold)).tracking(0.5)
+                    Text(prettyDay(day)).font(.head(14, .bold)).tracking(0.5)
                         .foregroundColor(isToday ? Theme.acc : Theme.blue)
                     Text(isToday ? t("body.today") : t("body.past_day"))
                         .font(.system(size: 10)).foregroundColor(Theme.sub)
@@ -102,13 +102,6 @@ struct BodyView: View {
         day = ds
     }
 
-    private var prettyDay: String {
-        guard let d = isoFormatter.date(from: day) else { return day }
-        let f = DateFormatter()
-        f.locale = Locale(identifier: L.lang == "en" ? "en_US" : "it_IT")
-        f.dateFormat = "EEEE d MMMM"
-        return f.string(from: d).capitalized
-    }
 
     // MARK: Sleep card — shows Health data when available, otherwise a manual entry form.
     private var sleepCard: some View {
@@ -251,7 +244,7 @@ struct BodyView: View {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 4) {
                     Lbl(text: t("body.log"), color: Theme.acc2)
-                    Text(prettyDay).font(.system(size: 12, weight: .medium)).foregroundColor(Theme.sub)
+                    Text(prettyDay(day)).font(.system(size: 12, weight: .medium)).foregroundColor(Theme.sub)
                 }
                 Spacer()
                 Image(systemName: "slider.horizontal.3")

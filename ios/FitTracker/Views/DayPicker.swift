@@ -43,7 +43,7 @@ struct DayPickerSheet: View {
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(t("day.title").uppercased()).font(.head(16, .bold)).tracking(1).foregroundColor(Theme.txt)
-                            Text(prettyDate).font(.system(size: 11)).foregroundColor(Theme.sub)
+                            Text(prettyDay(date)).font(.system(size: 11)).foregroundColor(Theme.sub)
                         }
                         Spacer()
                         Button { dismiss() } label: {
@@ -441,11 +441,4 @@ struct DayPickerSheet: View {
         dismiss()
     }
 
-    private var prettyDate: String {
-        guard let d = isoFormatter.date(from: date) else { return date }
-        let f = DateFormatter()
-        f.locale = Locale(identifier: L.lang == "en" ? "en_US" : "it_IT")
-        f.dateFormat = "EEEE d MMMM"
-        return f.string(from: d).capitalized
-    }
 }

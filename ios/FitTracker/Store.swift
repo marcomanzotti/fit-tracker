@@ -3,7 +3,10 @@ import Combine
 import WidgetKit
 
 final class Store: ObservableObject {
-    @Published var daily: [DailyEntry] = []
+    @Published var daily: [DailyEntry] = [] { didSet { sortedDailyCache = nil } }
+    /// `daily` in date order, computed once per change: the dashboard reads it
+    /// (through lastWeight and friends) many times in a single render.
+    private var sortedDailyCache: [DailyEntry]?
     @Published var sessions: [WorkoutSession] = []
     @Published var body: [BodyEntry] = []
     @Published var plans: [WorkoutPlan] = []
@@ -398,7 +401,12 @@ extension Store {
 
 // MARK: - Derived data / domain logic (ports of the web app helpers)
 extension Store {
-    var sortedDaily: [DailyEntry] { daily.sorted { $0.date < $1.date } }
+    var sortedDaily: [DailyEntry] {
+        if let cached = sortedDailyCache { return cached }
+        let sorted = daily.sorted { $0.date < $1.date }
+        sortedDailyCache = sorted
+        return sorted
+    }
 
     /// One time-bucketed average point (week/month/year) for an overview chart.
     struct WeekPoint: Identifiable { var date: String; var value: Double; var id: String { date } }
@@ -456,15 +464,13 @@ extension Store {
 
     /// Compact axis label for a bucket start date, tuned per granularity.
     private func bucketLabel(_ d: Date, granularity: ChartGranularity) -> String {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "en_US_POSIX")
+        let format: String
         switch granularity {
-        case .day:   f.dateFormat = "MM-dd"
-        case .week:  f.dateFormat = "MM-dd"
-        case .month: f.dateFormat = "yyyy-MM"
-        case .year:  f.dateFormat = "yyyy"
+        case .day, .week: format = "MM-dd"
+        case .month:      format = "yyyy-MM"
+        case .year:       format = "yyyy"
         }
-        return f.string(from: d)
+        return cachedFormatter(format).string(from: d)
     }
 
     /// Most recent lastUsed date across a family's variants (for "recent" sorting).
@@ -959,12 +965,7 @@ extension Store {
     }
 
     /// MM-dd label for a week bucket's start date (matches the day/week axis style).
-    private func weekBucketLabel(_ d: Date) -> String {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "en_US_POSIX")
-        f.dateFormat = "MM-dd"
-        return f.string(from: d)
-    }
+    private func weekBucketLabel(_ d: Date) -> String { cachedFormatter("MM-dd").string(from: d) }
 
     // MARK: Apple Health import (optional, gap-fill only)
     /// Merge Health samples into daily entries. Imported values only fill missing
@@ -1731,7 +1732,7 @@ extension Store {
             }
     }
 
-    var bodyLatest: BodyEntry? { body.sorted { $0.date > $1.date }.first }
+    var bodyLatest: BodyEntry? { body.max { $0.date < $1.date } }
     /// The newest body record on or before `date`: what was true on that day.
     func bodyEntry(onOrBefore date: String) -> BodyEntry? {
         body.filter { $0.date <= date }.max { $0.date < $1.date }

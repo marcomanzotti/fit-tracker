@@ -441,8 +441,7 @@ struct CalendarCard: View {
     }
 
     private func monthPrefix(_ d: Date) -> String {
-        let f = DateFormatter(); f.locale = Locale(identifier: "en_US_POSIX"); f.dateFormat = "yyyy-MM"
-        return f.string(from: d)
+        cachedFormatter("yyyy-MM").string(from: d)
     }
 
     private func dayCell(day: Int, firstOfMonth: Date, sessions: [WorkoutSession]) -> some View {

@@ -11,6 +11,26 @@ let isoFormatter: DateFormatter = {
 
 func today() -> String { isoFormatter.string(from: Date()) }
 
+private var formatterCache: [String: DateFormatter] = [:]
+/// A formatter for a fixed format and locale, created once. Building a
+/// DateFormatter is slow, and chart axes and day headers ask for one per label.
+/// Main thread only (it is used from views and the derived-data helpers).
+func cachedFormatter(_ format: String, locale: String = "en_US_POSIX") -> DateFormatter {
+    let key = locale + "|" + format
+    if let cached = formatterCache[key] { return cached }
+    let f = DateFormatter()
+    f.locale = Locale(identifier: locale)
+    f.dateFormat = format
+    formatterCache[key] = f
+    return f
+}
+
+/// "Martedì 13 Ottobre" for a yyyy-MM-dd key, in the app's language.
+func prettyDay(_ date: String) -> String {
+    guard let d = isoFormatter.date(from: date) else { return date }
+    return cachedFormatter("EEEE d MMMM", locale: L.lang == "en" ? "en_US" : "it_IT").string(from: d).capitalized
+}
+
 /// "2024-05-31" -> "05-31"   (mirrors the web app's fmt())
 func fmtShort(_ date: String) -> String { String(date.dropFirst(5)) }
 

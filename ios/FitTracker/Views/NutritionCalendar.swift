@@ -160,7 +160,7 @@ struct NutritionDayEditor: View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
                 Text(t("nut.edit_day").uppercased()).font(.head(16, .bold)).tracking(1).foregroundColor(Theme.txt)
-                Text(prettyDate).font(.system(size: 11)).foregroundColor(Theme.sub)
+                Text(prettyDay(date)).font(.system(size: 11)).foregroundColor(Theme.sub)
             }
             Spacer()
             Button { dismiss() } label: {
@@ -319,13 +319,6 @@ struct NutritionDayEditor: View {
 
     private func dn(_ s: String) -> Double? { s.isEmpty ? nil : pf(s) }
 
-    private var prettyDate: String {
-        guard let d = isoFormatter.date(from: date) else { return date }
-        let f = DateFormatter()
-        f.locale = Locale(identifier: L.lang == "en" ? "en_US" : "it_IT")
-        f.dateFormat = "EEEE d MMMM"
-        return f.string(from: d).capitalized
-    }
 }
 
 // MARK: - Nutrition charts (calories + macros, same style as other metrics)
