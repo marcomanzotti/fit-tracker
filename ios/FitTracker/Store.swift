@@ -1,5 +1,6 @@
 import SwiftUI
 import Combine
+import WidgetKit
 
 final class Store: ObservableObject {
     @Published var daily: [DailyEntry] = []
@@ -188,7 +189,11 @@ final class Store: ObservableObject {
     func save() {
         guard loaded, canSave else { return }
         let document = currentDocument
-        writeQueue.async { [weak self] in self?.write(document) }
+        let widget = widgetSnapshot
+        writeQueue.async { [weak self] in
+            self?.write(document)
+            self?.publish(widget)
+        }
     }
 
     /// Write the current state before returning. Called when the app leaves the
@@ -227,6 +232,30 @@ final class Store: ObservableObject {
     }
 
     func acknowledgeStorageProblem() { storageProblem = nil }
+
+    // MARK: Widget
+    /// What the Home / Lock Screen widget shows right now.
+    private var widgetSnapshot: WidgetSnapshot {
+        let next = nextUp()
+        return WidgetSnapshot(nextName: next?.name ?? "", nextColor: next?.color ?? "ffe000",
+                              nextIcon: next?.icon ?? "dumbbell.fill", streak: streak,
+                              kcalToday: dailyEntry(today())?.totalKcal ?? 0,
+                              kcalTarget: Int(energyTargets().target))
+    }
+    private var publishedWidget: WidgetSnapshot?
+
+    /// Hand the snapshot to the widget, only when it changed (reloads are budgeted
+    /// by the system) and only from the real store, never from a test instance.
+    private func publish(_ snapshot: WidgetSnapshot) {
+        guard directory == Store.documentsDirectory, snapshot != publishedWidget else { return }
+        do {
+            try snapshot.save()
+            publishedWidget = snapshot
+            WidgetCenter.shared.reloadTimelines(ofKind: WidgetSnapshot.widgetKind)
+        } catch {
+            appLog.error("Widget snapshot not written: \(String(describing: error), privacy: .public)")
+        }
+    }
 
     /// One snapshot per day in Documents (visible in the Files app), taken from the
     /// file as it stood before the day's first save. It is the previous state, so a

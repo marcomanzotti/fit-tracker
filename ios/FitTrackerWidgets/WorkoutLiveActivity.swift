@@ -129,9 +129,116 @@ struct WorkoutLiveActivity: Widget {
     }
 }
 
+// MARK: - Next workout widget (Home Screen + Lock Screen)
+// Next workout, streak and today's calories at a glance. It reads the snapshot the
+// app writes into the shared App Group container; it never touches the data file.
+private struct NextWorkoutEntry: TimelineEntry {
+    let date: Date
+    let snapshot: WidgetSnapshot?
+}
+
+private struct NextWorkoutProvider: TimelineProvider {
+    private static let sample = WidgetSnapshot(nextName: "Push", nextColor: "ff5a52", nextIcon: "dumbbell.fill",
+                                               streak: 5, kcalToday: 1_450, kcalTarget: 2_400)
+
+    func placeholder(in context: Context) -> NextWorkoutEntry {
+        NextWorkoutEntry(date: Date(), snapshot: Self.sample)
+    }
+    func getSnapshot(in context: Context, completion: @escaping (NextWorkoutEntry) -> Void) {
+        completion(NextWorkoutEntry(date: Date(), snapshot: context.isPreview ? Self.sample : WidgetSnapshot.load()))
+    }
+    func getTimeline(in context: Context, completion: @escaping (Timeline<NextWorkoutEntry>) -> Void) {
+        // The app reloads the widget whenever its data changes; nothing here
+        // depends on the clock, so there is no refresh schedule.
+        completion(Timeline(entries: [NextWorkoutEntry(date: Date(), snapshot: WidgetSnapshot.load())], policy: .never))
+    }
+}
+
+private struct NextWorkoutView: View {
+    @Environment(\.widgetFamily) private var family
+    let snapshot: WidgetSnapshot?
+
+    var body: some View {
+        Group {
+            if let snapshot {
+                switch family {
+                case .accessoryCircular:    circular(snapshot)
+                case .accessoryRectangular: rectangular(snapshot)
+                default:                    small(snapshot)
+                }
+            } else {
+                Text(wl("Apri Fit Tracker", "Open Fit Tracker")).font(.caption).multilineTextAlignment(.center)
+            }
+        }
+        .widgetBackground(W.bg)
+    }
+
+    private func nextName(_ s: WidgetSnapshot) -> String {
+        s.nextName.isEmpty ? wl("Nessun allenamento", "No workout") : s.nextName
+    }
+
+    private func small(_ s: WidgetSnapshot) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(wl("PROSSIMO", "NEXT")).font(.system(size: 10, weight: .semibold)).tracking(1.5).foregroundColor(W.sub)
+            HStack(spacing: 6) {
+                Image(systemName: s.nextIcon).font(.system(size: 14, weight: .bold))
+                Text(nextName(s).uppercased()).font(.system(size: 17, weight: .bold)).lineLimit(1).minimumScaleFactor(0.6)
+            }
+            .foregroundColor(Color(hex: s.nextColor))
+            Spacer(minLength: 0)
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                Text("\(s.streak)").font(.system(size: 22, weight: .bold, design: .rounded)).foregroundColor(W.acc)
+                Text(wl("giorni", "days")).font(.system(size: 11)).foregroundColor(W.sub)
+            }
+            Text("\(s.kcalToday) / \(s.kcalTarget) kcal").font(.system(size: 11, weight: .semibold))
+                .foregroundColor(W.txt).lineLimit(1).minimumScaleFactor(0.7)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private func rectangular(_ s: WidgetSnapshot) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Label(nextName(s), systemImage: s.nextIcon).font(.headline).lineLimit(1)
+            Text("\(s.streak) \(wl("giorni di fila", "day streak"))").font(.caption)
+            Text("\(s.kcalToday) / \(s.kcalTarget) kcal").font(.caption)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func circular(_ s: WidgetSnapshot) -> some View {
+        VStack(spacing: 0) {
+            Image(systemName: "flame.fill").font(.caption)
+            Text("\(s.streak)").font(.system(size: 20, weight: .bold, design: .rounded))
+        }
+    }
+}
+
+private extension View {
+    /// iOS 17 requires a container background for widgets; earlier systems take a plain one.
+    @ViewBuilder func widgetBackground(_ color: Color) -> some View {
+        if #available(iOSApplicationExtension 17.0, *) {
+            containerBackground(for: .widget) { color }
+        } else {
+            padding(14).background(color)
+        }
+    }
+}
+
+struct NextWorkoutWidget: Widget {
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: WidgetSnapshot.widgetKind, provider: NextWorkoutProvider()) { entry in
+            NextWorkoutView(snapshot: entry.snapshot)
+        }
+        .configurationDisplayName(wl("Prossimo allenamento", "Next workout"))
+        .description(wl("Prossimo allenamento, streak e calorie di oggi.", "Next workout, streak and today's calories."))
+        .supportedFamilies([.systemSmall, .accessoryRectangular, .accessoryCircular])
+    }
+}
+
 @main
 struct FitTrackerWidgetsBundle: WidgetBundle {
     var body: some Widget {
         WorkoutLiveActivity()
+        NextWorkoutWidget()
     }
 }
