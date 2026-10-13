@@ -30,7 +30,6 @@ enum Theme {
     static let brd2   = Color(hex: "3a3a42")
     static let acc    = Color(hex: "ffe000")   // Lamborghini-bright yellow (was ffd21e)
     static let acc2   = Color(hex: "ffb000")
-    static let accDim = Color(hex: "c25200")
     static let txt    = Color(hex: "f4efe6")
     static let sub    = Color(hex: "8a857d")
     static let mut    = Color(hex: "161619")
@@ -60,7 +59,6 @@ enum Theme {
 
     static let radius:  CGFloat = 18
     static let radiusS: CGFloat = 12
-    static let radiusXS: CGFloat = 9
 
     /// Shared visual identity for a "rest" day, used identically on the weekly
     /// plan and the "this week" strip and calendar: an almost-white chip with a

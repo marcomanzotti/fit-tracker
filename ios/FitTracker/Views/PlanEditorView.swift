@@ -10,7 +10,6 @@ private struct ExerciseNameField: View {
     var placeholder: String
 
     @State private var showSuggestions = false
-    @State private var isFocused = false
 
     private var suggestions: [String] {
         let q = name.trimmingCharacters(in: .whitespaces)

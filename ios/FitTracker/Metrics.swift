@@ -36,20 +36,6 @@ extension Store {
         return best.map { ($0 * 10).rounded() / 10 }
     }
 
-    /// e1RM over time for an exercise (best set per session), oldest -> newest, for
-    /// a progression chart. One point per session that has a usable loaded set.
-    struct E1RMPoint: Identifiable { var date: String; var value: Double; var id: String { date } }
-    func e1RMSeries(_ name: String) -> [E1RMPoint] {
-        var pts: [E1RMPoint] = []
-        for s in sessions.sorted(by: { $0.date < $1.date }) {
-            var best = 0.0
-            for e in s.exercises where e.name == name {
-                for set in e.sets { if let v = e1RM(weight: pf(set.weight), reps: pf(set.reps)) { best = max(best, v) } }
-            }
-            if best > 0 { pts.append(E1RMPoint(date: s.date, value: (best * 10).rounded() / 10)) }
-        }
-        return pts
-    }
 }
 
 // MARK: - FFMI (fat-free mass index)
@@ -359,14 +345,6 @@ extension Store {
         return (0..<5).map { i in HRZone(index: i + 1, lower: bpm(bounds[i]), upper: bpm(bounds[i + 1])) }
     }
 
-    /// Which zone (1-5) a given average HR falls in, for tagging a cardio session.
-    func hrZone(for bpm: Int) -> Int? {
-        let zones = hrZones()
-        guard !zones.isEmpty, bpm > 0 else { return nil }
-        if bpm < zones[0].lower { return 1 }
-        for z in zones where bpm >= z.lower && bpm <= z.upper { return z.index }
-        return 5
-    }
 }
 
 // MARK: - Resting HR / HRV trend (recovery & fitness direction)

@@ -138,18 +138,6 @@ final class WatchSync: NSObject, ObservableObject {
         #endif
     }
 
-    /// Whether a paired watch has the FitTracker companion installed (drives the
-    /// "Start on Watch" affordance). Stable enough to read at render time.
-    var watchAppAvailable: Bool {
-        #if canImport(WatchConnectivity)
-        guard WCSession.isSupported() else { return false }
-        let s = WCSession.default
-        return s.activationState == .activated && s.isPaired && s.isWatchAppInstalled
-        #else
-        return false
-        #endif
-    }
-
     /// Route an inbound message: live telemetry updates the published sample; a
     /// finished result is either handed to an open phone live view (to merge and
     /// save once) or ingested straight into the store.

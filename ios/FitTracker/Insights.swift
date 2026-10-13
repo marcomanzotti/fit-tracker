@@ -745,10 +745,6 @@ struct SessionEditorView: View {
         Binding(get: { session[keyPath: kp].map(String.init) ?? "" },
                 set: { session[keyPath: kp] = Int($0) })
     }
-    private func doubleBinding(_ kp: WritableKeyPath<WorkoutSession, Double?>) -> Binding<String> {
-        Binding(get: { session[keyPath: kp].map { trimNum($0) } ?? "" },
-                set: { session[keyPath: kp] = $0.isEmpty ? nil : pf($0) })
-    }
     /// Distance binding that displays/parses in the user's distance unit (km stored).
     private var distanceBinding: Binding<String> {
         Binding(get: { session.distanceKm.map(dispDist) ?? "" },
