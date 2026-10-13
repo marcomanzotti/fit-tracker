@@ -57,10 +57,19 @@ height and default rest-timer length.
 
 - Everything is stored in a JSON file in the app’s **Documents** folder and saved
   automatically (debounced) on every change.
-- A dated copy (`backup-YYYY-MM-DD.json`) is written too — both are visible in the
-  iPhone **Files app → On My iPhone → Fit Tracker**.
+- A dated copy (`backup-YYYY-MM-DD.json`) is kept too: it is the file as it stood
+  before the day's first save, so it holds the previous state. Both are visible in the
+  iPhone **Files app → On My iPhone → Fit Tracker**; the last 30 are kept.
+- If the data file can't be read, it is never overwritten: it is renamed
+  `fittracker.corrupt-<date>.json`, the newest readable backup is loaded and the app
+  tells you. A failed save shows a banner instead of passing silently.
 - Use **Esporta JSON** (Home or Corpo) to share a full backup, and **Importa JSON**
-  to restore it. Export before you ever delete/reinstall the app.
+  to restore it. Importing asks first and keeps a `pre-import-<date>.json` copy of
+  what it replaces. Export before you ever delete/reinstall the app.
+- **A workout in progress survives the app being closed.** The running session
+  (sets, duration, heart rate, rest countdown, cardio clock and distance) is written
+  to disk as you go and restored at the next launch. One left untouched for more
+  than six hours asks whether to resume it, save it as it is, or discard it.
 
 > Note: iCloud sync isn’t included because a free SideStore signing certificate
 > can’t use iCloud entitlements. Manual export + the dated backups cover this.
@@ -115,6 +124,21 @@ SideStore signs the app on your phone with your own Apple ID, so we ship it **un
 4. In **SideStore** → **My Apps** → **＋** (top-left) → select `FitTracker.ipa`.
    SideStore re-signs it with your Apple ID and installs it. Refresh it within 7 days
    (SideStore can auto-refresh in the background) to keep it from expiring.
+
+---
+
+## Tests
+
+Unit tests live in `FitTrackerTests/` and run on the simulator:
+
+```bash
+xcodebuild test -project FitTracker.xcodeproj -scheme FitTracker \
+  -destination 'platform=iOS Simulator,name=iPhone 17'
+```
+
+They cover the things that must not break: reading and writing the data file
+(including a corrupt one), restoring a workout in progress, the clocks, and the
+nutrition, streak and progression maths.
 
 ---
 
