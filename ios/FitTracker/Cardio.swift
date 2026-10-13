@@ -207,17 +207,15 @@ struct LiveCardioView: View {
     let onBack: () -> Void      // minimize, keep running
     let onSaved: () -> Void     // finish / discard ends it
 
-    @StateObject private var gps = LocationTracker()
     @State private var confirmDiscard = false
+    // Only redraws the clock: the time itself is kept by ActiveCardio from dates,
+    // so it is right whether or not this screen was showing.
+    @State private var now = Date()
     private let tick = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     private var accent: Color { Color(hex: type.color) }
-    private var activityId: String { "cardio-\(type.id)" }
-    // Outdoor sports use GPS; indoor/other skip it (no permission prompt).
-    private var usesGPS: Bool {
-        switch type.sportType { case .running, .walking, .cycling: return true; default: return false }
-    }
-    private var isWatchLive: Bool { watch.liveActive && watch.live?.activityId == activityId }
+    private var isWatchLive: Bool { watch.liveActive && watch.live?.activityId == activeCardio.activityId }
+    private var liveSample: WatchLiveSample? { isWatchLive ? watch.live : nil }
 
     var body: some View {
         ZStack {
@@ -235,42 +233,17 @@ struct LiveCardioView: View {
             }
         }
         .preferredColorScheme(.dark)
-        .onAppear {
-            watch.openActivityId = activityId
-            if usesGPS { gps.start() }
-        }
-        .onDisappear {
-            if watch.openActivityId == activityId { watch.openActivityId = nil }
-        }
-        .onReceive(tick) { _ in
-            // Count active (non-paused) seconds on the phone clock. Watch elapsed
-            // wins when a watch session is streaming (it's the source of truth).
-            if !activeCardio.paused { activeCardio.elapsedSec += 1 }
-            if usesGPS {
-                activeCardio.gpsDistanceKm = gps.distanceKm > 0 ? gps.distanceKm : nil
-                activeCardio.speedMS = gps.speedMS
-            }
-        }
-        .onReceive(watch.$live) { s in if let s, s.activityId == activityId { applyLive(s) } }
+        .onReceive(tick) { now = $0 }
     }
 
-    // The elapsed seconds shown: prefer the watch's own elapsed when live.
-    private var elapsed: Int {
-        if isWatchLive, let e = watch.live?.elapsedSec, e > 0 { return e }
-        return activeCardio.elapsedSec
-    }
-    private var distanceKm: Double? {
-        if isWatchLive, let d = watch.live?.distanceKm, d > 0 { return d }
-        return activeCardio.gpsDistanceKm
-    }
+    private var elapsed: Int { activeCardio.elapsedSec(at: now) }
+    private var distanceKm: Double? { activeCardio.distanceKm(live: liveSample) }
     private var liveHR: Int? {
-        guard isWatchLive, let hr = watch.live?.hr, hr > 0 else { return nil }
+        guard let hr = liveSample?.hr, hr > 0 else { return nil }
         return hr
     }
-    private var liveKcal: Int? {
-        if isWatchLive, let k = watch.live?.kcal, k > 0 { return k }
-        return estCalories
-    }
+    /// Measured by the watch when there is one, else estimated from the data so far.
+    private var liveKcal: Int? { session.caloriesManual ?? estCalories }
 
     private var header: some View {
         HStack(spacing: 12) {
@@ -300,8 +273,7 @@ struct LiveCardioView: View {
         Card(accent: accent) {
             VStack(spacing: 4) {
                 Text(t("wk.duration").uppercased()).font(.head(9, .semibold)).tracking(2).foregroundColor(Theme.sub)
-                Text(fmtClock(elapsed)).font(.num(46)).foregroundColor(Theme.txt)
-                    .contentTransition(.numericText())
+                Text(fmtClock(elapsed)).font(.num(46)).foregroundColor(Theme.txt).monospacedDigit()
                 if activeCardio.paused {
                     Text(t("wk.paused").uppercased()).font(.head(10, .bold)).tracking(2).foregroundColor(Theme.acc2)
                 }
@@ -320,7 +292,7 @@ struct LiveCardioView: View {
                 liveTile(label: t("wk.avg_hr"), value: liveHR.map { "\($0)" } ?? "—",
                          unit: liveHR != nil ? "bpm" : nil, color: Theme.red)
             }
-            if usesGPS && !gps.authorized {
+            if activeCardio.usesGPS && !activeCardio.gpsAuthorized {
                 Text(t("wk.gps_hint")).font(.system(size: 10)).foregroundColor(Theme.sub)
                     .frame(maxWidth: .infinity, alignment: .leading).padding(.top, 10)
             }
@@ -359,7 +331,7 @@ struct LiveCardioView: View {
     private var controls: some View {
         HStack(spacing: 12) {
             // Pause / resume
-            Button { tap(); activeCardio.paused.toggle() } label: {
+            Button { tap(); activeCardio.togglePause() } label: {
                 HStack(spacing: 8) {
                     Image(systemName: activeCardio.paused ? "play.fill" : "pause.fill").font(.system(size: 15, weight: .bold))
                     Text((activeCardio.paused ? t("wk.resume") : t("wk.pause")).uppercased())
@@ -401,9 +373,9 @@ struct LiveCardioView: View {
     }
 
     // MARK: Pace/speed display in the sport's native unit.
-    private var paceUnit: String { buildSession().paceUnit }
+    private var paceUnit: String { session.paceUnit }
     private var paceValue: String {
-        let s = buildSession()
+        let s = session
         guard let p = s.effectivePace, p > 0, p.isFinite else { return "—" }
         if s.paceIsSpeed { return trimNum((p * 10).rounded() / 10) }   // km/h
         let m = Int(p), sec = Int((p - Double(m)) * 60)               // min/km or /100m
@@ -411,45 +383,28 @@ struct LiveCardioView: View {
     }
 
     private var estCalories: Int? {
-        let s = buildSession()
+        let s = session
         guard (s.durationSeconds ?? 0) > 0 else { return nil }
         return store.estimateCalories(s)
     }
 
-    private func buildSession() -> WorkoutSession {
-        WorkoutSession(
-            date: today(), planId: activityId, planName: type.name, planColor: type.color,
-            exercises: [], sport: type.sport, durationSec: elapsed > 0 ? elapsed : nil,
-            avgHR: isWatchLive ? watch.live?.avgHR : nil,
-            distanceKm: distanceKm,
-            caloriesManual: nil)
-    }
-
-    private func applyLive(_ s: WatchLiveSample) {
-        // Fold the watch's elapsed time into the active session so a minimized
-        // strip + the saved session reflect the watch as the source of truth.
-        if s.elapsedSec > 0 { activeCardio.elapsedSec = s.elapsedSec }
+    /// The session as it stands now. Before any time has been recorded there is
+    /// nothing to save yet, so an empty stand-in feeds the pace and calorie labels.
+    private var session: WorkoutSession {
+        activeCardio.finishedSession(live: liveSample)
+            ?? WorkoutSession(date: today(), planId: activeCardio.activityId ?? "", planName: type.name,
+                              planColor: type.color, exercises: [], sport: type.sport)
     }
 
     private func finish() {
-        guard elapsed > 0 else { discard(); return }
-        var s = buildSession()
-        // Watch active energy wins; else the estimate from data.
-        if let k = liveKcal, k > 0 { s.caloriesManual = k }
-        if usesGPS { gps.stop() }
+        guard var s = activeCardio.finishedSession(live: liveSample) else { discard(); return }
+        // The watch's measured energy is already on the session; else the estimate.
+        if s.caloriesManual == nil, let k = estCalories, k > 0 { s.caloriesManual = k }
         store.sessions.append(s)
         haptic(.success)
         toast.show(t("wk.session_saved"))
         onSaved()
     }
 
-    private func discard() {
-        if usesGPS { gps.stop() }
-        onSaved()
-    }
-
-    private func fmtClock(_ sec: Int) -> String {
-        let h = sec / 3600, m = (sec % 3600) / 60, s = sec % 60
-        return h > 0 ? String(format: "%d:%02d:%02d", h, m, s) : String(format: "%d:%02d", m, s)
-    }
+    private func discard() { onSaved() }
 }

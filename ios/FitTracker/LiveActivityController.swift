@@ -32,11 +32,31 @@ enum LiveActivityController {
         let attrs = WorkoutActivityAttributes(planName: planName, planColor: planColor)
         let state = WorkoutActivityAttributes.ContentState(
             startDate: startDate, exercise: "", setsDone: 0, restEndsAt: nil)
-        let activity = try? ActivityKit.Activity<WorkoutActivityAttributes>.request(
-            attributes: attrs,
-            content: ActivityContent(state: state, staleDate: nil),
-            pushType: nil)
-        activeId = activity?.id
+        do {
+            activeId = try ActivityKit.Activity<WorkoutActivityAttributes>.request(
+                attributes: attrs,
+                content: ActivityContent(state: state, staleDate: nil),
+                pushType: nil).id
+        } catch {
+            // The workout itself is unaffected; only the Lock Screen view is missing.
+            appLog.error("Live Activity not started: \(String(describing: error), privacy: .public)")
+        }
+        #endif
+    }
+
+    /// Show the activity for a workout that is running: keep the one already on the
+    /// Lock Screen when the app was relaunched mid-workout, otherwise start one.
+    static func resume(planName: String, planColor: String, startDate: Date, enabled: Bool) {
+        #if canImport(ActivityKit)
+        guard enabled, #available(iOS 16.2, *) else { return }
+        if activeId != nil { return }
+        if let existing = ActivityKit.Activity<WorkoutActivityAttributes>.activities
+            .first(where: { $0.attributes.planName == planName
+                && abs($0.content.state.startDate.timeIntervalSince(startDate)) < 1 }) {
+            activeId = existing.id
+            return
+        }
+        start(planName: planName, planColor: planColor, startDate: startDate, enabled: enabled)
         #endif
     }
 

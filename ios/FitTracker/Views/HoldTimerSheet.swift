@@ -37,6 +37,9 @@ struct HoldTimerSheet: View {
     @State private var prepLeft: Double = 0
     @State private var elapsed: Double = 0
     @State private var held: Double = 0
+    /// When the current phase (preparation or hold) began. Both countdowns are the
+    /// time since this instant, so a late or dropped tick cannot stretch a hold.
+    @State private var phaseStart = Date()
 
     private let tick = Timer.publish(every: 0.1, on: .main, in: .common).autoconnect()
 
@@ -187,6 +190,7 @@ struct HoldTimerSheet: View {
     private func start() {
         elapsed = 0
         held = 0
+        phaseStart = Date()
         if prepSeconds > 0 {
             prepLeft = Double(prepSeconds)
             phase = .prep
@@ -200,16 +204,18 @@ struct HoldTimerSheet: View {
         switch phase {
         case .prep:
             let before = Int(prepLeft.rounded(.up))
-            prepLeft = max(0, prepLeft - 0.1)
+            prepLeft = max(0, Double(prepSeconds) - Date().timeIntervalSince(phaseStart))
             let after = Int(prepLeft.rounded(.up))
             if after != before && after > 0 { tap() }     // one tick per second
             if prepLeft <= 0 {
                 phase = .holding
+                // The hold starts when the preparation was due to end, not at this tick.
+                phaseStart = phaseStart.addingTimeInterval(Double(prepSeconds))
                 haptic(.success)                          // "go" is unmistakable
             }
         case .holding:
             let before = Int(remaining.rounded(.up))
-            elapsed += 0.1
+            elapsed = Date().timeIntervalSince(phaseStart)
             if !isFree {
                 let after = Int(remaining.rounded(.up))
                 if after != before && after > 0 && after <= 3 { tap() }

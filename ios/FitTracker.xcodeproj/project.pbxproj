@@ -502,6 +502,7 @@
 				DEVELOPMENT_TEAM = Y63UKFMUPH;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "FitTracker-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "Fit Tracker";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Fit Tracker uses your location during cardio activities to measure distance, pace and route. Tracking only runs while a session is active.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Fit Tracker uses the camera to scan food barcodes so it can look up and save their nutrition values.";
@@ -541,6 +542,7 @@
 				DEVELOPMENT_TEAM = Y63UKFMUPH;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "FitTracker-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "Fit Tracker";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Fit Tracker uses your location during cardio activities to measure distance, pace and route. Tracking only runs while a session is active.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Fit Tracker uses the camera to scan food barcodes so it can look up and save their nutrition values.";
@@ -637,6 +639,7 @@
 				DEVELOPMENT_TEAM = Y63UKFMUPH;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "FitTracker-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "Fit Tracker";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Fit Tracker uses your location during cardio activities to measure distance, pace and route. Tracking only runs while a session is active.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Fit Tracker uses the camera to scan food barcodes so it can look up and save their nutrition values.";
@@ -674,6 +677,7 @@
 				DEVELOPMENT_TEAM = Y63UKFMUPH;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "FitTracker-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "Fit Tracker";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Fit Tracker uses your location during cardio activities to measure distance, pace and route. Tracking only runs while a session is active.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Fit Tracker uses the camera to scan food barcodes so it can look up and save their nutrition values.";

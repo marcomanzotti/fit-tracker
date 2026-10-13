@@ -18,16 +18,18 @@ struct WorkoutView: View {
     @State private var showAllSessions = false
 
     var body: some View {
-        if let pid = activeWorkout.planId, let plan = store.plan(pid), !activeWorkout.minimized {
+        // The plan as it is now, or the snapshot taken at start if it was deleted
+        // mid-workout: the session must stay reachable until it is saved.
+        if let started = activeWorkout.plan, !activeWorkout.minimized {
             LiveWorkoutView(
-                plan: plan,
+                plan: store.plan(started.id) ?? started,
                 log: $activeWorkout.log,
                 onBack: { activeWorkout.minimized = true },   // minimize, keep running
                 onSaved: { endWorkout() }                      // finish / discard ends it
             )
-        } else if let cid = activeCardio.typeId, let ct = store.cardioType(cid), !activeCardio.minimized {
+        } else if let started = activeCardio.type, !activeCardio.minimized {
             LiveCardioView(
-                type: ct,
+                type: store.cardioType(started.id) ?? started,
                 onBack: { activeCardio.minimized = true },     // minimize, keep running
                 onSaved: { endCardio() }                        // finish / discard ends it
             )
@@ -141,17 +143,19 @@ struct WorkoutView: View {
     /// Watch is paired and reachable, start the identical session there too so the
     /// two run in sync. Other wearables auto-import from Health afterwards.
     private func startCardio(_ ct: CardioType) {
-        UIApplication.shared.isIdleTimerDisabled = true
         activeCardio.start(ct)
-        if WatchSync.shared.watchReachable {
-            WatchSync.shared.startOnWatch(activityId: "cardio-\(ct.id)")
-            toast.show(t("wk.started_on_watch"))
-        }
+        startOnWatch("cardio-\(ct.id)")
     }
 
-    private func endCardio() {
-        UIApplication.shared.isIdleTimerDisabled = false
-        activeCardio.end()
+    private func endCardio() { activeCardio.end() }
+
+    /// Start the same activity on a reachable Apple Watch, and say whether the wrist
+    /// actually took the command instead of assuming it did.
+    private func startOnWatch(_ activityId: String) {
+        WatchSync.shared.startOnWatch(activityId: activityId) { acknowledged in
+            toast.show(t(acknowledged ? "wk.started_on_watch" : "wk.watch_start_failed"),
+                       duration: acknowledged ? ToastCenter.defaultDuration : ToastCenter.longDuration)
+        }
     }
 
     private var addCardioTile: some View {
@@ -326,27 +330,17 @@ struct WorkoutView: View {
 
     // MARK: Actions
     private func start(_ plan: WorkoutPlan) {
-        UIApplication.shared.isIdleTimerDisabled = true
+        // SessionKeeper reacts to this: screen kept awake, Lock Screen activity,
+        // draft on disk.
         activeWorkout.start(plan: plan)
-        // Put the running workout on the Lock Screen / Dynamic Island.
-        LiveActivityController.start(planName: plan.name, planColor: plan.color,
-                                     startDate: activeWorkout.startDate ?? Date(),
-                                     enabled: store.prefs.liveActivityEnabled)
         // If an Apple Watch app is paired and reachable, start the identical
         // session there too so the two run in sync (the watch streams live data
         // back). Other wearables (Garmin/Polar/…) can't be started from iOS, but
         // their session is auto-imported from Health on the next foreground sync.
-        if WatchSync.shared.watchReachable {
-            WatchSync.shared.startOnWatch(activityId: plan.id)
-            toast.show(t("wk.started_on_watch"))
-        }
+        startOnWatch(plan.id)
     }
 
-    private func endWorkout() {
-        UIApplication.shared.isIdleTimerDisabled = false
-        activeWorkout.end()
-        LiveActivityController.end()
-    }
+    private func endWorkout() { activeWorkout.end() }
 
     private func newPlan() {
         editing = WorkoutPlan(name: "", sub: "", color: Theme.planColors.first!, exercises: [])

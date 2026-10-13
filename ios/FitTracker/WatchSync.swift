@@ -20,11 +20,14 @@ final class WatchSync: NSObject, ObservableObject {
     @Published var live: WatchLiveSample?
     /// True while a watch workout is actively streaming.
     @Published var liveActive = false
-    /// A finished watch workout for an activity whose phone live view is open, so
-    /// that view can fold it into the session it's about to save (no duplicate).
+    /// A finished watch workout for the activity the phone has in progress, waiting
+    /// to be folded into that session (so it is not saved a second time).
     @Published var pendingResult: WatchResult?
-    /// Set by an open LiveWorkoutView to claim incoming watch data for its activity.
-    var openActivityId: String?
+    /// Activity id of the session in progress on the phone, set by SessionKeeper
+    /// for as long as that session runs — whatever screen is showing.
+    var claimedActivityId: String?
+    /// Results already routed. The watch sends each one over two transports.
+    private var handledResultIds = Set<String>()
 
     private weak var store: Store?
     private var bag = Set<AnyCancellable>()
@@ -42,15 +45,14 @@ final class WatchSync: NSObject, ObservableObject {
             let s = WCSession.default
             s.delegate = self
             s.activate()
-            print("📱 WatchSync: activate() called")
-        } else {
-            print("📱 WatchSync: WCSession not supported")
         }
         #endif
 
         // Re-push the catalog whenever the plans, cardio activities or language
-        // change, debounced so a burst of edits sends a single update.
+        // change, and after every new session (the wrist's gray placeholders are
+        // last time's numbers), debounced so a burst of edits sends a single update.
         let triggers: [AnyPublisher<Void, Never>] = [
+            store.$sessions.map { _ in () }.eraseToAnyPublisher(),
             store.$plans.map { _ in () }.eraseToAnyPublisher(),
             store.$cardioTypes.map { _ in () }.eraseToAnyPublisher(),
             store.$prefs.map { _ in () }.eraseToAnyPublisher()
@@ -66,13 +68,10 @@ final class WatchSync: NSObject, ObservableObject {
     /// Build the activity catalog from the Store and send it to the watch.
     func pushContext() {
         #if canImport(WatchConnectivity)
-        guard let store, WCSession.isSupported() else {
-            print("📱 WatchSync: pushContext skipped, store=\(store != nil) supported=\(WCSession.isSupported())")
-            return
-        }
+        guard let store, WCSession.isSupported() else { return }
         let session = WCSession.default
-        print("📱 WatchSync: pushContext, activationState=\(session.activationState.rawValue) paired=\(session.isPaired) watchAppInstalled=\(session.isWatchAppInstalled) reachable=\(session.isReachable)")
-        guard session.activationState == .activated else { return }
+        // No watch paired, or the companion not installed: nothing to push to.
+        guard session.activationState == .activated, session.isPaired, session.isWatchAppInstalled else { return }
 
         var activities: [WatchActivity] = store.plans.map { plan in
             // For each exercise, attach the plan default reps + the last logged
@@ -105,36 +104,33 @@ final class WatchSync: NSObject, ObservableObject {
         let ctx = WatchContext(activities: activities, lang: store.prefs.langCode)
         let payload = WatchWire.encode(ctx, key: WatchWire.contextKey)
         guard !payload.isEmpty else {
-            print("📱 WatchSync: pushContext payload empty (encode failed)")
+            appLog.error("Watch catalog could not be encoded")
             return
         }
         // applicationContext always carries the latest catalog (newer replaces
         // older), so a watch that was off still gets a fresh list when it wakes.
         do {
             try session.updateApplicationContext(payload)
-            print("📱 WatchSync: pushContext sent \(activities.count) activities")
         } catch {
-            print("📱 WatchSync: updateApplicationContext failed: \(error)")
+            appLog.error("Watch catalog not sent: \(String(describing: error), privacy: .public)")
         }
         #endif
     }
 
-    /// Ask a reachable watch to start an activity (its plan/cardio id).
-    func startOnWatch(activityId: String) {
+    /// Ask a reachable watch to start an activity (its plan/cardio id). `completion`
+    /// reports, on the main queue, whether the watch acknowledged the command; it is
+    /// not called at all when there is no reachable watch to ask.
+    func startOnWatch(activityId: String, completion: @escaping (_ acknowledged: Bool) -> Void) {
         #if canImport(WatchConnectivity)
         guard WCSession.isSupported() else { return }
         let s = WCSession.default
         guard s.activationState == .activated, s.isReachable else { return }
-        s.sendMessage([WatchWire.startKey: activityId], replyHandler: nil, errorHandler: nil)
-        #endif
-    }
-
-    /// Whether a reachable watch is available to receive a start command.
-    var watchReachable: Bool {
-        #if canImport(WatchConnectivity)
-        return WCSession.isSupported() && WCSession.default.isReachable
-        #else
-        return false
+        s.sendMessage([WatchWire.startKey: activityId], replyHandler: { _ in
+            DispatchQueue.main.async { completion(true) }
+        }, errorHandler: { error in
+            appLog.error("Start-on-watch not delivered: \(String(describing: error), privacy: .public)")
+            DispatchQueue.main.async { completion(false) }
+        })
         #endif
     }
 
@@ -155,9 +151,10 @@ final class WatchSync: NSObject, ObservableObject {
             guard let self else { return }
             self.live = nil
             self.liveActive = false
-            if self.openActivityId == result.activityId {
-                // The phone is mid-session for this activity: let that view absorb
-                // the watch's numbers and save, so there's exactly one session.
+            guard self.handledResultIds.insert(result.id).inserted else { return }
+            if self.claimedActivityId == result.activityId {
+                // The phone is mid-session for this activity: the session absorbs
+                // the watch's numbers and is saved once.
                 self.pendingResult = result
             } else {
                 self.store?.ingestWatchResult(result)
@@ -219,10 +216,14 @@ extension Store {
                                             supersetGroup: pe?.supersetGroup, method: pe?.method)
                     le.kind = e.kind ?? pe?.kind
                     le.isBodyweight = pe?.isBodyweight
+                    // The wrist sends an unconfirmed set as an empty slot: not logged work.
+                    le.sets = le.sets.filter { $0.filled }
                     return le
-                }
-            } else if let plan {
-                // Fallback (older watch builds): empty sets from the plan template.
+                }.filter { !$0.sets.isEmpty }
+            }
+            if exercises.isEmpty, let plan {
+                // Nothing was confirmed on the wrist: empty sets from the plan template,
+                // left to fill in on the phone.
                 exercises = plan.exercises.map { pe in
                     LoggedExercise(name: pe.name,
                                    sets: (0..<max(1, pe.sets)).map { _ in SetEntry() },

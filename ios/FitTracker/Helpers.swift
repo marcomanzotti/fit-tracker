@@ -39,6 +39,12 @@ func fmtDuration(_ seconds: Int) -> String {
     return "\(s)s"
 }
 
+/// Seconds as a running clock: "4:05", or "1:04:05" past the hour.
+func fmtClock(_ seconds: Int) -> String {
+    let h = seconds / 3600, m = (seconds % 3600) / 60, s = seconds % 60
+    return h > 0 ? String(format: "%d:%02d:%02d", h, m, s) : String(format: "%d:%02d", m, s)
+}
+
 // MARK: - Number formatting
 func trimNum(_ v: Double) -> String {
     guard v.isFinite else { return "—" }

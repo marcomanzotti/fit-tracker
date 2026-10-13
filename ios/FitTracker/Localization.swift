@@ -41,6 +41,18 @@ enum L {
         "delete":      ("Elimina", "Delete"),
         "ok":          ("OK", "OK"),
 
+        // --- Workout in progress, restored ------------------------------------
+        "wk.restored":           ("Allenamento ripristinato", "Workout restored"),
+        "wk.restored_paused":    ("Allenamento ripristinato in pausa", "Workout restored, paused"),
+        "wk.stale_q":            ("Hai un allenamento rimasto aperto", "You left a workout open"),
+        "wk.stale_body":         ("%@ del %@ non è mai stato chiuso. Vuoi riprenderlo, salvarlo così com'è o scartarlo?",
+                                  "%@ from %@ was never closed. Resume it, save it as it is, or discard it?"),
+        "wk.stale_resume":       ("Riprendi", "Resume"),
+        "wk.stale_save":         ("Salva com'è", "Save as it is"),
+        "wk.watch_start_failed": ("L'orologio non ha risposto: avvia l'allenamento dal polso", "The watch didn't respond: start the workout from your wrist"),
+        "wk.draft_save_failed":  ("Impossibile salvare l'allenamento in corso sul disco", "Couldn't save the workout in progress to disk"),
+        "wk.draft_unreadable":   ("L'allenamento in corso salvato non è leggibile", "The saved workout in progress can't be read"),
+
         // --- Storage problems ------------------------------------------------
         "store.unreadable_title": ("Dati non leggibili", "Data could not be read"),
         "store.unreadable_body":  ("Il file dei dati non è leggibile e non c'è un backup valido da cui ripartire. Non è stato cancellato: lo trovi in File › Fit Tracker con il nome fittracker.corrupt-…. L'app riparte vuota; puoi importare un backup da Corpo › Backup.",

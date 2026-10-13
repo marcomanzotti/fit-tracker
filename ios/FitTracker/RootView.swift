@@ -101,11 +101,19 @@ struct RootView: View {
         .sheet(isPresented: $showSettings) { SettingsView(store: store) }
         .onAppear {
             if store.prefs.healthKitEnabled { store.syncHealth(completion: healthToast) }
-            // A workout interrupted by the app being killed leaves its Live Activity
-            // stranded on the Lock Screen, showing a clock that will never stop and
-            // that nothing can update any more. Clear it at launch — the running
-            // workout doesn't survive termination either.
-            if !activeWorkout.isActive { LiveActivityController.end() }
+            announceRestoredSession()
+        }
+        // A workout that sat untouched for hours is not silently resumed: it may be
+        // one the user forgot to close, so they choose.
+        .confirmationDialog(t("wk.stale_q"), isPresented: Binding(
+            get: { activeWorkout.restored == .stale }, set: { if !$0 { activeWorkout.restored = nil } }),
+            titleVisibility: .visible) {
+            Button(t("wk.stale_resume")) { activeWorkout.restored = nil; tab = .allena }
+            Button(t("wk.stale_save")) { saveRestoredWorkout() }
+            Button(t("wk.discard_session"), role: .destructive) { timer.stop(); activeWorkout.end() }
+        } message: {
+            Text(t("wk.stale_body", activeWorkout.plan?.name ?? "",
+                   activeWorkout.startDate.map { fmtDM(isoFormatter.string(from: $0)) } ?? ""))
         }
         // Re-sync Health (daily metrics + workouts from any paired watch) every
         // time the app returns to the foreground, so a session recorded on a
@@ -115,6 +123,33 @@ struct RootView: View {
             // The autosave is debounced: write now, before the app can be suspended.
             if phase != .active { store.flushNow() }
         }
+    }
+
+    /// Tell the user a session was brought back, and take them to it.
+    private func announceRestoredSession() {
+        if activeWorkout.restored == .resumed {
+            activeWorkout.restored = nil
+            tab = .allena
+            toast.show(t("wk.restored"), duration: ToastCenter.longDuration)
+        }
+        if activeCardio.restored {
+            activeCardio.restored = false
+            tab = .allena
+            toast.show(t(activeCardio.paused ? "wk.restored_paused" : "wk.restored"),
+                       duration: ToastCenter.longDuration)
+        }
+    }
+
+    /// "Save as it is" for a workout found still open after hours.
+    private func saveRestoredWorkout() {
+        if let session = activeWorkout.finishedSession() {
+            store.sessions.append(session)
+            toast.show(t("wk.session_saved"))
+        } else {
+            toast.show(t("wk.nothing_save"))
+        }
+        timer.stop()
+        activeWorkout.end()
     }
 
     /// Quietly confirm only when new workouts actually came in from a watch, so
@@ -198,15 +233,8 @@ struct ActiveWorkoutStrip: View {
     @EnvironmentObject var store: Store
     let onTap: () -> Void
 
-    private var planColor: Color {
-        guard let pid = activeWorkout.planId, let plan = store.plan(pid) else { return Theme.acc }
-        return Color(hex: plan.color)
-    }
-
-    private var planName: String {
-        guard let pid = activeWorkout.planId, let plan = store.plan(pid) else { return "" }
-        return plan.name
-    }
+    private var planColor: Color { activeWorkout.plan.map { Color(hex: $0.color) } ?? Theme.acc }
+    private var planName: String { activeWorkout.plan?.name ?? "" }
 
     var body: some View {
         Button { tap(); onTap() } label: {
@@ -245,14 +273,8 @@ struct ActiveCardioStrip: View {
     @EnvironmentObject var store: Store
     let onTap: () -> Void
 
-    private var ct: CardioType? { activeCardio.typeId.flatMap { store.cardioType($0) } }
+    private var ct: CardioType? { activeCardio.type }
     private var color: Color { ct.map { Color(hex: $0.color) } ?? Theme.acc }
-
-    private var elapsed: String {
-        let sec = activeCardio.elapsedSec
-        let m = sec / 60, s = sec % 60
-        return String(format: "%d:%02d", m, s)
-    }
 
     var body: some View {
         Button { tap(); onTap() } label: {
@@ -266,7 +288,10 @@ struct ActiveCardioStrip: View {
                         .font(.head(13, .bold)).tracking(0.5).foregroundColor(color).lineLimit(1)
                 }
                 Spacer()
-                Text(elapsed).font(.num(22)).foregroundColor(Theme.txt)
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    Text(fmtClock(activeCardio.elapsedSec(at: context.date)))
+                        .font(.num(22)).foregroundColor(Theme.txt).monospacedDigit()
+                }
                 Image(systemName: "chevron.right")
                     .font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.sub)
             }
@@ -280,23 +305,18 @@ struct ActiveCardioStrip: View {
     }
 }
 
-/// Live elapsed timer that re-draws every second.
-private struct ElapsedClock: View {
+/// Time since `startDate`, redrawn every second. A view of its own so the tick
+/// redraws these few digits and nothing around them.
+struct ElapsedClock: View {
     let startDate: Date?
-    @State private var now = Date()
-    private let tick = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+    var size: CGFloat = 22
+    var format: (Int) -> String = fmtClock
 
     var body: some View {
-        Text(label)
-            .font(.num(22)).foregroundColor(Theme.txt)
-            .onReceive(tick) { now = $0 }
-    }
-
-    private var label: String {
-        guard let start = startDate else { return "0:00" }
-        let sec = Int(now.timeIntervalSince(start))
-        let m = sec / 60, s = sec % 60
-        return String(format: "%d:%02d", m, s)
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            Text(format(max(0, Int(context.date.timeIntervalSince(startDate ?? context.date)))))
+                .font(.num(size)).foregroundColor(Theme.txt).monospacedDigit()
+        }
     }
 }
 

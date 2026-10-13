@@ -14,20 +14,16 @@ struct LiveWorkoutView: View {
     @EnvironmentObject var activeWorkout: ActiveWorkout
     @ObservedObject private var watch = WatchSync.shared
 
+    // Only transient UI state lives here. Everything that belongs to the session
+    // (log, duration, heart rate, calories, open notes) is on ActiveWorkout, so it
+    // survives this view being torn down by a tab switch, a minimise or a relaunch.
     @State private var addName = ""
-    @State private var showNotes: Set<UUID> = []
     @State private var saved = false
-    @State private var sessDurationSec: Int? = nil
-    @State private var sessAvgHR = ""
-    @State private var sessCalManual = ""
     @State private var confirmDiscard = false
     /// Set currently being timed by the isometric hold sheet.
     @State private var hold: HoldTarget?
     /// Exercise whose plate breakdown is open.
     @State private var plates: PlateTarget?
-    // Drives the live elapsed clock (counts up from the workout start).
-    @State private var now = Date()
-    private let tick = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     private var lastSess: WorkoutSession? { store.lastSession(forPlan: plan.id) }
 
@@ -68,13 +64,6 @@ struct LiveWorkoutView: View {
                 Button(t("cancel"), role: .cancel) {}
             }
         }
-        // Claim this activity so a workout finished on the watch folds into THIS
-        // session instead of creating a duplicate, and stream-fill live as it runs.
-        .onAppear { watch.openActivityId = plan.id; if let s = watch.live { applyLive(s) } }
-        .onDisappear { if watch.openActivityId == plan.id { watch.openActivityId = nil } }
-        .onReceive(tick) { now = $0 }
-        .onReceive(watch.$live) { if let s = $0 { applyLive(s) } }
-        .onReceive(watch.$pendingResult) { if let r = $0 { applyResult(r) } }
         .sheet(item: $hold) { target in
             HoldTimerSheet(title: target.name, target: target.target,
                            prepSeconds: store.prefs.holdPrep) { seconds in
@@ -101,12 +90,6 @@ struct LiveWorkoutView: View {
         toast.show(t("hold.done"))
     }
 
-    // MARK: Live elapsed timer (replaces the last-session block while active)
-    private var elapsedSec: Int {
-        guard let start = activeWorkout.startDate else { return 0 }
-        return max(0, Int(now.timeIntervalSince(start)))
-    }
-
     private var liveTimerBlock: some View {
         HStack(spacing: 12) {
             HStack(spacing: 7) {
@@ -115,8 +98,9 @@ struct LiveWorkoutView: View {
                     .font(.head(10, .bold)).tracking(1).foregroundColor(Theme.sub)
             }
             Spacer()
-            Text(fmtDuration(elapsedSec)).font(.num(30)).foregroundColor(Theme.txt)
-                .monospacedDigit()
+            // Its own view, so the once-a-second redraw stays inside the clock and
+            // the exercise cards below are not recomputed with it.
+            ElapsedClock(startDate: activeWorkout.startDate, size: 30, format: fmtDuration)
         }
         .padding(.vertical, 12).padding(.horizontal, 14)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -156,43 +140,6 @@ struct LiveWorkoutView: View {
         }
     }
 
-    /// Mirror live telemetry into the session fields — only filling values the user
-    /// hasn't typed, so manual edits always win.
-    private func applyLive(_ s: WatchLiveSample) {
-        guard s.activityId == plan.id else { return }
-        if sessAvgHR.isEmpty, s.avgHR > 0 { sessAvgHR = "\(s.avgHR)" }
-        if (sessDurationSec ?? 0) == 0, s.elapsedSec > 0 { sessDurationSec = s.elapsedSec }
-        if let exs = s.exercises { mergeWatchExercises(exs) }
-    }
-
-    /// Fold the finished watch workout into this open session, then let the user
-    /// review and save — no manual re-entry of what the wrist already tracked.
-    private func applyResult(_ r: WatchResult) {
-        guard r.activityId == plan.id else { return }
-        if sessAvgHR.isEmpty, let hr = r.avgHR, hr > 0 { sessAvgHR = "\(hr)" }
-        if (sessDurationSec ?? 0) == 0, r.durationSec > 0 { sessDurationSec = r.durationSec }
-        if sessCalManual.isEmpty, let k = r.activeKcal, k > 0 { sessCalManual = "\(k)" }
-        if let exs = r.exercises { mergeWatchExercises(exs) }
-        watch.pendingResult = nil
-        toast.show(t("wk.watch_synced"))
-    }
-
-    /// Fill empty set fields from the wrist's per-set values (never overwrites).
-    /// Timed (isometric) exercises carry per-set hold seconds instead of reps.
-    private func mergeWatchExercises(_ exs: [WatchResultExercise]) {
-        for we in exs {
-            guard let li = log.firstIndex(where: { $0.name == we.name }) else { continue }
-            let secs = we.seconds ?? []
-            let n = max(max(we.reps.count, we.weight.count), secs.count)
-            while log[li].sets.count < n { log[li].sets.append(SetEntry()) }
-            for j in 0..<n where j < log[li].sets.count {
-                if log[li].sets[j].reps.isEmpty, j < we.reps.count, pf(we.reps[j]) > 0 { log[li].sets[j].reps = we.reps[j] }
-                if log[li].sets[j].weight.isEmpty, j < we.weight.count, pf(we.weight[j]) > 0 { log[li].sets[j].weight = we.weight[j] }
-                if (log[li].sets[j].seconds ?? 0) == 0, j < secs.count, pf(secs[j]) > 0 { log[li].sets[j].seconds = pf(secs[j]) }
-            }
-        }
-    }
-
     // MARK: Calories burned
     /// Build a session snapshot from the current inputs so the calorie estimate
     /// reflects whatever data the session has (volume, duration, avg HR). The
@@ -201,8 +148,9 @@ struct LiveWorkoutView: View {
     private func currentSessionSnapshot() -> WorkoutSession {
         var s = WorkoutSession(date: today(), planId: plan.id, planName: plan.name,
                                planColor: plan.color, exercises: log)
-        s.durationSec = sessDurationSec ?? (elapsedSec > 0 ? elapsedSec : nil)
-        s.avgHR = Int(sessAvgHR)
+        let elapsed = activeWorkout.elapsedSec()
+        s.durationSec = activeWorkout.durationSec ?? (elapsed > 0 ? elapsed : nil)
+        s.avgHR = Int(activeWorkout.avgHR)
         return s
     }
 
@@ -212,7 +160,7 @@ struct LiveWorkoutView: View {
     /// starts a live session, it isn't a completed log. The estimate appears only
     /// once the user enters/records data (duration or HR), and is always editable.
     private var caloriesReady: Bool {
-        !sessCalManual.isEmpty || (sessDurationSec ?? 0) > 0 || Int(sessAvgHR) ?? 0 > 0
+        !activeWorkout.caloriesManual.isEmpty || (activeWorkout.durationSec ?? 0) > 0 || Int(activeWorkout.avgHR) ?? 0 > 0
     }
 
     private var caloriesCard: some View {
@@ -222,7 +170,7 @@ struct LiveWorkoutView: View {
                 InfoButton(id: "calories", color: Theme.acc2)
                 Spacer()
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
-                    Text(!sessCalManual.isEmpty ? sessCalManual : (caloriesReady ? "\(estCalories)" : "—"))
+                    Text(!activeWorkout.caloriesManual.isEmpty ? activeWorkout.caloriesManual : (caloriesReady ? "\(estCalories)" : "—"))
                         .font(.num(28)).foregroundColor(caloriesReady ? Theme.acc : Theme.sub)
                     Text("kcal").font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.sub)
                 }
@@ -231,7 +179,7 @@ struct LiveWorkoutView: View {
             HStack(spacing: 8) {
                 Text(t("wk.cal_override").uppercased()).font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
                 Spacer()
-                InputField(placeholder: caloriesReady ? "\(estCalories)" : "—", text: $sessCalManual, keyboard: .numberPad)
+                InputField(placeholder: caloriesReady ? "\(estCalories)" : "—", text: $activeWorkout.caloriesManual, keyboard: .numberPad)
                     .frame(width: 110)
             }
             Text(caloriesReady ? t("wk.cal_hint") : t("wk.cal_at_finish"))
@@ -241,7 +189,7 @@ struct LiveWorkoutView: View {
 
     // MARK: Session internal-load capture (TRIMP from duration + avg HR)
     private var liveTrimp: Double? {
-        guard let d = sessDurationSec, d > 0, let hr = Int(sessAvgHR), hr > 0 else { return nil }
+        guard let d = activeWorkout.durationSec, d > 0, let hr = Int(activeWorkout.avgHR), hr > 0 else { return nil }
         var s = WorkoutSession(date: today(), planId: plan.id, planName: plan.name, planColor: plan.color)
         s.durationSec = d; s.avgHR = hr
         return store.trimp(s)
@@ -250,9 +198,9 @@ struct LiveWorkoutView: View {
     private var sessionLoadCard: some View {
         Card {
             InfoLbl(text: t("load.title"), info: "load", color: Theme.acc2).padding(.bottom, 10)
-            HMSField(label: t("wk.duration"), seconds: $sessDurationSec)
+            HMSField(label: t("wk.duration"), seconds: $activeWorkout.durationSec)
             Spacer().frame(height: 12)
-            loadField(t("wk.avg_hr"), $sessAvgHR, info: "trimp")
+            loadField(t("wk.avg_hr"), $activeWorkout.avgHR, info: "trimp")
             if let v = liveTrimp {
                 HStack(spacing: 6) {
                     Text("TRIMP").font(.head(9, .semibold)).tracking(1.5).foregroundColor(Theme.sub)
@@ -442,7 +390,7 @@ struct LiveWorkoutView: View {
             .padding(.top, 9)
 
             // Notes
-            if showNotes.contains(ex.id) {
+            if activeWorkout.openNotes.contains(ex.id) {
                 TextField("", text: exB.notes, prompt: Text(t("wk.note_ph")).foregroundColor(Theme.sub), axis: .vertical)
                     .lineLimit(2...4)
                     .font(.system(size: 13)).foregroundColor(Theme.txt)
@@ -452,7 +400,7 @@ struct LiveWorkoutView: View {
                     .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Theme.brd, lineWidth: 1))
                     .padding(.top, 9)
             } else {
-                Button { tap(); showNotes.insert(ex.id) } label: {
+                Button { tap(); activeWorkout.openNotes.insert(ex.id) } label: {
                     Text(t("wk.add_note")).font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.sub)
                         .padding(.vertical, 8).padding(.horizontal, 12)
                         .background(Theme.c2).clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
@@ -491,8 +439,7 @@ struct LiveWorkoutView: View {
     /// still see ticking inside the app.
     private func pushLiveActivity(restEndsAt: Date? = nil) {
         guard store.prefs.liveActivityEnabled else { return }
-        let restEnd = restEndsAt ?? (timer.running
-            ? Date().addingTimeInterval(Double(timer.remaining)) : nil)
+        let restEnd = restEndsAt ?? (timer.running ? timer.endsAt : nil)
         let sets = log.reduce(0) { $0 + $1.sets.filter { $0.filled }.count }
         // "Current exercise" = the last one with a completed set, which is what you
         // were just doing when the phone went into your pocket.
@@ -616,32 +563,12 @@ struct LiveWorkoutView: View {
     // MARK: Finish / Discard
     private func saveSession() {
         guard !saved else { return }
-        let exercises = log.map { e -> LoggedExercise in
-            var copy = e
-            copy.sets = e.sets.filter { $0.filled }
-            return copy
-        }.filter {
-            // Interval exercises carry their data in rounds (no sets); keep them when
-            // any round was completed. Everything else needs at least one filled set.
-            $0.exKind == .interval ? (($0.rounds ?? 0) > 0) : !$0.sets.isEmpty
-        }
-        guard !exercises.isEmpty else { toast.show(t("wk.nothing_save")); return }
+        guard let sess = activeWorkout.finishedSession() else { toast.show(t("wk.nothing_save")); return }
 
         // Auto-save every exercise to the library and update their bodyweight flag.
-        for ex in exercises {
+        for ex in sess.exercises {
             store.touchExerciseInLibrary(ex.name, isBodyweight: ex.bodyweight)
         }
-
-        var sess = WorkoutSession(date: today(), planId: plan.id,
-                                  planName: plan.name, planColor: plan.color,
-                                  exercises: exercises)
-        // Duration source of truth: the value the user typed, else any value the
-        // paired watch streamed in, else the real phone-tracked elapsed time.
-        // (Watch data already merges into sessDurationSec via applyLive/applyResult,
-        //  so an Apple Watch session takes precedence when present.)
-        sess.durationSec = sessDurationSec ?? (elapsedSec > 0 ? elapsedSec : nil)
-        sess.avgHR = Int(sessAvgHR)
-        sess.caloriesManual = Int(sessCalManual).flatMap { $0 > 0 ? $0 : nil }
         store.sessions.append(sess)
         // Push it to Apple Health when the user opted in, so a session logged here
         // still closes the rings. Silent no-op when the toggle is off.
