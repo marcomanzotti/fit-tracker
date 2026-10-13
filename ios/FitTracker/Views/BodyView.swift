@@ -40,11 +40,10 @@ struct BodyView: View {
         let fat = bf.map { ((lw * $0 / 100) * 10).rounded() / 10 }
 
         dayBar
-        checkInCard
+        bodyLogCard(bl: bl)
         sleepCard
         stepsCard
         analysisCard(lw: lw, bmi: bmi, cat: cat, bl: bl, navy: navy, bf: bf, lean: lean, fat: fat)
-        measurementsCard(bl: bl)
         chartsSection
         backupCard
     }
@@ -239,23 +238,134 @@ struct BodyView: View {
         if shown == nil || shown != v { stepsInput = "\(v)" }
     }
 
-    // MARK: Check-in
-    // Body weight only — sleep score is imported from Apple Health and shown on
-    // the Sleep card above, so the daily check-in stays a single quick field.
-    private var checkInCard: some View {
-        let saved = store.dailyEntry(day)?.weight
-        return Card {
-            Lbl(text: "\(t("home.checkin")) · \(day)", color: Theme.acc2).padding(.bottom, 10)
-            field("\(t("home.weight")) (\(Units.wLabel.uppercased()))",
-                  saved.map(dispW) ?? (Units.imperial ? "193" : "87,5"), $weightInput)
-                .padding(.bottom, 12)
-            FilledButton(title: t("home.save_checkin")) {
-                let w = Units.wIn(pf(weightInput))
-                guard w >= 30 && w <= 250 else { return }
-                store.saveCheckIn(weight: w, sleep: nil, date: day)
-                weightInput = ""; toast.show(t("home.checkin_saved"))
+    // MARK: Unified body log
+    // Weight, body fat and the six circumference values belong to one check-in.
+    // Keeping them together removes the repeated tile chrome and makes the save
+    // action match the user's mental model: one body update for one day.
+    private func bodyLogCard(bl: BodyEntry?) -> some View {
+        let savedWeight = store.dailyEntry(day)?.weight
+        let navy = store.bfNavy(waist: bl?.waist, neck: bl?.neck, hip: bl?.hips)
+
+        return Card(accent: isToday ? Theme.acc : Theme.blue) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Lbl(text: t("body.log"), color: Theme.acc2)
+                    Text(prettyDay).font(.system(size: 12, weight: .medium)).foregroundColor(Theme.sub)
+                }
+                Spacer()
+                Image(systemName: "slider.horizontal.3")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(Theme.acc2)
             }
+            .padding(.bottom, 14)
+
+            HStack(spacing: 10) {
+                bodyLogField(label: t("home.weight"), unit: Units.wLabel,
+                             value: savedWeight.map(dispW) ?? (Units.imperial ? "193" : "87,5"),
+                             text: $weightInput, keyboard: .decimalPad)
+                bodyLogField(label: t("body.fat"), unit: "%",
+                             value: bl?.bfManual.map(trimNum) ?? navy.map(trimNum) ?? "—",
+                             text: $bfInput, keyboard: .decimalPad)
+            }
+            .padding(.bottom, 14)
+
+            VStack(alignment: .leading, spacing: 9) {
+                HStack {
+                    Text(t("body.measures").uppercased()).font(.head(10, .semibold)).tracking(1.5).foregroundColor(Theme.sub)
+                    Spacer()
+                    Text(Units.lenLabel).font(.system(size: 10, weight: .semibold)).foregroundColor(Theme.sub)
+                }
+                ForEach(measureFields) { measure in
+                    bodyMeasureRow(measure, bl: bl)
+                }
+            }
+
+            FilledButton(title: t("body.save_all")) {
+                saveBodyLog()
+            }
+            .padding(.top, 14)
         }
+    }
+
+    private func bodyLogField(label: String, unit: String, value: String,
+                              text: Binding<String>, keyboard: UIKeyboardType) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(label.uppercased()).font(.head(9, .semibold)).tracking(1.1).foregroundColor(Theme.sub)
+            HStack(spacing: 4) {
+                TextField("", text: text, prompt: Text(value).foregroundColor(Theme.sub))
+                    .keyboardType(keyboard)
+                    .font(.num(21)).foregroundColor(Theme.txt)
+                    .lineLimit(1).minimumScaleFactor(0.65)
+                Text(unit).font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.sub)
+            }
+            .padding(.horizontal, 11).frame(height: 45)
+            .background(Theme.c2)
+            .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).stroke(Theme.brd, lineWidth: 1))
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func bodyMeasureRow(_ measure: MeasureField, bl: BodyEntry?) -> some View {
+        let current = bl?.value(for: measure.key)
+        let previous = store.bodyPrev?.value(for: measure.key)
+        let delta = current.flatMap { currentValue in
+            previous.map { ((currentValue - $0) * 10).rounded() / 10 }
+        }
+
+        return HStack(spacing: 10) {
+            Circle().fill(Color(hex: measure.color)).frame(width: 8, height: 8)
+            Text(measLabel(measure.key)).font(.system(size: 14, weight: .medium)).foregroundColor(Theme.txt)
+            if let current {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(dispLen(current)).font(.num(15)).foregroundColor(Theme.txt)
+                    if let delta {
+                        Text(delta == 0 ? t("body.stable") : "\(delta > 0 ? "+" : "")\(dispLen(delta))")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundColor(delta == 0 ? Theme.sub : (delta < 0 ? Theme.good : Theme.acc2))
+                    }
+                }
+                .frame(width: 62, alignment: .leading)
+            } else {
+                Text("—").font(.num(15)).foregroundColor(Theme.sub).frame(width: 62, alignment: .leading)
+            }
+            TextField(current.map(dispLen) ?? "", text: binding(for: measure.key), prompt: Text(t("body.add_measure")))
+                .keyboardType(.decimalPad)
+                .font(.system(size: 15, weight: .medium)).foregroundColor(Theme.txt)
+                .multilineTextAlignment(.trailing)
+                .padding(.horizontal, 10).frame(height: 38)
+                .background(Theme.c2)
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(Theme.brd, lineWidth: 1))
+        }
+        .padding(.vertical, 3)
+    }
+
+    private func saveBodyLog() {
+        let weight = Units.wIn(pf(weightInput))
+        if weight >= 30 && weight <= 250 {
+            store.saveCheckIn(weight: weight, sleep: nil, date: day)
+        }
+
+        let bodyFat = pf(bfInput)
+        if bodyFat >= 1 && bodyFat <= 60 {
+            store.saveBodyFat(bodyFat, date: day)
+        }
+
+        var measurements: [String: Double] = [:]
+        for measure in measureFields {
+            let value = Units.lenIn(pf(measInputs[measure.key] ?? ""))
+            if value > 0 { measurements[measure.key] = value }
+        }
+        if !measurements.isEmpty {
+            store.saveMeasurements(measurements, date: day)
+        }
+
+        guard weight >= 30 && weight <= 250 || bodyFat >= 1 && bodyFat <= 60 || !measurements.isEmpty else { return }
+        weightInput = ""
+        bfInput = ""
+        measInputs = [:]
+        toast.show(t("body.saved"))
     }
 
     // MARK: Body analysis
@@ -271,55 +381,53 @@ struct BodyView: View {
         let ffmi = store.ffmi(weight: lw, bodyFat: bf)
         let ffmiCat = ffmi.map { store.ffmiCategory($0.normalized, sex: store.prefs.sex_) }
         return Card {
-            Lbl(text: t("body.analysis"), color: Theme.acc2).padding(.bottom, 12)
-            HStack(spacing: 9) {
-                StatTile(label: "BMI", value: trimNum(bmi), valueColor: cat.color,
-                         note: cat.text.replacingOccurrences(of: "BMI \(trimNum(bmi)) · ", with: ""), info: "bmi")
-                StatTile(label: t("body.fat"), value: bf.map(trimNum) ?? "—", unit: bf != nil ? "%" : nil,
-                         valueColor: Theme.fat,
-                         note: bfCat.map { t($0.key) } ?? "\(t("body.goal")) \(trimNum(store.prefs.goalBF))%", info: "bodyfat")
-                StatTile(label: t("body.lean"), value: lean.map(dispW) ?? "—", unit: lean != nil ? Units.wLabel : nil,
-                         valueColor: Theme.blue, note: fat != nil ? "\(dispW(fat!))\(Units.wLabel) \(t("body.fat"))" : "—", info: "bodyfat")
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Lbl(text: t("body.analysis"), color: Theme.acc2)
+                    Text(t("body.composition")).font(.system(size: 12, weight: .medium)).foregroundColor(Theme.sub)
+                }
+                Spacer()
+                InfoButton(id: "bodyfat", color: Theme.acc2)
             }
-            .padding(.bottom, 9)
+            .padding(.bottom, 14)
 
-            // Second row: the lean-mass side of the same picture.
-            HStack(spacing: 9) {
-                StatTile(label: t("body.ffmi"), value: ffmi.map { trimNum($0.raw) } ?? "—",
-                         valueColor: ffmiCat?.color ?? Theme.sub,
-                         note: ffmiCat.map { t($0.key) } ?? t("body.ffmi_need_bf"), info: "ffmi")
-                StatTile(label: t("body.ffmi_norm"), value: ffmi.map { trimNum($0.normalized) } ?? "—",
-                         valueColor: ffmiCat?.color ?? Theme.sub,
-                         note: "\(trimNum(Units.heightOut(store.prefs.height))) \(Units.heightLabel)", info: "ffmi")
-                StatTile(label: t("st.lean"), value: ffmi.map { dispW($0.lean) } ?? "—",
-                         unit: ffmi != nil ? Units.wLabel : nil, valueColor: Theme.blue,
-                         note: t("body.lean"), info: "ffmi")
-            }
-            .padding(.bottom, 12)
-
-            if let bf, let lean, let fat {
-                VStack(spacing: 6) {
-                    HStack {
-                        Text("\(t("body.fat")) \(dispW(fat)) \(Units.wLabel)").font(.system(size: 10, weight: .semibold)).foregroundColor(Theme.sub)
-                        Spacer()
-                        Text("\(t("body.lean")) \(dispW(lean)) \(Units.wLabel)").font(.system(size: 10, weight: .semibold)).foregroundColor(Theme.sub)
+            HStack(spacing: 16) {
+                compositionRing(bodyFat: bf)
+                VStack(alignment: .leading, spacing: 9) {
+                    Text(t("body.composition").uppercased()).font(.head(9, .semibold)).tracking(1.2).foregroundColor(Theme.sub)
+                    HStack(alignment: .firstTextBaseline, spacing: 4) {
+                        Text(dispW(lw)).font(.num(28)).foregroundColor(Theme.txt)
+                        Text(Units.wLabel).font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.sub)
                     }
-                    Bar(value: min(1, bf / 100), gradient: [Theme.fat, Theme.fat.opacity(0.6)], height: 9)
+                    Text(bfCat.map { t($0.key) } ?? t("body.ffmi_need_bf"))
+                        .font(.system(size: 12, weight: .medium)).foregroundColor(bf == nil ? Theme.sub : Theme.fat)
+                    if let bf {
+                        Bar(value: min(1, bf / 100), gradient: [Theme.fat, Theme.acc2], height: 8)
+                    }
                 }
-                .padding(.bottom, 12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(.bottom, 16)
+
+            let metrics: [(String, String, String?, Color, String)] = [
+                ("BMI", trimNum(bmi), nil, cat.color, cat.text.replacingOccurrences(of: "BMI \(trimNum(bmi)) · ", with: "")),
+                (t("body.fat"), bf.map(trimNum) ?? "—", bf == nil ? nil : "%", Theme.fat,
+                 bfCat.map { t($0.key) } ?? t("body.ffmi_need_bf")),
+                (t("body.fat_mass"), fat.map(dispW) ?? "—", fat == nil ? nil : Units.wLabel, Theme.acc2, t("body.fat_mass_note")),
+                (t("body.lean_mass"), lean.map(dispW) ?? "—", lean == nil ? nil : Units.wLabel, Theme.blue, t("body.lean_mass_note")),
+                (t("body.ffmi"), ffmi.map { trimNum($0.raw) } ?? "—", nil, ffmiCat?.color ?? Theme.sub,
+                 ffmiCat.map { t($0.key) } ?? t("body.ffmi_need_bf")),
+                (t("body.ffmi_norm"), ffmi.map { trimNum($0.normalized) } ?? "—", nil, ffmiCat?.color ?? Theme.sub,
+                 "\(trimNum(Units.heightOut(store.prefs.height))) \(Units.heightLabel)")
+            ]
+            let columns = [GridItem(.flexible(), spacing: 9), GridItem(.flexible(), spacing: 9)]
+            LazyVGrid(columns: columns, spacing: 9) {
+                ForEach(Array(metrics.enumerated()), id: \.offset) { _, metric in
+                    compositionMetric(label: metric.0, value: metric.1, unit: metric.2,
+                                      color: metric.3, note: metric.4)
+                }
             }
 
-            Text(t("body.fat_input").uppercased()).font(.head(10, .semibold)).tracking(1)
-                .foregroundColor(Theme.sub).padding(.bottom, 8)
-            HStack(spacing: 10) {
-                InputField(placeholder: navy != nil ? "Navy: \(trimNum(navy!))%" : "18,5", text: $bfInput)
-                FilledButton(title: t("save")) {
-                    let v = pf(bfInput)
-                    guard v >= 1 && v <= 60 else { return }
-                    store.saveBodyFat(v, date: day); bfInput = ""; toast.show(t("body.fat_saved"))
-                }
-                .frame(width: 90)
-            }
             if let navy {
                 let hipPart = store.prefs.sex_ == "f" ? " · \(t("body.hips")) \(bl?.hips.map(dispLen) ?? "?")" : ""
                 Text("Navy: \(trimNum(navy))% · \(t("body.neck")) \(bl?.neck.map(dispLen) ?? "?") · \(t("body.waist")) \(bl?.waist.map(dispLen) ?? "?")\(hipPart) \(Units.lenLabel)")
@@ -331,66 +439,39 @@ struct BodyView: View {
         }
     }
 
-    // MARK: Measurements
-    private func measurementsCard(bl: BodyEntry?) -> some View {
-        let cols = [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)]
-        return Card {
-            Lbl(text: t("body.measures"), color: Theme.acc2).padding(.bottom, 10)
-            LazyVGrid(columns: cols, spacing: 10) {
-                ForEach(measureFields) { m in
-                    measureTile(m, bl: bl)
-                }
+    private func compositionRing(bodyFat: Double?) -> some View {
+        ZStack {
+            Circle().stroke(Theme.c3, lineWidth: 9)
+            if let bodyFat {
+                Circle().trim(from: 0, to: min(1, max(0, bodyFat / 100)))
+                    .stroke(Theme.fat, style: StrokeStyle(lineWidth: 9, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
             }
-            .padding(.bottom, 10)
-            FilledButton(title: t("body.save_measures")) {
-                var vals: [String: Double] = [:]
-                for m in measureFields {
-                    let v = Units.lenIn(pf(measInputs[m.key] ?? ""))   // input → cm
-                    if v > 0 { vals[m.key] = v }
-                }
-                guard !vals.isEmpty else { return }
-                store.saveMeasurements(vals, date: day)
-                measInputs = [:]
-                toast.show(t("body.measures_saved"))
+            VStack(spacing: 0) {
+                Text(bodyFat.map(trimNum) ?? "—").font(.num(22)).foregroundColor(Theme.fat)
+                Text("% \(t("body.fat"))").font(.system(size: 9, weight: .semibold)).foregroundColor(Theme.sub)
             }
         }
+        .frame(width: 92, height: 92)
     }
 
-    private func measureTile(_ m: MeasureField, bl: BodyEntry?) -> some View {
-        let cur = bl?.value(for: m.key)
-        let prev = store.bodyPrev?.value(for: m.key)
-        let diff: Double? = (cur != nil && prev != nil) ? ((cur! - prev!) * 10).rounded() / 10 : nil
-        return VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Text(measLabel(m.key).uppercased()).font(.head(10, .semibold)).tracking(1.5).foregroundColor(Theme.sub)
-                Spacer()
-                if cur != nil { Text(Units.lenLabel).font(.system(size: 10)).foregroundColor(Theme.sub) }
+    private func compositionMetric(label: String, value: String, unit: String?,
+                                   color: Color, note: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Circle().fill(color).frame(width: 7, height: 7)
+                Text(label.uppercased()).font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
+                    .lineLimit(1).minimumScaleFactor(0.7)
             }
-            .padding(.bottom, 8)
-            TextField("", text: binding(for: m.key),
-                      prompt: Text(cur.map(dispLen) ?? "–").foregroundColor(Theme.sub))
-                .keyboardType(.decimalPad)
-                .font(.system(size: 15, weight: .medium)).foregroundColor(Theme.txt)
-                .padding(.vertical, 9).padding(.horizontal, 11)
-                .background(Theme.c1).clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(Theme.brd, lineWidth: 1))
-            if let cur {
-                HStack(alignment: .firstTextBaseline, spacing: 5) {
-                    Text(dispLen(cur)).font(.num(26)).foregroundColor(Theme.txt)
-                    Text(Units.lenLabel).font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.sub)
-                }
-                .padding(.top, 7)
-                if let diff {
-                    Text(diff == 0 ? t("body.stable") : "\(diff > 0 ? "+" : "")\(dispLen(diff)) \(Units.lenLabel)")
-                        .font(.num(11)).foregroundColor(diff == 0 ? Theme.sub : (diff < 0 ? Theme.good : Theme.acc2))
-                        .padding(.top, 4)
-                }
-            } else {
-                Text(t("body.no_data")).font(.system(size: 11)).foregroundColor(Theme.sub).padding(.top, 8)
+            HStack(alignment: .firstTextBaseline, spacing: 3) {
+                Text(value).font(.num(23)).foregroundColor(color).lineLimit(1).minimumScaleFactor(0.55)
+                if let unit { Text(unit).font(.system(size: 10, weight: .semibold)).foregroundColor(Theme.sub) }
             }
+            Text(note).font(.system(size: 10, weight: .medium)).foregroundColor(Theme.sub)
+                .lineLimit(1).minimumScaleFactor(0.75)
         }
-        .padding(.vertical, 13).padding(.horizontal, 12)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 11).padding(.horizontal, 11)
+        .frame(maxWidth: .infinity, minHeight: 78, alignment: .leading)
         .background(Theme.c2)
         .clipShape(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous).stroke(Theme.brd, lineWidth: 1))

@@ -246,6 +246,15 @@ enum L {
 
         // --- Body (legacy) --------------------------------------------------
         "body.analysis":     ("Analisi corporea", "Body analysis"),
+        "body.log":          ("Registra corpo", "Log body data"),
+        "body.save_all":     ("Salva aggiornamento", "Save update"),
+        "body.saved":         ("Aggiornamento salvato", "Update saved"),
+        "body.add_measure":  ("Inserisci", "Add"),
+        "body.composition":  ("Composizione", "Composition"),
+        "body.fat_mass":      ("Massa grassa", "Fat mass"),
+        "body.fat_mass_note": ("peso del grasso", "fat weight"),
+        "body.lean_mass":     ("Massa magra", "Lean mass"),
+        "body.lean_mass_note":("peso senza grasso", "fat-free weight"),
         "body.fat":          ("Grasso", "Fat"),
         "body.lean":         ("Magra", "Lean"),
         "body.goal":         ("goal", "goal"),

@@ -10,6 +10,8 @@ No prompts, no arguments: it always does the same thing.
 
 import subprocess
 import sys
+import os
+import re
 from pathlib import Path
 
 IOS_DIR = Path(__file__).resolve().parent
@@ -20,11 +22,10 @@ XCODEPROJ = IOS_DIR / "FitTracker.xcodeproj"
 # "resource fork, Finder information, or similar detritus not allowed".
 DERIVED_DATA = Path.home() / "Library" / "Developer" / "Xcode" / "DerivedData" / "FitTracker-manual"
 
-SCHEME = "FitTrackerWatchHost"  # the ONLY scheme that embeds the watch app
-CONFIGURATION = "Debug"
-TEAM = "Y63UKFMUPH"
+SCHEME = os.environ.get("FIT_TRACKER_SCHEME", "FitTrackerWatchHost")
+CONFIGURATION = os.environ.get("FIT_TRACKER_CONFIGURATION", "Debug")
+TEAM = os.environ.get("DEVELOPMENT_TEAM", "Y63UKFMUPH")
 BUNDLE_ID = "com.marco.manzotti.fittracker"
-IPHONE_UDID = "00008110-000425CC1A85401E"
 
 
 def run(cmd, **kwargs):
@@ -35,6 +36,42 @@ def run(cmd, **kwargs):
 def fail(message):
     print(f"\n\033[1;31m✗ {message}\033[0m")
     sys.exit(1)
+
+
+def connected_iphone():
+    """Return the connected iPhone UDID, or an explicit FIT_TRACKER_DEVICE."""
+    override = os.environ.get("FIT_TRACKER_DEVICE")
+    if override:
+        return override
+
+    try:
+        result = subprocess.run(
+            ["xcrun", "devicectl", "list", "devices"],
+            check=True, capture_output=True, text=True,
+        )
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        fail("Could not list Apple devices. Connect and unlock the iPhone, then retry.")
+
+    uuid_pattern = re.compile(
+        r"(?:[0-9A-Fa-f]{8}(?:-[0-9A-Fa-f]{4}){3}-[0-9A-Fa-f]{12}"
+        r"|[0-9A-Fa-f]{8}-[0-9A-Fa-f]{16})"
+    )
+    candidates = []
+    # devicectl has emitted its table on stderr in some Xcode releases.
+    device_output = result.stdout + "\n" + result.stderr
+    for line in device_output.splitlines():
+        lowered = line.lower()
+        # Ignore simulator rows: devicectl lists them alongside real phones.
+        if "iphone" in lowered and "physical" in lowered and "available" in lowered:
+            match = uuid_pattern.search(line)
+            if match:
+                candidates.append(match.group(0))
+
+    if len(candidates) == 1:
+        return candidates[0]
+    if len(candidates) > 1:
+        fail("More than one iPhone is connected. Set FIT_TRACKER_DEVICE to the UDID you want.")
+    fail("No connected iPhone found. Connect it by cable, unlock it, and trust this Mac.")
 
 
 def main():
@@ -55,7 +92,9 @@ def main():
         # ("resource fork, Finder information, or similar detritus not allowed").
         subprocess.run(["xattr", "-cr", str(DERIVED_DATA)], check=False)
 
-    print("▶ Building FitTrackerWatchHost (iPhone app + embedded watch app)…")
+    iphone_udid = connected_iphone()
+    print(f"▶ Device: {iphone_udid}")
+    print(f"▶ Building {SCHEME} from the current source…")
     try:
         run(
             [
@@ -63,7 +102,7 @@ def main():
                 "-project", str(XCODEPROJ),
                 "-scheme", SCHEME,
                 "-configuration", CONFIGURATION,
-                "-destination", f"id={IPHONE_UDID}",
+                "-destination", f"id={iphone_udid}",
                 "-derivedDataPath", str(DERIVED_DATA),
                 "-allowProvisioningUpdates",
                 f"DEVELOPMENT_TEAM={TEAM}",
@@ -82,7 +121,7 @@ def main():
         run(
             [
                 "xcrun", "devicectl", "device", "install", "app",
-                "--device", IPHONE_UDID,
+                "--device", iphone_udid,
                 str(app_path),
             ]
         )
@@ -96,7 +135,7 @@ def main():
         run(
             [
                 "xcrun", "devicectl", "device", "process", "launch",
-                "--device", IPHONE_UDID,
+                "--device", iphone_udid,
                 BUNDLE_ID,
             ]
         )

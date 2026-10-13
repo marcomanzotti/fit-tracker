@@ -76,6 +76,26 @@ height and default rest-timer length.
    needed, change the bundle id `com.marco.fittracker` to something unique.
 4. Press ▶︎. (You can also just use SideStore below instead of signing here.)
 
+### Option A.1 — rebuild, install, and launch from Terminal
+
+With the iPhone connected by cable, unlocked, and trusted, run:
+
+```bash
+cd ios
+python3 build_and_run.py
+```
+
+The script detects the connected iPhone, builds the current source with the
+`FitTrackerWatchHost` scheme, installs the resulting app, and launches it. If
+more than one iPhone is connected, select one explicitly:
+
+```bash
+FIT_TRACKER_DEVICE="YOUR-IPHONE-UDID" python3 build_and_run.py
+```
+
+The scheme and configuration can also be changed without editing the script via
+`FIT_TRACKER_SCHEME` and `FIT_TRACKER_CONFIGURATION`.
+
 ### Option B — make an .ipa for SideStore (recommended)
 SideStore signs the app on your phone with your own Apple ID, so we ship it **unsigned**.
 
