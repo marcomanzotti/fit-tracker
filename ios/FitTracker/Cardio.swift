@@ -403,6 +403,7 @@ struct LiveCardioView: View {
         // The watch's measured energy is already on the session; else the estimate.
         if s.caloriesManual == nil, let k = estCalories, k > 0 { s.caloriesManual = k }
         store.sessions.append(s)
+        store.flushNow()            // before the draft is removed
         haptic(.success)
         toast.show(t("wk.session_saved"))
         onSaved()

@@ -159,6 +159,7 @@ struct RootView: View {
     private func saveRestoredWorkout() {
         if let session = activeWorkout.finishedSession() {
             store.sessions.append(session)
+            store.flushNow()        // before the draft is removed
             toast.show(t("wk.session_saved"))
         } else {
             toast.show(t("wk.nothing_save"))

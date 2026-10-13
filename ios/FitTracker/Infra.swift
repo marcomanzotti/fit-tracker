@@ -213,6 +213,8 @@ final class ActiveWorkout: ObservableObject {
         restored = nil
         watchResultId = nil
         lastEditAt = nil
+        durationFromWatch = nil
+        avgHRFromWatch = nil
     }
 
     // MARK: Draft
@@ -243,17 +245,40 @@ final class ActiveWorkout: ObservableObject {
     /// hasn't typed, so manual edits always win.
     func absorb(live s: WatchLiveSample) {
         guard s.activityId == planId else { return }
-        if avgHR.isEmpty, s.avgHR > 0 { avgHR = "\(s.avgHR)" }
-        if (durationSec ?? 0) == 0, s.elapsedSec > 0 { durationSec = s.elapsedSec }
+        if s.avgHR > 0 { takeFromWatch(avgHR: "\(s.avgHR)") }
+        if s.elapsedSec > 0 { takeFromWatch(durationSec: s.elapsedSec) }
         if let exs = s.exercises { mergeWatchExercises(exs) }
+    }
+
+    // A value the watch wrote keeps following the watch (the first live sample is
+    // a few seconds and an early heart rate); a value the user typed is never touched.
+    private var durationFromWatch: Int?
+    private var avgHRFromWatch: String?
+    private func takeFromWatch(durationSec seconds: Int) {
+        guard durationSec == nil || durationSec == durationFromWatch else { return }
+        durationFromWatch = seconds
+        durationSec = seconds
+    }
+    private func takeFromWatch(avgHR value: String) {
+        guard avgHR.isEmpty || avgHR == avgHRFromWatch else { return }
+        avgHRFromWatch = value
+        avgHR = value
     }
 
     /// Fold a finished watch workout into this session, so there is one session and
     /// nothing the wrist already tracked has to be typed again.
+    /// Whether a finished watch workout belongs to this session: same activity, and
+    /// dated the day this session started or today (a session can cross midnight).
+    /// A late copy of yesterday's result for the same plan does not.
+    func accepts(_ r: WatchResult) -> Bool {
+        guard r.activityId == planId, let startDate else { return false }
+        return r.date == isoFormatter.string(from: startDate) || r.date == isoFormatter.string(from: clock())
+    }
+
     func absorb(result r: WatchResult) {
-        guard r.activityId == planId else { return }
-        if avgHR.isEmpty, let hr = r.avgHR, hr > 0 { avgHR = "\(hr)" }
-        if (durationSec ?? 0) == 0, r.durationSec > 0 { durationSec = r.durationSec }
+        guard accepts(r) else { return }
+        if let hr = r.avgHR, hr > 0 { takeFromWatch(avgHR: "\(hr)") }
+        if r.durationSec > 0 { takeFromWatch(durationSec: r.durationSec) }
         if caloriesManual.isEmpty, let k = r.activeKcal, k > 0 { caloriesManual = "\(k)" }
         if let exs = r.exercises { mergeWatchExercises(exs) }
         objectWillChange.send()     // watchResultId is part of the draft
@@ -340,6 +365,11 @@ struct WorkoutDraft: Codable, Equatable {
         /// Start of the stretch still running when this was saved; nil if paused.
         var runningSince: Date?
         var distanceKm: Double?
+        // What the paired watch reported. Once it has confirmed delivery it will not
+        // send the result again, so losing it here would lose the measured numbers.
+        var watchResult: WatchResult?
+        var watchAvgHR: Int?
+        var watchKcal: Int?
     }
     struct Rest: Codable, Equatable {
         var endsAt: Date
@@ -367,6 +397,18 @@ struct WorkoutDraftStore {
     func load() throws -> WorkoutDraft? {
         guard FileManager.default.fileExists(atPath: url.path) else { return nil }
         return try JSONDecoder().decode(WorkoutDraft.self, from: Data(contentsOf: url))
+    }
+
+    /// Keep a draft that could not be decoded under another name, so the next save
+    /// (which removes the file when no session is running) does not destroy it.
+    func setAsideUnreadable() {
+        let aside = url.deletingLastPathComponent()
+            .appendingPathComponent("active-workout.unreadable-\(Int(Date().timeIntervalSince1970)).json")
+        do {
+            try FileManager.default.moveItem(at: url, to: aside)
+        } catch {
+            appLog.error("Unreadable workout draft not set aside: \(String(describing: error), privacy: .public)")
+        }
     }
 
     /// Write the draft; an empty one removes the file.
@@ -415,6 +457,7 @@ final class SessionKeeper {
             draft = try drafts.load()
         } catch {
             appLog.error("Workout draft unreadable: \(String(describing: error), privacy: .public)")
+            drafts.setAsideUnreadable()
             toast.show(t("wk.draft_unreadable"), duration: ToastCenter.longDuration)
             return
         }
@@ -484,7 +527,7 @@ final class SessionKeeper {
     /// A finished watch workout claimed for the running session.
     private func take(_ result: WatchResult) {
         watch.pendingResult = nil
-        if workout.planId == result.activityId {
+        if workout.accepts(result) {
             workout.absorb(result: result)
             toast.show(t("wk.watch_synced"))
         } else if cardio.activityId == result.activityId {

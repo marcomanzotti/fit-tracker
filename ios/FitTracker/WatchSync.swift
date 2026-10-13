@@ -152,6 +152,10 @@ final class WatchSync: NSObject, ObservableObject {
             self.live = nil
             self.liveActive = false
             guard self.handledResultIds.insert(result.id).inserted else { return }
+            // The in-memory set is empty after a relaunch, and the watch resends a
+            // result it never saw confirmed: one already in the history stops here.
+            if let id = UUID(uuidString: result.id),
+               self.store?.sessions.contains(where: { $0.id == id }) == true { return }
             if self.claimedActivityId == result.activityId {
                 // The phone is mid-session for this activity: the session absorbs
                 // the watch's numbers and is saved once.

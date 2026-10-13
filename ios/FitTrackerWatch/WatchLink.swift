@@ -21,7 +21,7 @@ final class WatchLink: NSObject, ObservableObject {
     @Published var startRequest: String?
     @Published private(set) var delivery: Delivery = .none
 
-    private static let pendingKey = "fittracker.watch.pendingResult"
+    private static let pendingKey = "fittracker.watch.pendingResults"
 
     func activate() {
         guard WCSession.isSupported() else {
@@ -37,12 +37,28 @@ final class WatchLink: NSObject, ObservableObject {
     /// system and delivered even if the phone app is not running; an immediate
     /// `sendMessage` is added when the phone is reachable, for instant feedback.
     func queue(_ result: WatchResult) {
-        do {
-            UserDefaults.standard.set(try JSONEncoder().encode(result), forKey: Self.pendingKey)
-        } catch {
-            appLog.error("Result not kept for resending: \(String(describing: error), privacy: .public)")
-        }
+        storePending(pendingResults + [result])
         transfer(result)
+    }
+
+    /// Every result not yet confirmed by the phone, oldest first. A list, because a
+    /// second workout can finish before the first one's delivery is confirmed.
+    private var pendingResults: [WatchResult] {
+        guard let data = UserDefaults.standard.data(forKey: Self.pendingKey) else { return [] }
+        do {
+            return try JSONDecoder().decode([WatchResult].self, from: data)
+        } catch {
+            appLog.error("Pending results unreadable: \(String(describing: error), privacy: .public)")
+            return []
+        }
+    }
+
+    private func storePending(_ results: [WatchResult]) {
+        do {
+            UserDefaults.standard.set(try JSONEncoder().encode(results), forKey: Self.pendingKey)
+        } catch {
+            appLog.error("Results not kept for resending: \(String(describing: error), privacy: .public)")
+        }
     }
 
     private func transfer(_ result: WatchResult) {
@@ -61,35 +77,26 @@ final class WatchLink: NSObject, ObservableObject {
         }
     }
 
-    private var pendingResult: WatchResult? {
-        guard let data = UserDefaults.standard.data(forKey: Self.pendingKey) else { return nil }
-        do {
-            return try JSONDecoder().decode(WatchResult.self, from: data)
-        } catch {
-            appLog.error("Pending result unreadable: \(String(describing: error), privacy: .public)")
-            return nil
-        }
-    }
-
-    /// Send again a result whose delivery was never confirmed, unless the system is
-    /// already holding a transfer for it.
+    /// Send again every result whose delivery was never confirmed, unless the
+    /// system is already holding a transfer for it.
     fileprivate func resendPending() {
-        guard let pending = pendingResult else { return }
-        let alreadyQueued = WCSession.default.outstandingUserInfoTransfers.contains {
-            WatchWire.decode(WatchResult.self, from: $0.userInfo, key: WatchWire.resultKey)?.id == pending.id
+        let queued = Set(WCSession.default.outstandingUserInfoTransfers.compactMap {
+            WatchWire.decode(WatchResult.self, from: $0.userInfo, key: WatchWire.resultKey)?.id
+        })
+        for pending in pendingResults {
+            if queued.contains(pending.id) { delivery = .queued } else { transfer(pending) }
         }
-        if alreadyQueued { delivery = .queued } else { transfer(pending) }
     }
 
     fileprivate func transferFinished(_ userInfo: [String: Any], error: Error?) {
         guard let sent = WatchWire.decode(WatchResult.self, from: userInfo, key: WatchWire.resultKey),
-              sent.id == pendingResult?.id else { return }
+              pendingResults.contains(where: { $0.id == sent.id }) else { return }
         if let error {
             // Stays on disk: resendPending() tries again at the next launch.
             appLog.error("Result transfer failed: \(String(describing: error), privacy: .public)")
             delivery = .failed
         } else {
-            UserDefaults.standard.removeObject(forKey: Self.pendingKey)
+            storePending(pendingResults.filter { $0.id != sent.id })
             delivery = .delivered
         }
     }

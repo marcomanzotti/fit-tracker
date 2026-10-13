@@ -123,7 +123,8 @@ final class ActiveCardio: ObservableObject {
     var draft: WorkoutDraft.Cardio? {
         guard let type, let startDate else { return nil }
         return WorkoutDraft.Cardio(type: type, startDate: startDate, accumulatedSec: accumulatedSec,
-                                   runningSince: runningSince, distanceKm: gpsDistanceKm)
+                                   runningSince: runningSince, distanceKm: gpsDistanceKm,
+                                   watchResult: watchResult, watchAvgHR: watchAvgHR, watchKcal: watchKcal)
     }
 
     /// Bring a session back. What happened while the app was gone is unknown: after
@@ -143,6 +144,9 @@ final class ActiveCardio: ObservableObject {
         }
         paused = runningSince == nil
         gpsDistanceKm = draft.distanceKm
+        watchResult = draft.watchResult
+        watchAvgHR = draft.watchAvgHR
+        watchKcal = draft.watchKcal
         if usesGPS {
             gps?.start(from: draft.distanceKm ?? 0)
             if paused { gps?.pause() }

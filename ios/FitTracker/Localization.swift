@@ -87,6 +87,8 @@ enum L {
                                    "The data file can't be read and there is no valid backup to start from. It was not deleted: you'll find it in Files › Fit Tracker as fittracker.corrupt-…. The app starts empty; you can import a backup from Body › Backup."),
         "store.recovered_body":   ("Il file dei dati non era leggibile, quindi è stato caricato il backup %@. Il file originale è conservato in File › Fit Tracker con il nome fittracker.corrupt-….",
                                    "The data file couldn't be read, so the backup %@ was loaded instead. The original file is kept in Files › Fit Tracker as fittracker.corrupt-…."),
+        "store.saving_off":       ("salvataggio sospeso finché il file dei dati non torna leggibile; chiudi e riapri l'app", "saving is off until the data file can be read again; close and reopen the app"),
+        "wk.already_running":     ("C'è già un allenamento in corso", "A workout is already in progress"),
         "store.save_failed":      ("Salvataggio non riuscito: %@", "Couldn't save: %@"),
         "home.export_failed":     ("Esportazione non riuscita", "Export failed"),
         "body.import_q":          ("Sostituire tutti i dati con questo backup?", "Replace all data with this backup?"),

@@ -624,6 +624,9 @@ struct LiveWorkoutView: View {
             store.touchExerciseInLibrary(ex.name, isBodyweight: ex.bodyweight)
         }
         store.sessions.append(sess)
+        // On disk now, before the draft is removed: the autosave is debounced, and
+        // for that half second the session would otherwise exist nowhere.
+        store.flushNow()
         // Push it to Apple Health when the user opted in, so a session logged here
         // still closes the rings. Silent no-op when the toggle is off.
         if store.prefs.exportsToHealth {

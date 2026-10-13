@@ -151,6 +151,7 @@ struct WorkoutView: View {
     /// Watch is paired and reachable, start the identical session there too so the
     /// two run in sync. Other wearables auto-import from Health afterwards.
     private func startCardio(_ ct: CardioType) {
+        guard !resumeRunningSession() else { return }
         activeCardio.start(ct)
         startOnWatch("cardio-\(ct.id)")
     }
@@ -336,7 +337,19 @@ struct WorkoutView: View {
     }
 
     // MARK: Actions
+    /// One session at a time. With one already running (minimised, its tiles are
+    /// still on screen) a Play tap brings it back instead of starting over, which
+    /// would throw away everything logged so far.
+    private func resumeRunningSession() -> Bool {
+        guard activeWorkout.isActive || activeCardio.isActive else { return false }
+        activeWorkout.minimized = false
+        activeCardio.minimized = false
+        toast.show(t("wk.already_running"), duration: ToastCenter.longDuration)
+        return true
+    }
+
     private func start(_ plan: WorkoutPlan) {
+        guard !resumeRunningSession() else { return }
         // SessionKeeper reacts to this: screen kept awake, Lock Screen activity,
         // draft on disk.
         activeWorkout.start(plan: plan)

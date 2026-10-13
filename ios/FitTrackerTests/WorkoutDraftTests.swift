@@ -140,7 +140,7 @@ final class WorkoutDraftTests: XCTestCase {
     func testAbsorbedWatchResultGivesTheSessionItsIdSoASecondDeliveryDedupes() throws {
         let workout = startedWorkout()
         let id = UUID().uuidString
-        let result = WatchResult(id: id, date: "2026-10-13", kind: WatchKind.strength.rawValue,
+        let result = WatchResult(id: id, date: isoFormatter.string(from: now), kind: WatchKind.strength.rawValue,
                                  activityId: "p1", name: "Push", color: "ff5a52", sport: nil,
                                  durationSec: 2_700, avgHR: 128, maxHR: 160, activeKcal: 350,
                                  distanceKm: nil,
@@ -289,5 +289,50 @@ final class WorkoutSummaryTests: XCTestCase {
         let first = WorkoutSummary.make(session: session([("5", "105")]), previous: nil,
                                         recordBefore: { _ in 0 }, kcal: 0, trimp: nil)
         XCTAssertTrue(first.records.isEmpty)
+    }
+}
+
+/// Watch data must follow the watch, and never bleed across sessions.
+final class WatchMergeTests: XCTestCase {
+    private var now = Date(timeIntervalSince1970: 1_780_000_000)
+    private let plan = WorkoutPlan(id: "p1", name: "Push", sub: "", color: "ff5a52",
+                                   exercises: [PlanExercise(name: "Bench", sets: 2, reps: "8")])
+
+    private func result(date: String, duration: Int = 2_700, avgHR: Int = 128) -> WatchResult {
+        WatchResult(id: UUID().uuidString, date: date, kind: WatchKind.strength.rawValue, activityId: "p1",
+                    name: "Push", color: "ff5a52", sport: nil, durationSec: duration, avgHR: avgHR,
+                    maxHR: nil, activeKcal: nil, distanceKm: nil, exercises: nil)
+    }
+    private func live(elapsed: Int, avgHR: Int) -> WatchLiveSample {
+        WatchLiveSample(activityId: "p1", kind: WatchKind.strength.rawValue, hr: avgHR, avgHR: avgHR, maxHR: avgHR,
+                        kcal: 0, distanceKm: nil, elapsedSec: elapsed, exercises: nil, ended: false)
+    }
+
+    func testAResultFromAnotherDayIsNotFoldedIntoTodaysSession() {
+        let workout = ActiveWorkout(clock: { self.now })
+        workout.start(plan: plan)
+        let yesterday = isoFormatter.string(from: now.addingTimeInterval(-86_400))
+
+        XCTAssertFalse(workout.accepts(result(date: yesterday)))
+        workout.absorb(result: result(date: yesterday))
+        XCTAssertEqual(workout.avgHR, "")
+        XCTAssertNil(workout.durationSec)
+
+        XCTAssertTrue(workout.accepts(result(date: isoFormatter.string(from: now))))
+    }
+
+    func testWatchValuesKeepUpdatingButATypedValueIsNeverReplaced() {
+        let workout = ActiveWorkout(clock: { self.now })
+        workout.start(plan: plan)
+
+        workout.absorb(live: live(elapsed: 3, avgHR: 92))      // the first sample: a few seconds
+        workout.absorb(live: live(elapsed: 1_800, avgHR: 131))
+        XCTAssertEqual(workout.durationSec, 1_800, "the first sample must not stick")
+        XCTAssertEqual(workout.avgHR, "131")
+
+        workout.avgHR = "140"                                   // typed by the user
+        workout.absorb(result: result(date: isoFormatter.string(from: now)))
+        XCTAssertEqual(workout.avgHR, "140")
+        XCTAssertEqual(workout.durationSec, 2_700)
     }
 }

@@ -96,13 +96,21 @@ final class Store: ObservableObject {
         guard FileManager.default.fileExists(atPath: dataURL.path) else { return nil }
         do {
             return migrate(try Store.decodeDocument(at: dataURL))
-        } catch {
+        } catch let error as DecodingError {
             appLog.error("Data file unreadable: \(String(describing: error), privacy: .public)")
             canSave = setAsideUnreadableFile()
             if let backup = newestReadableBackup() {
                 storageProblem = .recovered(from: backup.name)
                 return migrate(backup.document)
             }
+            storageProblem = .unreadable
+            return nil
+        } catch {
+            // The file is there but could not be opened (for instance the phone has
+            // not been unlocked since a restart). It is not damaged: leave it where
+            // it is, start empty for this run and write nothing over it.
+            appLog.error("Data file not accessible: \(String(describing: error), privacy: .public)")
+            canSave = false
             storageProblem = .unreadable
             return nil
         }
@@ -234,7 +242,11 @@ final class Store: ObservableObject {
         }
     }
 
-    func acknowledgeStorageProblem() { storageProblem = nil }
+    /// The load alert was read. If saving is off, the banner takes over and stays:
+    /// nothing typed from here on is being kept, and that must remain visible.
+    func acknowledgeStorageProblem() {
+        storageProblem = canSave ? nil : .saveFailed(L.t("store.saving_off"))
+    }
 
     // MARK: Widget
     /// What the Home / Lock Screen widget shows right now.

@@ -140,8 +140,12 @@ final class WorkoutManager: NSObject, ObservableObject {
             appLog.error("Workout recovery failed: \(String(describing: error), privacy: .public)")
             return
         }
-        // Nothing running: a snapshot left behind belongs to a session that is gone.
-        guard let session = recovered else { clearSnapshot(); return }
+        // A workout may have been started (from the phone) while HealthKit was
+        // answering: that one owns the state now.
+        guard self.session == nil, phase == .idle else { return }
+        // Nothing running. A snapshot left behind is a session that ended without
+        // its result being sent (the app was closed in between): send what it holds.
+        guard let session = recovered else { salvageSnapshot(); return }
         let builder = session.associatedWorkoutBuilder()
         builder.dataSource = HKLiveWorkoutDataSource(healthStore: store, workoutConfiguration: session.workoutConfiguration)
         session.delegate = self
@@ -311,6 +315,24 @@ final class WorkoutManager: NSObject, ObservableObject {
     }
 
     private func clearSnapshot() { UserDefaults.standard.removeObject(forKey: Self.snapshotKey) }
+
+    /// The session behind this snapshot is gone and HealthKit has nothing to give
+    /// back, so the heart-rate and time figures are lost — but the sets confirmed
+    /// on the wrist are still here, and they are sent rather than thrown away.
+    private func salvageSnapshot() {
+        defer { clearSnapshot() }
+        guard let snapshot = loadSnapshot(),
+              snapshot.exLogs.contains(where: { $0.setDone.contains(true) }) else { return }
+        activity = snapshot.activity
+        exLogs = snapshot.exLogs
+        let a = snapshot.activity
+        WatchLink.shared.queue(WatchResult(id: UUID().uuidString, date: wkToday(), kind: a.kind,
+                                           activityId: a.id, name: a.name, color: a.color, sport: a.sport,
+                                           durationSec: 0, avgHR: nil, maxHR: nil, activeKcal: nil,
+                                           distanceKm: nil, exercises: resultExercises()))
+        activity = nil
+        exLogs = []
+    }
 
     // MARK: Finalize
     private func finish() async {
