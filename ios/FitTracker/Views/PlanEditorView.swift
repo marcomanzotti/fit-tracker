@@ -48,7 +48,7 @@ private struct ExerciseNameField: View {
                                 .padding(.vertical, 9).padding(.horizontal, 12)
                                 .background(Theme.c3)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(PressableStyle())
                         if s != suggestions.last {
                             Divider().background(Theme.brd)
                         }
@@ -74,13 +74,28 @@ struct PlanEditorView: View {
     var onCancel: () -> Void
 
     @State private var confirmDelete = false
+    @State private var confirmDiscard = false
     @State private var browsing = false
+
+    /// True when the editor holds something the store does not.
+    private var hasChanges: Bool {
+        guard let saved = store.plan(plan.id) else {
+            return !plan.name.isEmpty || !plan.sub.isEmpty || !plan.exercises.isEmpty
+        }
+        return saved != plan
+    }
 
     var body: some View {
         VStack(spacing: 11) {
             // Back row
             HStack(spacing: 12) {
-                GhostButton(title: "← \(t("cancel"))") { onCancel() }
+                GhostButton(title: "← \(t("cancel"))") {
+                    if hasChanges { confirmDiscard = true } else { onCancel() }
+                }
+                .confirmationDialog(t("pe.discard_q"), isPresented: $confirmDiscard, titleVisibility: .visible) {
+                    Button(t("pe.discard"), role: .destructive) { onCancel() }
+                    Button(t("pe.keep_editing"), role: .cancel) {}
+                }
                 VStack(alignment: .leading, spacing: 2) {
                     Text((isNew ? t("wk.new_day") : t("wk.edit_day")).uppercased())
                         .font(.head(18, .bold)).tracking(0.5).foregroundColor(Color(hex: plan.color))
@@ -141,7 +156,7 @@ struct PlanEditorView: View {
                         .frame(maxWidth: .infinity, minHeight: 44)
                         .background(Theme.acc)
                         .clipShape(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous))
-                    }.buttonStyle(.plain)
+                    }.buttonStyle(PressableStyle())
                     // Add a blank exercise to fill in manually.
                     Button { tap(); plan.exercises.append(PlanExercise(name: "")) } label: {
                         HStack(spacing: 6) {
@@ -150,10 +165,8 @@ struct PlanEditorView: View {
                         }
                         .foregroundColor(Theme.acc)
                         .frame(maxWidth: .infinity, minHeight: 44)
-                        .background(Theme.acc.opacity(0.07))
-                        .clipShape(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous))
-                        .overlay(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous).stroke(Theme.acc.opacity(0.4), lineWidth: 1))
-                    }.buttonStyle(.plain)
+                        .chrome(fill: Theme.acc.opacity(0.07), stroke: Theme.acc.opacity(0.4))
+                    }.buttonStyle(PressableStyle())
                 }
                 .padding(.top, 6)
             }
@@ -192,9 +205,9 @@ struct PlanEditorView: View {
                 ExerciseNameField(name: ex.name, placeholder: t("pe.ex_name_ph"))
                 BodyweightChip(isBodyweight: ex.isBodyweight)
                 Button { tap(); plan.exercises.removeAll { $0.id == id } } label: {
-                    Image(systemName: "xmark").font(.system(size: 13)).foregroundColor(Theme.red.opacity(0.7))
+                    Image(systemName: "xmark").accessibilityLabel(t("a11y.remove")).font(.system(size: 13)).foregroundColor(Theme.red.opacity(0.7))
                         .frame(width: 30, height: 34)
-                }.buttonStyle(.plain)
+                }.buttonStyle(PressableStyle())
             }
             kindSelector(ex)
             // Parameter row depends on the exercise kind: sets×reps for classic,
@@ -214,9 +227,7 @@ struct PlanEditorView: View {
             }
         }
         .padding(.vertical, 11).padding(.horizontal, 12)
-        .background(Theme.c2)
-        .clipShape(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous).stroke(Theme.brd, lineWidth: 1))
+        .chrome()
         .padding(.bottom, 8)
     }
 
@@ -224,7 +235,7 @@ struct PlanEditorView: View {
     private func kindSelector(_ ex: Binding<PlanExercise>) -> some View {
         let cur = ex.wrappedValue.exKind
         return HStack(spacing: 6) {
-            Text(t("pe.kind").uppercased()).font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
+            Text(t("pe.kind").uppercased()).font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.sub)
             ForEach(ExKind.allCases, id: \.self) { k in
                 let active = cur == k
                 Button {
@@ -238,7 +249,7 @@ struct PlanEditorView: View {
                     }
                 } label: {
                     HStack(spacing: 4) {
-                        Image(systemName: k.icon).font(.system(size: 9, weight: .bold))
+                        Image(systemName: k.icon).font(.system(size: 10, weight: .bold))
                         Text(t(k.labelKey)).font(.head(10, .semibold)).tracking(0.5)
                     }
                     .foregroundColor(active ? Theme.bg : Theme.sub)
@@ -247,7 +258,7 @@ struct PlanEditorView: View {
                     .clipShape(Capsule())
                     .overlay(Capsule().stroke(active ? Theme.acc : Theme.brd, lineWidth: 1))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(PressableStyle())
             }
             Spacer()
         }
@@ -258,16 +269,16 @@ struct PlanEditorView: View {
     private func setsParamRow(_ ex: Binding<PlanExercise>, idx: Int?, kind: ExKind) -> some View {
         HStack(spacing: 10) {
             HStack(spacing: 8) {
-                Text(t("pe.sets").uppercased()).font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
+                Text(t("pe.sets").uppercased()).font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.sub)
                 Button { tap(); if ex.wrappedValue.sets > 1 { ex.wrappedValue.sets -= 1 } } label: {
                     Image(systemName: "minus").font(.system(size: 11, weight: .bold)).foregroundColor(Theme.txt)
                         .frame(width: 26, height: 26).background(Theme.c3).clipShape(Circle())
-                }.buttonStyle(.plain)
+                }.buttonStyle(PressableStyle())
                 Text("\(ex.wrappedValue.sets)").font(.num(16)).frame(minWidth: 16)
                 Button { tap(); ex.wrappedValue.sets += 1 } label: {
                     Image(systemName: "plus").font(.system(size: 11, weight: .bold)).foregroundColor(Theme.txt)
                         .frame(width: 26, height: 26).background(Theme.c3).clipShape(Circle())
-                }.buttonStyle(.plain)
+                }.buttonStyle(PressableStyle())
             }
             Spacer()
             if kind == .timed {
@@ -279,13 +290,12 @@ struct PlanEditorView: View {
                     set: { ex.wrappedValue.targetSec = $0 }), step: 5, min: 5, suffix: "s")
             } else {
                 Text(t("wk.reps").uppercased())
-                    .font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
+                    .font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.sub)
                 TextField("", text: ex.reps, prompt: Text("10").foregroundColor(Theme.sub))
                     .multilineTextAlignment(.center)
                     .font(.system(size: 14, weight: .semibold)).foregroundColor(Theme.txt)
                     .frame(width: 64).padding(.vertical, 7)
-                    .background(Theme.c2).clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(Theme.brd, lineWidth: 1))
+                    .chrome(8)
             }
             reorderButtons(idx: idx)
         }
@@ -298,23 +308,23 @@ struct PlanEditorView: View {
         let cur = ex.wrappedValue.restTimerSec
         return HStack(spacing: 8) {
             Image(systemName: "hourglass").font(.system(size: 10)).foregroundColor(Theme.blue)
-            Text(t("pe.rest_timer").uppercased()).font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
+            Text(t("pe.rest_timer").uppercased()).font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.sub)
             Spacer()
             Button { tap(); ex.wrappedValue.restTimerSec = Swift.max(0, (cur ?? store.prefs.timer) - 15) } label: {
                 Image(systemName: "minus").font(.system(size: 10, weight: .bold)).foregroundColor(Theme.txt)
                     .frame(width: 24, height: 24).background(Theme.c3).clipShape(Circle())
-            }.buttonStyle(.plain)
+            }.buttonStyle(PressableStyle())
             Text(cur.map { "\($0)s" } ?? "\(store.prefs.timer)s")
                 .font(.num(14)).foregroundColor(cur == nil ? Theme.sub : Theme.txt).frame(minWidth: 38)
             Button { tap(); ex.wrappedValue.restTimerSec = (cur ?? store.prefs.timer) + 15 } label: {
                 Image(systemName: "plus").font(.system(size: 10, weight: .bold)).foregroundColor(Theme.txt)
                     .frame(width: 24, height: 24).background(Theme.c3).clipShape(Circle())
-            }.buttonStyle(.plain)
+            }.buttonStyle(PressableStyle())
             if cur != nil {
                 Button { tap(); ex.wrappedValue.restTimerSec = nil } label: {
                     Image(systemName: "arrow.uturn.backward").font(.system(size: 10, weight: .bold))
                         .foregroundColor(Theme.sub).frame(width: 24, height: 24)
-                }.buttonStyle(.plain)
+                }.buttonStyle(PressableStyle())
             }
         }
     }
@@ -342,16 +352,16 @@ struct PlanEditorView: View {
 
     private func intStepper(_ label: String, value: Binding<Int>, step: Int, min: Int, suffix: String) -> some View {
         HStack(spacing: 7) {
-            Text(label.uppercased()).font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
+            Text(label.uppercased()).font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.sub)
             Button { tap(); value.wrappedValue = Swift.max(min, value.wrappedValue - step) } label: {
                 Image(systemName: "minus").font(.system(size: 10, weight: .bold)).foregroundColor(Theme.txt)
                     .frame(width: 24, height: 24).background(Theme.c3).clipShape(Circle())
-            }.buttonStyle(.plain)
+            }.buttonStyle(PressableStyle())
             Text("\(value.wrappedValue)\(suffix)").font(.num(15)).frame(minWidth: 28)
             Button { tap(); value.wrappedValue += step } label: {
                 Image(systemName: "plus").font(.system(size: 10, weight: .bold)).foregroundColor(Theme.txt)
                     .frame(width: 24, height: 24).background(Theme.c3).clipShape(Circle())
-            }.buttonStyle(.plain)
+            }.buttonStyle(PressableStyle())
         }
     }
 
@@ -360,11 +370,11 @@ struct PlanEditorView: View {
             Button { tap(); if let i = idx, i > 0 { plan.exercises.swapAt(i, i - 1) } } label: {
                 Image(systemName: "chevron.up").font(.system(size: 11)).foregroundColor((idx ?? 0) > 0 ? Theme.sub : Theme.brd)
                     .frame(width: 26, height: 18)
-            }.buttonStyle(.plain).disabled((idx ?? 0) == 0)
+            }.buttonStyle(PressableStyle()).disabled((idx ?? 0) == 0)
             Button { tap(); if let i = idx, i < plan.exercises.count - 1 { plan.exercises.swapAt(i, i + 1) } } label: {
                 Image(systemName: "chevron.down").font(.system(size: 11)).foregroundColor((idx ?? 0) < plan.exercises.count - 1 ? Theme.sub : Theme.brd)
                     .frame(width: 26, height: 18)
-            }.buttonStyle(.plain).disabled((idx ?? 0) == plan.exercises.count - 1)
+            }.buttonStyle(PressableStyle()).disabled((idx ?? 0) == plan.exercises.count - 1)
         }
     }
 
@@ -373,7 +383,7 @@ struct PlanEditorView: View {
         let muscle = ex.wrappedValue.muscle ?? store.exerciseCategory(ex.wrappedValue.name)
         let mg = MuscleGroup(rawValue: muscle) ?? .other
         return HStack(spacing: 10) {
-            Text(t("mg.title").uppercased()).font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
+            Text(t("mg.title").uppercased()).font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.sub)
             Menu {
                 ForEach(MuscleGroup.allCases) { g in
                     Button(t(g.labelKey)) { tap(); ex.wrappedValue.muscle = g.rawValue }
@@ -382,11 +392,10 @@ struct PlanEditorView: View {
                 HStack(spacing: 5) {
                     Circle().fill(Color(hex: mg.color)).frame(width: 7, height: 7)
                     Text(t(mg.labelKey)).font(.system(size: 12, weight: .semibold)).foregroundColor(Theme.txt)
-                    Image(systemName: "chevron.down").font(.system(size: 9)).foregroundColor(Theme.sub)
+                    Image(systemName: "chevron.down").font(.system(size: 10)).foregroundColor(Theme.sub)
                 }
                 .padding(.vertical, 6).padding(.horizontal, 10)
-                .background(Theme.c1).clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(Theme.brd, lineWidth: 1))
+                .chrome(8, fill: Theme.c1)
             }
             Spacer()
         }
@@ -401,7 +410,7 @@ struct PlanEditorView: View {
         let muscle = ex.wrappedValue.muscle ?? store.exerciseCategory(ex.wrappedValue.name)
         let mg = MuscleGroup(rawValue: muscle) ?? .other
         return HStack(spacing: 10) {
-            Text(t("wk.method").uppercased()).font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
+            Text(t("wk.method").uppercased()).font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.sub)
             Menu {
                 ForEach(TrainMethod.allCases, id: \.self) { m in
                     Button(methodLabel(m)) { tap(); ex.wrappedValue.method = m == .normal ? nil : m.rawValue }
@@ -409,11 +418,10 @@ struct PlanEditorView: View {
             } label: {
                 HStack(spacing: 5) {
                     Text(methodLabel(cur)).font(.system(size: 12, weight: .semibold)).foregroundColor(Theme.txt)
-                    Image(systemName: "chevron.down").font(.system(size: 9)).foregroundColor(Theme.sub)
+                    Image(systemName: "chevron.down").font(.system(size: 10)).foregroundColor(Theme.sub)
                 }
                 .padding(.vertical, 6).padding(.horizontal, 10)
-                .background(Theme.c1).clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(Theme.brd, lineWidth: 1))
+                .chrome(8, fill: Theme.c1)
             }
             // Muscle group, right next to the method selector.
             Menu {
@@ -424,24 +432,23 @@ struct PlanEditorView: View {
                 HStack(spacing: 5) {
                     Circle().fill(Color(hex: mg.color)).frame(width: 7, height: 7)
                     Text(t(mg.labelKey)).font(.system(size: 12, weight: .semibold)).foregroundColor(Theme.txt)
-                    Image(systemName: "chevron.down").font(.system(size: 9)).foregroundColor(Theme.sub)
+                    Image(systemName: "chevron.down").font(.system(size: 10)).foregroundColor(Theme.sub)
                 }
                 .padding(.vertical, 6).padding(.horizontal, 10)
-                .background(Theme.c1).clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(Theme.brd, lineWidth: 1))
+                .chrome(8, fill: Theme.c1)
             }
             Spacer()
             if isGrouped {
-                Text(t("pe.group").uppercased()).font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
+                Text(t("pe.group").uppercased()).font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.sub)
                 Button { tap(); let g = (ex.wrappedValue.supersetGroup ?? 1); ex.wrappedValue.supersetGroup = max(1, g - 1) } label: {
                     Image(systemName: "minus").font(.system(size: 10, weight: .bold)).foregroundColor(Theme.txt)
                         .frame(width: 24, height: 24).background(Theme.c3).clipShape(Circle())
-                }.buttonStyle(.plain)
+                }.buttonStyle(PressableStyle())
                 Text("\(ex.wrappedValue.supersetGroup ?? 1)").font(.num(15)).frame(minWidth: 14)
                 Button { tap(); ex.wrappedValue.supersetGroup = (ex.wrappedValue.supersetGroup ?? 0) + 1 } label: {
                     Image(systemName: "plus").font(.system(size: 10, weight: .bold)).foregroundColor(Theme.txt)
                         .frame(width: 24, height: 24).background(Theme.c3).clipShape(Circle())
-                }.buttonStyle(.plain)
+                }.buttonStyle(PressableStyle())
             }
         }
         .padding(.top, 2)
@@ -491,10 +498,8 @@ struct ExercisePickerSheet: View {
                             Spacer()
                         }
                         .padding(.vertical, 12).padding(.horizontal, 14)
-                        .background(Theme.acc.opacity(0.08))
-                        .clipShape(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous))
-                        .overlay(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous).stroke(Theme.acc.opacity(0.4), lineWidth: 1))
-                    }.buttonStyle(.plain)
+                        .chrome(fill: Theme.acc.opacity(0.08), stroke: Theme.acc.opacity(0.4))
+                    }.buttonStyle(PressableStyle())
                 }
                 ScrollView {
                     LazyVStack(spacing: 8, pinnedViews: [.sectionHeaders]) {
@@ -523,6 +528,7 @@ struct ExercisePickerSheet: View {
             .padding(.horizontal, 18)
         }
         .preferredColorScheme(.dark)
+        .keyboardDoneBar()
     }
 
     private var trimmedSearch: String { search.trimmingCharacters(in: .whitespaces) }
@@ -535,7 +541,7 @@ struct ExercisePickerSheet: View {
             Text(t("pe.browse")).font(.head(18, .bold)).foregroundColor(Theme.txt)
             Spacer()
             Button { dismiss() } label: {
-                Image(systemName: "xmark").foregroundColor(Theme.sub).frame(width: 34, height: 34)
+                Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: 34, height: 34)
             }
         }
         .padding(.top, 18)
@@ -546,7 +552,7 @@ struct ExercisePickerSheet: View {
             HStack(spacing: 10) {
                 Text(item.name).font(.system(size: 14, weight: .semibold)).foregroundColor(Theme.txt).lineLimit(1)
                 if item.isBodyweight {
-                    Text(t("wk.bodyweight")).font(.head(8, .semibold)).tracking(0.5).foregroundColor(Theme.good)
+                    Text(t("wk.bodyweight")).font(.head(10, .semibold)).tracking(0.5).foregroundColor(Theme.good)
                         .padding(.vertical, 2).padding(.horizontal, 6)
                         .background(Theme.good.opacity(0.14)).clipShape(Capsule())
                 }
@@ -554,10 +560,8 @@ struct ExercisePickerSheet: View {
                 Image(systemName: "plus").font(.system(size: 13, weight: .bold)).foregroundColor(Theme.acc)
             }
             .padding(.vertical, 11).padding(.horizontal, 13)
-            .background(Theme.c1)
-            .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 11, style: .continuous).stroke(Theme.brd, lineWidth: 1))
-        }.buttonStyle(.plain)
+            .chrome(11, fill: Theme.c1)
+        }.buttonStyle(PressableStyle())
     }
 
     private func add(name: String, group: MuscleGroup?, bodyweight: Bool) {

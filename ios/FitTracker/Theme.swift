@@ -1,25 +1,5 @@
 import SwiftUI
 
-// MARK: - Color from hex
-extension Color {
-    init(hex: String) {
-        let h = hex.trimmingCharacters(in: CharacterSet(charactersIn: "#")).uppercased()
-        var int: UInt64 = 0
-        Scanner(string: h).scanHexInt64(&int)
-        let r, g, b, a: UInt64
-        switch h.count {
-        case 3:  (r, g, b, a) = ((int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17, 255)
-        case 8:  (r, g, b, a) = (int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF, int >> 24 & 0xFF)
-        default: (r, g, b, a) = (int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF, 255)
-        }
-        self.init(.sRGB,
-                  red: Double(r) / 255,
-                  green: Double(g) / 255,
-                  blue: Double(b) / 255,
-                  opacity: Double(a) / 255)
-    }
-}
-
 // MARK: - Palette
 enum Theme {
     static let bg     = Color(hex: "0b0b0d")
@@ -59,22 +39,14 @@ enum Theme {
 
     static let radius:  CGFloat = 18
     static let radiusS: CGFloat = 12
+    /// Apple's minimum comfortable touch target.
+    static let minTapTarget: CGFloat = 44
+    /// The one spring used for UI that settles into place: quick, no overshoot.
+    static let settle = Animation.spring(response: 0.35, dampingFraction: 1)
 
     /// Shared visual identity for a "rest" day, used identically on the weekly
     /// plan and the "this week" strip and calendar: an almost-white chip with a
     /// dark moon/zzz icon (mirrors how a trained day shows a dark dumbbell).
     static let restFill = Color(hex: "ece7dc")     // almost white
     static let restIcon = "moon.zzz.fill"
-}
-
-// MARK: - Fonts (system fonts emulating the original Oswald / Archivo look)
-extension Font {
-    /// Heading / label font — used uppercase with tracking.
-    static func head(_ size: CGFloat, _ weight: Font.Weight = .semibold) -> Font {
-        .system(size: size, weight: weight)
-    }
-    /// Numeric font — rounded design for the big stat numbers.
-    static func num(_ size: CGFloat, _ weight: Font.Weight = .bold) -> Font {
-        .system(size: size, weight: weight, design: .rounded)
-    }
 }

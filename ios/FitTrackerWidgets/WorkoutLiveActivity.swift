@@ -18,20 +18,6 @@ private enum W {
     static let blue = Color(hex: "4fb8c4")
 }
 
-private extension Color {
-    init(hex: String) {
-        var h = hex.trimmingCharacters(in: .whitespacesAndNewlines)
-        if h.hasPrefix("#") { h.removeFirst() }
-        var v: UInt64 = 0
-        Scanner(string: h).scanHexInt64(&v)
-        self.init(.sRGB,
-                  red: Double((v >> 16) & 0xff) / 255,
-                  green: Double((v >> 8) & 0xff) / 255,
-                  blue: Double(v & 0xff) / 255,
-                  opacity: 1)
-    }
-}
-
 /// Italian/English pair chosen from the device language — the extension has no
 /// access to the app's runtime language table, and these are the only two strings
 /// it shows.

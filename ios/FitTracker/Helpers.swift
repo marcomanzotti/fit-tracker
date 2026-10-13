@@ -96,12 +96,18 @@ func dispLen(_ cm: Double) -> String { trimNum((Units.lenOut(cm) * 10).rounded()
 func dispDist(_ km: Double) -> String { trimNum((Units.distOut(km) * 100).rounded() / 100) }
 
 // MARK: - Haptics
+// Generators are created once and re-armed after each use: a fresh generator per
+// tap has to spin the Taptic Engine up first, so the tick lands late.
+private let notifier = UINotificationFeedbackGenerator()
+private let lightImpact = UIImpactFeedbackGenerator(style: .light)
+
 func haptic(_ type: UINotificationFeedbackGenerator.FeedbackType = .success) {
-    let g = UINotificationFeedbackGenerator()
-    g.notificationOccurred(type)
+    notifier.notificationOccurred(type)
+    notifier.prepare()
 }
 func tap() {
-    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+    lightImpact.impactOccurred()
+    lightImpact.prepare()
 }
 
 /// A celebratory burst when a set crosses into personal-record territory: a

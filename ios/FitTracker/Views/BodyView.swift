@@ -54,10 +54,10 @@ struct BodyView: View {
         Card(accent: isToday ? Theme.acc : Theme.blue) {
             HStack(spacing: 10) {
                 Button { tap(); shiftDay(-1) } label: {
-                    Image(systemName: "chevron.left").font(.system(size: 13, weight: .bold))
+                    Image(systemName: "chevron.left").accessibilityLabel(t("a11y.prev_day")).font(.system(size: 13, weight: .bold))
                         .foregroundColor(Theme.txt).frame(width: 34, height: 34)
                         .background(Theme.c2).clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-                }.buttonStyle(.plain)
+                }.buttonStyle(PressableStyle())
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(prettyDay).font(.head(14, .bold)).tracking(0.5)
@@ -69,19 +69,19 @@ struct BodyView: View {
 
                 // Forward is disabled on today: there is nothing to log in the future.
                 Button { tap(); shiftDay(1) } label: {
-                    Image(systemName: "chevron.right").font(.system(size: 13, weight: .bold))
-                        .foregroundColor(isToday ? Theme.mut : Theme.txt).frame(width: 34, height: 34)
+                    Image(systemName: "chevron.right").accessibilityLabel(t("a11y.next_day")).font(.system(size: 13, weight: .bold))
+                        .foregroundColor(isToday ? Theme.brd2 : Theme.txt).frame(width: 34, height: 34)
                         .background(Theme.c2).clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(PressableStyle())
                 .disabled(isToday)
 
                 Button { tap(); showHealthHistory = true } label: {
-                    Image(systemName: "heart.text.square.fill").font(.system(size: 15))
+                    Image(systemName: "heart.text.square.fill").accessibilityLabel(t("hk.history")).font(.system(size: 15))
                         .foregroundColor(Color(hex: Theme.appleGreen))
                         .frame(width: 34, height: 34)
                         .background(Theme.c2).clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-                }.buttonStyle(.plain)
+                }.buttonStyle(PressableStyle())
             }
         }
         .sheet(isPresented: $showHealthHistory) { HealthHistoryView() }
@@ -124,17 +124,17 @@ struct BodyView: View {
                 Lbl(text: t("body.sleep"), color: Theme.acc2)
                 Spacer()
                 if hasHealthData {
-                    Text(t("hk.from_health").uppercased()).font(.head(8, .semibold)).tracking(1).foregroundColor(Theme.sub)
+                    Text(t("hk.from_health").uppercased()).font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.sub)
                 }
                 Button {
-                    tap(); showManualSleep.toggle()
+                    tap(); withAnimation(Theme.settle) { showManualSleep.toggle() }
                     if showManualSleep { prefillManualSleep(e) }
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: showManualSleep ? "chevron.up" : "pencil")
                             .font(.system(size: 10, weight: .semibold))
                         if !hasHealthData {
-                            Text(t("body.sleep_manual").uppercased()).font(.head(8, .semibold)).tracking(1)
+                            Text(t("body.sleep_manual").uppercased()).font(.head(10, .semibold)).tracking(1)
                         }
                     }
                     .foregroundColor(Theme.acc2)
@@ -174,7 +174,7 @@ struct BodyView: View {
 
     private func sleepField(_ label: String, _ ph: String, _ b: Binding<String>, _ kb: UIKeyboardType = .decimalPad) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(label).font(.head(9, .semibold)).tracking(0.5).foregroundColor(Theme.sub)
+            Text(label).font(.head(10, .semibold)).tracking(0.5).foregroundColor(Theme.sub)
             InputField(placeholder: ph, text: b, keyboard: kb)
         }
     }
@@ -205,13 +205,13 @@ struct BodyView: View {
             HStack(spacing: 6) {
                 Lbl(text: t("lbl.steps"), color: Theme.acc2)
                 Spacer()
-                Text(t("hk.from_health").uppercased()).font(.head(8, .semibold)).tracking(1).foregroundColor(Theme.sub)
+                Text(t("hk.from_health").uppercased()).font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.sub)
             }
             .padding(.bottom, 10)
             HStack(spacing: 10) {
                 InputField(placeholder: "8000", text: $stepsInput)
                 FilledButton(title: t("save")) {
-                    guard let v = Int(stepsInput), v > 0 else { return }
+                    guard let v = Int(stepsInput), v > 0 else { haptic(.error); toast.show(t("body.steps_invalid")); return }
                     store.saveDailyExtras(date: day, steps: v)
                     toast.show(t("save"))
                 }
@@ -291,7 +291,7 @@ struct BodyView: View {
     private func bodyLogField(label: String, unit: String, value: String,
                               text: Binding<String>, keyboard: UIKeyboardType) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(label.uppercased()).font(.head(9, .semibold)).tracking(1.1).foregroundColor(Theme.sub)
+            Text(label.uppercased()).font(.head(10, .semibold)).tracking(1.1).foregroundColor(Theme.sub)
             HStack(spacing: 4) {
                 TextField("", text: text, prompt: Text(value).foregroundColor(Theme.sub))
                     .keyboardType(keyboard)
@@ -300,9 +300,7 @@ struct BodyView: View {
                 Text(unit).font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.sub)
             }
             .padding(.horizontal, 11).frame(height: 45)
-            .background(Theme.c2)
-            .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).stroke(Theme.brd, lineWidth: 1))
+            .chrome(9)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -336,9 +334,7 @@ struct BodyView: View {
                 .font(.system(size: 15, weight: .medium)).foregroundColor(Theme.txt)
                 .multilineTextAlignment(.trailing)
                 .padding(.horizontal, 10).frame(height: 38)
-                .background(Theme.c2)
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(Theme.brd, lineWidth: 1))
+                .chrome(8)
         }
         .padding(.vertical, 3)
     }
@@ -412,7 +408,7 @@ struct BodyView: View {
             HStack(spacing: 16) {
                 compositionRing(bodyFat: bf)
                 VStack(alignment: .leading, spacing: 9) {
-                    Text(t("body.composition").uppercased()).font(.head(9, .semibold)).tracking(1.2).foregroundColor(Theme.sub)
+                    Text(t("body.composition").uppercased()).font(.head(10, .semibold)).tracking(1.2).foregroundColor(Theme.sub)
                     HStack(alignment: .firstTextBaseline, spacing: 4) {
                         Text(dispW(lw)).font(.num(28)).foregroundColor(Theme.txt)
                         Text(Units.wLabel).font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.sub)
@@ -467,7 +463,7 @@ struct BodyView: View {
             }
             VStack(spacing: 0) {
                 Text(bodyFat.map(trimNum) ?? "—").font(.num(22)).foregroundColor(Theme.fat)
-                Text("% \(t("body.fat"))").font(.system(size: 9, weight: .semibold)).foregroundColor(Theme.sub)
+                Text("% \(t("body.fat"))").font(.system(size: 10, weight: .semibold)).foregroundColor(Theme.sub)
             }
         }
         .frame(width: 92, height: 92)
@@ -478,7 +474,7 @@ struct BodyView: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
                 Circle().fill(color).frame(width: 7, height: 7)
-                Text(label.uppercased()).font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
+                Text(label.uppercased()).font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.sub)
                     .lineLimit(1).minimumScaleFactor(0.7)
             }
             HStack(alignment: .firstTextBaseline, spacing: 3) {
@@ -490,9 +486,7 @@ struct BodyView: View {
         }
         .padding(.vertical, 11).padding(.horizontal, 11)
         .frame(maxWidth: .infinity, minHeight: 78, alignment: .leading)
-        .background(Theme.c2)
-        .clipShape(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous).stroke(Theme.brd, lineWidth: 1))
+        .chrome()
     }
 
     private func binding(for key: String) -> Binding<String> {

@@ -9,21 +9,6 @@ import WatchKit
 // numbers). The phone's Theme/Components import UIKit and can't be shared with
 // watchOS, so the small subset the watch needs is mirrored here.
 
-extension Color {
-    init(hex: String) {
-        let h = hex.trimmingCharacters(in: CharacterSet(charactersIn: "#")).uppercased()
-        var int: UInt64 = 0
-        Scanner(string: h).scanHexInt64(&int)
-        let r, g, b, a: UInt64
-        switch h.count {
-        case 3:  (r, g, b, a) = ((int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17, 255)
-        case 8:  (r, g, b, a) = (int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF, int >> 24 & 0xFF)
-        default: (r, g, b, a) = (int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF, 255)
-        }
-        self.init(.sRGB, red: Double(r) / 255, green: Double(g) / 255, blue: Double(b) / 255, opacity: Double(a) / 255)
-    }
-}
-
 enum T {
     static let bg   = Color(hex: "0b0b0d")
     static let c1   = Color(hex: "141417")
@@ -38,15 +23,6 @@ enum T {
     static let blue = Color(hex: "4fb8c4")
     static let good = Color(hex: "7fc950")
     static let radius: CGFloat = 14
-}
-
-extension Font {
-    static func head(_ size: CGFloat, _ weight: Font.Weight = .semibold) -> Font {
-        .system(size: size, weight: weight)
-    }
-    static func num(_ size: CGFloat, _ weight: Font.Weight = .bold) -> Font {
-        .system(size: size, weight: weight, design: .rounded)
-    }
 }
 
 // MARK: - SF Symbol per sport (mirrors the phone's Sport.icon)

@@ -116,7 +116,7 @@ struct WorkoutView: View {
                 .clipShape(RoundedRectangle(cornerRadius: Theme.radius, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: Theme.radius, style: .continuous).stroke(Theme.brd, lineWidth: 1))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(PressableStyle())
 
             // Circular Play button — bottom-right, starts the cardio activity.
             PlayCircle(color: Color(hex: ct.color)) { tap(); startCardio(ct) }
@@ -126,14 +126,14 @@ struct WorkoutView: View {
             Button { tap(); editCardio(ct) } label: {
                 HStack(spacing: 3) {
                     Image(systemName: "pencil").font(.system(size: 10, weight: .bold))
-                    Text(t("wk.edit").uppercased()).font(.head(8, .semibold)).tracking(0.5)
+                    Text(t("wk.edit").uppercased()).font(.head(10, .semibold)).tracking(0.5)
                 }
                 .foregroundColor(Theme.bg)
                 .padding(.vertical, 4).padding(.horizontal, 7)
                 .background(Color(hex: ct.color))
                 .clipShape(Capsule())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(PressableStyle())
             .padding(7)
         }
     }
@@ -170,7 +170,7 @@ struct WorkoutView: View {
             .overlay(RoundedRectangle(cornerRadius: Theme.radius, style: .continuous)
                 .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [5, 4])).foregroundColor(Theme.brd2))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressableStyle())
     }
 
     private func newCardio() {
@@ -197,7 +197,7 @@ struct WorkoutView: View {
                     Divider().overlay(Theme.brd).padding(.top, 11).padding(.bottom, 8)
                     HStack(alignment: .bottom) {
                         Text("\(p.exercises.count) \(t("wk.exercises_n"))".uppercased())
-                            .font(.head(9, .semibold)).tracking(1.5).foregroundColor(Theme.sub)
+                            .font(.head(10, .semibold)).tracking(1.5).foregroundColor(Theme.sub)
                         Spacer()
                     }
                     // Reserve clear space below the count line so the Play circle,
@@ -212,7 +212,7 @@ struct WorkoutView: View {
                 .clipShape(RoundedRectangle(cornerRadius: Theme.radius, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: Theme.radius, style: .continuous).stroke(Theme.brd, lineWidth: 1))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(PressableStyle())
 
             // Circular Play button — bottom-right, plan color, starts the workout.
             // Sits a touch lower/right so it clears the exercise-count line above.
@@ -223,12 +223,13 @@ struct WorkoutView: View {
 
             // Edit pill (top-right) — separate from the card tap.
             Button { tap(); editPlan(p) } label: {
-                Image(systemName: "pencil")
+                Image(systemName: "pencil").accessibilityLabel(t("a11y.edit"))
                     .font(.system(size: 11, weight: .bold)).foregroundColor(Theme.bg)
                     .frame(width: 26, height: 22)
                     .background(Color(hex: p.color).opacity(0.85)).clipShape(Capsule())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(PressableStyle())
+            .hitArea(9)
             .padding(8)
         }
     }
@@ -245,7 +246,7 @@ struct WorkoutView: View {
             .overlay(RoundedRectangle(cornerRadius: Theme.radius, style: .continuous)
                 .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [5, 4])).foregroundColor(Theme.brd2))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressableStyle())
     }
 
     private var recentSessions: some View {
@@ -272,13 +273,11 @@ struct WorkoutView: View {
                         if !sessionQuery.isEmpty {
                             Button { tap(); sessionQuery = "" } label: {
                                 Image(systemName: "xmark.circle.fill").font(.system(size: 13)).foregroundColor(Theme.sub)
-                            }.buttonStyle(.plain)
+                            }.buttonStyle(PressableStyle())
                         }
                     }
                     .padding(.vertical, 9).padding(.horizontal, 12)
-                    .background(Theme.c2)
-                    .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).stroke(Theme.brd, lineWidth: 1))
+                    .chrome(9)
                     .padding(.bottom, 4)
 
                     if recent.isEmpty {
@@ -293,7 +292,7 @@ struct WorkoutView: View {
                                         Text("\(s.planName)".uppercased()).font(.head(14, .semibold)).tracking(0.5)
                                             .foregroundColor(Color(hex: s.planColor))
                                         if s.source != nil {
-                                            Image(systemName: "heart.fill").font(.system(size: 9))
+                                            Image(systemName: "heart.fill").font(.system(size: 10))
                                                 .foregroundColor(Theme.red)
                                         }
                                     }
@@ -307,14 +306,14 @@ struct WorkoutView: View {
                             .padding(.vertical, 11)
                             .overlay(alignment: .bottom) { Rectangle().fill(Theme.brd).frame(height: 1) }
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(PressableStyle())
                     }
                     if q.isEmpty, filtered.count > 10 {
                         Button { tap(); showAllSessions.toggle() } label: {
                             Text((showAllSessions ? t("wk.show_less") : t("wk.show_all", filtered.count)).uppercased())
                                 .font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.acc2)
                                 .frame(maxWidth: .infinity, minHeight: 40)
-                        }.buttonStyle(.plain)
+                        }.buttonStyle(PressableStyle())
                     }
                 }
             }
@@ -406,12 +405,13 @@ struct PlayCircle: View {
                 Circle().fill(color)
                     .frame(width: 38, height: 38)
                     .shadow(color: color.opacity(0.4), radius: 5, y: 2)
-                Image(systemName: "play.fill")
+                Image(systemName: "play.fill").accessibilityLabel(t("a11y.start"))
                     .font(.system(size: 15, weight: .bold))
                     .foregroundColor(Theme.bg)
                     .offset(x: 1)   // optical centering of the triangle
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressableStyle())
+        .hitArea(3)
     }
 }

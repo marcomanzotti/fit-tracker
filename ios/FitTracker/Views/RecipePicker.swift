@@ -75,6 +75,7 @@ struct RecipePickerSheet: View {
             .padding(.horizontal, 18)
         }
         .preferredColorScheme(.dark)
+        .keyboardDoneBar()
         .sheet(item: $sheet) { which in
             switch which {
             case .form(let r):
@@ -96,7 +97,7 @@ struct RecipePickerSheet: View {
             Text(t("recipe.title")).font(.head(18, .bold)).foregroundColor(Theme.txt)
             Spacer()
             Button { dismiss() } label: {
-                Image(systemName: "xmark").foregroundColor(Theme.sub).frame(width: 34, height: 34)
+                Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: 34, height: 34)
             }
         }
         .padding(.top, 18)
@@ -105,7 +106,7 @@ struct RecipePickerSheet: View {
     private var sortBar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 6) {
-                Text(t("food.sort").uppercased()).font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
+                Text(t("food.sort").uppercased()).font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.sub)
                 ForEach(RecipeSortKey.allCases, id: \.self) { key in
                     let active = sortKey == key
                     Button {
@@ -116,7 +117,7 @@ struct RecipePickerSheet: View {
                             Text(key.label).font(.head(10, .semibold)).tracking(0.5)
                             if active {
                                 Image(systemName: sortAsc ? "arrow.up" : "arrow.down")
-                                    .font(.system(size: 9, weight: .bold))
+                                    .font(.system(size: 10, weight: .bold))
                             }
                         }
                         .foregroundColor(active ? Theme.bg : Theme.sub)
@@ -125,7 +126,7 @@ struct RecipePickerSheet: View {
                         .clipShape(Capsule())
                         .overlay(Capsule().stroke(active ? Theme.acc : Theme.brd, lineWidth: 1))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(PressableStyle())
                 }
             }
         }
@@ -143,15 +144,13 @@ struct RecipePickerSheet: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(PressableStyle())
             Button { tap(); sheet = .form(r) } label: {
                 Image(systemName: "slider.horizontal.3").font(.system(size: 13)).foregroundColor(Theme.sub).frame(width: 30, height: 30)
             }
         }
         .padding(.vertical, 9).padding(.horizontal, 12)
-        .background(Theme.c1)
-        .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 11, style: .continuous).stroke(Theme.brd, lineWidth: 1))
+        .chrome(11, fill: Theme.c1)
     }
 }
 
@@ -177,7 +176,7 @@ struct RecipeQuantitySheet: View {
                     Text(recipe.name).font(.head(17, .bold)).foregroundColor(Theme.txt).lineLimit(2)
                     Spacer()
                     Button { dismiss() } label: {
-                        Image(systemName: "xmark").foregroundColor(Theme.sub).frame(width: 34, height: 34)
+                        Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: 34, height: 34)
                     }
                 }
                 .padding(.top, 18)
@@ -199,7 +198,7 @@ struct RecipeQuantitySheet: View {
                 }
 
                 BigButton(title: t("food.add")) {
-                    guard enteredAmount > 0 else { return }
+                    guard enteredAmount > 0 else { haptic(.error); return }
                     haptic(.success); onAdd(log); dismiss()
                 }
                 Spacer()
@@ -207,6 +206,7 @@ struct RecipeQuantitySheet: View {
             .padding(.horizontal, 18)
         }
         .preferredColorScheme(.dark)
+        .keyboardDoneBar()
     }
 
     private func macro(_ value: String, _ label: String, _ color: Color) -> some View {
@@ -267,6 +267,7 @@ struct RecipeFormSheet: View {
             .scrollDismissesKeyboard(.interactively)
         }
         .preferredColorScheme(.dark)
+        .keyboardDoneBar()
         .onAppear { loadExisting() }
         .sheet(isPresented: $pickingIngredient) {
             FoodPickerSheet { log in
@@ -283,7 +284,7 @@ struct RecipeFormSheet: View {
                 .font(.head(16, .bold)).foregroundColor(Theme.txt)
             Spacer()
             Button { dismiss() } label: {
-                Image(systemName: "xmark").foregroundColor(Theme.sub).frame(width: 34, height: 34)
+                Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: 34, height: 34)
             }
         }
         .padding(.top, 18)
@@ -329,10 +330,10 @@ struct RecipeFormSheet: View {
                         InputField(placeholder: "4", text: $servingsStr)
                     }
                     Text(t("recipe.total_macros_label").uppercased())
-                        .font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.acc2)
+                        .font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.acc2)
                 } else {
                     Text("PER 100g".uppercased())
-                        .font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.acc2)
+                        .font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.acc2)
                 }
 
                 HStack(spacing: 10) {
@@ -362,7 +363,7 @@ struct RecipeFormSheet: View {
                         let totC = ingredients.reduce(0.0) { $0 + $1.carbs }
                         let totF = ingredients.reduce(0.0) { $0 + $1.fat }
                         HStack {
-                            Text(t("nut.day_total").uppercased()).font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
+                            Text(t("nut.day_total").uppercased()).font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.sub)
                             Spacer()
                             Text("\(totK) kcal · P\(trimNum(totP)) C\(trimNum(totC)) F\(trimNum(totF))")
                                 .font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.acc)

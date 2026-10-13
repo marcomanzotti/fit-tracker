@@ -522,9 +522,7 @@ struct ToastView: View {
             .font(.head(12, .semibold)).tracking(1)
             .foregroundColor(Theme.acc2)
             .padding(.vertical, 11).padding(.horizontal, 18)
-            .background(Theme.c2)
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Theme.brd2, lineWidth: 1))
+            .chrome(14, stroke: Theme.brd2)
             .shadow(color: .black.opacity(0.5), radius: 16, y: 8)
     }
 }

@@ -24,6 +24,18 @@ struct LiveWorkoutView: View {
     @State private var hold: HoldTarget?
     /// Exercise whose plate breakdown is open.
     @State private var plates: PlateTarget?
+    /// The set field being typed in, so "Next" can walk reps → kg → next set.
+    @FocusState private var focus: SetField?
+    /// Sets whose completion already started a rest: going back to correct a number
+    /// must not restart the clock.
+    @State private var restedSets: Set<UUID> = []
+
+    private enum SetField: Hashable {
+        case reps(UUID), weight(UUID)
+        var setId: UUID {
+            switch self { case .reps(let id), .weight(let id): return id }
+        }
+    }
 
     private var lastSess: WorkoutSession? { store.lastSession(forPlan: plan.id) }
 
@@ -58,10 +70,23 @@ struct LiveWorkoutView: View {
                 .frame(maxWidth: .infinity, minHeight: 48)
                 .overlay(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous).stroke(Theme.red.opacity(0.45), lineWidth: 1))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(PressableStyle())
             .confirmationDialog(t("wk.discard_q"), isPresented: $confirmDiscard, titleVisibility: .visible) {
                 Button(t("wk.discard_session"), role: .destructive) { discardSession() }
                 Button(t("cancel"), role: .cancel) {}
+            }
+        }
+        // Rest starts when the set's row is left (Next, Done, or a tap elsewhere),
+        // i.e. when both numbers are in — not at the first digit typed.
+        .onChange(of: focus) { [focus] next in
+            if let left = focus?.setId, left != next?.setId { setCompleted(left) }
+        }
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                if focus != nil {
+                    Button(t("kb.next")) { advanceFocus() }
+                        .font(.system(size: 16, weight: .semibold)).tint(Theme.acc)
+                }
             }
         }
         .sheet(item: $hold) { target in
@@ -136,7 +161,7 @@ struct LiveWorkoutView: View {
     private func liveStat(_ v: String, _ unit: String, _ color: Color) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 3) {
             Text(v).font(.num(16)).foregroundColor(color)
-            if !unit.isEmpty { Text(unit).font(.system(size: 9, weight: .semibold)).foregroundColor(Theme.sub) }
+            if !unit.isEmpty { Text(unit).font(.system(size: 10, weight: .semibold)).foregroundColor(Theme.sub) }
         }
     }
 
@@ -177,13 +202,13 @@ struct LiveWorkoutView: View {
             }
             .padding(.bottom, 10)
             HStack(spacing: 8) {
-                Text(t("wk.cal_override").uppercased()).font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
+                Text(t("wk.cal_override").uppercased()).font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.sub)
                 Spacer()
                 InputField(placeholder: caloriesReady ? "\(estCalories)" : "—", text: $activeWorkout.caloriesManual, keyboard: .numberPad)
                     .frame(width: 110)
             }
             Text(caloriesReady ? t("wk.cal_hint") : t("wk.cal_at_finish"))
-                .font(.system(size: 9)).foregroundColor(Theme.sub).padding(.top, 6)
+                .font(.system(size: 10)).foregroundColor(Theme.sub).padding(.top, 6)
         }
     }
 
@@ -203,10 +228,10 @@ struct LiveWorkoutView: View {
             loadField(t("wk.avg_hr"), $activeWorkout.avgHR, info: "trimp")
             if let v = liveTrimp {
                 HStack(spacing: 6) {
-                    Text("TRIMP").font(.head(9, .semibold)).tracking(1.5).foregroundColor(Theme.sub)
+                    Text("TRIMP").font(.head(10, .semibold)).tracking(1.5).foregroundColor(Theme.sub)
                     Text("\(Int(v.rounded()))").font(.num(16)).foregroundColor(Theme.acc2)
                     Spacer()
-                    Text(t("load.trimp_hint")).font(.system(size: 9)).foregroundColor(Theme.sub)
+                    Text(t("load.trimp_hint")).font(.system(size: 10)).foregroundColor(Theme.sub)
                 }
                 .padding(.top, 12)
             }
@@ -268,10 +293,10 @@ struct LiveWorkoutView: View {
                         // the arithmetic on chalky hands between sets.
                         if kind == .reps, !bw {
                             Button { tap(); plates = PlateTarget(name: ex.name, weight: plateTarget(ex, sug: sug)) } label: {
-                                Image(systemName: "circle.hexagongrid.fill").font(.system(size: 13))
-                                    .foregroundColor(Theme.acc2)
+                                Image(systemName: "circle.hexagongrid.fill").accessibilityLabel(t("a11y.plates"))
+                                    .font(.system(size: 13)).foregroundColor(Theme.acc2)
                                     .frame(width: 26, height: 22)
-                            }.buttonStyle(.plain)
+                            }.buttonStyle(PressableStyle()).hitArea(9)
                         }
                     }
                 }
@@ -282,7 +307,7 @@ struct LiveWorkoutView: View {
                 let prSeconds = kind == .timed ? store.exerciseMaxSeconds(ex.name) : 0
                 if kind == .timed ? prSeconds > 0 : pr > 0 {
                     VStack(alignment: .trailing, spacing: 3) {
-                        Text("PR").font(.head(9, .semibold)).tracking(1.5).foregroundColor(Theme.sub)
+                        Text("PR").font(.head(10, .semibold)).tracking(1.5).foregroundColor(Theme.sub)
                         if kind == .timed {
                             Text("\(trimNum(prSeconds))s").font(.num(20)).foregroundColor(Theme.acc)
                         } else {
@@ -290,7 +315,7 @@ struct LiveWorkoutView: View {
                             // Estimated 1RM — the best single-effort strength signal,
                             // more comparable across rep ranges than top weight alone.
                             if let e = store.bestE1RM(ex.name), e > 0 {
-                                Text("e1RM \(trimNum(e)) kg").font(.system(size: 9, weight: .semibold)).foregroundColor(Theme.acc2)
+                                Text("e1RM \(trimNum(e)) kg").font(.system(size: 10, weight: .semibold)).foregroundColor(Theme.acc2)
                             }
                         }
                     }
@@ -352,10 +377,10 @@ struct LiveWorkoutView: View {
                 // columns whose placeholders it explains.
                 HStack(spacing: 9) {
                     Spacer().frame(width: 28)
-                    Text(t("wk.reps").uppercased()).font(.head(9, .semibold)).tracking(1.5).foregroundColor(Theme.sub).frame(width: 66)
-                    Text(bw ? "+KG" : "KG").font(.head(9, .semibold)).tracking(1.5).foregroundColor(bw ? Theme.good : Theme.sub).frame(width: 66)
+                    Text(t("wk.reps").uppercased()).font(.head(10, .semibold)).tracking(1.5).foregroundColor(Theme.sub).frame(width: 66)
+                    Text(bw ? "+KG" : "KG").font(.head(10, .semibold)).tracking(1.5).foregroundColor(bw ? Theme.good : Theme.sub).frame(width: 66)
                     if effortScale != nil {
-                        Text(effortScale!.label).font(.head(9, .semibold)).tracking(1.5).foregroundColor(Theme.acc2).frame(width: 48)
+                        Text(effortScale!.label).font(.head(10, .semibold)).tracking(1.5).foregroundColor(Theme.acc2).frame(width: 48)
                     }
                     Spacer()
                     LastTimeCaption(prev: prevEx, date: lastSess?.date)
@@ -368,7 +393,7 @@ struct LiveWorkoutView: View {
 
                 // Bodyweight hint
                 if bw {
-                    Text(t("wk.bw_hint")).font(.system(size: 9)).foregroundColor(Theme.sub).padding(.top, 4)
+                    Text(t("wk.bw_hint")).font(.system(size: 10)).foregroundColor(Theme.sub).padding(.top, 4)
                 }
             }
 
@@ -395,16 +420,13 @@ struct LiveWorkoutView: View {
                     .lineLimit(2...4)
                     .font(.system(size: 13)).foregroundColor(Theme.txt)
                     .padding(.vertical, 10).padding(.horizontal, 14)
-                    .background(Theme.c2)
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Theme.brd, lineWidth: 1))
+                    .chrome(10)
                     .padding(.top, 9)
             } else {
-                Button { tap(); activeWorkout.openNotes.insert(ex.id) } label: {
+                Button { tap(); withAnimation(Theme.settle) { _ = activeWorkout.openNotes.insert(ex.id) } } label: {
                     Text(t("wk.add_note")).font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.sub)
                         .padding(.vertical, 8).padding(.horizontal, 12)
-                        .background(Theme.c2).clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-                        .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).stroke(Theme.brd, lineWidth: 1))
+                        .chrome(9)
                 }
                 .padding(.top, 8)
             }
@@ -482,41 +504,58 @@ struct LiveWorkoutView: View {
         return HStack(spacing: 9) {
             Text("S\(idx + 1)").font(.num(11)).foregroundColor(Theme.sub).frame(width: 28)
             SmallNumField(text: set.reps, placeholder: lastTimeHint(prevSet?.reps), highlight: isPR)
+                .focused($focus, equals: .reps(id))
             SmallNumField(text: set.weight, placeholder: lastTimeHint(prevSet?.weight), highlight: isPR && !bw)
+                .focused($focus, equals: .weight(id))
             if let scale = effortScale {
                 EffortField(scale: scale, value: set.effortVal)
             }
             if isPR && !bw {
                 Text("PR").font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.acc)
+                    .transition(.scale(scale: 0.6).combined(with: .opacity))
             } else {
                 Button { tap(); exB.wrappedValue.sets.removeAll { $0.id == id } } label: {
-                    Image(systemName: "xmark").font(.system(size: 13)).foregroundColor(Theme.red.opacity(0.5))
+                    Image(systemName: "xmark").accessibilityLabel(t("a11y.remove")).font(.system(size: 13)).foregroundColor(Theme.red.opacity(0.85))
                         .frame(width: 34, height: 42)
-                }.buttonStyle(.plain)
+                }.buttonStyle(PressableStyle())
             }
             Spacer(minLength: 0)
         }
         .padding(.vertical, 2)
         .background(isPR && !bw ? Theme.acc.opacity(0.05) : .clear)
         .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+        // A record is rare and earned: the one place with a little bounce.
+        .animation(.spring(response: 0.35, dampingFraction: 0.7), value: isPR)
         // Celebrate the moment a typed weight first crosses the exercise's PR.
         .onChange(of: set.wrappedValue.weight) { newVal in
             let w = pf(newVal)
             if !bw && pr > 0 && w > pr { prHaptic() }
         }
-        // A set becoming complete is the moment rest starts — that's when you rack
-        // the bar. Only on the transition into "filled", so editing a logged number
-        // doesn't restart the clock.
-        .onChange(of: set.wrappedValue.filled) { nowFilled in
-            guard nowFilled else { return }
-            // `running`, not `active`: a finished rest still shows its "GO" strip,
-            // and the next set must be able to start a fresh countdown.
-            let rest = restSeconds(for: exB.wrappedValue)
-            if store.prefs.autoRest, !timer.running, rest > 0 {
-                startRest(rest)
-            } else {
-                pushLiveActivity()
-            }
+    }
+
+    /// Reps → kg → the next set's reps; past the last set the keyboard goes away.
+    private func advanceFocus() {
+        guard let current = focus else { return }
+        if case .reps(let id) = current { focus = .weight(id); return }
+        let sets = log.first { $0.sets.contains { $0.id == current.setId } }?.sets ?? []
+        let index = sets.firstIndex { $0.id == current.setId } ?? sets.count
+        focus = index + 1 < sets.count ? .reps(sets[index + 1].id) : nil
+    }
+
+    /// The user moved on from a set. If it now holds data and has not already
+    /// started a rest, this is the moment the bar was racked.
+    private func setCompleted(_ id: UUID) {
+        guard !restedSets.contains(id),
+              let exercise = log.first(where: { $0.sets.contains { $0.id == id } }),
+              exercise.sets.first(where: { $0.id == id })?.filled == true else { return }
+        restedSets.insert(id)
+        // `running`, not `active`: a finished rest still shows its "GO" strip,
+        // and the next set must be able to start a fresh countdown.
+        let rest = restSeconds(for: exercise)
+        if store.prefs.autoRest, !timer.running, rest > 0 {
+            startRest(rest)
+        } else {
+            pushLiveActivity()
         }
     }
 
@@ -528,13 +567,12 @@ struct LiveWorkoutView: View {
                 TextField("", text: $addName, prompt: Text(t("wk.add_ex_ph")).foregroundColor(Theme.sub))
                     .font(.system(size: 15, weight: .medium)).foregroundColor(Theme.txt)
                     .padding(.vertical, 12).padding(.horizontal, 14)
-                    .background(Theme.c2).clipShape(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous).stroke(Theme.brd, lineWidth: 1))
+                    .chrome()
                 Button { addExercise() } label: {
                     Image(systemName: "plus").font(.system(size: 16, weight: .bold)).foregroundColor(Theme.bg)
                         .frame(width: 50, height: 48).background(Theme.acc)
                         .clipShape(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous))
-                }.buttonStyle(.plain)
+                }.buttonStyle(PressableStyle())
             }
             Text(t("wk.add_ex_hint"))
                 .font(.system(size: 10)).foregroundColor(Theme.sub).padding(.top, 8)

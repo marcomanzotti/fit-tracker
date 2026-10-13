@@ -38,6 +38,13 @@ struct RootView: View {
     @State private var tab: Tab = .home
     @State private var showSettings = false
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Which floating strips are up; drives their shared enter/exit animation.
+    private var stripsShown: [Bool] {
+        [activeWorkout.isActive && (tab != .allena || activeWorkout.minimized),
+         activeCardio.isActive && (tab != .allena || activeCardio.minimized),
+         timer.active]
+    }
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -64,6 +71,9 @@ struct RootView: View {
                         .padding(.horizontal, 16).padding(.top, 14).padding(.bottom, 130)
                     }
                     .scrollDismissesKeyboard(.interactively)
+                    // A new scroll view per tab: each tab opens at its top instead
+                    // of inheriting the previous tab's scroll position.
+                    .id(tab)
                 }
             }
 
@@ -77,6 +87,7 @@ struct RootView: View {
                         activeWorkout.minimized = false
                         tab = .allena
                     }
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
                 // Same floating strip for a running cardio session.
                 if activeCardio.isActive && (tab != .allena || activeCardio.minimized) {
@@ -84,11 +95,15 @@ struct RootView: View {
                         activeCardio.minimized = false
                         tab = .allena
                     }
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
-                if timer.active { TimerStrip() }
+                if timer.active { TimerStrip().transition(.move(edge: .bottom).combined(with: .opacity)) }
                 if case .saveFailed(let reason) = store.storageProblem { StorageBanner(reason: reason) }
                 NavBar(tab: $tab)
             }
+            // Strips slide up from the bar they sit on and leave the same way,
+            // instead of popping in and shoving the layout.
+            .animation(reduceMotion ? nil : Theme.settle, value: stripsShown)
         }
         .overlay(alignment: .top) {
             if let m = toast.message {
@@ -186,7 +201,7 @@ struct HeaderBar: View {
                 Text("\(dispW(store.lastWeight)) \(Units.wLabel)").font(.num(15)).foregroundColor(Theme.acc)
             }
             Button { tap(); onSettings() } label: {
-                Image(systemName: "gearshape.fill").foregroundColor(Theme.sub).font(.system(size: 18))
+                Image(systemName: "gearshape.fill").accessibilityLabel(t("set.title")).foregroundColor(Theme.sub).font(.system(size: 18))
                     .frame(width: 38, height: 38)
             }
             .padding(.leading, 6)
@@ -218,6 +233,7 @@ struct NavBar: View {
                     .frame(maxWidth: .infinity, minHeight: 50)
                     .accessibilityLabel(t.label)
                 }
+                .accessibilityAddTraits(t == tab ? .isSelected : [])
             }
         }
         .padding(.vertical, 11)
@@ -245,7 +261,7 @@ struct ActiveWorkoutStrip: View {
 
                 VStack(alignment: .leading, spacing: 1) {
                     Text(t("wk.workout_live").uppercased())
-                        .font(.head(8, .semibold)).tracking(1.5).foregroundColor(Theme.sub)
+                        .font(.head(10, .semibold)).tracking(1.5).foregroundColor(Theme.sub)
                     Text(planName.uppercased())
                         .font(.head(13, .bold)).tracking(0.5).foregroundColor(planColor).lineLimit(1)
                 }
@@ -258,12 +274,10 @@ struct ActiveWorkoutStrip: View {
                     .font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.sub)
             }
             .padding(.vertical, 11).padding(.horizontal, 16)
-            .background(Theme.c2)
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(planColor.opacity(0.4), lineWidth: 1))
+            .chrome(18, stroke: planColor.opacity(0.4))
             .padding(.horizontal, 16)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressableStyle())
     }
 }
 
@@ -283,7 +297,7 @@ struct ActiveCardioStrip: View {
                     .overlay(Circle().stroke(color.opacity(0.3), lineWidth: 4))
                 VStack(alignment: .leading, spacing: 1) {
                     Text(t(activeCardio.paused ? "wk.paused" : "wk.workout_live").uppercased())
-                        .font(.head(8, .semibold)).tracking(1.5).foregroundColor(Theme.sub)
+                        .font(.head(10, .semibold)).tracking(1.5).foregroundColor(Theme.sub)
                     Text((ct?.name ?? "").uppercased())
                         .font(.head(13, .bold)).tracking(0.5).foregroundColor(color).lineLimit(1)
                 }
@@ -296,12 +310,10 @@ struct ActiveCardioStrip: View {
                     .font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.sub)
             }
             .padding(.vertical, 11).padding(.horizontal, 16)
-            .background(Theme.c2)
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(color.opacity(0.4), lineWidth: 1))
+            .chrome(18, stroke: color.opacity(0.4))
             .padding(.horizontal, 16)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressableStyle())
     }
 }
 
@@ -326,9 +338,9 @@ struct TimerStrip: View {
     var body: some View {
         HStack(spacing: 15) {
             VStack(alignment: .leading, spacing: 2) {
-                Text("RECUPERO").font(.head(9, .semibold)).tracking(2).foregroundColor(Theme.sub)
+                Text(t("wk.rest_label").uppercased()).font(.head(10, .semibold)).tracking(2).foregroundColor(Theme.sub)
                 if timer.done {
-                    Text("VAI").font(.head(13, .bold)).tracking(0.5).foregroundColor(Theme.acc)
+                    Text(t("wk.go").uppercased()).font(.head(13, .bold)).tracking(0.5).foregroundColor(Theme.acc)
                 } else {
                     Text(timer.label).font(.num(32)).foregroundColor(Theme.acc)
                         .frame(minWidth: 56, alignment: .leading)
@@ -337,17 +349,18 @@ struct TimerStrip: View {
             Bar(value: timer.progress, height: 5).frame(maxWidth: .infinity)
             HStack(spacing: 8) {
                 Button { tap(); timer.reset() } label: {
-                    Image(systemName: "arrow.clockwise").foregroundColor(Theme.sub).frame(width: 30, height: 30)
+                    Image(systemName: "arrow.clockwise").accessibilityLabel(t("a11y.restart_rest"))
+                        .foregroundColor(Theme.sub).frame(width: 30, height: 30)
                 }
+                .hitArea(7)
                 Button { tap(); timer.stop() } label: {
-                    Image(systemName: "xmark").foregroundColor(Theme.sub).frame(width: 30, height: 30)
+                    Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: 30, height: 30)
                 }
+                .hitArea(7)
             }
         }
         .padding(.vertical, 12).padding(.horizontal, 17)
-        .background(Theme.c2)
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(Theme.brd2, lineWidth: 1))
+        .chrome(18, stroke: Theme.brd2)
         .padding(.horizontal, 16)
     }
 }

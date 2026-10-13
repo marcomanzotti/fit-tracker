@@ -1,6 +1,50 @@
 import SwiftUI
 import UIKit
 
+// MARK: - Shared surface, press and hit-area helpers
+extension View {
+    /// The app's standard surface: fill, continuous rounded corners, hairline border.
+    func chrome(_ radius: CGFloat = Theme.radiusS, fill: Color = Theme.c2, stroke: Color = Theme.brd) -> some View {
+        background(fill)
+            .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: radius, style: .continuous).stroke(stroke, lineWidth: 1))
+    }
+
+    /// Grow the tappable area by `extra` points on every side without moving
+    /// anything: small glyph buttons stay small to the eye and reach 44 pt to the finger.
+    func hitArea(_ extra: CGFloat = 10) -> some View {
+        padding(extra).contentShape(Rectangle()).padding(-extra)
+    }
+
+    /// A "Done" bar above the keyboard. Number pads have no return key, so without
+    /// it the only way to put the keyboard away is to drag the page. Applied once
+    /// per screen or sheet, not per field (per-field bars stack up).
+    func keyboardDoneBar() -> some View {
+        toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button(t("kb.done")) {
+                    UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder),
+                                                    to: nil, from: nil, for: nil)
+                }
+                .font(.system(size: 16, weight: .semibold)).tint(Theme.acc)
+            }
+        }
+    }
+}
+
+/// Press feedback for every custom button: it dips the instant the finger lands
+/// and springs back on release, so a tap is felt before its action shows.
+struct PressableStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.97 : 1)
+            .opacity(configuration.isPressed ? 0.82 : 1)
+            .animation(.spring(response: 0.25, dampingFraction: 1), value: configuration.isPressed)
+    }
+}
+
 // MARK: - Card container
 struct Card<Content: View>: View {
     var accent: Color? = nil
@@ -44,11 +88,13 @@ struct InfoButton: View {
     var size: CGFloat = 26         // tap-target size (shrink to keep label rows aligned)
     @State private var show = false
     var body: some View {
-        Button { tap(); show = true } label: {
+        Button { show = true } label: {
             Image(systemName: "info.circle").font(.system(size: 13)).foregroundColor(color)
                 .frame(width: size, height: size)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressableStyle())
+        .hitArea((Theme.minTapTarget - size) / 2)
+        .accessibilityLabel("\(t("a11y.info")): \(t("info.\(id).title"))")
         .sheet(isPresented: $show) { InfoSheet(id: id) }
     }
 }
@@ -65,8 +111,8 @@ struct InfoSheet: View {
                         Text(t("info.\(id).title")).font(.head(20, .bold)).tracking(0.3)
                             .foregroundColor(Theme.acc).fixedSize(horizontal: false, vertical: true)
                         Spacer()
-                        Button { tap(); dismiss() } label: {
-                            Image(systemName: "xmark").foregroundColor(Theme.sub).frame(width: 34, height: 34)
+                        Button { dismiss() } label: {
+                            Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: 34, height: 34)
                         }
                     }
                     Text(t("info.\(id).body"))
@@ -129,15 +175,13 @@ struct StatTile: View {
             if let note {
                 // Reserve two lines so tiles in a row keep identical heights even
                 // when one note wraps and another is a single word.
-                Text(note).font(.system(size: 10)).foregroundColor(Theme.sub)
+                Text(note).font(.system(size: 11)).foregroundColor(Theme.sub)
                     .lineLimit(2, reservesSpace: true)
             }
         }
         .padding(.vertical, 13).padding(.horizontal, 12)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(Theme.c2)
-        .clipShape(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous).stroke(Theme.brd, lineWidth: 1))
+        .chrome()
     }
 }
 
@@ -146,6 +190,7 @@ struct Bar: View {
     var value: Double            // 0...1
     var gradient: [Color] = [Theme.acc, Theme.acc2]
     var height: CGFloat = 7
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var body: some View {
         GeometryReader { geo in
             ZStack(alignment: .leading) {
@@ -155,6 +200,8 @@ struct Bar: View {
             }
         }
         .frame(height: height)
+        .animation(reduceMotion ? nil : Theme.settle, value: value)
+        .accessibilityHidden(true)
     }
 }
 
@@ -163,6 +210,7 @@ struct GoalRing: View {
     var value: Double            // 0...1
     var color: Color = Theme.acc
     var size: CGFloat = 64
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var body: some View {
         ZStack {
             Circle().stroke(Theme.c3, lineWidth: 6)
@@ -171,10 +219,12 @@ struct GoalRing: View {
                 .rotationEffect(.degrees(-90))
             VStack(spacing: 0) {
                 Text("\(Int((value * 100).rounded()))%").font(.num(17)).foregroundColor(color)
-                Text("DONE").font(.head(8, .semibold)).tracking(1).foregroundColor(Theme.sub)
+                Text(t("ring.done").uppercased()).font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.sub)
             }
         }
         .frame(width: size, height: size)
+        .animation(reduceMotion ? nil : Theme.settle, value: value)
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -214,6 +264,7 @@ struct FilledButton: View {
                 .background(color)
                 .clipShape(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous))
         }
+        .buttonStyle(PressableStyle())
     }
 }
 
@@ -229,6 +280,7 @@ struct BigButton: View {
                 .background(color)
                 .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
         }
+        .buttonStyle(PressableStyle())
     }
 }
 
@@ -239,12 +291,12 @@ struct GhostButton: View {
     var body: some View {
         Button { tap(); action() } label: {
             Text(title).font(.system(size: 12, weight: .semibold)).foregroundColor(color)
+                .lineLimit(1).fixedSize(horizontal: true, vertical: false)   // "Timer 60s" must not wrap
                 .padding(.vertical, 8).padding(.horizontal, 14)
                 .frame(minHeight: 38)
-                .background(Theme.c2)
-                .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).stroke(Theme.brd, lineWidth: 1))
+                .chrome(9)
         }
+        .buttonStyle(PressableStyle())
     }
 }
 
@@ -260,7 +312,7 @@ struct FieldLabel: View {
     var body: some View {
         HStack(spacing: 2) {
             Text(text.uppercased())
-                .font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
+                .font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.sub)
                 .lineLimit(1).minimumScaleFactor(0.7)
             if let info { InfoButton(id: info, size: 18) }
             Spacer(minLength: 0)
@@ -305,10 +357,8 @@ struct HMSField: View {
                 .foregroundColor(Theme.txt).font(.system(size: 16, weight: .medium))
                 .padding(.vertical, 13)
                 .frame(maxWidth: .infinity)
-                .background(Theme.c2)
-                .clipShape(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous).stroke(Theme.brd, lineWidth: 1))
-            Text(t(unitKey)).font(.head(8, .semibold)).tracking(1).foregroundColor(Theme.sub)
+                .chrome()
+            Text(t(unitKey)).font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.sub)
         }
     }
 
@@ -353,12 +403,10 @@ struct PaceField: View {
                 .foregroundColor(Theme.txt).font(.system(size: 16, weight: .medium))
                 .padding(.vertical, 13).padding(.horizontal, 15)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Theme.c2)
-                .clipShape(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous).stroke(Theme.brd, lineWidth: 1))
+                .chrome()
             if let shown = shownPace {
                 Text("\(text.isEmpty ? t("wk.pace_auto") : t("wk.pace")) · \(readable(shown))")
-                    .font(.system(size: 9)).foregroundColor(Theme.sub)
+                    .font(.system(size: 10)).foregroundColor(Theme.sub)
             }
         }
         .onAppear { if !synced { if let m = manual { text = dec(m) }; synced = true } }
@@ -380,9 +428,7 @@ struct InputField: View {
             .foregroundColor(Theme.txt)
             .font(.system(size: 16, weight: .medium))
             .padding(.vertical, 13).padding(.horizontal, 15)
-            .background(Theme.c2)
-            .clipShape(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous).stroke(Theme.brd, lineWidth: 1))
+            .chrome()
     }
 }
 
@@ -398,10 +444,7 @@ struct SmallNumField: View {
             .font(.system(size: 15, weight: .semibold))
             .frame(width: 66)
             .padding(.vertical, 10)
-            .background(highlight ? Theme.acc.opacity(0.07) : Theme.c2)
-            .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .stroke(highlight ? Theme.acc : Theme.brd, lineWidth: 1))
+            .chrome(9, fill: highlight ? Theme.acc.opacity(0.07) : Theme.c2, stroke: highlight ? Theme.acc : Theme.brd)
     }
 }
 
@@ -422,8 +465,8 @@ struct BodyweightChip: View {
         } label: {
             HStack(spacing: 4) {
                 Image(systemName: "figure.strengthtraining.functional")
-                    .font(.system(size: 9, weight: .bold))
-                Text(t("wk.bodyweight")).font(.head(9, .semibold)).tracking(0.5)
+                    .font(.system(size: 10, weight: .bold))
+                Text(t("wk.bodyweight")).font(.head(10, .semibold)).tracking(0.5)
             }
             .foregroundColor(bw ? Theme.bg : Theme.sub)
             .padding(.vertical, 5).padding(.horizontal, 8)
@@ -433,7 +476,7 @@ struct BodyweightChip: View {
             // (a plain grey label looked like a disabled tag, not a control).
             .overlay(Capsule().stroke(bw ? Theme.good : Theme.brd, lineWidth: 1))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressableStyle())
     }
 }
 
@@ -443,7 +486,7 @@ struct EffortModeSelector: View {
     var body: some View {
         let cur = effortMode.flatMap { EffortMode(rawValue: $0) }
         HStack(spacing: 6) {
-            Text(t("wk.effort").uppercased()).font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
+            Text(t("wk.effort").uppercased()).font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.sub)
             Spacer()
             ForEach([EffortMode?.none] + EffortMode.allCases.map { Optional($0) }, id: \.?.rawValue) { mode in
                 let label = mode?.label ?? t("wk.effort.off")
@@ -459,7 +502,7 @@ struct EffortModeSelector: View {
                         .clipShape(Capsule())
                         .overlay(Capsule().stroke(active ? Theme.acc2 : Theme.brd, lineWidth: 1))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(PressableStyle())
             }
         }
     }
@@ -493,7 +536,7 @@ struct EffortField: View {
                 }
                 .frame(width: 48, height: 42)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(PressableStyle())
         }
     }
 }
@@ -502,8 +545,15 @@ struct EffortField: View {
 struct EmptyBox: View {
     let title: String
     let text: String
+    /// Optional glyph above the title, so an empty screen reads as a place to
+    /// start rather than a blank.
+    var icon: String? = nil
     var body: some View {
         VStack(spacing: 8) {
+            if let icon {
+                Image(systemName: icon).font(.system(size: 26, weight: .semibold)).foregroundColor(Theme.brd2)
+                    .padding(.bottom, 4).accessibilityHidden(true)
+            }
             Text(title.uppercased()).font(.head(15, .semibold)).tracking(1).foregroundColor(Theme.sub)
             Text(text).font(.system(size: 13)).foregroundColor(Theme.sub).multilineTextAlignment(.center)
                 .lineSpacing(4)

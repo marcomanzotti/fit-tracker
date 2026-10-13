@@ -22,7 +22,7 @@ struct FoodLogSection: View {
                 .frame(maxWidth: .infinity)
             if !logs.isEmpty {
                 HStack {
-                    Text(t("nut.day_total").uppercased()).font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
+                    Text(t("nut.day_total").uppercased()).font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.sub)
                     Spacer()
                     Text("\(logs.reduce(0) { $0 + $1.kcal }) kcal").font(.num(15)).foregroundColor(accent)
                 }
@@ -68,6 +68,7 @@ struct FoodAndRecipePickerSheet: View {
             }
         }
         .preferredColorScheme(.dark)
+        .keyboardDoneBar()
     }
 
     private func tabButton(_ label: String, index: Int) -> some View {
@@ -83,7 +84,7 @@ struct FoodAndRecipePickerSheet: View {
                 .background(active ? Theme.acc : Theme.c2)
                 .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressableStyle())
     }
 }
 
@@ -104,7 +105,7 @@ struct FoodLogRow: View {
             }
             Spacer()
             Text("\(log.kcal)").font(.num(15)).foregroundColor(Theme.acc)
-            Text("kcal").font(.system(size: 9)).foregroundColor(Theme.sub)
+            Text("kcal").font(.system(size: 10)).foregroundColor(Theme.sub)
             Button { tap(); onDelete() } label: {
                 Image(systemName: "xmark.circle.fill").font(.system(size: 17)).foregroundColor(Theme.mut)
             }
@@ -256,6 +257,7 @@ struct FoodPickerSheet: View {
             }
         }
         .preferredColorScheme(.dark)
+        .keyboardDoneBar()
         .onAppear { loadSort() }
         .sheet(item: $sheet, onDismiss: { if sheet == nil { scanNotice = nil } }) { which in
             switch which {
@@ -280,7 +282,7 @@ struct FoodPickerSheet: View {
             Text(t("food.title")).font(.head(18, .bold)).foregroundColor(Theme.txt)
             Spacer()
             Button { dismiss() } label: {
-                Image(systemName: "xmark").foregroundColor(Theme.sub).frame(width: 34, height: 34)
+                Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: 34, height: 34)
             }
         }
         .padding(.top, 18)
@@ -289,7 +291,7 @@ struct FoodPickerSheet: View {
     private var sortBar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 6) {
-                Text(t("food.sort").uppercased()).font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
+                Text(t("food.sort").uppercased()).font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.sub)
                 ForEach(FoodSortKey.allCases, id: \.self) { key in
                     let active = sortKey == key
                     Button {
@@ -301,7 +303,7 @@ struct FoodPickerSheet: View {
                             Text(key.label).font(.head(10, .semibold)).tracking(0.5)
                             if active {
                                 Image(systemName: sortAsc ? "arrow.up" : "arrow.down")
-                                    .font(.system(size: 9, weight: .bold))
+                                    .font(.system(size: 10, weight: .bold))
                             }
                         }
                         .foregroundColor(active ? Theme.bg : Theme.sub)
@@ -310,7 +312,7 @@ struct FoodPickerSheet: View {
                         .clipShape(Capsule())
                         .overlay(Capsule().stroke(active ? Theme.acc : Theme.brd, lineWidth: 1))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(PressableStyle())
                 }
             }
         }
@@ -331,15 +333,13 @@ struct FoodPickerSheet: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(PressableStyle())
             Button { tap(); sheet = .form(f) } label: {
                 Image(systemName: "slider.horizontal.3").font(.system(size: 13)).foregroundColor(Theme.sub).frame(width: 30, height: 30)
             }
         }
         .padding(.vertical, 9).padding(.horizontal, 12)
-        .background(Theme.c1)
-        .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 11, style: .continuous).stroke(Theme.brd, lineWidth: 1))
+        .chrome(11, fill: Theme.c1)
     }
 
     private func handleScan(_ code: String) {
@@ -386,7 +386,7 @@ struct FoodFormSheet: View {
                         Text(t("food.new_title")).font(.head(16, .bold)).foregroundColor(Theme.txt)
                         Spacer()
                         Button { dismiss() } label: {
-                            Image(systemName: "xmark").foregroundColor(Theme.sub).frame(width: 34, height: 34)
+                            Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: 34, height: 34)
                         }
                     }
                     .padding(.top, 18)
@@ -411,7 +411,7 @@ struct FoodFormSheet: View {
                                 InputField(placeholder: "Barilla, Mulino Bianco…", text: $brand, keyboard: .default)
                             }
                             Text("\(t("food.per100_label")) (100\(liquid ? "ml" : "g"))".uppercased())
-                                .font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.acc2)
+                                .font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.acc2)
                             HStack(spacing: 10) {
                                 num("KCAL", "350", $k)
                                 num("\(t("nut.protein")) (g)", "7", $p)
@@ -440,6 +440,7 @@ struct FoodFormSheet: View {
             .scrollDismissesKeyboard(.interactively)
         }
         .preferredColorScheme(.dark)
+        .keyboardDoneBar()
         .onAppear {
             guard !loaded else { return }
             loaded = true
@@ -495,7 +496,7 @@ struct FoodQuantitySheet: View {
                     Text(food.name).font(.head(17, .bold)).foregroundColor(Theme.txt).lineLimit(2)
                     Spacer()
                     Button { dismiss() } label: {
-                        Image(systemName: "xmark").foregroundColor(Theme.sub).frame(width: 34, height: 34)
+                        Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: 34, height: 34)
                     }
                 }
                 .padding(.top, 18)
@@ -518,7 +519,7 @@ struct FoodQuantitySheet: View {
                 }
 
                 BigButton(title: t("food.add")) {
-                    guard grams > 0 else { return }
+                    guard grams > 0 else { haptic(.error); return }
                     haptic(.success); onAdd(log); dismiss()
                 }
                 Spacer()
@@ -526,6 +527,7 @@ struct FoodQuantitySheet: View {
             .padding(.horizontal, 18)
         }
         .preferredColorScheme(.dark)
+        .keyboardDoneBar()
     }
 
     private func macro(_ value: String, _ label: String, _ color: Color) -> some View {

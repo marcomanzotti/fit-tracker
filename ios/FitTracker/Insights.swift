@@ -38,9 +38,9 @@ struct ReadinessCard: View {
                         Bar(value: Double(score) / 100, gradient: [zoneColor(r.advice), Theme.acc])
                         if !r.usedSignals.isEmpty {
                             HStack(spacing: 5) {
-                                Text(t("load.from").uppercased()).font(.head(8, .semibold)).tracking(1).foregroundColor(Theme.sub)
+                                Text(t("load.from").uppercased()).font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.sub)
                                 ForEach(r.usedSignals, id: \.self) { sig in
-                                    Text(t("load.sig." + sig)).font(.head(9, .semibold)).tracking(0.3)
+                                    Text(t("load.sig." + sig)).font(.head(10, .semibold)).tracking(0.3)
                                         .foregroundColor(Theme.sub)
                                         .padding(.vertical, 2).padding(.horizontal, 7)
                                         .background(Theme.c2).clipShape(Capsule())
@@ -92,7 +92,7 @@ struct TrimpCard: View {
                     let mx = max(week, prev, 1)
                     cmpRow(t("trimp.this_week"), week, mx, Theme.acc2)
                     cmpRow(t("trimp.last_week"), prev, mx, Theme.sub).padding(.top, 7)
-                    Text(t("trimp.note")).font(.system(size: 9)).foregroundColor(Theme.sub).padding(.top, 8)
+                    Text(t("trimp.note")).font(.system(size: 10)).foregroundColor(Theme.sub).padding(.top, 8)
                 }
             }
         }
@@ -248,7 +248,7 @@ struct LoadTrendCard: View {
                             AxisValueLabel(centered: false) {
                                 if let d = v.as(Date.self) {
                                     Text(fmtDM(isoFormatter.string(from: d)))
-                                        .font(.system(size: 9)).foregroundColor(Theme.sub)
+                                        .font(.system(size: 10)).foregroundColor(Theme.sub)
                                 }
                             }
                         }
@@ -256,7 +256,7 @@ struct LoadTrendCard: View {
                     .chartYAxis {
                         AxisMarks { _ in
                             AxisGridLine().foregroundStyle(Theme.mut)
-                            AxisValueLabel().font(.system(size: 8)).foregroundStyle(Theme.sub)
+                            AxisValueLabel().font(.system(size: 10)).foregroundStyle(Theme.sub)
                         }
                     }
                     .frame(height: 120)
@@ -353,7 +353,7 @@ struct NutritionCard: View {
                     Text(t("nut.low_logging")).font(.system(size: 10)).foregroundColor(Theme.acc2).padding(.top, 8)
                 }
             }
-            Text(t("nut.who_note")).font(.system(size: 9)).foregroundColor(Theme.sub).padding(.top, 8)
+            Text(t("nut.who_note")).font(.system(size: 10)).foregroundColor(Theme.sub).padding(.top, 8)
         }
     }
     private func modeLabel(_ m: GoalMode) -> String {
@@ -407,7 +407,7 @@ struct CalendarCard: View {
 
             HStack(spacing: 0) {
                 ForEach(Array(L.weekHeaders.enumerated()), id: \.offset) { _, d in
-                    Text(d).font(.head(9, .semibold)).foregroundColor(Theme.sub).frame(maxWidth: .infinity)
+                    Text(d).font(.head(10, .semibold)).foregroundColor(Theme.sub).frame(maxWidth: .infinity)
                 }
             }
             .padding(.bottom, 6)
@@ -467,19 +467,16 @@ struct CalendarCard: View {
                 Text("\(day)").font(.system(size: 12, weight: isToday ? .bold : .regular))
                     .foregroundColor(dark ? Theme.bg : (isToday ? Theme.acc : Theme.txt))
                 if daySessions.count > 1 {
-                    Text("\(daySessions.count)").font(.system(size: 8, weight: .bold)).foregroundColor(Theme.bg)
+                    Text("\(daySessions.count)").font(.system(size: 10, weight: .bold)).foregroundColor(Theme.bg)
                 } else if rest {
-                    Image(systemName: Theme.restIcon).font(.system(size: 8, weight: .bold)).foregroundColor(Theme.bg)
+                    Image(systemName: Theme.restIcon).font(.system(size: 10, weight: .bold)).foregroundColor(Theme.bg)
                 }
             }
             .frame(maxWidth: .infinity).frame(height: 38)
-            .background(color ?? (rest ? Theme.restFill : Color.clear))
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(isToday && !dark ? Theme.acc : Color.clear, lineWidth: 1))
+            .chrome(8, fill: color ?? (rest ? Theme.restFill : Color.clear), stroke: isToday && !dark ? Theme.acc : Color.clear)
             .opacity(future ? 0.35 : 1)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressableStyle())
         .disabled(future && daySessions.isEmpty)
     }
 }
@@ -503,8 +500,8 @@ struct SessionEditorView: View {
                             Text("\(session.planName) · \(session.date)").font(.system(size: 11)).foregroundColor(Theme.sub)
                         }
                         Spacer()
-                        Button { tap(); dismiss() } label: {
-                            Image(systemName: "xmark").foregroundColor(Theme.sub).frame(width: 34, height: 34)
+                        Button { dismiss() } label: {
+                            Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: 34, height: 34)
                         }
                     }
                     .padding(.top, 18)
@@ -523,10 +520,10 @@ struct SessionEditorView: View {
                         }
                         if let v = store.trimp(session) {
                             HStack(spacing: 6) {
-                                Text("TRIMP").font(.head(9, .semibold)).tracking(1.5).foregroundColor(Theme.sub)
+                                Text("TRIMP").font(.head(10, .semibold)).tracking(1.5).foregroundColor(Theme.sub)
                                 Text("\(Int(v.rounded()))").font(.num(16)).foregroundColor(Theme.acc2)
                                 Spacer()
-                                Text(t("load.trimp_hint")).font(.system(size: 9)).foregroundColor(Theme.sub)
+                                Text(t("load.trimp_hint")).font(.system(size: 10)).foregroundColor(Theme.sub)
                             }
                             .padding(.top, 12)
                         }
@@ -574,9 +571,7 @@ struct SessionEditorView: View {
                             }
                             .foregroundColor(Theme.blue)
                             .frame(maxWidth: .infinity, minHeight: 46)
-                            .background(Theme.blue.opacity(0.08))
-                            .clipShape(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous))
-                            .overlay(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous).stroke(Theme.blue, lineWidth: 1))
+                            .chrome(fill: Theme.blue.opacity(0.08), stroke: Theme.blue)
                         }
                     }
                     // Bring a deleted strength plan back as a Train-page card, rebuilt
@@ -591,9 +586,7 @@ struct SessionEditorView: View {
                             }
                             .foregroundColor(Theme.acc)
                             .frame(maxWidth: .infinity, minHeight: 46)
-                            .background(Theme.acc.opacity(0.08))
-                            .clipShape(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous))
-                            .overlay(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous).stroke(Theme.acc, lineWidth: 1))
+                            .chrome(fill: Theme.acc.opacity(0.08), stroke: Theme.acc)
                         }
                     }
                     Button { tap(); confirmDelete = true } label: {
@@ -607,6 +600,7 @@ struct SessionEditorView: View {
             .scrollDismissesKeyboard(.interactively)
         }
         .preferredColorScheme(.dark)
+        .keyboardDoneBar()
         .alert(t("wk.del_session"), isPresented: $confirmDelete) {
             Button(t("cancel"), role: .cancel) {}
             Button(t("delete"), role: .destructive) { store.deleteSession(session.id); dismiss() }
@@ -640,7 +634,7 @@ struct SessionEditorView: View {
             case .timed:
                 TimedSetRows(exercise: exB, bodyweight: bw)
                 if bw {
-                    Text(t("wk.bw_hint")).font(.system(size: 9)).foregroundColor(Theme.sub).padding(.top, 4)
+                    Text(t("wk.bw_hint")).font(.system(size: 10)).foregroundColor(Theme.sub).padding(.top, 4)
                 }
                 GhostButton(title: t("wk.add_set")) { exB.wrappedValue.sets.append(SetEntry()) }
                     .padding(.top, 10)
@@ -664,7 +658,7 @@ struct SessionEditorView: View {
         Group {
             // Training method (superset / drop / rest-pause / giant) + group
             HStack(spacing: 10) {
-                Text(t("wk.method").uppercased()).font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
+                Text(t("wk.method").uppercased()).font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.sub)
                 Menu {
                     ForEach(TrainMethod.allCases, id: \.self) { m in
                         Button(methodLabel(m)) { tap(); exB.wrappedValue.method = m == .normal ? nil : m.rawValue }
@@ -672,24 +666,23 @@ struct SessionEditorView: View {
                 } label: {
                     HStack(spacing: 5) {
                         Text(methodLabel(cur)).font(.system(size: 12, weight: .semibold)).foregroundColor(Theme.txt)
-                        Image(systemName: "chevron.down").font(.system(size: 9)).foregroundColor(Theme.sub)
+                        Image(systemName: "chevron.down").font(.system(size: 10)).foregroundColor(Theme.sub)
                     }
                     .padding(.vertical, 6).padding(.horizontal, 10)
-                    .background(Theme.c2).clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(Theme.brd, lineWidth: 1))
+                    .chrome(8)
                 }
                 Spacer()
                 if isGrouped {
-                    Text(t("pe.group").uppercased()).font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
+                    Text(t("pe.group").uppercased()).font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.sub)
                     Button { tap(); let g = (exB.wrappedValue.supersetGroup ?? 1); exB.wrappedValue.supersetGroup = max(1, g - 1) } label: {
                         Image(systemName: "minus").font(.system(size: 10, weight: .bold)).foregroundColor(Theme.txt)
                             .frame(width: 24, height: 24).background(Theme.c3).clipShape(Circle())
-                    }.buttonStyle(.plain)
+                    }.buttonStyle(PressableStyle())
                     Text("\(exB.wrappedValue.supersetGroup ?? 1)").font(.num(15)).frame(minWidth: 14)
                     Button { tap(); exB.wrappedValue.supersetGroup = (exB.wrappedValue.supersetGroup ?? 0) + 1 } label: {
                         Image(systemName: "plus").font(.system(size: 10, weight: .bold)).foregroundColor(Theme.txt)
                             .frame(width: 24, height: 24).background(Theme.c3).clipShape(Circle())
-                    }.buttonStyle(.plain)
+                    }.buttonStyle(PressableStyle())
                 }
             }
             .padding(.bottom, 10)
@@ -711,7 +704,7 @@ struct SessionEditorView: View {
                 .padding(.vertical, 4)
             }
             if bw {
-                Text(t("wk.bw_hint")).font(.system(size: 9)).foregroundColor(Theme.sub).padding(.top, 4)
+                Text(t("wk.bw_hint")).font(.system(size: 10)).foregroundColor(Theme.sub).padding(.top, 4)
             }
             GhostButton(title: t("wk.add_set")) { exB.wrappedValue.sets.append(SetEntry()) }
                 .padding(.top, 10)

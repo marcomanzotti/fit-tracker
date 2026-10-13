@@ -153,11 +153,9 @@ struct FoodDatabaseCard: View {
             }
             .padding(.vertical, 9).padding(.horizontal, 12)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Theme.c2)
-            .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 11, style: .continuous).stroke(Theme.brd, lineWidth: 1))
+            .chrome(11)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressableStyle())
     }
 
     private func handleScan(_ code: String) {

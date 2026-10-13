@@ -99,6 +99,7 @@ struct WatchSetupGuide: View {
             }
         }
         .preferredColorScheme(.dark)
+        .keyboardDoneBar()
         .fileImporter(isPresented: $importing, allowedContentTypes: fileTypes, allowsMultipleSelection: false) { result in
             handleImport(result)
         }

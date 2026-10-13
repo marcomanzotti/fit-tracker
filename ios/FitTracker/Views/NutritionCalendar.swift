@@ -37,7 +37,7 @@ struct NutritionCalendarCard: View {
 
             HStack(spacing: 0) {
                 ForEach(Array(L.weekHeaders.enumerated()), id: \.offset) { _, d in
-                    Text(d).font(.head(9, .semibold)).foregroundColor(Theme.sub).frame(maxWidth: .infinity)
+                    Text(d).font(.head(10, .semibold)).foregroundColor(Theme.sub).frame(maxWidth: .infinity)
                 }
             }
             .padding(.bottom, 6)
@@ -91,18 +91,15 @@ struct NutritionCalendarCard: View {
                 Text("\(day)").font(.system(size: 12, weight: isToday ? .bold : .regular))
                     .foregroundColor(color != nil ? Theme.bg : (isToday ? Theme.acc : Theme.txt))
                 if logged {
-                    Text("\(kcal)").font(.system(size: 7, weight: .bold)).foregroundColor(Theme.bg)
+                    Text("\(kcal)").font(.system(size: 10, weight: .bold)).foregroundColor(Theme.bg)
                         .lineLimit(1).minimumScaleFactor(0.6)
                 }
             }
             .frame(maxWidth: .infinity).frame(height: 40)
-            .background(color ?? Color.clear)
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(isToday && color == nil ? Theme.acc : Color.clear, lineWidth: 1))
+            .chrome(8, fill: color ?? Color.clear, stroke: isToday && color == nil ? Theme.acc : Color.clear)
             .opacity(future ? 0.35 : 1)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressableStyle())
         .disabled(future)
     }
 }
@@ -155,6 +152,7 @@ struct NutritionDayEditor: View {
             .scrollDismissesKeyboard(.interactively)
         }
         .preferredColorScheme(.dark)
+        .keyboardDoneBar()
         .onAppear { if !loaded { load(); loaded = true } }
     }
 
@@ -165,8 +163,8 @@ struct NutritionDayEditor: View {
                 Text(prettyDate).font(.system(size: 11)).foregroundColor(Theme.sub)
             }
             Spacer()
-            Button { tap(); dismiss() } label: {
-                Image(systemName: "xmark").foregroundColor(Theme.sub).frame(width: 34, height: 34)
+            Button { dismiss() } label: {
+                Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: 34, height: 34)
             }
         }
         .padding(.top, 18)
@@ -341,7 +339,7 @@ struct NutritionChartsSection: View {
         let avg = " · \(t("nut.weekly_avg"))"
         return Group {
             if s.count < 2 {
-                Card { EmptyBox(title: t("nut.no_log"), text: t("nut.charts_hint")) }
+                Card { EmptyBox(title: t("nut.no_log"), text: t("nut.charts_hint"), icon: "fork.knife") }
             } else {
                 macroChart("\(t("nut.kcal"))\(avg)", s.map { ($0.date, Double($0.kcal)) }, Theme.acc, target: target.target)
                 macroChart("\(t("nut.protein")) (g)\(avg)", s.map { ($0.date, $0.protein) }, Theme.blue, target: target.protein)

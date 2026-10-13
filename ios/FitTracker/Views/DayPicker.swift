@@ -46,8 +46,8 @@ struct DayPickerSheet: View {
                             Text(prettyDate).font(.system(size: 11)).foregroundColor(Theme.sub)
                         }
                         Spacer()
-                        Button { tap(); dismiss() } label: {
-                            Image(systemName: "xmark").foregroundColor(Theme.sub).frame(width: 34, height: 34)
+                        Button { dismiss() } label: {
+                            Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: 34, height: 34)
                         }
                     }
                     .padding(.top, 18)
@@ -72,12 +72,12 @@ struct DayPickerSheet: View {
                                         Image(systemName: merging ? "xmark" : "arrow.triangle.merge")
                                             .font(.system(size: 10, weight: .bold))
                                         Text((merging ? t("cancel") : t("day.merge")).uppercased())
-                                            .font(.head(9, .semibold)).tracking(0.5)
+                                            .font(.head(10, .semibold)).tracking(0.5)
                                     }
                                     .foregroundColor(Theme.acc2)
                                     .padding(.vertical, 5).padding(.horizontal, 10)
                                     .background(Theme.acc2.opacity(0.12)).clipShape(Capsule())
-                                }.buttonStyle(.plain)
+                                }.buttonStyle(PressableStyle())
                             }
                         }
                         Card {
@@ -95,7 +95,7 @@ struct DayPickerSheet: View {
                                     .background(selected.count >= 2 ? Theme.acc : Theme.c2)
                                     .clipShape(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous))
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(PressableStyle())
                             .disabled(selected.count < 2)
                         }
                     }
@@ -115,7 +115,7 @@ struct DayPickerSheet: View {
                                     .foregroundColor(store.isRestDay(date) ? Theme.good : Theme.sub)
                             }
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(PressableStyle())
                     }
 
                     // What Apple Health recorded that day (steps, energy, sleep, HRV,
@@ -157,6 +157,7 @@ struct DayPickerSheet: View {
             }
         }
         .preferredColorScheme(.dark)
+        .keyboardDoneBar()
         .presentationDetents([.medium, .large])
         .onAppear {
             // Auto-query once on open so workouts usually appear without a tap.
@@ -192,7 +193,7 @@ struct DayPickerSheet: View {
                 if healthState == .loaded {
                     Button { tap(); loadHealth() } label: {
                         Image(systemName: "arrow.clockwise").font(.system(size: 12, weight: .semibold)).foregroundColor(Theme.sub)
-                    }.buttonStyle(.plain)
+                    }.buttonStyle(PressableStyle())
                 }
             }
             Card {
@@ -218,7 +219,7 @@ struct DayPickerSheet: View {
                                 .padding(.vertical, 7).padding(.horizontal, 12)
                                 .background(green.opacity(0.10)).clipShape(Capsule())
                                 .overlay(Capsule().stroke(green.opacity(0.4), lineWidth: 1))
-                            }.buttonStyle(.plain)
+                            }.buttonStyle(PressableStyle())
                         }.padding(.vertical, 2)
                     } else {
                         ForEach(Array(importable.enumerated()), id: \.element.uuid) { _, w in
@@ -255,7 +256,7 @@ struct DayPickerSheet: View {
                 Button { tap(); refreshDayHealth() } label: {
                     Image(systemName: "arrow.clockwise").font(.system(size: 12, weight: .semibold))
                         .foregroundColor(Theme.sub)
-                }.buttonStyle(.plain)
+                }.buttonStyle(PressableStyle())
             }
             Card {
                 if any {
@@ -269,7 +270,7 @@ struct DayPickerSheet: View {
                                 Text(tile.2 ?? "—").font(.num(15))
                                     .foregroundColor(tile.2 == nil ? Theme.sub.opacity(0.5) : Theme.txt)
                                     .lineLimit(1).minimumScaleFactor(0.6)
-                                Text(tile.1.uppercased()).font(.head(8, .semibold)).tracking(0.5)
+                                Text(tile.1.uppercased()).font(.head(10, .semibold)).tracking(0.5)
                                     .foregroundColor(Theme.sub).lineLimit(1).minimumScaleFactor(0.6)
                             }
                             .frame(maxWidth: .infinity)
@@ -351,7 +352,7 @@ struct DayPickerSheet: View {
                     HStack(spacing: 5) {
                         Text(s.planName).font(.system(size: 15, weight: .semibold)).foregroundColor(Theme.txt).lineLimit(1)
                         if s.source != nil {
-                            Image(systemName: "heart.fill").font(.system(size: 8)).foregroundColor(Theme.red)
+                            Image(systemName: "heart.fill").font(.system(size: 10)).foregroundColor(Theme.red)
                         }
                     }
                     Text(loggedSummary(s)).font(.system(size: 11)).foregroundColor(Theme.sub).lineLimit(1)
@@ -361,7 +362,7 @@ struct DayPickerSheet: View {
             }
             .padding(.vertical, 9)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressableStyle())
     }
 
     private func loggedSummary(_ s: WorkoutSession) -> String {
@@ -394,7 +395,7 @@ struct DayPickerSheet: View {
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 5) {
                         Text(w.displayName).font(.system(size: 15, weight: .semibold)).foregroundColor(Theme.txt).lineLimit(1)
-                        Image(systemName: "heart.fill").font(.system(size: 8)).foregroundColor(Theme.red)
+                        Image(systemName: "heart.fill").font(.system(size: 10)).foregroundColor(Theme.red)
                     }
                     Text(healthSummary(w)).font(.system(size: 11)).foregroundColor(Theme.sub).lineLimit(1)
                 }
@@ -403,7 +404,7 @@ struct DayPickerSheet: View {
             }
             .padding(.vertical, 9)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressableStyle())
     }
 
     private func healthSummary(_ w: HealthWorkout) -> String {
@@ -432,7 +433,7 @@ struct DayPickerSheet: View {
             }
             .padding(.vertical, 9)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressableStyle())
     }
 
     private func finish(_ s: WorkoutSession?) {

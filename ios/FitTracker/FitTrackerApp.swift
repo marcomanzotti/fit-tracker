@@ -31,6 +31,7 @@ struct FitTrackerApp: App {
                 .environmentObject(activeCardio)
                 .preferredColorScheme(.dark)
                 .tint(Theme.acc)
+                .keyboardDoneBar()
         }
     }
 }

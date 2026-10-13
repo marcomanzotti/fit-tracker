@@ -69,7 +69,7 @@ struct HomeView: View {
             HStack {
                 Lbl(text: t("home.week_activity"), color: Theme.acc2)
                 Spacer()
-                Text(t("home.tap_to_log")).font(.system(size: 9, weight: .medium)).foregroundColor(Theme.sub)
+                Text(t("home.tap_to_log")).font(.system(size: 10, weight: .medium)).foregroundColor(Theme.sub)
             }
             .padding(.bottom, 12)
             HStack(spacing: 7) {
@@ -90,7 +90,7 @@ struct HomeView: View {
         let rest = !trained && store.isRestDay(ds)
         let fill: Color = trained ? Color(hex: sess.first!.planColor) : (rest ? Theme.restFill : Theme.c2)
         return VStack(spacing: 6) {
-            Text(label.uppercased()).font(.head(9, .semibold)).tracking(0.5)
+            Text(label.uppercased()).font(.head(10, .semibold)).tracking(0.5)
                 .foregroundColor(isToday ? Theme.acc : Theme.sub)
             Button {
                 tap()
@@ -108,19 +108,19 @@ struct HomeView: View {
                         Image(systemName: sess.first!.sportType.isCardio ? sess.first!.sportType.icon : "dumbbell.fill")
                             .font(.system(size: 13, weight: .bold)).foregroundColor(Theme.bg)
                         if sess.count > 1 {
-                            Text("\(sess.count)").font(.system(size: 8, weight: .bold)).foregroundColor(Theme.bg)
+                            Text("\(sess.count)").font(.system(size: 10, weight: .bold)).foregroundColor(Theme.bg)
                                 .frame(width: 13, height: 13).background(Theme.bg.opacity(0.001))
                                 .offset(x: 13, y: -13)
                         }
                     } else if rest {
                         RestChip()
                     } else {
-                        Image(systemName: "plus").font(.system(size: 12, weight: .bold)).foregroundColor(Theme.brd2)
+                        Image(systemName: "plus").font(.system(size: 12, weight: .bold)).foregroundColor(Theme.sub)
                     }
                 }
                 .frame(height: 42)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(PressableStyle())
         }
         .frame(maxWidth: .infinity)
     }
@@ -165,7 +165,12 @@ struct HomeView: View {
 
     private func saveCheckIn() {
         let w = Units.wIn(pf(weightInput))   // input → kg
-        guard w >= 30 && w <= 250 else { return }
+        guard Store.plausibleWeightKg.contains(w) else {
+            haptic(.error)
+            toast.show(t("home.weight_invalid", dispW(Store.plausibleWeightKg.lowerBound),
+                         dispW(Store.plausibleWeightKg.upperBound), Units.wLabel), duration: ToastCenter.longDuration)
+            return
+        }
         store.saveCheckIn(weight: w, sleep: nil)
         weightInput = ""
         toast.show(t("home.checkin_saved"))
@@ -187,7 +192,7 @@ struct HomeView: View {
                 Button { tap(); editingGoal = true } label: {
                     HStack(spacing: 5) {
                         Image(systemName: "target").font(.system(size: 10, weight: .bold))
-                        Text(t("goal.change").uppercased()).font(.head(9, .semibold)).tracking(0.8)
+                        Text(t("goal.change").uppercased()).font(.head(10, .semibold)).tracking(0.8)
                     }
                     .foregroundColor(Theme.acc)
                     .padding(.vertical, 6).padding(.horizontal, 10)
@@ -231,7 +236,7 @@ struct HomeView: View {
                                 HStack(spacing: 6) {
                                     Lbl(text: t("home.next_workout"))
                                     Text("· " + (store.prefs.hasSchedule ? t("plan.scheduled") : t("plan.rotation")))
-                                        .font(.head(8, .semibold)).tracking(0.5).foregroundColor(Theme.sub)
+                                        .font(.head(10, .semibold)).tracking(0.5).foregroundColor(Theme.sub)
                                 }
                                 .padding(.bottom, 6)
                                 HStack(spacing: 8) {
@@ -267,9 +272,7 @@ struct HomeView: View {
             }
         }
         .padding(.vertical, 10).padding(.horizontal, 14)
-        .background(Theme.c1)
-        .clipShape(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous).stroke(Theme.brd, lineWidth: 1))
+        .chrome(fill: Theme.c1)
         .sheet(item: $shareURL) { item in ShareSheet(items: [item.url]) }
     }
 }
@@ -283,13 +286,13 @@ extension View {
             .chartXAxis {
                 AxisMarks { _ in
                     AxisGridLine().foregroundStyle(Theme.sub.opacity(0.18))
-                    AxisValueLabel().font(.system(size: 8)).foregroundStyle(Theme.sub)
+                    AxisValueLabel().font(.system(size: 10)).foregroundStyle(Theme.sub)
                 }
             }
             .chartYAxis {
                 AxisMarks { _ in
                     AxisGridLine().foregroundStyle(Theme.mut)
-                    AxisValueLabel().font(.system(size: 8)).foregroundStyle(Theme.sub)
+                    AxisValueLabel().font(.system(size: 10)).foregroundStyle(Theme.sub)
                 }
             }
     }

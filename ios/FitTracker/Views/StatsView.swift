@@ -95,7 +95,7 @@ struct StatsView: View {
                 }
             }
             if withW.count < 2 {
-                Card { EmptyBox(title: t("st.no_data"), text: t("st.charts_hint")) }
+                Card { EmptyBox(title: t("st.no_data"), text: t("st.charts_hint"), icon: "chart.xyaxis.line") }
             }
             MuscleVolumeCard()
             VitalsTrendCard()
@@ -141,7 +141,7 @@ struct StatsView: View {
                             Text("+\(trimNum(d))\(e.unit)").font(.system(size: 10, weight: .semibold))
                                 .foregroundColor(Theme.good)
                         } else {
-                            Text(t("st.pr_first")).font(.system(size: 9)).foregroundColor(Theme.sub)
+                            Text(t("st.pr_first")).font(.system(size: 10)).foregroundColor(Theme.sub)
                         }
                     }
                 }
@@ -214,7 +214,7 @@ struct StatsView: View {
                         .padding(.vertical, 6).padding(.horizontal, 10)
                         .background(Theme.c2).clipShape(Capsule())
                         .overlay(Capsule().stroke(Theme.brd, lineWidth: 1))
-                    }.buttonStyle(.plain)
+                    }.buttonStyle(PressableStyle())
                 }
                 .padding(.bottom, 8)
                 InputField(placeholder: t("st.search_ex"), text: $exSearch, keyboard: .default)
@@ -237,7 +237,7 @@ struct StatsView: View {
                 // otherwise the whole family is aggregated.
                 let data = selVariant.map { store.exerciseHistory($0) } ?? store.exerciseHistory(family: selEx)
                 if data.isEmpty {
-                    Card { EmptyBox(title: t("st.no_data"), text: t("st.progress_hint")) }
+                    Card { EmptyBox(title: t("st.no_data"), text: t("st.progress_hint"), icon: "dumbbell") }
                 } else {
                     Card {
                         Lbl(text: t("st.max_per_session")).padding(.bottom, 8)
@@ -266,7 +266,7 @@ struct StatsView: View {
                     }
                 }
             } else {
-                Card { EmptyBox(title: t("st.progress"), text: t("st.progress_hint")) }
+                Card { EmptyBox(title: t("st.progress"), text: t("st.progress_hint"), icon: "dumbbell") }
             }
         }
         .sheet(item: $editingFam) { fam in ExerciseFamilyEditor(base: fam.base) }
@@ -286,10 +286,10 @@ struct StatsView: View {
             Spacer()
             Button { tap(); editingFam = FamilyEdit(base: selEx) } label: {
                 Image(systemName: "slider.horizontal.3").font(.system(size: 12)).foregroundColor(Theme.sub).frame(width: 28, height: 28)
-            }.buttonStyle(.plain)
+            }.buttonStyle(PressableStyle())
             Button { tap(); selEx = ""; selVariant = nil } label: {
                 Image(systemName: "xmark.circle.fill").foregroundColor(Theme.sub)
-            }.buttonStyle(.plain)
+            }.buttonStyle(PressableStyle())
         }
         .padding(.vertical, 6).padding(.horizontal, 12)
         .background(Theme.acc.opacity(0.08))
@@ -301,7 +301,7 @@ struct StatsView: View {
     private var exSortBar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 6) {
-                Text(t("food.sort").uppercased()).font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
+                Text(t("food.sort").uppercased()).font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.sub)
                 ForEach(ExSortKey.allCases, id: \.self) { key in
                     let active = exSortKey == key
                     Button {
@@ -310,14 +310,14 @@ struct StatsView: View {
                     } label: {
                         HStack(spacing: 3) {
                             Text(key.label).font(.head(10, .semibold)).tracking(0.5)
-                            if active { Image(systemName: exSortAsc ? "arrow.up" : "arrow.down").font(.system(size: 9, weight: .bold)) }
+                            if active { Image(systemName: exSortAsc ? "arrow.up" : "arrow.down").font(.system(size: 10, weight: .bold)) }
                         }
                         .foregroundColor(active ? Theme.bg : Theme.sub)
                         .padding(.vertical, 5).padding(.horizontal, 9)
                         .background(active ? Theme.acc : Theme.c2)
                         .clipShape(Capsule())
                         .overlay(Capsule().stroke(active ? Theme.acc : Theme.brd, lineWidth: 1))
-                    }.buttonStyle(.plain)
+                    }.buttonStyle(PressableStyle())
                 }
             }
         }
@@ -346,7 +346,7 @@ struct StatsView: View {
                 .background(selected ? Theme.acc : Theme.c2)
                 .clipShape(Capsule())
                 .overlay(Capsule().stroke(selected ? Theme.acc : Theme.brd, lineWidth: 1))
-        }.buttonStyle(.plain)
+        }.buttonStyle(PressableStyle())
     }
 
     /// Apply the chosen sort to the family list. "recent" uses the most recent
@@ -375,9 +375,7 @@ struct StatsView: View {
             }
         }
         .frame(maxHeight: 260)
-        .background(Theme.c2)
-        .clipShape(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous).stroke(Theme.brd, lineWidth: 1))
+        .chrome()
     }
 
     private func browseByCategory(_ fams: [Store.ExFamily]) -> some View {
@@ -392,7 +390,7 @@ struct StatsView: View {
                 VStack(spacing: 0) {
                     Button { tap(); browseCat = (browseCat == mg.rawValue) ? nil : mg.rawValue } label: {
                         HStack(spacing: 8) {
-                            Image(systemName: "circle.fill").font(.system(size: 8)).foregroundColor(Color(hex: mg.color))
+                            Image(systemName: "circle.fill").font(.system(size: 10)).foregroundColor(Color(hex: mg.color))
                             Text(t(mg.labelKey).uppercased()).font(.head(11, .semibold)).tracking(1).foregroundColor(Theme.txt)
                             Text("\(group.count)").font(.system(size: 10)).foregroundColor(Theme.sub)
                             Spacer()
@@ -400,7 +398,7 @@ struct StatsView: View {
                                 .font(.system(size: 11)).foregroundColor(Theme.sub)
                         }
                         .padding(.vertical, 11).padding(.horizontal, 12)
-                    }.buttonStyle(.plain)
+                    }.buttonStyle(PressableStyle())
                     if browseCat == mg.rawValue {
                         ForEach(group) { f in
                             Rectangle().fill(Theme.brd).frame(height: 1)
@@ -408,9 +406,7 @@ struct StatsView: View {
                         }
                     }
                 }
-                .background(Theme.c2)
-                .clipShape(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous).stroke(Theme.brd, lineWidth: 1))
+                .chrome()
             }
         }
     }
@@ -430,7 +426,7 @@ struct StatsView: View {
                 Image(systemName: "chevron.right").font(.system(size: 11)).foregroundColor(Theme.sub)
             }
             .padding(.vertical, 9).padding(.horizontal, 12)
-        }.buttonStyle(.plain)
+        }.buttonStyle(PressableStyle())
     }
 
     // MARK: History (two calendars only)
@@ -497,7 +493,7 @@ struct ProfileCard: View {
 
     private func miniField(_ label: String, _ ph: String, _ binding: Binding<String>) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(label).font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
+            Text(label).font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.sub)
             InputField(placeholder: ph, text: binding)
         }
         .frame(maxWidth: .infinity)
@@ -528,8 +524,8 @@ struct ExerciseFamilyEditor: View {
                     HStack {
                         Text(t("st.edit_family").uppercased()).font(.head(16, .bold)).tracking(1).foregroundColor(Theme.txt)
                         Spacer()
-                        Button { tap(); dismiss() } label: {
-                            Image(systemName: "xmark").foregroundColor(Theme.sub).frame(width: 34, height: 34)
+                        Button { dismiss() } label: {
+                            Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: 34, height: 34)
                         }
                     }
                     .padding(.top, 18)
@@ -542,7 +538,7 @@ struct ExerciseFamilyEditor: View {
                             FieldLabel(t("st.family"))
                             InputField(placeholder: base, text: $row.base, keyboard: .default).padding(.bottom, 10)
                             HStack {
-                                Text(t("st.muscle").uppercased()).font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
+                                Text(t("st.muscle").uppercased()).font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.sub)
                                 Spacer()
                                 Menu {
                                     ForEach(MuscleGroup.allCases) { mg in
@@ -551,11 +547,10 @@ struct ExerciseFamilyEditor: View {
                                 } label: {
                                     HStack(spacing: 5) {
                                         Text(t("mg." + row.category)).font(.system(size: 12, weight: .semibold)).foregroundColor(Theme.txt)
-                                        Image(systemName: "chevron.down").font(.system(size: 9)).foregroundColor(Theme.sub)
+                                        Image(systemName: "chevron.down").font(.system(size: 10)).foregroundColor(Theme.sub)
                                     }
                                     .padding(.vertical, 6).padding(.horizontal, 10)
-                                    .background(Theme.c2).clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                                    .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(Theme.brd, lineWidth: 1))
+                                    .chrome(8)
                                 }
                             }
                         }
@@ -569,6 +564,7 @@ struct ExerciseFamilyEditor: View {
             .scrollDismissesKeyboard(.interactively)
         }
         .preferredColorScheme(.dark)
+        .keyboardDoneBar()
         .onAppear {
             guard !loaded else { return }
             loaded = true
@@ -650,6 +646,7 @@ struct ExerciseManagerView: View {
             .scrollDismissesKeyboard(.interactively)
         }
         .preferredColorScheme(.dark)
+        .keyboardDoneBar()
         .sheet(item: $renaming) { tgt in
             RenameExerciseSheet(oldName: tgt.name) { newName in
                 let merged = store.exerciseItems.contains { $0.name == newName }
@@ -686,8 +683,8 @@ struct ExerciseManagerView: View {
         HStack {
             Text(t("st.manage").uppercased()).font(.head(16, .bold)).tracking(1).foregroundColor(Theme.txt)
             Spacer()
-            Button { tap(); dismiss() } label: {
-                Image(systemName: "xmark").foregroundColor(Theme.sub).frame(width: 34, height: 34)
+            Button { dismiss() } label: {
+                Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: 34, height: 34)
             }
         }
         .padding(.top, 18)
@@ -707,7 +704,7 @@ struct ExerciseManagerView: View {
                     .padding(.vertical, 6).padding(.horizontal, 12).background(Theme.acc2).clipShape(Capsule())
             }
             .padding(.vertical, 6)
-        }.buttonStyle(.plain)
+        }.buttonStyle(PressableStyle())
     }
 
     private func exerciseRow(_ name: String) -> some View {
@@ -721,10 +718,10 @@ struct ExerciseManagerView: View {
             Spacer()
             Button { tap(); renaming = ManageTarget(name: name) } label: {
                 Image(systemName: "pencil").font(.system(size: 13)).foregroundColor(Theme.blue).frame(width: 34, height: 34)
-            }.buttonStyle(.plain)
+            }.buttonStyle(PressableStyle())
             Button { tap(); confirmDelete = ManageTarget(name: name) } label: {
                 Image(systemName: "trash").font(.system(size: 13)).foregroundColor(Theme.red.opacity(0.7)).frame(width: 34, height: 34)
-            }.buttonStyle(.plain)
+            }.buttonStyle(PressableStyle())
         }
         .padding(.vertical, 8)
     }
@@ -754,7 +751,7 @@ struct RenameExerciseSheet: View {
                 HStack {
                     Text(t("st.rename").uppercased()).font(.head(16, .bold)).tracking(1).foregroundColor(Theme.txt)
                     Spacer()
-                    Button { tap(); dismiss() } label: { Image(systemName: "xmark").foregroundColor(Theme.sub).frame(width: 34, height: 34) }
+                    Button { dismiss() } label: { Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: 34, height: 34) }
                 }
                 .padding(.top, 18)
                 Text("\(t("st.rename_from")) \"\(oldName)\"").font(.system(size: 12)).foregroundColor(Theme.sub)
@@ -776,6 +773,7 @@ struct RenameExerciseSheet: View {
             .padding(.horizontal, 18)
         }
         .preferredColorScheme(.dark)
+        .keyboardDoneBar()
         .onAppear { text = oldName }
     }
 }
@@ -795,7 +793,7 @@ struct MergeExerciseSheet: View {
                 HStack {
                     Text(t("st.merge").uppercased()).font(.head(16, .bold)).tracking(1).foregroundColor(Theme.txt)
                     Spacer()
-                    Button { tap(); dismiss() } label: { Image(systemName: "xmark").foregroundColor(Theme.sub).frame(width: 34, height: 34) }
+                    Button { dismiss() } label: { Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: 34, height: 34) }
                 }
                 .padding(.top, 18)
                 Text(t("st.merge_pick")).font(.system(size: 12)).foregroundColor(Theme.sub)
@@ -809,13 +807,12 @@ struct MergeExerciseSheet: View {
                                 Spacer()
                             }
                             .padding(.vertical, 12).padding(.horizontal, 4)
-                        }.buttonStyle(.plain)
+                        }.buttonStyle(PressableStyle())
                         if n != names.last { Rectangle().fill(Theme.brd).frame(height: 1) }
                     }
                 }
                 .padding(.horizontal, 10)
-                .background(Theme.c2).clipShape(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous).stroke(Theme.brd, lineWidth: 1))
+                .chrome()
 
                 BigButton(title: t("st.merge_into"), color: Theme.acc2) {
                     guard !keep.isEmpty else { return }
@@ -826,6 +823,7 @@ struct MergeExerciseSheet: View {
             .padding(.horizontal, 18)
         }
         .preferredColorScheme(.dark)
+        .keyboardDoneBar()
         .onAppear { keep = names.first ?? "" }
     }
 }

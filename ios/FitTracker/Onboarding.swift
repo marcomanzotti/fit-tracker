@@ -39,9 +39,7 @@ struct StorageBanner: View {
             Spacer(minLength: 0)
         }
         .padding(.vertical, 11).padding(.horizontal, 16)
-        .background(Theme.c2)
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(Theme.red.opacity(0.5), lineWidth: 1))
+        .chrome(18, stroke: Theme.red.opacity(0.5))
         .padding(.horizontal, 16)
     }
 }
@@ -75,10 +73,7 @@ struct PillSelect: View {
                     .font(.head(12, .semibold))
                     .foregroundColor(on ? Theme.bg : Theme.txt)
                     .padding(.vertical, 9).padding(.horizontal, 14)
-                    .background(on ? Theme.acc : Theme.c2)
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .stroke(on ? Color.clear : Theme.brd, lineWidth: 1))
+                    .chrome(10, fill: on ? Theme.acc : Theme.c2, stroke: on ? Color.clear : Theme.brd)
             }
         }
     }
@@ -273,6 +268,7 @@ struct OnboardingView: View {
             .scrollDismissesKeyboard(.interactively)
         }
         .preferredColorScheme(.dark)
+        .keyboardDoneBar()
         .sheet(isPresented: $showGuide) { WatchSetupGuide() }
         .onChange(of: f.lang) { _ in store.prefs.language = f.lang; store.syncLang() }
         .onChange(of: f.sex) { newSex in
@@ -346,8 +342,8 @@ struct SettingsView: View {
                     HStack {
                         Text(t("set.title").uppercased()).font(.head(18, .bold)).tracking(1).foregroundColor(Theme.txt)
                         Spacer()
-                        Button { tap(); dismiss() } label: {
-                            Image(systemName: "xmark").foregroundColor(Theme.sub).frame(width: 34, height: 34)
+                        Button { dismiss() } label: {
+                            Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: 34, height: 34)
                         }
                     }
                     .padding(.top, 18)
@@ -420,6 +416,7 @@ struct SettingsView: View {
             .scrollDismissesKeyboard(.interactively)
         }
         .preferredColorScheme(.dark)
+        .keyboardDoneBar()
         .sheet(isPresented: $showGuide) { WatchSetupGuide() }
         .sheet(isPresented: $showHealthHistory) { HealthHistoryView() }
     }
@@ -448,7 +445,7 @@ struct SettingsView: View {
                         }
                     }
                     Spacer().frame(height: 12)
-                    Text(t("hk.choose").uppercased()).font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
+                    Text(t("hk.choose").uppercased()).font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.sub)
                         .padding(.bottom, 8)
                     ForEach(HealthCategory.allCases) { cat in
                         Toggle(isOn: Binding(
@@ -491,7 +488,7 @@ struct SettingsView: View {
                         .foregroundColor(Theme.acc2)
                         .padding(.vertical, 10)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(PressableStyle())
                 } else {
                     FilledButton(title: t("hk.connect")) {
                         store.syncHealth { ok, n, sources in

@@ -33,8 +33,8 @@ struct CardioLoggerView: View {
                             Text(type.name.uppercased()).font(.head(18, .bold)).tracking(0.5).foregroundColor(Color(hex: type.color))
                         }
                         Spacer()
-                        Button { tap(); dismiss() } label: {
-                            Image(systemName: "xmark").foregroundColor(Theme.sub).frame(width: 34, height: 34)
+                        Button { dismiss() } label: {
+                            Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: 34, height: 34)
                         }
                     }
                     .padding(.top, 18)
@@ -64,7 +64,7 @@ struct CardioLoggerView: View {
                         }
                         .padding(.bottom, 10)
                         HStack(spacing: 8) {
-                            Text(t("wk.cal_override").uppercased()).font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
+                            Text(t("wk.cal_override").uppercased()).font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.sub)
                             Spacer()
                             InputField(placeholder: estCalories.map { "\($0)" } ?? "—", text: $calManual, keyboard: .numberPad)
                                 .frame(width: 110)
@@ -80,6 +80,7 @@ struct CardioLoggerView: View {
             .scrollDismissesKeyboard(.interactively)
         }
         .preferredColorScheme(.dark)
+        .keyboardDoneBar()
     }
 
     private func buildSession() -> WorkoutSession {
@@ -127,8 +128,8 @@ struct CardioTypeEditorView: View {
                         Text((isNew ? t("wk.new_cardio") : t("wk.edit_cardio")).uppercased())
                             .font(.head(18, .bold)).tracking(0.5).foregroundColor(Color(hex: type.color))
                         Spacer()
-                        Button { tap(); dismiss() } label: {
-                            Image(systemName: "xmark").foregroundColor(Theme.sub).frame(width: 34, height: 34)
+                        Button { dismiss() } label: {
+                            Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: 34, height: 34)
                         }
                     }
                     .padding(.top, 18)
@@ -178,6 +179,7 @@ struct CardioTypeEditorView: View {
             .scrollDismissesKeyboard(.interactively)
         }
         .preferredColorScheme(.dark)
+        .keyboardDoneBar()
     }
 
     private func save() {
@@ -272,7 +274,7 @@ struct LiveCardioView: View {
     private var clockCard: some View {
         Card(accent: accent) {
             VStack(spacing: 4) {
-                Text(t("wk.duration").uppercased()).font(.head(9, .semibold)).tracking(2).foregroundColor(Theme.sub)
+                Text(t("wk.duration").uppercased()).font(.head(10, .semibold)).tracking(2).foregroundColor(Theme.sub)
                 Text(fmtClock(elapsed)).font(.num(46)).foregroundColor(Theme.txt).monospacedDigit()
                 if activeCardio.paused {
                     Text(t("wk.paused").uppercased()).font(.head(10, .bold)).tracking(2).foregroundColor(Theme.acc2)
@@ -301,7 +303,7 @@ struct LiveCardioView: View {
 
     private func liveTile(label: String, value: String, unit: String?, color: Color) -> some View {
         VStack(spacing: 5) {
-            Text(label.uppercased()).font(.head(8, .semibold)).tracking(1).foregroundColor(Theme.sub)
+            Text(label.uppercased()).font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.sub)
                 .lineLimit(1).minimumScaleFactor(0.7)
             HStack(alignment: .firstTextBaseline, spacing: 3) {
                 Text(value).font(.num(22)).foregroundColor(color)
@@ -342,7 +344,7 @@ struct LiveCardioView: View {
                 .background(Theme.acc2)
                 .clipShape(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(PressableStyle())
 
             // Finish → save the session.
             Button { tap(); finish() } label: {
@@ -355,14 +357,14 @@ struct LiveCardioView: View {
                 .background(accent)
                 .clipShape(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(PressableStyle())
         }
         .padding(.top, 4)
         .overlay(alignment: .bottom) {
             Button { tap(); confirmDiscard = true } label: {
                 Text(t("wk.discard_session")).font(.system(size: 12, weight: .semibold)).foregroundColor(Theme.red)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(PressableStyle())
             .offset(y: 40)
         }
         .padding(.bottom, 40)

@@ -24,8 +24,8 @@ struct GoalEditorView: View {
                         Text(t("goal.title").uppercased()).font(.head(18, .bold)).tracking(1).foregroundColor(Theme.txt)
                         InfoButton(id: "goal")
                         Spacer()
-                        Button { tap(); dismiss() } label: {
-                            Image(systemName: "xmark").foregroundColor(Theme.sub).frame(width: 34, height: 34)
+                        Button { dismiss() } label: {
+                            Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: 34, height: 34)
                         }
                     }
                     .padding(.top, 18)
@@ -56,6 +56,7 @@ struct GoalEditorView: View {
             .scrollDismissesKeyboard(.interactively)
         }
         .preferredColorScheme(.dark)
+        .keyboardDoneBar()
         .onAppear {
             let p = store.prefs
             goalWeight = dispW(p.goalWeight)
@@ -107,8 +108,8 @@ struct WeeklyPlanView: View {
                         Text(t("plan.week").uppercased()).font(.head(18, .bold)).tracking(1).foregroundColor(Theme.txt)
                         InfoButton(id: "weekplan")
                         Spacer()
-                        Button { tap(); dismiss() } label: {
-                            Image(systemName: "xmark").foregroundColor(Theme.sub).frame(width: 34, height: 34)
+                        Button { dismiss() } label: {
+                            Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: 34, height: 34)
                         }
                     }
                     .padding(.top, 18)
@@ -135,6 +136,7 @@ struct WeeklyPlanView: View {
             }
         }
         .preferredColorScheme(.dark)
+        .keyboardDoneBar()
     }
 
     private func dayRow(_ wd: Int, isToday: Bool) -> some View {
@@ -142,7 +144,7 @@ struct WeeklyPlanView: View {
         return HStack {
             VStack(alignment: .leading, spacing: 2) {
                 Text(dayNames[wd]).font(.system(size: 14, weight: .semibold)).foregroundColor(isToday ? Theme.acc : Theme.txt)
-                if isToday { Text(t("plan.today").uppercased()).font(.head(8, .semibold)).tracking(1).foregroundColor(Theme.acc) }
+                if isToday { Text(t("plan.today").uppercased()).font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.acc) }
             }
             Spacer()
             Menu {
@@ -165,17 +167,16 @@ struct WeeklyPlanView: View {
                     ZStack {
                         RoundedRectangle(cornerRadius: 5, style: .continuous).fill(slotColor(cur)).frame(width: 18, height: 18)
                         if cur == "rest" {
-                            Image(systemName: Theme.restIcon).font(.system(size: 9, weight: .bold)).foregroundColor(Theme.bg)
+                            Image(systemName: Theme.restIcon).font(.system(size: 10, weight: .bold)).foregroundColor(Theme.bg)
                         } else if let icon = slotIcon(cur) {
-                            Image(systemName: icon).font(.system(size: 9, weight: .bold)).foregroundColor(Theme.bg)
+                            Image(systemName: icon).font(.system(size: 10, weight: .bold)).foregroundColor(Theme.bg)
                         }
                     }
                     Text(slotLabel(cur)).font(.system(size: 13, weight: .semibold)).foregroundColor(Theme.txt)
-                    Image(systemName: "chevron.down").font(.system(size: 9)).foregroundColor(Theme.sub)
+                    Image(systemName: "chevron.down").font(.system(size: 10)).foregroundColor(Theme.sub)
                 }
                 .padding(.vertical, 8).padding(.horizontal, 12)
-                .background(Theme.c2).clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).stroke(Theme.brd, lineWidth: 1))
+                .chrome(9)
             }
         }
         .padding(.vertical, 7)
@@ -219,14 +220,14 @@ struct WeeklyPlanCard: View {
                     InfoButton(id: "weekplan", color: Theme.acc2)
                     Spacer()
                     Text((store.prefs.hasSchedule ? t("plan.scheduled") : t("plan.rotation")).uppercased())
-                        .font(.head(9, .semibold)).tracking(0.8).foregroundColor(Theme.sub)
+                        .font(.head(10, .semibold)).tracking(0.8).foregroundColor(Theme.sub).lineLimit(1).minimumScaleFactor(0.8)
                     Image(systemName: "chevron.right").font(.system(size: 11)).foregroundColor(Theme.sub).padding(.leading, 4)
                 }
                 .padding(.bottom, 12)
                 HStack(spacing: 6) {
                     ForEach(0..<7, id: \.self) { wd in
                         VStack(spacing: 6) {
-                            Text(heads[wd]).font(.head(9, .semibold)).foregroundColor(wd == todayMon ? Theme.acc : Theme.sub)
+                            Text(heads[wd]).font(.head(10, .semibold)).foregroundColor(wd == todayMon ? Theme.acc : Theme.sub)
                             RoundedRectangle(cornerRadius: 8, style: .continuous)
                                 .fill(slotColor(sched[wd]))
                                 .frame(height: 30)
@@ -248,7 +249,7 @@ struct WeeklyPlanCard: View {
                 }
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressableStyle())
         .sheet(isPresented: $editing) { WeeklyPlanView() }
     }
 

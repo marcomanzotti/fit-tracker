@@ -40,7 +40,7 @@ struct MetricChartCard: View {
                                 .font(.system(size: 12, weight: .semibold)).foregroundColor(Theme.sub)
                                 .frame(width: 28, height: 28)
                                 .background(Theme.c2).clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                        }.buttonStyle(.plain)
+                        }.buttonStyle(PressableStyle())
                     }
                     .padding(.bottom, 8)
                     InteractiveMetricPlot(data: data, color: color, kind: kind,
@@ -171,8 +171,8 @@ struct ExpandedChartSheet: View {
                         }
                     }
                     Spacer()
-                    Button { tap(); dismiss() } label: {
-                        Image(systemName: "xmark").foregroundColor(Theme.sub).frame(width: 34, height: 34)
+                    Button { dismiss() } label: {
+                        Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: 34, height: 34)
                     }
                 }
                 .padding(.top, 18)
@@ -188,7 +188,7 @@ struct ExpandedChartSheet: View {
                                 .background(active ? Theme.acc : Theme.c2)
                                 .clipShape(Capsule())
                                 .overlay(Capsule().stroke(active ? Theme.acc : Theme.brd, lineWidth: 1))
-                        }.buttonStyle(.plain)
+                        }.buttonStyle(PressableStyle())
                     }
                 }
 
@@ -215,6 +215,7 @@ struct ExpandedChartSheet: View {
             .padding(.horizontal, 18)
         }
         .preferredColorScheme(.dark)
+        .keyboardDoneBar()
     }
 
     private func fmtTooltipValue(_ v: Double) -> String {

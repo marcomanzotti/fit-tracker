@@ -47,6 +47,7 @@ struct BarcodeScannerSheet: View {
             .padding(.top, 18).padding(.horizontal, 18)
         }
         .preferredColorScheme(.dark)
+        .keyboardDoneBar()
     }
 }
 

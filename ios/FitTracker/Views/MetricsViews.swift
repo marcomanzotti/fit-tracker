@@ -25,7 +25,7 @@ struct MuscleVolumeCard: View {
                                     Text(t(v.group.labelKey)).font(.system(size: 12, weight: .semibold)).foregroundColor(Theme.txt)
                                     if v.target > 0 {
                                         Text(t("st.vol_target", v.range.low, v.range.high))
-                                            .font(.system(size: 9)).foregroundColor(Theme.sub)
+                                            .font(.system(size: 10)).foregroundColor(Theme.sub)
                                     }
                                 }
                                 .frame(width: 92, alignment: .leading)
@@ -46,14 +46,14 @@ struct MuscleVolumeCard: View {
                                 Text("\(v.sets)").font(.num(14)).foregroundColor(Theme.txt).frame(width: 24, alignment: .trailing)
                                 if v.target > 0 {
                                     Text(t("st.vol_" + v.status).uppercased())
-                                        .font(.head(8, .semibold)).tracking(0.5)
+                                        .font(.head(10, .semibold)).tracking(0.5)
                                         .foregroundColor(statusColor(v.status))
                                         .frame(width: 46, alignment: .leading)
                                 }
                             }
                         }
                     }
-                    Text(t("metric.muscle_vol_hint")).font(.system(size: 9)).foregroundColor(Theme.sub).padding(.top, 8)
+                    Text(t("metric.muscle_vol_hint")).font(.system(size: 10)).foregroundColor(Theme.sub).padding(.top, 8)
                 }
             }
         }
@@ -128,9 +128,9 @@ struct FitnessCard: View {
                             Text("VO₂max").font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.sub)
                             Spacer()
                             Text("\(trimNum(vo2.value))").font(.num(20)).foregroundColor(Theme.good)
-                            Text("mL/kg·min").font(.system(size: 9, weight: .semibold)).foregroundColor(Theme.sub)
+                            Text("mL/kg·min").font(.system(size: 10, weight: .semibold)).foregroundColor(Theme.sub)
                             if vo2.estimated {
-                                Text(t("metric.estimated")).font(.head(8, .semibold)).tracking(0.5).foregroundColor(Theme.acc2)
+                                Text(t("metric.estimated")).font(.head(10, .semibold)).tracking(0.5).foregroundColor(Theme.acc2)
                                     .padding(.vertical, 2).padding(.horizontal, 6)
                                     .background(Theme.acc2.opacity(0.14)).clipShape(Capsule())
                             }
@@ -138,7 +138,7 @@ struct FitnessCard: View {
                     }
                     if !zones.isEmpty {
                         Spacer().frame(height: 12)
-                        Text(t("metric.hr_zones").uppercased()).font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub)
+                        Text(t("metric.hr_zones").uppercased()).font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.sub)
                             .frame(maxWidth: .infinity, alignment: .leading).padding(.bottom, 6)
                         VStack(spacing: 5) {
                             ForEach(zones) { z in

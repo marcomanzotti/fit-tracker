@@ -35,7 +35,7 @@ struct LastTimeCaption: View {
     var body: some View {
         if let prev, !prev.sets.isEmpty, let date {
             Text("\(t("wk.last_short").uppercased()) \(fmtDM(date))")
-                .font(.head(8, .semibold)).tracking(0.8).foregroundColor(Theme.blue.opacity(0.8))
+                .font(.head(10, .semibold)).tracking(0.8).foregroundColor(Theme.blue.opacity(0.8))
         }
     }
 }
@@ -55,9 +55,9 @@ struct TimedSetRows: View {
         VStack(spacing: 6) {
             HStack(spacing: 9) {
                 Spacer().frame(width: 28)
-                Text(t("pe.target_sec").uppercased()).font(.head(9, .semibold)).tracking(1.5)
+                Text(t("pe.target_sec").uppercased()).font(.head(10, .semibold)).tracking(1.5)
                     .foregroundColor(Theme.sub).frame(width: 66)
-                Text(bodyweight ? "+KG" : "KG").font(.head(9, .semibold)).tracking(1.5)
+                Text(bodyweight ? "+KG" : "KG").font(.head(10, .semibold)).tracking(1.5)
                     .foregroundColor(bodyweight ? Theme.good : Theme.sub).frame(width: 66)
                 Spacer()
                 LastTimeCaption(prev: previous, date: lastDate)
@@ -76,12 +76,12 @@ struct TimedSetRows: View {
                         Button { tap(); onStartHold(set.id, holdTarget(set)) } label: {
                             Image(systemName: "play.circle.fill").font(.system(size: 22))
                                 .foregroundColor(Theme.acc).frame(width: 34, height: 42)
-                        }.buttonStyle(.plain)
+                        }.buttonStyle(PressableStyle())
                     }
                     Button { tap(); exercise.sets.removeAll { $0.id == set.id } } label: {
-                        Image(systemName: "xmark").font(.system(size: 13)).foregroundColor(Theme.red.opacity(0.5))
+                        Image(systemName: "xmark").accessibilityLabel(t("a11y.remove")).font(.system(size: 13)).foregroundColor(Theme.red.opacity(0.5))
                             .frame(width: 30, height: 42)
-                    }.buttonStyle(.plain)
+                    }.buttonStyle(PressableStyle())
                     Spacer(minLength: 0)
                 }
             }
@@ -108,18 +108,18 @@ struct IntervalSetBlock: View {
                 chip("\(work + rest)s", t("wk.round"), Theme.sub)
             }
             HStack(spacing: 10) {
-                Text(t("wk.rounds_done").uppercased()).font(.head(9, .semibold)).tracking(1)
+                Text(t("wk.rounds_done").uppercased()).font(.head(10, .semibold)).tracking(1)
                     .foregroundColor(Theme.sub)
                 Spacer()
                 Button { tap(); done.wrappedValue = max(0, done.wrappedValue - 1) } label: {
                     Image(systemName: "minus").font(.system(size: 12, weight: .bold)).foregroundColor(Theme.txt)
                         .frame(width: 30, height: 30).background(Theme.c3).clipShape(Circle())
-                }.buttonStyle(.plain)
+                }.buttonStyle(PressableStyle())
                 Text("\(done.wrappedValue)/\(target)").font(.num(18)).frame(minWidth: 50)
                 Button { tap(); done.wrappedValue += 1 } label: {
                     Image(systemName: "plus").font(.system(size: 12, weight: .bold)).foregroundColor(Theme.txt)
                         .frame(width: 30, height: 30).background(Theme.c3).clipShape(Circle())
-                }.buttonStyle(.plain)
+                }.buttonStyle(PressableStyle())
             }
         }
     }
@@ -127,7 +127,7 @@ struct IntervalSetBlock: View {
     private func chip(_ value: String, _ label: String, _ color: Color) -> some View {
         VStack(spacing: 2) {
             Text(value).font(.num(16)).foregroundColor(color)
-            Text(label.uppercased()).font(.head(8, .semibold)).tracking(1).foregroundColor(Theme.sub)
+            Text(label.uppercased()).font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.sub)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 8)
@@ -166,8 +166,8 @@ struct PlateSheet: View {
                             Text(exercise).font(.system(size: 11)).foregroundColor(Theme.sub).lineLimit(1)
                         }
                         Spacer()
-                        Button { tap(); dismiss() } label: {
-                            Image(systemName: "xmark").foregroundColor(Theme.sub).frame(width: 34, height: 34)
+                        Button { dismiss() } label: {
+                            Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: 34, height: 34)
                         }
                     }
                     .padding(.top, 18)
@@ -184,6 +184,7 @@ struct PlateSheet: View {
             }
         }
         .preferredColorScheme(.dark)
+        .keyboardDoneBar()
         .presentationDetents([.medium, .large])
     }
 
@@ -202,7 +203,7 @@ struct PlateSheet: View {
 
             if let load {
                 Text("\(t("plate.per_side").uppercased()) · \(t("plate.bar")) \(trimNum(store.prefs.bar)) kg")
-                    .font(.head(9, .semibold)).tracking(1).foregroundColor(Theme.sub).padding(.bottom, 8)
+                    .font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.sub).padding(.bottom, 8)
                 if load.plates.isEmpty {
                     Text("—").font(.num(20)).foregroundColor(Theme.sub)
                 } else {

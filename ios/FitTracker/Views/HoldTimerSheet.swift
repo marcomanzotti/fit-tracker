@@ -63,6 +63,7 @@ struct HoldTimerSheet: View {
             .padding(.horizontal, 22).padding(.bottom, 26)
         }
         .preferredColorScheme(.dark)
+        .keyboardDoneBar()
         .onAppear { editableTarget = target.rounded() }
         .onReceive(tick) { _ in step() }
         // The screen must stay awake through a 60 s plank.
@@ -78,7 +79,7 @@ struct HoldTimerSheet: View {
             }
             Spacer()
             Button { tap(); finish(save: false) } label: {
-                Image(systemName: "xmark").foregroundColor(Theme.sub).frame(width: 34, height: 34)
+                Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: 34, height: 34)
             }
         }
         .padding(.top, 18)
@@ -166,7 +167,7 @@ struct HoldTimerSheet: View {
         Button { tap(); action() } label: {
             Image(systemName: icon).font(.system(size: 13, weight: .bold)).foregroundColor(Theme.txt)
                 .frame(width: 38, height: 38).background(Theme.c3).clipShape(Circle())
-        }.buttonStyle(.plain)
+        }.buttonStyle(PressableStyle())
     }
 
     // MARK: Controls
@@ -180,7 +181,7 @@ struct HoldTimerSheet: View {
                     .frame(maxWidth: .infinity, minHeight: 56)
                     .overlay(RoundedRectangle(cornerRadius: 15, style: .continuous)
                         .stroke(Theme.red.opacity(0.5), lineWidth: 1))
-            }.buttonStyle(.plain)
+            }.buttonStyle(PressableStyle())
         case .done:
             BigButton(title: t("save"), color: Theme.good) { finish(save: true) }
         }
