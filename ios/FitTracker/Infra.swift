@@ -152,6 +152,9 @@ final class ActiveWorkout: ObservableObject {
     static let staleAfterSec: TimeInterval = 6 * 3600
 
     private let clock: () -> Date
+    /// Called synchronously when a session starts or ends, so the draft on disk
+    /// changes in the same turn (set by SessionKeeper).
+    var onBoundary: () -> Void = {}
 
     init(clock: @escaping () -> Date = Date.init) { self.clock = clock }
 
@@ -190,9 +193,13 @@ final class ActiveWorkout: ObservableObject {
                            rounds: ex.rounds)
         }
         lastEditAt = startDate
+        onBoundary()
     }
 
-    func end() { clear() }
+    func end() {
+        clear()
+        onBoundary()
+    }
 
     private func clear() {
         plan = nil
@@ -418,6 +425,10 @@ final class SessionKeeper {
     }
 
     private func observe() {
+        // Starting and ending are written at once, in the caller's own turn.
+        workout.onBoundary = { [weak self] in self?.saveNow() }
+        cardio.onBoundary = { [weak self] in self?.saveNow() }
+
         // objectWillChange fires before the value lands; hopping to the main queue
         // means the handlers below always read the new state.
         let main = DispatchQueue.main

@@ -268,7 +268,6 @@ struct OnboardingView: View {
             .scrollDismissesKeyboard(.interactively)
         }
         .preferredColorScheme(.dark)
-        .keyboardDoneBar()
         .sheet(isPresented: $showGuide) { WatchSetupGuide() }
         .onChange(of: f.lang) { _ in store.prefs.language = f.lang; store.syncLang() }
         .onChange(of: f.sex) { newSex in

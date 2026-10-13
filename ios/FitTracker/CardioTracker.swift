@@ -48,6 +48,9 @@ final class ActiveCardio: ObservableObject {
         return tracker
     }()
 
+    /// Called synchronously when a session starts or ends (set by SessionKeeper).
+    var onBoundary: () -> Void = {}
+
     /// `tracksLocation: false` leaves CoreLocation out entirely (tests).
     init(clock: @escaping () -> Date = Date.init, tracksLocation: Bool = true) {
         self.clock = clock
@@ -78,6 +81,7 @@ final class ActiveCardio: ObservableObject {
         startDate = clock()
         runningSince = startDate
         if usesGPS { gps?.start() }
+        onBoundary()
     }
 
     func togglePause() {
@@ -94,7 +98,10 @@ final class ActiveCardio: ObservableObject {
         paused = runningSince == nil
     }
 
-    func end() { clear() }
+    func end() {
+        clear()
+        onBoundary()
+    }
 
     private func clear() {
         if usesGPS { gps?.stop() }
