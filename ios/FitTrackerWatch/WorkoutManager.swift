@@ -17,8 +17,8 @@ final class WorkoutManager: NSObject, ObservableObject {
 
     // Strength logging (per exercise, per set). Built from the activity's pushed
     // exercises on start; nil entries mean "use the gray placeholder".
-    struct ExLog: Identifiable, Equatable {
-        let id = UUID()
+    struct ExLog: Identifiable, Equatable, Codable {
+        var id = UUID()
         var name: String
         var setReps: [Double?]
         var setWeight: [Double?]
@@ -31,8 +31,12 @@ final class WorkoutManager: NSObject, ObservableObject {
         var timed: Bool = false
         var setSeconds: [Double?] = []
         var phSeconds: [Double] = []
+        /// Sets confirmed as performed. Only these reach the phone: the gray
+        /// placeholders are last time's numbers, a suggestion and not logged work.
+        var setDone: [Bool] = []
     }
-    @Published var exLogs: [ExLog] = []
+    /// Saved on every change, so a relaunch mid-workout gets the log back.
+    @Published private(set) var exLogs: [ExLog] = [] { didSet { saveSnapshot() } }
 
     // Live metrics
     @Published var heartRate: Double = 0          // current bpm
@@ -44,6 +48,11 @@ final class WorkoutManager: NSObject, ObservableObject {
     @Published var avgHR: Int = 0
     @Published var maxHR: Int = 0
     @Published var result: WatchResult?
+    /// Why the last start attempt did not begin a workout (shown on the picker).
+    @Published var startError: String?
+    /// True when HealthKit refused the finished workout. The summary still goes to
+    /// the phone; the user is told Health does not have it.
+    @Published private(set) var healthSaveFailed = false
 
     private let store = HKHealthStore()
     private var session: HKWorkoutSession?
@@ -52,6 +61,7 @@ final class WorkoutManager: NSObject, ObservableObject {
     private var startDate = Date()
     private var ticker: AnyCancellable?
     private var discarding = false                 // restart/discard: skip the summary
+    private var finishing = false                   // a failure and the end transition can both ask
     private var liveTick = 0                        // throttles live streaming to the phone
 
     var available: Bool { HKHealthStore.isHealthDataAvailable() }
@@ -76,12 +86,12 @@ final class WorkoutManager: NSObject, ObservableObject {
 
     // MARK: Start
     func start(_ activity: WatchActivity) async {
-        guard available else { return }
+        guard available else { startError = wt("err_health"); return }
         self.activity = activity
         buildExLogs(activity)
         locked = false
         phase = .requesting
-        guard await requestAuthorization() else { phase = .idle; return }
+        guard await requestAuthorization() else { abandonStart(wt("err_auth")); return }
 
         let config = HKWorkoutConfiguration()
         config.activityType = hkType(for: activity)
@@ -104,8 +114,15 @@ final class WorkoutManager: NSObject, ObservableObject {
             paused = false
             startTicker()
         } catch {
-            phase = .idle
+            appLog.error("Workout did not start: \(String(describing: error), privacy: .public)")
+            abandonStart(wt("err_start"))
         }
+    }
+
+    /// Back to the picker after a failed start, saying why.
+    private func abandonStart(_ reason: String) {
+        reset()
+        startError = reason
     }
 
     // MARK: Crash / relaunch recovery
@@ -120,18 +137,24 @@ final class WorkoutManager: NSObject, ObservableObject {
         do {
             recovered = try await store.recoverActiveWorkoutSession()
         } catch {
+            appLog.error("Workout recovery failed: \(String(describing: error), privacy: .public)")
             return
         }
-        guard let session = recovered else { return }
+        // Nothing running: a snapshot left behind belongs to a session that is gone.
+        guard let session = recovered else { clearSnapshot(); return }
         let builder = session.associatedWorkoutBuilder()
         builder.dataSource = HKLiveWorkoutDataSource(healthStore: store, workoutConfiguration: session.workoutConfiguration)
         session.delegate = self
         builder.delegate = self
         self.session = session
         self.builder = builder
-        // We can't recover the original picker activity (its strength exercises),
-        // but the live metrics, duration and the summary all survive — far better
-        // than dropping the session. Restore the elapsed clock from the builder.
+        // HealthKit kept the session, its metrics and its clock; the activity and
+        // the sets logged so far come back from the snapshot, so the result still
+        // reaches the phone as the right workout with its exercises.
+        if let snapshot = loadSnapshot() {
+            activity = snapshot.activity
+            exLogs = snapshot.exLogs
+        }
         startDate = builder.startDate ?? Date()
         phase = .active
         paused = session.state == .paused
@@ -150,28 +173,26 @@ final class WorkoutManager: NSObject, ObservableObject {
             }
     }
 
-    /// Per-set reps/weight as strings (entered value, else the gray placeholder),
-    /// shared by the live stream and the final result.
+    /// The sets confirmed so far, as strings, for the live stream and the final
+    /// result. Positions are kept (set 3 stays third): an unconfirmed set in between
+    /// is sent empty, which the phone leaves alone, and trailing ones are dropped.
+    /// Nil when nothing was confirmed.
     func resultExercises() -> [WatchResultExercise]? {
-        guard activity?.kindValue == .strength, !exLogs.isEmpty else { return nil }
+        guard activity?.kindValue == .strength,
+              exLogs.contains(where: { $0.setDone.contains(true) }) else { return nil }
         return exLogs.map { ex in
+            let count = ex.setDone.lastIndex(of: true).map { $0 + 1 } ?? 0
+            func column(_ entered: [Double?], _ placeholder: [Double]) -> [String] {
+                (0..<count).map { ex.setDone[$0] ? fmtNum(entered[$0] ?? placeholder[$0]) : "" }
+            }
+            let weight = column(ex.setWeight, ex.phWeight)
             if ex.timed {
-                // Timed isometric: report the per-set hold seconds; reps stay empty,
-                // weight carries any added load (vest/belt) shown on the wrist.
-                var secs: [String] = [], wt: [String] = []
-                for i in 0..<ex.setSeconds.count {
-                    secs.append(fmtNum(ex.setSeconds[i] ?? ex.phSeconds[i]))
-                    wt.append(fmtNum(ex.setWeight[i] ?? ex.phWeight[i]))
-                }
-                return WatchResultExercise(name: ex.name, reps: [], weight: wt,
-                                           seconds: secs, kind: "timed")
+                // Timed isometric: per-set hold seconds; reps stay empty, weight
+                // carries any added load (vest/belt) shown on the wrist.
+                return WatchResultExercise(name: ex.name, reps: [], weight: weight,
+                                           seconds: column(ex.setSeconds, ex.phSeconds), kind: "timed")
             }
-            var reps: [String] = [], wt: [String] = []
-            for i in 0..<ex.setReps.count {
-                reps.append(fmtNum(ex.setReps[i] ?? ex.phReps[i]))
-                wt.append(fmtNum(ex.setWeight[i] ?? ex.phWeight[i]))
-            }
-            return WatchResultExercise(name: ex.name, reps: reps, weight: wt)
+            return WatchResultExercise(name: ex.name, reps: column(ex.setReps, ex.phReps), weight: weight)
         }
     }
 
@@ -229,32 +250,83 @@ final class WorkoutManager: NSObject, ObservableObject {
                          phReps: phR, phWeight: phW,
                          timed: e.isTimed,
                          setSeconds: Array(repeating: nil, count: n),
-                         phSeconds: phS)
+                         phSeconds: phS,
+                         setDone: Array(repeating: false, count: n))
         }
     }
 
+    // Every accessor checks its indices: a sheet opened on one set can outlive the
+    // log it pointed into (restart, recovery), and a stale index must not trap.
+    private func exists(_ ex: Int, _ set: Int) -> Bool {
+        exLogs.indices.contains(ex) && exLogs[ex].setDone.indices.contains(set)
+    }
     /// Effective value shown/saved for a set field: entered value, else placeholder.
-    func effReps(_ ex: Int, _ set: Int) -> Double { exLogs[ex].setReps[set] ?? exLogs[ex].phReps[set] }
-    func effWeight(_ ex: Int, _ set: Int) -> Double { exLogs[ex].setWeight[set] ?? exLogs[ex].phWeight[set] }
-    func isRepsEntered(_ ex: Int, _ set: Int) -> Bool { exLogs[ex].setReps[set] != nil }
-    func isWeightEntered(_ ex: Int, _ set: Int) -> Bool { exLogs[ex].setWeight[set] != nil }
-    func setReps(_ ex: Int, _ set: Int, _ v: Double) { exLogs[ex].setReps[set] = max(0, v); sendLive(ended: false) }
-    func setWeight(_ ex: Int, _ set: Int, _ v: Double) { exLogs[ex].setWeight[set] = max(0, v); sendLive(ended: false) }
+    func effReps(_ ex: Int, _ set: Int) -> Double { exists(ex, set) ? exLogs[ex].setReps[set] ?? exLogs[ex].phReps[set] : 0 }
+    func effWeight(_ ex: Int, _ set: Int) -> Double { exists(ex, set) ? exLogs[ex].setWeight[set] ?? exLogs[ex].phWeight[set] : 0 }
+    func effSeconds(_ ex: Int, _ set: Int) -> Double { exists(ex, set) ? exLogs[ex].setSeconds[set] ?? exLogs[ex].phSeconds[set] : 0 }
+    func isRepsEntered(_ ex: Int, _ set: Int) -> Bool { exists(ex, set) && exLogs[ex].setReps[set] != nil }
+    func isWeightEntered(_ ex: Int, _ set: Int) -> Bool { exists(ex, set) && exLogs[ex].setWeight[set] != nil }
+    func isDone(_ ex: Int, _ set: Int) -> Bool { exists(ex, set) && exLogs[ex].setDone[set] }
 
-    // Timed (isometric) accessors — mirror the reps/weight ones for hold seconds.
-    func effSeconds(_ ex: Int, _ set: Int) -> Double { exLogs[ex].setSeconds[set] ?? exLogs[ex].phSeconds[set] }
-    func isSecondsEntered(_ ex: Int, _ set: Int) -> Bool { exLogs[ex].setSeconds[set] != nil }
-    func setSeconds(_ ex: Int, _ set: Int, _ v: Double) { exLogs[ex].setSeconds[set] = max(0, v); sendLive(ended: false) }
+    /// Mark a set as performed (or not) without changing its numbers.
+    func toggleDone(_ ex: Int, _ set: Int) { change(ex, set) { $0.setDone[set].toggle() } }
+    // Editing a value confirms the set: nobody dials in numbers for a set they skipped.
+    func setReps(_ ex: Int, _ set: Int, _ v: Double) { change(ex, set) { $0.setReps[set] = max(0, v); $0.setDone[set] = true } }
+    func setWeight(_ ex: Int, _ set: Int, _ v: Double) { change(ex, set) { $0.setWeight[set] = max(0, v); $0.setDone[set] = true } }
+    func setSeconds(_ ex: Int, _ set: Int, _ v: Double) { change(ex, set) { $0.setSeconds[set] = max(0, v); $0.setDone[set] = true } }
+
+    private func change(_ ex: Int, _ set: Int, _ edit: (inout ExLog) -> Void) {
+        guard exists(ex, set) else { return }
+        var log = exLogs[ex]
+        edit(&log)
+        exLogs[ex] = log
+        sendLive(ended: false)
+    }
+
+    // MARK: Snapshot (survives the watch app being relaunched mid-workout)
+    private struct Snapshot: Codable {
+        var activity: WatchActivity
+        var exLogs: [ExLog]
+    }
+    private static let snapshotKey = "fittracker.watch.session"
+
+    private func saveSnapshot() {
+        guard let activity else { return }
+        do {
+            let data = try JSONEncoder().encode(Snapshot(activity: activity, exLogs: exLogs))
+            UserDefaults.standard.set(data, forKey: Self.snapshotKey)
+        } catch {
+            appLog.error("Workout snapshot not saved: \(String(describing: error), privacy: .public)")
+        }
+    }
+
+    private func loadSnapshot() -> Snapshot? {
+        guard let data = UserDefaults.standard.data(forKey: Self.snapshotKey) else { return nil }
+        do {
+            return try JSONDecoder().decode(Snapshot.self, from: data)
+        } catch {
+            appLog.error("Workout snapshot unreadable: \(String(describing: error), privacy: .public)")
+            return nil
+        }
+    }
+
+    private func clearSnapshot() { UserDefaults.standard.removeObject(forKey: Self.snapshotKey) }
 
     // MARK: Finalize
     private func finish() async {
+        guard !finishing else { return }
+        finishing = true
         ticker?.cancel()
         guard let builder else { phase = .ended; return }
-        let end = Date()
         do {
-            try await builder.endCollection(at: end)
-            _ = try? await builder.finishWorkout()
-        } catch { /* still produce a summary from whatever we collected */ }
+            try await builder.endCollection(at: Date())
+            _ = try await builder.finishWorkout()
+        } catch {
+            // The summary is still built from what was collected and still goes to
+            // the phone; only the copy in Health is missing, and the user is told.
+            appLog.error("Workout not saved to Health: \(String(describing: error), privacy: .public)")
+            healthSaveFailed = true
+        }
 
         let dur = Int(builder.elapsedTime.rounded())
         let kcal = Int(activeCalories.rounded())
@@ -279,22 +351,21 @@ final class WorkoutManager: NSObject, ObservableObject {
         )
         result = r
         // Final live sample (ended) so the phone clears its live banner; the full
-        // result follows reliably over transferUserInfo and is what gets merged.
+        // result is queued, kept on disk and resent until delivery is confirmed.
         sendLive(ended: true)
+        WatchLink.shared.queue(r)
+        clearSnapshot()
         phase = .ended
-    }
-
-    func sendToPhone() {
-        guard let r = result else { return }
-        WatchLink.shared.send(r)
     }
 
     func reset() {
         session = nil; builder = nil; activity = nil; result = nil
         heartRate = 0; activeCalories = 0; distanceMeters = 0; elapsed = 0
         avgHR = 0; maxHR = 0; paused = false; locked = false; discarding = false
+        startError = nil; healthSaveFailed = false; finishing = false
         exLogs = []; phase = .idle
         ticker?.cancel()
+        clearSnapshot()
     }
 
     // MARK: Sport -> HealthKit activity type
@@ -339,7 +410,13 @@ extension WorkoutManager: HKWorkoutSessionDelegate {
     }
 
     nonisolated func workoutSession(_ workoutSession: HKWorkoutSession, didFailWithError error: Error) {
-        Task { @MainActor in self.phase = .ended }
+        appLog.error("Workout session failed: \(String(describing: error), privacy: .public)")
+        // Salvage what was tracked: finish() builds and sends the summary from the
+        // data collected so far instead of ending with nothing.
+        Task { @MainActor in
+            guard self.phase == .active else { return }
+            await self.finish()
+        }
     }
 }
 

@@ -118,6 +118,7 @@ private func liveMetric(icon: String, color: Color, value: String, unit: String)
 struct ControlsPage: View {
     @EnvironmentObject var workout: WorkoutManager
     @State private var confirmRestart = false
+    @State private var confirmEnd = false
     var body: some View {
         ScrollView {
             VStack(spacing: 10) {
@@ -136,7 +137,9 @@ struct ControlsPage: View {
                     smallControl(wt("restart"), "arrow.counterclockwise", T.acc2) { wkTap(); confirmRestart = true }
                 }
 
-                Button { wkSuccess(); workout.end() } label: {
+                // Ending cannot be undone, and this sits one stray tap away on a
+                // sweaty wrist: it asks first, like Restart does.
+                Button { wkTap(); confirmEnd = true } label: {
                     Label(wt("end"), systemImage: "stop.fill")
                         .font(.head(15, .bold)).foregroundColor(T.red)
                         .frame(maxWidth: .infinity, minHeight: 46)
@@ -151,6 +154,10 @@ struct ControlsPage: View {
         .alert(wt("restart"), isPresented: $confirmRestart) {
             Button(wt("end"), role: .destructive) { workout.restart() }
             Button(wt("done"), role: .cancel) {}
+        }
+        .alert(wt("end_q"), isPresented: $confirmEnd) {
+            Button(wt("end")) { wkSuccess(); workout.end() }
+            Button(wt("cancel"), role: .cancel) {}
         }
     }
     private func smallControl(_ title: String, _ icon: String, _ color: Color, _ action: @escaping () -> Void) -> some View {
@@ -274,7 +281,7 @@ struct StrengthLiveView: View {
     // Classic reps × weight row.
     private func repsRow(_ ex: Int, _ s: Int, _ name: String) -> some View {
         HStack(spacing: 6) {
-            Text("\(s + 1)").font(.system(size: 11, weight: .bold)).foregroundColor(T.sub).frame(width: 16)
+            doneToggle(ex, s)
             numberPill(value: workout.effReps(ex, s), entered: workout.isRepsEntered(ex, s)) {
                 edit = EditTarget(ex: ex, set: s, field: .reps, exName: name, current: workout.effReps(ex, s))
             }
@@ -289,9 +296,9 @@ struct StrengthLiveView: View {
 
     // Isometric hold row: tap the time pill to run a countdown timer for that set.
     private func timedRow(_ ex: Int, _ s: Int, _ name: String) -> some View {
-        let entered = workout.isSecondsEntered(ex, s)
+        let entered = workout.isDone(ex, s)
         return HStack(spacing: 6) {
-            Text("\(s + 1)").font(.system(size: 11, weight: .bold)).foregroundColor(T.sub).frame(width: 16)
+            doneToggle(ex, s)
             Button { wkTap(); hold = HoldTarget(ex: ex, set: s, exName: name, current: workout.effSeconds(ex, s)) } label: {
                 HStack(spacing: 4) {
                     Image(systemName: entered ? "checkmark" : "play.fill").font(.system(size: 11, weight: .bold))
@@ -306,6 +313,29 @@ struct StrengthLiveView: View {
             .buttonStyle(.plain)
             Spacer(minLength: 0)
         }
+    }
+
+    /// The set number, tappable: a tap confirms the set was done (a check mark), a
+    /// second tap takes it back. Only confirmed sets are sent to the phone.
+    private func doneToggle(_ ex: Int, _ s: Int) -> some View {
+        let done = workout.isDone(ex, s)
+        return Button { wkTap(); workout.toggleDone(ex, s) } label: {
+            ZStack {
+                Circle().fill(done ? T.good : T.c2)
+                Circle().stroke(done ? T.good : T.brd, lineWidth: 1)
+                if done {
+                    Image(systemName: "checkmark").font(.system(size: 11, weight: .bold)).foregroundColor(T.bg)
+                } else {
+                    Text("\(s + 1)").font(.system(size: 12, weight: .bold)).foregroundColor(T.sub)
+                }
+            }
+            .frame(width: 28, height: 28)
+            // A wider hit area than the drawn circle, without moving the layout.
+            .padding(.vertical, 3).contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(wt("set")) \(s + 1)")
+        .accessibilityValue(done ? wt("done") : "")
     }
 
     private func numberPill(value: Double, entered: Bool, _ tapAction: @escaping () -> Void) -> some View {
@@ -392,9 +422,10 @@ struct HoldTimerSheet: View {
     @State private var remaining: Double = 0
     @State private var running = false
     @State private var finished = false
+    /// When the hold began. The countdown is the time since then, so a tick that
+    /// arrives late (wrist down, screen dimmed) cannot stretch the hold.
+    @State private var startedAt = Date()
     private let tick = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
-
-    private var elapsed: Double { max(0, target - remaining) }
 
     var body: some View {
         VStack(spacing: 8) {
@@ -421,7 +452,7 @@ struct HoldTimerSheet: View {
             .padding(.vertical, 2)
 
             if running {
-                Button { wkTap(); stop(elapsed) } label: {
+                Button { wkTap(); stop(Date().timeIntervalSince(startedAt)) } label: {
                     Text(wt("stop").uppercased()).font(.head(13, .bold)).tracking(1).foregroundColor(T.red)
                         .frame(maxWidth: .infinity, minHeight: 42).background(T.red.opacity(0.14))
                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
@@ -443,6 +474,7 @@ struct HoldTimerSheet: View {
         if finished { onStop(target); dismiss(); return }
         target = max(1, seconds)
         remaining = target
+        startedAt = Date()
         running = true
         finished = false
         wkSuccess()
@@ -450,7 +482,7 @@ struct HoldTimerSheet: View {
 
     private func countdown() {
         guard running else { return }
-        remaining = max(0, remaining - 1)
+        remaining = max(0, (target - Date().timeIntervalSince(startedAt)).rounded(.up))
         if remaining <= 3 && remaining > 0 { wkTap() }
         if remaining == 0 {
             running = false
@@ -500,7 +532,7 @@ struct LockOverlay: View {
 // MARK: - Summary (auto-sends to the phone, then dismisses)
 struct SummaryView: View {
     @EnvironmentObject var workout: WorkoutManager
-    @State private var sent = false
+    @EnvironmentObject var link: WatchLink
 
     var body: some View {
         ScrollView {
@@ -517,20 +549,19 @@ struct SummaryView: View {
                     if let mx = r.maxHR { stat("\(wt("hr")) \(wt("max"))", "\(mx) \(wt("bpm"))", T.red) }
                     if let k = r.activeKcal { stat(wt("cal"), "\(k) \(wt("kcal"))", T.acc2) }
                     if let km = r.distanceKm { stat(wt("dist"), String(format: "%.2f %@", km, wt("km")), T.good) }
+                    status(deliveryIcon, deliveryText, deliveryColor)
+                } else {
+                    // The session ended without anything to send.
+                    status("exclamationmark.triangle.fill", wt("no_result"), T.red)
                 }
-
-                if sent {
-                    HStack(spacing: 6) {
-                        Image(systemName: "checkmark.circle.fill").foregroundColor(T.good)
-                        Text(wt("saved")).font(.system(size: 12, weight: .semibold)).foregroundColor(T.good)
-                    }
-                    .frame(maxWidth: .infinity).padding(.top, 4)
+                if workout.healthSaveFailed {
+                    status("heart.slash.fill", wt("health_failed"), T.red)
                 }
 
                 Button {
                     wkTap(); workout.reset()
                 } label: {
-                    Text((sent ? wt("end") : wt("save")).uppercased())
+                    Text(wt("done").uppercased())
                         .font(.head(14, .bold)).tracking(1).foregroundColor(T.bg)
                         .frame(maxWidth: .infinity, minHeight: 46)
                         .background(T.acc)
@@ -541,13 +572,39 @@ struct SummaryView: View {
             }
             .padding(.horizontal, 6).padding(.bottom, 8)
         }
-        .onAppear {
-            // Send once, automatically, as soon as the summary is built.
-            guard !sent else { return }
-            workout.sendToPhone()
-            sent = true
-            wkSuccess()
+        .onAppear { if workout.result != nil { wkSuccess() } }
+    }
+
+    // The result is queued the moment it exists; this reports where it stands.
+    private var deliveryIcon: String {
+        switch link.delivery {
+        case .delivered:      return "checkmark.circle.fill"
+        case .failed:         return "exclamationmark.triangle.fill"
+        case .queued, .none:  return "arrow.triangle.2.circlepath"
         }
+    }
+    private var deliveryText: String {
+        switch link.delivery {
+        case .delivered:      return wt("saved")
+        case .failed:         return wt("send_failed")
+        case .queued, .none:  return wt("queued")
+        }
+    }
+    private var deliveryColor: Color {
+        switch link.delivery {
+        case .delivered:      return T.good
+        case .failed:         return T.red
+        case .queued, .none:  return T.acc2
+        }
+    }
+
+    private func status(_ icon: String, _ text: String, _ color: Color) -> some View {
+        HStack(alignment: .top, spacing: 6) {
+            Image(systemName: icon).font(.system(size: 12)).foregroundColor(color)
+            Text(text).font(.system(size: 12, weight: .semibold)).foregroundColor(color)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading).padding(.top, 4)
     }
 
     private func stat(_ label: String, _ value: String, _ color: Color) -> some View {

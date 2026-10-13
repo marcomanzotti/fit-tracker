@@ -36,14 +36,23 @@ struct WatchRootView: View {
         // After a relaunch, reattach to any workout HealthKit kept alive while the
         // app was gone (crash / force-quit / memory reclaim) so it isn't lost.
         .task { await workout.recoverSession() }
-        // The phone can ask the wrist to start a workout: launch the matching
-        // activity when we're idle, then clear the request.
-        .onReceive(link.$startRequest) { id in
-            guard let id, workout.phase == .idle,
-                  let a = link.activities.first(where: { $0.id == id }) else { return }
-            link.startRequest = nil
-            Task { await workout.start(a) }
+        // The phone can ask the wrist to start a workout. The request and the
+        // catalog it refers to arrive separately and in either order, so both are
+        // watched: a request for an activity not synced yet waits for the catalog.
+        .onReceive(link.$startRequest) { id in startRequested(id, in: link.activities) }
+        .onReceive(link.$activities) { activities in startRequested(link.startRequest, in: activities) }
+        .alert(workout.startError ?? "", isPresented: Binding(
+            get: { workout.startError != nil }, set: { if !$0 { workout.startError = nil } })) {
+            Button(wt("ok")) { workout.startError = nil }
         }
+    }
+
+    private func startRequested(_ id: String?, in activities: [WatchActivity]) {
+        guard let id, workout.phase == .idle,
+              let activity = activities.first(where: { $0.id == id }) else { return }
+        // Cleared on the next turn: this runs while the published value is changing.
+        DispatchQueue.main.async { link.startRequest = nil }
+        Task { await workout.start(activity) }
     }
 }
 
