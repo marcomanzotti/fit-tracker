@@ -81,6 +81,12 @@ final class HealthKitManager {
         var share = Set<HKSampleType>()
         share.insert(HKObjectType.workoutType())
         if let t = HKObjectType.quantityType(forIdentifier: .activeEnergyBurned) { share.insert(t) }
+        // What the Xiaomi band records (Band10Sync): asked here too, so that a
+        // single permission sheet covers everything FitTracker writes.
+        for id in [HKQuantityTypeIdentifier.stepCount, .distanceWalkingRunning, .heartRate, .restingHeartRate, .oxygenSaturation] {
+            if let t = HKObjectType.quantityType(forIdentifier: id) { share.insert(t) }
+        }
+        if let t = HKObjectType.categoryType(forIdentifier: .sleepAnalysis) { share.insert(t) }
         var types = Set<HKObjectType>()
         if let t = HKObjectType.quantityType(forIdentifier: .stepCount) { types.insert(t) }
         if let t = HKObjectType.quantityType(forIdentifier: .restingHeartRate) { types.insert(t) }
