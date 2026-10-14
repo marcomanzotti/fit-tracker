@@ -10,6 +10,8 @@
 		FT0000000000000000003B /* FitTrackerWatch.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = FT00000000000000000021 /* FitTrackerWatch.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		FT0000000000000000005B /* FitTrackerWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = FT00000000000000000051 /* FitTrackerWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		FT0000000000000000005F /* FitTrackerWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = FT00000000000000000051 /* FitTrackerWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		FTB0000000000000000001 /* Band10Sync in Frameworks */ = {isa = PBXBuildFile; productRef = FTB0000000000000000011 /* Band10Sync */; };
+		FTB0000000000000000002 /* Band10Sync in Frameworks */ = {isa = PBXBuildFile; productRef = FTB0000000000000000012 /* Band10Sync */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -116,6 +118,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FTB0000000000000000001 /* Band10Sync in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -130,6 +133,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FTB0000000000000000002 /* Band10Sync in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -195,6 +199,9 @@
 				FT00000000000000000010 /* Shared */,
 			);
 			name = FitTracker;
+			packageProductDependencies = (
+				FTB0000000000000000011 /* Band10Sync */,
+			);
 			productName = FitTracker;
 			productType = "com.apple.product-type.application";
 		};
@@ -240,6 +247,9 @@
 				FT00000000000000000010 /* Shared */,
 			);
 			name = FitTrackerWatchHost;
+			packageProductDependencies = (
+				FTB0000000000000000012 /* Band10Sync */,
+			);
 			productName = FitTrackerWatchHost;
 			productReference = FT00000000000000000031 /* FitTracker.app */;
 			productType = "com.apple.product-type.application";
@@ -324,6 +334,9 @@
 			);
 			mainGroup = FT00000000000000000002;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				FTB0000000000000000010 /* XCLocalSwiftPackageReference "../../band10-health/ios/Band10Kit" */,
+			);
 			productRefGroup = FT00000000000000000003 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -506,6 +519,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = "Fit Tracker";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Fit Tracker uses your location during cardio activities to measure distance, pace and route. Tracking only runs while a session is active.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Fit Tracker uses the camera to scan food barcodes so it can look up and save their nutrition values.";
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Fit Tracker connects to your Xiaomi Smart Band to copy its steps, heart rate, SpO2 and sleep into Apple Health, also in the background.";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Fit Tracker can optionally read your steps, resting heart rate and HRV to improve readiness, training-load and nutrition estimates. You can always enter these by hand instead.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Fit Tracker can save the workouts you log into Apple Health, so they close your activity rings and appear in Fitness. This is optional and off by default.";
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
@@ -546,6 +560,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = "Fit Tracker";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Fit Tracker uses your location during cardio activities to measure distance, pace and route. Tracking only runs while a session is active.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Fit Tracker uses the camera to scan food barcodes so it can look up and save their nutrition values.";
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Fit Tracker connects to your Xiaomi Smart Band to copy its steps, heart rate, SpO2 and sleep into Apple Health, also in the background.";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Fit Tracker can optionally read your steps, resting heart rate and HRV to improve readiness, training-load and nutrition estimates. You can always enter these by hand instead.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Fit Tracker can save the workouts you log into Apple Health, so they close your activity rings and appear in Fitness. This is optional and off by default.";
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
@@ -643,6 +658,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = "Fit Tracker";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Fit Tracker uses your location during cardio activities to measure distance, pace and route. Tracking only runs while a session is active.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Fit Tracker uses the camera to scan food barcodes so it can look up and save their nutrition values.";
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Fit Tracker connects to your Xiaomi Smart Band to copy its steps, heart rate, SpO2 and sleep into Apple Health, also in the background.";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Fit Tracker can optionally read your steps, resting heart rate and HRV to improve readiness, training-load and nutrition estimates. You can always enter these by hand instead.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Fit Tracker can save the workouts you log into Apple Health, so they close your activity rings and appear in Fitness. This is optional and off by default.";
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
@@ -681,6 +697,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = "Fit Tracker";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Fit Tracker uses your location during cardio activities to measure distance, pace and route. Tracking only runs while a session is active.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Fit Tracker uses the camera to scan food barcodes so it can look up and save their nutrition values.";
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Fit Tracker connects to your Xiaomi Smart Band to copy its steps, heart rate, SpO2 and sleep into Apple Health, also in the background.";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Fit Tracker can optionally read your steps, resting heart rate and HRV to improve readiness, training-load and nutrition estimates. You can always enter these by hand instead.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Fit Tracker can save the workouts you log into Apple Health, so they close your activity rings and appear in Fitness. This is optional and off by default.";
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
@@ -856,6 +873,26 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		FTB0000000000000000010 /* XCLocalSwiftPackageReference "../../band10-health/ios/Band10Kit" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../../band10-health/ios/Band10Kit;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		FTB0000000000000000011 /* Band10Sync */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = FTB0000000000000000010 /* XCLocalSwiftPackageReference "../../band10-health/ios/Band10Kit" */;
+			productName = Band10Sync;
+		};
+		FTB0000000000000000012 /* Band10Sync */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = FTB0000000000000000010 /* XCLocalSwiftPackageReference "../../band10-health/ios/Band10Kit" */;
+			productName = Band10Sync;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = FT00000000000000000001 /* Project object */;
 }

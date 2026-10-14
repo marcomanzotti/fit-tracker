@@ -1,3 +1,4 @@
+import Band10Sync
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -56,6 +57,7 @@ struct WatchSetupGuide: View {
     @EnvironmentObject var toast: ToastCenter
     @Environment(\.dismiss) private var dismiss
     @State private var importing = false
+    @State private var showingBand = false
 
     private var fileTypes: [UTType] {
         var t: [UTType] = [.xml]
@@ -83,11 +85,19 @@ struct WatchSetupGuide: View {
                         }
                     }
 
-                    // 2) Per-brand toggles.
+                    // 2) The band FitTracker talks to directly, no vendor app.
+                    Card {
+                        Lbl(text: t("band.title"), color: Theme.acc2).padding(.bottom, 8)
+                        Text(t("band.note")).font(.system(size: 12)).foregroundColor(Theme.sub).lineSpacing(3)
+                            .padding(.bottom, 12)
+                        FilledButton(title: t("band.open"), color: Theme.blue) { showingBand = true }
+                    }
+
+                    // 3) Per-brand toggles.
                     Lbl(text: t("guide.health_group"), color: Theme.sub)
                     ForEach(healthBrands) { brand in brandCard(brand) }
 
-                    // 3) Universal fallback for closed ecosystems.
+                    // 4) Universal fallback for closed ecosystems.
                     Lbl(text: t("guide.other_group"), color: Theme.sub).padding(.top, 4)
                     Card {
                         Text(t("guide.other_note")).font(.system(size: 12)).foregroundColor(Theme.sub).lineSpacing(3)
@@ -102,6 +112,9 @@ struct WatchSetupGuide: View {
         .keyboardDoneBar()
         .fileImporter(isPresented: $importing, allowedContentTypes: fileTypes, allowsMultipleSelection: false) { result in
             handleImport(result)
+        }
+        .sheet(isPresented: $showingBand) {
+            NavigationStack { BandSyncView(engine: .fitTracker) }
         }
     }
 

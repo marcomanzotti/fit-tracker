@@ -534,6 +534,10 @@ enum L {
         // --- Connect-your-watch guide ---------------------------------------
         "guide.open":        ("Collega il tuo orologio", "Connect your watch"),
         "guide.title":       ("Collega il tuo orologio", "Connect your watch"),
+        "band.title":        ("Xiaomi Smart Band 10", "Xiaomi Smart Band 10"),
+        "band.note":         ("Collegamento diretto via Bluetooth, senza Mi Fitness: passi, energia, distanza, battito, SpO₂ e sonno arrivano in Apple Salute da soli, anche in background.",
+                              "Direct Bluetooth link, no Mi Fitness: steps, energy, distance, heart rate, SpO₂ and sleep reach Apple Health on their own, also in the background."),
+        "band.open":         ("Apri la band", "Open band settings"),
         "guide.intro":       ("Qualunque orologio abbinato all'iPhone può alimentare l'app passando da Apple Salute. Collega Salute qui, poi attiva la sincronizzazione nell'app del tuo orologio (sotto).",
                               "Any watch paired to your iPhone can feed the app through Apple Health. Connect Health here, then turn syncing on inside your watch's own app (below)."),
         "guide.health_group":("Orologi che inviano ad Apple Salute", "Watches that send to Apple Health"),

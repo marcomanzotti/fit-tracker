@@ -1,4 +1,18 @@
+import Band10Sync
 import SwiftUI
+
+extension BandSyncEngine {
+    /// Copies the Xiaomi Smart Band 10's data into Apple Health over Bluetooth,
+    /// without Mi Fitness. Idle until a band key is entered in the device guide.
+    @MainActor static let fitTracker: BandSyncEngine = {
+        var configuration = BandSyncEngine.Configuration(
+            restoreIdentifier: "com.marco.manzotti.fittracker.band10",
+            keychainService: "com.marco.manzotti.fittracker.band10"
+        )
+        configuration.phoneName = "FitTracker"
+        return BandSyncEngine(configuration: configuration)
+    }()
+}
 
 @main
 struct FitTrackerApp: App {
@@ -19,6 +33,9 @@ struct FitTrackerApp: App {
         _activeWorkout = StateObject(wrappedValue: workout)
         _activeCardio = StateObject(wrappedValue: cardio)
         keeper = SessionKeeper(store: store, workout: workout, cardio: cardio, timer: timer, toast: toast)
+        // Here and not in a view: iOS may relaunch the app in the background for
+        // a Bluetooth event, without showing any window.
+        BandSyncEngine.fitTracker.start()
     }
 
     var body: some Scene {
