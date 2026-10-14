@@ -1,3 +1,4 @@
+import Band10Sync
 import Foundation
 #if canImport(HealthKit)
 import HealthKit
@@ -101,7 +102,11 @@ final class HealthKitManager {
         if let t = HKObjectType.quantityType(forIdentifier: .vo2Max) { types.insert(t) }
         types.insert(HKObjectType.workoutType())
         store.requestAuthorization(toShare: share, read: types) { ok, _ in
-            DispatchQueue.main.async { completion(ok) }
+            DispatchQueue.main.async {
+                completion(ok)
+                // Band files waiting for this permission go to Health at once.
+                Task { await BandSyncEngine.fitTracker.importPending() }
+            }
         }
         #else
         completion(false)
