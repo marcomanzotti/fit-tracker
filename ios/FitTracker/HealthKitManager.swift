@@ -25,6 +25,22 @@ struct HealthDaySample {
 // Coros, Huawei, Amazfit, …) writes its sessions into Apple Health as HKWorkout
 // records. We read those and turn them into the app's own WorkoutSession, so the
 // app supports every paired wearable without any vendor SDK.
+/// Sleep recorded by several sources (Apple Watch, a band) overlaps: the time
+/// asleep is the union of the windows, not their sum.
+enum SleepWindows {
+    /// Merges overlapping or touching windows, sorted by start.
+    static func merge(_ windows: [(start: Date, end: Date)]) -> [(start: Date, end: Date)] {
+        let sorted = windows.filter { $0.end > $0.start }.sorted { $0.start < $1.start }
+        return sorted.reduce(into: []) { merged, window in
+            if let last = merged.last, window.start <= last.end {
+                merged[merged.count - 1].end = max(last.end, window.end)
+            } else {
+                merged.append(window)
+            }
+        }
+    }
+}
+
 struct HealthWorkout {
     var uuid: String          // HKWorkout UUID — dedupe key
     var date: String          // yyyy-MM-dd of the start
@@ -472,12 +488,17 @@ final class HealthKitManager {
                 HKCategoryValueSleepAnalysis.asleepDeep.rawValue,
                 HKCategoryValueSleepAnalysis.asleepREM.rawValue
             ]
-            var hours: [String: Double] = [:]
             var intervals: [(start: Date, end: Date, day: String)] = []
             for s in cats where asleep.contains(s.value) {
                 let day = isoFormatter.string(from: cal.startOfDay(for: s.endDate))
-                hours[day, default: 0] += s.endDate.timeIntervalSince(s.startDate) / 3600
                 intervals.append((s.startDate, s.endDate, day))
+            }
+            // Apple Watch and the band can both record the same night: count
+            // time covered by several sources once.
+            var hours: [String: Double] = [:]
+            for w in SleepWindows.merge(intervals.map { ($0.start, $0.end) }) {
+                let day = isoFormatter.string(from: cal.startOfDay(for: w.end))
+                hours[day, default: 0] += w.end.timeIntervalSince(w.start) / 3600
             }
             for k in hours.keys { hours[k] = (hours[k]! * 10).rounded() / 10 }
 
