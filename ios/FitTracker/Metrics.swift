@@ -215,8 +215,8 @@ extension Store {
     /// Whether the week's numbers say to back off. Deloading is warranted when the
     /// acute load has run away from the chronic baseline (ACWR high) AND training has
     /// been monotonous — the classic Foster combination that precedes overreaching.
-    /// Returns nil unless the load data is trustworthy: a deload suggestion off two
-    /// logged sessions would be noise.
+    /// False unless the load data is trustworthy: a deload suggestion off two
+    /// logged sessions would be noise. The single source for the deload warning.
     func deloadAdvice() -> Bool {
         guard loadDataStatus().reliable else { return false }
         let a = acwr()
@@ -309,26 +309,27 @@ extension Store {
             .filter { $0.sportType == .running }
             .sorted { $0.date > $1.date }
             .prefix(20)
-        var best: Double? = nil
+        var estimates: [Double] = []
         for r in runs {
-            guard let mins = r.durationMinutesD, mins > 0,
+            guard let mins = r.durationMinutesD, mins >= Store.vo2MinRunMinutes,
                   let km = r.distanceKm, km > 0,
-                  let hr = r.avgHR, hr > 0 else { continue }
-            // Velocity in m/min.
-            let v = km * 1000 / mins
-            // VO2 at this pace (ACSM running equation): 0.2·v + 3.5 (mL/kg/min).
-            let vo2AtPace = 0.2 * v + 3.5
-            // Scale by the fraction of HR reserve used, so an easy run isn't read as
-            // a max effort: %HRR ≈ (HR - rest)/(max - rest). VO2max ≈ vo2AtPace / %VO2.
-            let rest = Double(prefs.restHRorDefault)
-            let mx = Double(prefs.estMaxHR)
-            guard mx > rest else { continue }
-            let hrr = max(0.5, min(1.0, (Double(hr) - rest) / (mx - rest)))
-            let est = vo2AtPace / hrr
-            best = max(best ?? 0, est)
+                  let hrr = hrReserve(r.avgHR, session: r), hrr >= Store.vo2MinHRR else { continue }
+            // VO2 at this pace (ACSM running equation, v in m/min): 0.2·v + 3.5.
+            let vo2AtPace = 0.2 * (km * 1000 / mins) + 3.5
+            // %HRR tracks %VO2 *reserve* (Swain), so only the part above rest scales:
+            // VO2max = 3.5 + (VO2 − 3.5) / %HRR.
+            estimates.append(3.5 + (vo2AtPace - 3.5) / hrr)
         }
-        return best.map { (($0 * 10).rounded() / 10, true) }
+        // Median of the three best runs: one GPS glitch or a downhill run can't
+        // set the number on its own.
+        let top = estimates.sorted(by: >).prefix(3)
+        guard !top.isEmpty else { return nil }
+        let median = top[top.index(top.startIndex, offsetBy: top.count / 2)]
+        return ((median * 10).rounded() / 10, true)
     }
+
+    private static let vo2MinRunMinutes = 10.0
+    private static let vo2MinHRR = 0.6
 
     /// Five heart-rate training zones (% of HR reserve, Karvonen) with their bpm
     /// bounds for the user's profile. Zone 1 easy … Zone 5 max.

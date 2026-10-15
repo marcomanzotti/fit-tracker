@@ -25,7 +25,7 @@ struct TrendResult {
     var ratePerWeek: Double?     // kg/week from regression
     var spanDays: Int
     var points: Int
-    /// "ok" | "fast" | "slow" | "wrong" | "none"
+    /// "ok" | "fast" | "slow" | "wrong" | "drift" (maintenance) | "none"
     var status: String
     /// suggested daily kcal adjustment to get back on target
     var kcalAdjust: Int
@@ -77,15 +77,21 @@ extension Store {
         guard intakes.count >= 8 else { return nil }
         let avgIntake = Double(intakes.reduce(0, +)) / Double(intakes.count)
         let dailyChangeKcal = rate * 7700 / 7          // energy implied by the trend
-        return (avgIntake - dailyChangeKcal).rounded()
+        // Under-logged days or three weeks of scale noise can push the raw number
+        // below BMR or far above any plausible expenditure; keep it physiological.
+        let estimate = avgIntake - dailyChangeKcal
+        return min(max(estimate, bmr()), tdee() * 1.5).rounded()
     }
 
     /// Energy eaten (kcal) on each of the last `days` days that has nutrition logged
-    /// in any form: quick total, per meal or per food.
+    /// in any form: quick total, per meal or per food. Today is left out: a
+    /// breakfast logged at 9 am is not what the day will add up to.
     private func recentIntakes(days: Int) -> [Int] {
         guard let cutoff = Calendar.current.date(byAdding: .day, value: -days, to: Date()) else { return [] }
+        let todayKey = today()
         return daily.compactMap { e in
-            guard e.totalKcal > 0, let d = isoFormatter.date(from: e.date), d >= cutoff else { return nil }
+            guard e.totalKcal > 0, e.date != todayKey,
+                  let d = isoFormatter.date(from: e.date), d >= cutoff else { return nil }
             return e.totalKcal
         }
     }
@@ -203,7 +209,7 @@ extension Store {
             else if rate > target + band { status = "fast"; adjust = -150 }
             else { status = "ok" }
         } else {                                             // maintenance
-            if abs(rate) > band { status = abs(rate) > 0 ? "fast" : "ok"; adjust = rate > 0 ? -150 : 150 }
+            if abs(rate) > band { status = "drift"; adjust = rate > 0 ? -150 : 150 }
             else { status = "ok" }
         }
         return TrendResult(avgWeight: (avg * 10).rounded() / 10,

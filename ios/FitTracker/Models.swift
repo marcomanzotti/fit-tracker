@@ -33,7 +33,7 @@ struct DailyEntry: Codable, Identifiable, Equatable {
     // Recovery (optional, manual entry)
     var rmssd: Double?        // legacy daily HRV value (no longer user-editable; kept for old backups + readiness)
     var restHR: Int?          // morning resting / waking heart rate
-    var hrvSDNN: Double?      // daytime HRV: SDNN average over the whole day from Apple Health (ms); shown apart, not scored
+    var hrvSDNN: Double?      // legacy: daytime HRV from Apple Health (ms), no longer read; kept so old data decodes
     var hrvSleep: Double?     // HRV SDNN measured during sleep (Health) or typed with the night's sleep (ms): the HRV the app shows and scores
     var sleepHR: Int?         // average heart rate during sleep (Health / manual)
     var sleepHours: Double?   // sleep duration in hours (Health asleep total)
@@ -41,6 +41,29 @@ struct DailyEntry: Codable, Identifiable, Equatable {
     var activeKcal: Int?      // active energy burned during the day
     var exerciseMin: Int?     // exercise minutes (Apple "Move" equivalent)
     var vo2max: Double?       // cardiorespiratory fitness (mL/kg/min), Apple Health
+    // Sleep detail of the main night ending this day, from its main source (Health)
+    var sleepDeepMin: Int?
+    var sleepREMMin: Int?
+    var sleepCoreMin: Int?
+    var sleepAwakeMin: Int?
+    var inBedHours: Double?   // first to last sleep sample of the night
+    var sleepStartMin: Int?   // minutes from this day's midnight (negative = the evening before)
+    var sleepEndMin: Int?
+    // Overnight vitals, averaged over the time asleep (Health)
+    var spo2: Double?         // blood oxygen, %
+    var respRate: Double?     // breaths/min
+    var wristTemp: Double?    // sleeping wrist temperature, °C (absolute; shown as a deviation)
+    // Cardio fitness and daily activity (Health)
+    var walkingHR: Int?       // average heart rate while walking
+    var hrRecovery: Int?      // heart-rate drop one minute after a workout, bpm
+    var standHours: Int?
+    var daylightMin: Int?
+    var flights: Int?
+    var bodyFat: Double?      // body-fat % from a smart scale (Health)
+    var weightFromHealth: Bool?
+    /// Fields the user typed for this day (HealthField raw values): Health never
+    /// overwrites them, except through the explicit re-import.
+    var manualFields: [String]?
     // Per-meal nutrition breakdown (optional, backward compatible). When present,
     // its kcal sum is authoritative for the day; the quick one-tap total above
     // (`kcal`) is used when no meals are logged. `meals` keys are MealSlot raw
@@ -50,6 +73,105 @@ struct DailyEntry: Codable, Identifiable, Equatable {
     /// without assigning a meal. Sums into the day total alongside meals.
     var foods: [FoodLog]?
     var id: String { date }
+
+    /// The value of a Health-backed field, as a Double whatever its stored type.
+    subscript(_ f: HealthField) -> Double? {
+        get {
+            switch f {
+            case .steps:         return steps.map(Double.init)
+            case .restHR:        return restHR.map(Double.init)
+            case .hrvSleep:      return hrvSleep
+            case .activeKcal:    return activeKcal.map(Double.init)
+            case .exerciseMin:   return exerciseMin.map(Double.init)
+            case .vo2max:        return vo2max
+            case .sleepHours:    return sleepHours
+            case .sleepHR:       return sleepHR.map(Double.init)
+            case .sleepDeepMin:  return sleepDeepMin.map(Double.init)
+            case .sleepREMMin:   return sleepREMMin.map(Double.init)
+            case .sleepCoreMin:  return sleepCoreMin.map(Double.init)
+            case .sleepAwakeMin: return sleepAwakeMin.map(Double.init)
+            case .inBedHours:    return inBedHours
+            case .sleepStartMin: return sleepStartMin.map(Double.init)
+            case .sleepEndMin:   return sleepEndMin.map(Double.init)
+            case .spo2:          return spo2
+            case .respRate:      return respRate
+            case .wristTemp:     return wristTemp
+            case .walkingHR:     return walkingHR.map(Double.init)
+            case .hrRecovery:    return hrRecovery.map(Double.init)
+            case .standHours:    return standHours.map(Double.init)
+            case .daylightMin:   return daylightMin.map(Double.init)
+            case .flights:       return flights.map(Double.init)
+            case .weight:        return weight
+            case .bodyFat:       return bodyFat
+            }
+        }
+        set {
+            let i = newValue.map { Int($0.rounded()) }
+            let d = newValue.map { ($0 * 10).rounded() / 10 }
+            switch f {
+            case .steps:         steps = i
+            case .restHR:        restHR = i
+            case .hrvSleep:      hrvSleep = d
+            case .activeKcal:    activeKcal = i
+            case .exerciseMin:   exerciseMin = i
+            case .vo2max:        vo2max = d
+            case .sleepHours:    sleepHours = d
+            case .sleepHR:       sleepHR = i
+            case .sleepDeepMin:  sleepDeepMin = i
+            case .sleepREMMin:   sleepREMMin = i
+            case .sleepCoreMin:  sleepCoreMin = i
+            case .sleepAwakeMin: sleepAwakeMin = i
+            case .inBedHours:    inBedHours = d
+            case .sleepStartMin: sleepStartMin = i
+            case .sleepEndMin:   sleepEndMin = i
+            case .spo2:          spo2 = d
+            case .respRate:      respRate = d
+            case .wristTemp:     wristTemp = newValue.map { ($0 * 100).rounded() / 100 }
+            case .walkingHR:     walkingHR = i
+            case .hrRecovery:    hrRecovery = i
+            case .standHours:    standHours = i
+            case .daylightMin:   daylightMin = i
+            case .flights:       flights = i
+            case .weight:        weight = newValue.map { ($0 * 100).rounded() / 100 }
+            case .bodyFat:       bodyFat = d
+            }
+        }
+    }
+
+    /// Whether the user typed this field for the day. A weight that did not come
+    /// from Health is always the user's: before v12 it could only be typed.
+    func isManual(_ f: HealthField) -> Bool {
+        if manualFields?.contains(f.rawValue) == true { return true }
+        switch f {
+        case .steps:  return stepsManual == true
+        case .weight: return weight != nil && weightFromHealth != true
+        default:      return false
+        }
+    }
+
+    mutating func markManual(_ fields: HealthField...) {
+        addManual(fields.map(\.rawValue))
+        if fields.contains(.weight) { weightFromHealth = nil }
+    }
+
+    /// The 0-100 sleep score is derived from the night unless the user typed it.
+    var sleepScoreManual: Bool { manualFields?.contains(Self.sleepScoreKey) == true }
+    mutating func markSleepScoreManual() { addManual([Self.sleepScoreKey]) }
+    mutating func clearSleepScoreManual() {
+        manualFields = manualFields?.filter { $0 != Self.sleepScoreKey }
+        if manualFields?.isEmpty == true { manualFields = nil }
+    }
+    private static let sleepScoreKey = "sleepScore"
+
+    private mutating func addManual(_ keys: [String]) {
+        manualFields = Set(manualFields ?? []).union(keys).sorted()
+    }
+
+    mutating func clearManual(_ f: HealthField) {
+        manualFields = manualFields?.filter { $0 != f.rawValue }
+        if manualFields?.isEmpty == true { manualFields = nil }
+        if f == .steps { stepsManual = nil }
+    }
 
     /// True when this day carries any nutrition data (quick total, per-meal, or
     /// individual foods).
@@ -589,6 +711,11 @@ struct Prefs: Codable, Equatable {
     var healthBackfilled: Bool?
     /// Set once the year-long import has also filled the sleep HRV (added later).
     var sleepHRVBackfilled: Bool?
+    /// Set once the year has been read again with the v12 reader: nights filed on
+    /// the right day, sleep stages and the new metrics.
+    var healthV12Backfilled: Bool?
+    /// True once `healthImport` was saved knowing every current category.
+    var healthImportComplete: Bool?
     /// Lead-in countdown before an isometric hold starts, in seconds — time to get
     /// into position. nil => 7 (the default); 0 turns it off.
     var holdPrepSec: Int?
@@ -644,8 +771,18 @@ struct Prefs: Codable, Equatable {
     }
     var restHRorDefault: Int { (restingHR ?? 0) > 0 ? restingHR! : 60 }
     var healthKitEnabled: Bool { healthKit == true }
-    /// Selected Health import categories — defaults to every daily metric on.
-    var healthCategories: Set<String> { Set(healthImport ?? HealthCategory.allKeys) }
+    /// Selected Health import categories — defaults to every daily metric on. A
+    /// selection saved before v12 gets the categories added since then.
+    var healthCategories: Set<String> {
+        guard let healthImport else { return Set(HealthCategory.allKeys) }
+        let picked = Set(healthImport)
+        if healthImportComplete == true { return picked }
+        return picked.union(Set(HealthCategory.allKeys).subtracting(HealthCategory.legacyKeys))
+    }
+    mutating func setHealthCategories(_ c: Set<String>) {
+        healthImport = c.sorted()
+        healthImportComplete = true
+    }
     /// Import workouts from Apple Health. Defaults ON when HealthKit is enabled —
     /// Apple Watch workouts written to Health should appear in the app automatically.
     /// The user can turn it off in Settings if they prefer not to import.
@@ -677,9 +814,37 @@ struct Prefs: Codable, Equatable {
 /// Settings; only selected ones are read and gap-filled into daily entries.
 enum HealthCategory: String, CaseIterable, Identifiable {
     case steps, restHR, hrv, sleep, sleepHR, activeKcal, exerciseMin, vo2max
+    case spo2, respRate, wristTemp, walkingHR, hrRecovery, standHours, daylight, flights, weight, bodyFat
     var id: String { rawValue }
     static var allKeys: [String] { allCases.map { $0.rawValue } }
+    /// The categories that existed before v12. A selection saved back then did not
+    /// know the later ones, so they start switched on for it.
+    static let legacyKeys: Set<String> = ["steps", "restHR", "hrv", "sleep", "sleepHR", "activeKcal", "exerciseMin", "vo2max"]
     var labelKey: String { "hk.cat." + rawValue }
+    /// The day fields this category fills; the first one measures its coverage.
+    var fields: [HealthField] {
+        switch self {
+        case .steps:       return [.steps]
+        case .restHR:      return [.restHR]
+        case .hrv:         return [.hrvSleep]
+        case .sleep:       return [.sleepHours, .sleepDeepMin, .sleepREMMin, .sleepCoreMin, .sleepAwakeMin,
+                                   .inBedHours, .sleepStartMin, .sleepEndMin]
+        case .sleepHR:     return [.sleepHR]
+        case .activeKcal:  return [.activeKcal]
+        case .exerciseMin: return [.exerciseMin]
+        case .vo2max:      return [.vo2max]
+        case .spo2:        return [.spo2]
+        case .respRate:    return [.respRate]
+        case .wristTemp:   return [.wristTemp]
+        case .walkingHR:   return [.walkingHR]
+        case .hrRecovery:  return [.hrRecovery]
+        case .standHours:  return [.standHours]
+        case .daylight:    return [.daylightMin]
+        case .flights:     return [.flights]
+        case .weight:      return [.weight]
+        case .bodyFat:     return [.bodyFat]
+        }
+    }
     var icon: String {
         switch self {
         case .steps:       return "figure.walk"
@@ -690,8 +855,27 @@ enum HealthCategory: String, CaseIterable, Identifiable {
         case .activeKcal:  return "flame.fill"
         case .exerciseMin: return "timer"
         case .vo2max:      return "lungs.fill"
+        case .spo2:        return "drop.fill"
+        case .respRate:    return "wind"
+        case .wristTemp:   return "thermometer.medium"
+        case .walkingHR:   return "figure.walk.motion"
+        case .hrRecovery:  return "arrow.down.heart.fill"
+        case .standHours:  return "figure.stand"
+        case .daylight:    return "sun.max.fill"
+        case .flights:     return "figure.stairs"
+        case .weight:      return "scalemass.fill"
+        case .bodyFat:     return "percent"
         }
     }
+}
+
+/// Every per-day value that can come from Apple Health (see `DailyEntry[_:]`).
+enum HealthField: String, CaseIterable {
+    case steps, restHR, hrvSleep, activeKcal, exerciseMin, vo2max
+    case sleepHours, sleepHR, sleepDeepMin, sleepREMMin, sleepCoreMin, sleepAwakeMin
+    case inBedHours, sleepStartMin, sleepEndMin
+    case spo2, respRate, wristTemp, walkingHR, hrRecovery, standHours, daylightMin, flights
+    case weight, bodyFat
 }
 
 // MARK: - Saved exercise entry (exercise library)
@@ -814,7 +998,7 @@ struct AppData: Codable {
     /// (e.g. a rename or a semantic change), and add an explicit migration in
     /// `Store.migrate(_:)`. Adding new optional fields never needs a bump.
     var schemaVersion: Int? = AppData.currentSchemaVersion
-    static let currentSchemaVersion = 1
+    static let currentSchemaVersion = 2
     var daily: [DailyEntry] = []
     var sessions: [WorkoutSession] = []
     var body: [BodyEntry] = []

@@ -438,7 +438,7 @@ struct SettingsView: View {
                         GhostButton(title: t("hk.sync"), color: Theme.acc) {
                             // Persist the current selection before syncing so the
                             // pull respects exactly what's toggled on right now.
-                            store.prefs.healthImport = Array(healthCats)
+                            store.prefs.setHealthCategories(healthCats)
                             store.prefs.importWorkouts = importWk
                             store.syncHealth { ok, n, sources in if ok { toast.show(syncMsg(n, sources)) } }
                         }
@@ -522,7 +522,7 @@ struct SettingsView: View {
         f.apply(to: &p)
         p.sleepTracking = sleepTrack
         p.healthKit = hkOn
-        p.healthImport = Array(healthCats)
+        p.setHealthCategories(healthCats)
         p.importWorkouts = importWk
         p.exportToHealth = exportHK
         if let ts = Int(timerSec), ts > 0 { p.timer = ts }

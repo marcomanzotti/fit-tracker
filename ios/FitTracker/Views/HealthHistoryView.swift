@@ -97,11 +97,12 @@ struct HealthHistoryView: View {
     private func runImport(overwrite: Bool) {
         guard !busy else { return }
         busy = true
-        store.importHealthRange(days: days, overwrite: overwrite) { ok, written in
+        store.importHealthRange(days: days, overwrite: overwrite) { granted, complete, written in
             busy = false
-            guard ok else { toast.show(t("hk.denied")); return }
-            haptic(written > 0 ? .success : .warning)
-            toast.show(written > 0 ? t("hk.days_written", written) : t("hk.nothing_new"))
+            guard granted else { toast.show(t("hk.denied")); return }
+            haptic(written > 0 && complete ? .success : .warning)
+            if !complete { toast.show(t("hk.partial", written)) }
+            else { toast.show(written > 0 ? t("hk.days_written", written) : t("hk.nothing_new")) }
         }
     }
 

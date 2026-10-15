@@ -3,18 +3,22 @@ import Combine
 import WidgetKit
 
 final class Store: ObservableObject {
-    @Published var daily: [DailyEntry] = [] { didSet { sortedDailyCache = nil } }
+    @Published var daily: [DailyEntry] = [] { didSet { sortedDailyCache = nil; recoveryGateCache = nil } }
     /// `daily` in date order, computed once per change: the dashboard reads it
     /// (through lastWeight and friends) many times in a single render.
     private var sortedDailyCache: [DailyEntry]?
-    @Published var sessions: [WorkoutSession] = []
+    @Published var sessions: [WorkoutSession] = [] { didSet { recoveryGateCache = nil } }
+    /// The recovery gate for exercise suggestions (readiness + ACWR), computed once
+    /// per data change: the live workout asks for it on every exercise card, every
+    /// second the rest timer ticks.
+    var recoveryGateCache: ProgKind??
     @Published var body: [BodyEntry] = []
     @Published var plans: [WorkoutPlan] = []
     @Published var cardioTypes: [CardioType] = []
     @Published var foods: [FoodItem] = []
     @Published var exerciseItems: [ExerciseItem] = []
     @Published var recipes: [Recipe] = []
-    @Published var prefs: Prefs = Prefs()
+    @Published var prefs: Prefs = Prefs() { didSet { recoveryGateCache = nil } }
 
     /// Something went wrong reading or writing the saved file. The UI shows it; it
     /// is never swallowed into "no data".
@@ -41,6 +45,9 @@ final class Store: ObservableObject {
 
     private var loaded = false
     private var isSyncingHealth = false
+    /// Band data that landed in Health while a sync was running: read it once that
+    /// sync ends instead of dropping the request.
+    private var healthResyncRequested = false
     /// False only when an unreadable file could not be moved out of the way: saving
     /// would then overwrite the one copy of the user's history.
     private var canSave = true
@@ -112,8 +119,25 @@ final class Store: ObservableObject {
             appLog.error("Data file not accessible: \(String(describing: error), privacy: .public)")
             canSave = false
             storageProblem = .unreadable
+            reloadWhenUnlocked()
             return nil
         }
+    }
+
+    /// A Bluetooth event can relaunch the app before the phone is first unlocked:
+    /// read the file again as soon as it can be opened, instead of staying empty
+    /// and read-only until the next launch.
+    private func reloadWhenUnlocked() {
+        NotificationCenter.default.publisher(for: UIApplication.protectedDataDidBecomeAvailableNotification)
+            .first()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                guard let self else { return }
+                self.canSave = true
+                self.storageProblem = nil
+                self.load()
+            }
+            .store(in: &bag)
     }
 
     private static func decodeDocument(at url: URL) throws -> AppData {
@@ -169,9 +193,17 @@ final class Store: ObservableObject {
     private func migrate(_ decoded: AppData) -> AppData {
         var a = decoded
         let version = a.schemaVersion ?? 1     // nil predates the field => version 1
-        switch version {
-        // case 1: <future migration to v2 goes here, then `fallthrough`>
-        default: break
+        if version < 2 {
+            // v1 kept no record of typed values. A sleep score that is not what the
+            // old hours formula gives was typed by the user: mark it, so the new
+            // score derived from the night never replaces it.
+            a.daily = a.daily.map { e in
+                guard let score = e.sleep else { return e }
+                if let h = e.sleepHours, h > 0, score == Store.v1SleepScore(hours: h) { return e }
+                var typed = e
+                typed.markSleepScoreManual()
+                return typed
+            }
         }
         a.schemaVersion = AppData.currentSchemaVersion
         return a
@@ -784,11 +816,12 @@ extension Store {
     }
 
     /// Heart-rate reserve fraction (0...1) from profile resting/max HR, or nil
-    /// when no avg HR was entered.
-    private func hrReserve(_ hr: Int?, session s: WorkoutSession) -> Double? {
+    /// when no avg HR was entered. The session's own peak only raises the max: a
+    /// strength session peaking at 125 bpm is not a near-maximal effort.
+    func hrReserve(_ hr: Int?, session s: WorkoutSession) -> Double? {
         guard let hr, hr > 0 else { return nil }
         let rest = Double(prefs.restHRorDefault)
-        let mx = Double(s.maxHRSes ?? prefs.estMaxHR)
+        let mx = Double(max(prefs.estMaxHR, s.maxHRSes ?? 0))
         guard mx > rest else { return nil }
         return max(0, min(1, (Double(hr) - rest) / (mx - rest)))
     }
@@ -858,8 +891,8 @@ extension Store {
             if let salt { e.salt = salt }
             if let steps { e.steps = steps; e.stepsManual = true }
             if let rmssd { e.rmssd = rmssd }
-            if let restHR { e.restHR = restHR }
-            if let sleepHR { e.sleepHR = sleepHR }
+            if let restHR { e.restHR = restHR; e.markManual(.restHR) }
+            if let sleepHR { e.sleepHR = sleepHR; e.markManual(.sleepHR) }
         }
     }
 
@@ -979,70 +1012,52 @@ extension Store {
     /// MM-dd label for a week bucket's start date (matches the day/week axis style).
     private func weekBucketLabel(_ d: Date) -> String { cachedFormatter("MM-dd").string(from: d) }
 
-    // MARK: Apple Health import (optional, gap-fill only)
-    /// Merge Health samples into daily entries. Imported values only fill missing
-    /// fields so a manually typed number is never overwritten.
-    /// Map asleep hours to a rough 0-100 sleep score (Apple gives duration, not a
-    /// score). Peaks at 8 h, falls off either side; clamped to 0-100.
-    static func sleepScore(fromHours h: Double) -> Int {
-        let penalty = abs(h - 8.0) * 12.0      // ~12 points lost per hour off 8 h
-        return max(0, min(100, Int((100 - penalty).rounded())))
+    // MARK: Apple Health import
+    /// The v1 sleep score (hours only, peak at 8 h): only used to recognise, in old
+    /// data, a score the user typed.
+    static func v1SleepScore(hours h: Double) -> Int {
+        max(0, min(100, Int((100 - abs(h - 8.0) * 12.0).rounded())))
     }
 
-    /// Merge Health day samples into the daily entries.
+    /// Merge Health samples into the daily entries.
     ///
-    /// `overwrite: false` (the automatic sync) only fills gaps, so a value typed by
-    /// hand is never clobbered. `overwrite: true` is the explicit "re-import" the
-    /// user triggers from the Health-history screen: there they've asked for Health
-    /// to win, so every imported field replaces what's stored. Steps are the one
-    /// exception in gap-fill mode — they climb all day, so they refresh unless the
-    /// user has manually overridden the count for that day.
+    /// Health is the reference for every value the user did not type: a later sync
+    /// replaces what an earlier one wrote (a night the band delivered late, a day
+    /// total that kept climbing, a value Health corrected). A typed value
+    /// (`DailyEntry.isManual`) is never touched, except by the explicit re-import
+    /// (`overwrite: true`) on the Health-history screen, where the user asked for
+    /// Health to win.
     @discardableResult
     func applyHealthSamples(_ samples: [HealthDaySample], overwrite: Bool = false) -> Int {
         // Worked on a copy and published once: a year-long backfill would otherwise
         // fire a change (and a re-render) for every single day.
         var byDate = Dictionary(daily.map { ($0.date, $0) }, uniquingKeysWith: { first, _ in first })
-        var touched = 0
+        var touched = Set<String>()
         for s in samples {
             var e = byDate[s.date] ?? DailyEntry(date: s.date)
             let before = e
-            func fill<T>(_ kp: WritableKeyPath<DailyEntry, T?>, _ v: T?, positive: (T) -> Bool) {
-                guard let v, positive(v) else { return }
-                if overwrite || e[keyPath: kp] == nil { e[keyPath: kp] = v }
+            for (field, value) in s.values {
+                if e.isManual(field) {
+                    guard overwrite else { continue }
+                    e.clearManual(field)
+                }
+                e[field] = value
+                if field == .weight { e.weightFromHealth = true }
             }
-            // Day totals that climb until midnight: the first import of the day is a
-            // partial figure, so a later one may raise it (never lower it).
-            func grow<T: Comparable>(_ kp: WritableKeyPath<DailyEntry, T?>, _ v: T?, positive: (T) -> Bool) {
-                guard let v, positive(v) else { return }
-                e[keyPath: kp] = overwrite ? v : max(e[keyPath: kp] ?? v, v)
-            }
-            if (overwrite || e.stepsManual != true), let v = s.steps, v > 0 {
-                e.steps = v
-                if overwrite { e.stepsManual = nil }   // Health is authoritative again
-            }
-            fill(\.restHR, s.restHR) { $0 > 0 }
-            fill(\.hrvSDNN, s.hrvSDNN) { $0 > 0 }
-            fill(\.hrvSleep, s.hrvSleep) { $0 > 0 }
-            grow(\.activeKcal, s.activeKcal) { $0 > 0 }
-            grow(\.exerciseMin, s.exerciseMin) { $0 > 0 }
-            grow(\.sleepHours, s.sleepHours) { $0 > 0 }
-            fill(\.sleepHR, s.sleepHR) { $0 > 0 }
-            fill(\.vo2max, s.vo2max) { $0 > 0 }
-            // Derive a 0-100 sleep score from Health sleep duration when the user
-            // hasn't entered one — Apple exposes asleep hours, not a score, so we map
-            // hours to a score peaking around 8 h (7.5-8.5 h ≈ 95-100).
-            // A score derived earlier from fewer hours follows the hours; a score the
-            // user typed (it differs from the derived one) is left alone.
-            let wasDerived = before.sleep == before.sleepHours.map { Store.sleepScore(fromHours: $0) }
-            if overwrite || e.sleep == nil || wasDerived, let h = e.sleepHours, h > 0 {
-                e.sleep = Store.sleepScore(fromHours: h)
-            }
+            if overwrite, s.values[.sleepHours] != nil { e.clearSleepScoreManual() }
             guard e != before else { continue }
             byDate[s.date] = e
-            touched += 1
+            touched.insert(s.date)
         }
-        if touched > 0 { daily = byDate.values.sorted { $0.date < $1.date } }
-        return touched
+        // Scores last: regularity compares each night with the ones before it.
+        for date in touched {
+            guard var e = byDate[date], !e.sleepScoreManual,
+                  let score = sleepScore(of: e, regularity: sleepRegularity(endingOn: date, in: byDate)) else { continue }
+            e.sleep = score
+            byDate[date] = e
+        }
+        if !touched.isEmpty { daily = byDate.values.sorted { $0.date < $1.date } }
+        return touched.count
     }
 
     /// How many days in `[from, to]` already carry a value for each Health category.
@@ -1052,18 +1067,8 @@ extension Store {
         let days = daily.filter { $0.date >= from && $0.date <= to }
         var out: [String: Int] = [:]
         for c in HealthCategory.allCases {
-            out[c.rawValue] = days.filter { e in
-                switch c {
-                case .steps:       return (e.steps ?? 0) > 0
-                case .restHR:      return (e.restHR ?? 0) > 0
-                case .hrv:         return (e.hrvSleep ?? 0) > 0
-                case .sleep:       return (e.sleepHours ?? 0) > 0 || (e.sleep ?? 0) > 0
-                case .sleepHR:     return (e.sleepHR ?? 0) > 0
-                case .activeKcal:  return (e.activeKcal ?? 0) > 0
-                case .exerciseMin: return (e.exerciseMin ?? 0) > 0
-                case .vo2max:      return (e.vo2max ?? 0) > 0
-                }
-            }.count
+            guard let field = c.fields.first else { continue }
+            out[c.rawValue] = days.filter { ($0[field] ?? 0) > 0 }.count
         }
         return out
     }
@@ -1071,27 +1076,26 @@ extension Store {
     /// Import an explicit window from Apple Health on demand (the history screen).
     /// Reports how many days were written so the user gets a real answer instead of
     /// a silent no-op. `overwrite` makes Health win over stored values.
+    /// `complete` is false when Health answered only in part (a locked phone, a
+    /// permission off): the days written are then real but not the whole window.
     func importHealthRange(days: Int, overwrite: Bool,
-                           completion: @escaping (_ ok: Bool, _ daysWritten: Int) -> Void) {
+                           completion: @escaping (_ granted: Bool, _ complete: Bool, _ daysWritten: Int) -> Void) {
         let hk = HealthKitManager.shared
-        guard hk.isAvailable else { completion(false, 0); return }
+        guard hk.isAvailable else { completion(false, false, 0); return }
         let cal = Calendar.current
         let end = cal.startOfDay(for: Date())
         guard let start = cal.date(byAdding: .day, value: -(days - 1), to: end) else {
-            completion(false, 0); return
+            completion(false, false, 0); return
         }
         hk.requestAuthorization { granted in
-            guard granted else { completion(false, 0); return }
+            guard granted else { completion(false, false, 0); return }
             hk.fetch(from: start, to: end, categories: self.prefs.healthCategories) { samples, complete in
                 let n = self.applyHealthSamples(samples, overwrite: overwrite)
                 // Only a full-year pull that Health answered in full counts as the
                 // backfill. A 30-day manual import, or a year cut short by a locked
                 // phone, must not cancel the automatic one.
-                if complete, days >= Store.healthBackfillDays {
-                    self.prefs.healthBackfilled = true
-                    self.prefs.sleepHRVBackfilled = true
-                }
-                completion(complete, n)
+                if complete, days >= Store.healthBackfillDays { self.markHealthBackfilled() }
+                completion(true, complete, n)
             }
         }
     }
@@ -1223,12 +1227,23 @@ extension Store {
         }
     }
 
-    /// Request authorization (if needed) and pull the last `days` days from Health.
-    /// Sync Apple Health. The completion reports success plus how many workouts
-    /// were newly imported and from which source apps, so the UI can confirm to
-    /// the user that their watch is feeding the app.
     private static let healthBackfillDays = 365
     private static let healthRoutineDays = 90
+    /// What the band's "data written" signal re-reads: the last nights and today.
+    static let healthResyncDays = 3
+
+    private var isHealthBackfilled: Bool {
+        prefs.healthBackfilled == true && prefs.sleepHRVBackfilled == true && prefs.healthV12Backfilled == true
+    }
+    private func markHealthBackfilled() {
+        prefs.healthBackfilled = true
+        prefs.sleepHRVBackfilled = true
+        prefs.healthV12Backfilled = true
+    }
+    /// Request authorization (if needed) and pull the last `days` days from Health.
+    /// The completion reports success plus how many workouts were newly imported
+    /// and from which source apps, so the UI can confirm to the user that their
+    /// watch is feeding the app.
     func syncHealth(days: Int? = nil, completion: ((_ ok: Bool, _ imported: Int, _ sources: [String]) -> Void)? = nil) {
         let hk = HealthKitManager.shared
         guard hk.isAvailable else { completion?(false, 0, []); return }
@@ -1237,27 +1252,37 @@ extension Store {
         // syncs only need the recent window.
         // The launch sync and the first foreground sync would otherwise overlap,
         // each pulling a year of samples.
-        guard !isSyncingHealth else { completion?(false, 0, []); return }
+        // A request that arrives meanwhile (the band just wrote) runs once this
+        // sync ends, so its data is not left for the next launch.
+        guard !isSyncingHealth else {
+            healthResyncRequested = true
+            completion?(false, 0, [])
+            return
+        }
         isSyncingHealth = true
         let finish: (Bool, Int, [String]) -> Void = { [weak self] ok, imported, sources in
-            self?.isSyncingHealth = false
+            guard let self else { return }
+            self.isSyncingHealth = false
             completion?(ok, imported, sources)
+            if self.healthResyncRequested {
+                self.healthResyncRequested = false
+                self.syncHealth(days: Store.healthResyncDays)
+            }
         }
-        // The year is read again once more after the sleep HRV was added, so past
-        // nights get it too.
-        let backfilled = prefs.healthBackfilled == true && prefs.sleepHRVBackfilled == true
-        let window = days ?? (backfilled ? Store.healthRoutineDays : Store.healthBackfillDays)
+        // The year is read again whenever the reader learns something new about
+        // past days: sleep HRV, then (v12) nights on the right day, stages and the
+        // new metrics.
+        let window = days ?? (isHealthBackfilled ? Store.healthRoutineDays : Store.healthBackfillDays)
         hk.requestAuthorization { granted in
             guard granted else { finish(false, 0, []); return }
             hk.fetch(days: window, categories: self.prefs.healthCategories) { samples, complete in
                 self.applyHealthSamples(samples)
                 // An incomplete answer leaves the backfill to run again next time.
-                if complete, window >= Store.healthBackfillDays {
-                    self.prefs.healthBackfilled = true
-                    self.prefs.sleepHRVBackfilled = true
-                }
+                if complete, window >= Store.healthBackfillDays { self.markHealthBackfilled() }
                 // Keep resting HR profile fresh from the most recent reading.
-                if let last = samples.compactMap({ $0.restHR }).last, last > 0 { self.prefs.restingHR = last }
+                if let last = samples.compactMap({ $0.values[.restHR] }).last, last > 0 {
+                    self.prefs.restingHR = Int(last.rounded())
+                }
                 // Importing past workouts from other watches is opt-in (formats
                 // don't always translate cleanly), so honor the user's choice.
                 guard self.prefs.importWorkoutsEnabled else { finish(true, 0, []); return }
@@ -1339,7 +1364,9 @@ extension Store {
     /// `primary` decides the identity kept (name, colour, plan, sport); everything
     /// measurable is combined:
     ///   • exercises concatenate, and an exercise present in both gets its sets appended
-    ///   • duration, distance and calories sum
+    ///   • duration, distance and calories sum for two halves of a workout; when one
+    ///     of them came from Health it is the same workout recorded twice, so the
+    ///     larger value wins instead of doubling
     ///   • average HR is weighted by each session's duration (a 10-minute warm-up
     ///     shouldn't drag down the average of an hour of work); max HR takes the peak
     ///   • absorbed Health UUIDs are recorded so the import dedupe still recognises them
@@ -1364,7 +1391,11 @@ extension Store {
             }
         }
 
-        let totalSec = picked.compactMap { $0.durationSeconds }.reduce(0, +)
+        let sameWorkout = picked.contains { !$0.allHealthUUIDs.isEmpty }
+        func combine(_ values: [Double]) -> Double {
+            sameWorkout ? (values.max() ?? 0) : values.reduce(0, +)
+        }
+        let totalSec = Int(combine(picked.compactMap { $0.durationSeconds }.map(Double.init)))
         if totalSec > 0 { merged.durationSec = totalSec; merged.durationMin = nil }
 
         // Duration-weighted average HR; sessions without a duration fall back to an
@@ -1383,12 +1414,12 @@ extension Store {
         }
         if let mx = picked.compactMap({ $0.maxHRSes }).max() { merged.maxHRSes = mx }
 
-        let dist = picked.compactMap { $0.distanceKm }.reduce(0, +)
+        let dist = combine(picked.compactMap { $0.distanceKm })
         if dist > 0 { merged.distanceKm = dist }
         if let elev = picked.compactMap({ $0.elevationM }).max() { merged.elevationM = elev }
-        // Calories: sum what each session actually accounts for (manual override when
-        // present, else its estimate), so the merged total matches the day's real burn.
-        let kcal = picked.reduce(0) { $0 + estimateCalories($1) }
+        // Calories: what each session accounts for (manual override when present,
+        // else its estimate), combined the same way as duration.
+        let kcal = Int(combine(picked.map { Double(estimateCalories($0)) }))
         if kcal > 0 { merged.caloriesManual = kcal }
         // A merged pace would be meaningless across different efforts — let it
         // recompute from the summed distance and duration.
@@ -1439,9 +1470,9 @@ extension Store {
         }
         var s = WorkoutSession(date: date, planId: plan.id, planName: plan.name,
                                planColor: plan.color, exercises: exercises)
+        // Heart rate is a measurement of that day, not a template: copying it would
+        // invent TRIMP load for a day nobody recorded.
         s.durationSec = last?.durationSeconds
-        s.avgHR = last?.avgHR
-        s.maxHRSes = last?.maxHRSes
         setRestDay(date, on: false)
         sessions.append(s)
         return s
@@ -1456,7 +1487,6 @@ extension Store {
         var s = WorkoutSession(date: date, planId: pid, planName: type.name,
                                planColor: type.color, exercises: [], sport: type.sport)
         s.durationSec = last?.durationSeconds
-        s.avgHR = last?.avgHR
         s.distanceKm = last?.distanceKm
         s.paceManual = last?.paceManual
         setRestDay(date, on: false)
@@ -1776,10 +1806,10 @@ extension Store {
     func saveCheckIn(weight: Double?, sleep: Int?, restHR: Int? = nil, sleepHR: Int? = nil,
                      date: String = today()) {
         upsertDaily(date) { entry in
-            if let weight { entry.weight = weight }
-            if let sleep { entry.sleep = sleep }
-            if let restHR { entry.restHR = restHR }
-            if let sleepHR { entry.sleepHR = sleepHR }
+            if let weight { entry.weight = weight; entry.markManual(.weight) }
+            if let sleep { entry.sleep = sleep; entry.markSleepScoreManual() }
+            if let restHR { entry.restHR = restHR; entry.markManual(.restHR) }
+            if let sleepHR { entry.sleepHR = sleepHR; entry.markManual(.sleepHR) }
         }
     }
 
@@ -1806,11 +1836,11 @@ extension Store {
     func saveManualSleep(hours: Double?, score: Int?, hrv: Double?, sleepHR: Int?,
                          date: String = today()) {
         upsertDaily(date) { e in
-            if let hours, hours > 0 { e.sleepHours = hours }
-            if let score { e.sleep = min(100, max(0, score)) }
+            if let hours, hours > 0 { e.sleepHours = hours; e.markManual(.sleepHours) }
+            if let score { e.sleep = min(100, max(0, score)); e.markSleepScoreManual() }
             // Typed with the night's sleep, so it is a sleep HRV.
-            if let hrv, hrv > 0 { e.hrvSleep = hrv }
-            if let sleepHR, sleepHR > 0 { e.sleepHR = sleepHR }
+            if let hrv, hrv > 0 { e.hrvSleep = hrv; e.markManual(.hrvSleep) }
+            if let sleepHR, sleepHR > 0 { e.sleepHR = sleepHR; e.markManual(.sleepHR) }
         }
     }
 

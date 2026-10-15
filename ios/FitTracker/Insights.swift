@@ -5,7 +5,7 @@ import Charts
 private func zoneColor(_ z: String) -> Color {
     switch z {
     case "ok", "ready": return Theme.good
-    case "warn", "easy", "slow", "fast", "high", "low": return Theme.acc2
+    case "warn", "easy", "slow", "fast", "drift", "high", "low": return Theme.acc2
     case "risk", "rest", "wrong": return Theme.red
     default: return Theme.sub
     }
@@ -189,10 +189,6 @@ struct LoadCard: View {
                         StatTile(label: t("load.strain"), value: wk.strain.map { "\(Int($0))" } ?? "—",
                                  valueColor: Theme.blue, info: "strain")
                     }
-                    if (wk.monotony ?? 0) > 2 || acwr.zone == "high" {
-                        Text(t("load.deload")).font(.head(11, .semibold)).tracking(0.5)
-                            .foregroundColor(Theme.red).padding(.top, 10)
-                    }
                 }
         }
     }
@@ -366,6 +362,7 @@ struct NutritionCard: View {
         case "fast": s = t("nut.trend_fast")
         case "slow": s = t("nut.trend_slow")
         case "wrong": s = t("nut.trend_wrong")
+        case "drift": s = t("nut.trend_drift")
         default: s = ""
         }
         if tr.kcalAdjust != 0 { s += " · " + t("nut.adjust", tr.kcalAdjust) }

@@ -247,8 +247,11 @@ struct DayPickerSheet: View {
             ("bed.double.fill", t("hk.cat.sleep"), e?.sleepHours.map { "\(trimNum(($0 * 10).rounded() / 10))h" }),
             ("waveform.path.ecg", t("hrv.sleep"), e?.hrvSleep.map { trimNum($0.rounded()) }),
             ("heart.fill", t("hk.cat.restHR"), e?.restHR.map { "\($0)" }),
-            // Daytime HRV last and apart: it is not scored and swings with activity.
-            ("waveform.path.ecg", t("hrv.day"), e?.hrvSDNN.map { trimNum($0.rounded()) })
+            ("drop.fill", "SpO₂", e?.spo2.map { "\(trimNum($0))%" }),
+            ("wind", t("vit.resp_short"), e?.respRate.map { trimNum($0) }),
+            ("figure.walk.motion", t("hk.cat.walkingHR"), e?.walkingHR.map { "\($0)" }),
+            ("figure.stand", t("hk.cat.standHours"), e?.standHours.map { "\($0)" }),
+            ("sun.max.fill", t("hk.cat.daylight"), e?.daylightMin.map { "\($0)′" })
         ]
         let any = tiles.contains { $0.2 != nil }
         VStack(alignment: .leading, spacing: 8) {

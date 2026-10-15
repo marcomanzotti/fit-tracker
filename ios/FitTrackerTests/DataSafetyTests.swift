@@ -145,4 +145,59 @@ final class DataSafetyTests: XCTestCase {
         XCTAssertTrue(store.sessions.contains { $0.healthUUID == "ABC" })
         XCTAssertEqual(store.sessions.last?.exercises.map(\.name), ["Row"])
     }
+
+    // MARK: Apple Health values
+
+    func testHealthNeverOverwritesATypedValueUnlessReimported() {
+        let store = Store(directory: dir)
+        store.saveCheckIn(weight: 80, sleep: nil, restHR: 55, date: "2026-10-01")
+        let sample = HealthDaySample(date: "2026-10-01", values: [.restHR: 62, .weight: 85, .steps: 9_000])
+
+        store.applyHealthSamples([sample])
+        XCTAssertEqual(store.dailyEntry("2026-10-01")?.restHR, 55)
+        XCTAssertEqual(store.dailyEntry("2026-10-01")?.weight, 80)
+        XCTAssertEqual(store.dailyEntry("2026-10-01")?.steps, 9_000)
+
+        store.applyHealthSamples([sample], overwrite: true)
+        XCTAssertEqual(store.dailyEntry("2026-10-01")?.restHR, 62)
+        XCTAssertEqual(store.dailyEntry("2026-10-01")?.weight, 85)
+    }
+
+    func testHealthCorrectsAValueItWroteEarlier() {
+        let store = Store(directory: dir)
+        // Watch and band counted twice by an old version, then read correctly.
+        store.applyHealthSamples([HealthDaySample(date: "2026-10-01", values: [.sleepHours: 14, .activeKcal: 900])])
+        store.applyHealthSamples([HealthDaySample(date: "2026-10-01", values: [.sleepHours: 7.2, .activeKcal: 640])])
+
+        let e = store.dailyEntry("2026-10-01")
+        XCTAssertEqual(e?.sleepHours, 7.2)
+        XCTAssertEqual(e?.activeKcal, 640)
+        XCTAssertEqual(e?.sleep, Store.sleepScore(hours: 7.2), "the score follows the night")
+    }
+
+    func testAVersionOneTypedSleepScoreIsKeptAndADerivedOneIsRecomputed() throws {
+        let typed = DailyEntry(date: "2026-10-01", sleep: 70, sleepHours: 8)      // v1 formula gives 100
+        let derived = DailyEntry(date: "2026-10-02", sleep: 100, sleepHours: 8)
+        var doc = AppData(sessions: [])
+        doc.daily = [typed, derived]
+        doc.schemaVersion = 1
+        try JSONEncoder().encode(doc).write(to: dataFile)
+
+        let store = Store(directory: dir)
+        store.applyHealthSamples([HealthDaySample(date: "2026-10-01", values: [.sleepHours: 6]),
+                                  HealthDaySample(date: "2026-10-02", values: [.sleepHours: 6])])
+
+        XCTAssertEqual(store.dailyEntry("2026-10-01")?.sleep, 70)
+        XCTAssertEqual(store.dailyEntry("2026-10-02")?.sleep, Store.sleepScore(hours: 6))
+    }
+
+    func testACategorySelectionSavedBeforeV12GetsTheNewCategories() {
+        var prefs = Prefs()
+        prefs.healthImport = ["steps", "sleep"]
+        XCTAssertTrue(prefs.healthCategories.isSuperset(of: ["steps", "sleep", "spo2", "respRate"]))
+        XCTAssertFalse(prefs.healthCategories.contains("restHR"))
+
+        prefs.setHealthCategories(["steps"])
+        XCTAssertEqual(prefs.healthCategories, ["steps"])
+    }
 }

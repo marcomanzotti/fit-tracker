@@ -38,7 +38,7 @@ struct FitTrackerApp: App {
         // New band data in Health (sleep, steps...) is read back into the app at once.
         BandSyncEngine.fitTracker.onHealthDataWritten = { [weak store] in
             guard let store, store.prefs.healthKitEnabled else { return }
-            store.syncHealth(days: 3)
+            store.syncHealth(days: Store.healthResyncDays)
         }
         BandSyncEngine.fitTracker.start()
     }

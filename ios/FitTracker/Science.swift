@@ -1,36 +1,17 @@
 import Foundation
 
 // MARK: - Internal-load & recovery science
-// All metrics are computed from manually entered data (RPE, duration, avg HR,
-// RMSSD). Anything requiring a raw beat-to-beat R-R stream (DFA-alpha1, true
-// beat-to-beat RMSSD) needs a BLE chest strap and is intentionally stubbed.
+// Computed from the logged sessions and the daily values (typed or read from
+// Apple Health).
 
 // MARK: TRIMP (Banister, sex-weighted)
 extension Store {
     /// Banister TRIMP for a session, needs avg HR + duration. Uses resting/max HR
     /// from the profile (max estimated from age if not measured).
     func trimp(_ s: WorkoutSession) -> Double? {
-        guard let dur = s.durationMinutesD, dur > 0, let hr = s.avgHR, hr > 0 else { return nil }
-        let rest = Double(prefs.restHRorDefault)
-        let mx = Double(s.maxHRSes ?? prefs.estMaxHR)
-        guard mx > rest else { return nil }
-        let hrr = max(0, min(1, (Double(hr) - rest) / (mx - rest)))
+        guard let dur = s.durationMinutesD, dur > 0, let hrr = hrReserve(s.avgHR, session: s) else { return nil }
         let y = prefs.sex_ == "f" ? 1.67 : 1.92
         return dur * hrr * 0.64 * exp(y * hrr)
-    }
-
-    /// Strictly *measured* internal load = TRIMP (duration + avg HR). Returns nil
-    /// when no average HR was entered, so ACWR / monotony / strain never fabricate
-    /// a load from set counts alone (a single logged Push with no HR must not
-    /// produce a weekly load, monotony or strain number).
-    ///
-    /// We intentionally do NOT fall back to the old sRPE (duration × session RPE):
-    /// the RPE input was removed in v4, so any sRPE today comes only from legacy
-    /// sessions and would inflate internal load even when no avg HR was entered —
-    /// exactly the "load looks extremely high without HR" surprise. TRIMP is now
-    /// the single source of internal load.
-    func measuredLoad(_ s: WorkoutSession) -> Double? {
-        trimp(s)
     }
 
     /// Sum of session TRIMP in a Monday-based week (offset 0 = current week).
@@ -67,8 +48,6 @@ struct LoadPoint: Identifiable {
 
 struct ACWRResult {
     var ratio: Double?
-    var acute: Double
-    var chronic: Double
     /// "low" (detraining), "ok" (sweet spot), "high" (danger), or "none".
     var zone: String
 }
@@ -78,7 +57,7 @@ extension Store {
     func dailyLoadSeries(days: Int) -> [LoadPoint] {
         let cal = Calendar.current
         var map: [String: Double] = [:]
-        for s in sessions { if let l = measuredLoad(s) { map[s.date, default: 0] += l } }
+        for s in sessions { if let l = trimp(s) { map[s.date, default: 0] += l } }
         var d = cal.startOfDay(for: Date())
         var stack: [LoadPoint] = []
         for _ in 0..<days {
@@ -112,7 +91,7 @@ extension Store {
     }
     func loadDataStatus() -> LoadDataStatus {
         let needSessions = 6, needDays = 21
-        let loaded = sessions.filter { measuredLoad($0) != nil }
+        let loaded = sessions.filter { trimp($0) != nil }
         let cal = Calendar.current
         let today = cal.startOfDay(for: Date())
         let dates = loaded.compactMap { isoFormatter.date(from: $0.date) }.map { cal.startOfDay(for: $0) }
@@ -129,20 +108,19 @@ extension Store {
     func acwr() -> ACWRResult {
         let series = dailyLoadSeries(days: 42).map { $0.load }
         guard series.contains(where: { $0 > 0 }) else {
-            return ACWRResult(ratio: nil, acute: 0, chronic: 0, zone: "none")
+            return ACWRResult(ratio: nil, zone: "none")
         }
         let acute = ewma(series, days: 7)
         let chronic = ewma(series, days: 28)
-        guard chronic > 0 else { return ACWRResult(ratio: nil, acute: acute, chronic: chronic, zone: "none") }
+        guard chronic > 0 else { return ACWRResult(ratio: nil, zone: "none") }
         let r = acute / chronic
         let zone: String
         switch r {
         case ..<0.8:        zone = "low"
         case 0.8..<1.3:     zone = "ok"
-        case 1.3..<1.5:     zone = "high"
         default:            zone = "high"
         }
-        return ACWRResult(ratio: (r * 100).rounded() / 100, acute: acute, chronic: chronic, zone: zone)
+        return ACWRResult(ratio: (r * 100).rounded() / 100, zone: zone)
     }
 }
 
@@ -173,13 +151,12 @@ extension Store {
     func weekLoad(offset: Int) -> WeekLoad {
         let cal = Calendar.current
         let mon = weekStart(offset: offset)
-        let today = cal.startOfDay(for: Date())
         var daily = [Double](repeating: 0, count: 7)
         var count = 0
         var trainingDays = Set<Int>()
         var knownDays = Set<Int>()                 // days we have real information about
         for s in sessions {
-            guard let l = measuredLoad(s), let d = isoFormatter.date(from: s.date) else { continue }
+            guard let l = trimp(s), let d = isoFormatter.date(from: s.date) else { continue }
             let day = cal.startOfDay(for: d)
             let diff = cal.dateComponents([.day], from: mon, to: day).day ?? -1
             if diff >= 0 && diff < 7 { daily[diff] += l; count += 1; trainingDays.insert(diff); knownDays.insert(diff) }
@@ -190,7 +167,6 @@ extension Store {
         for diff in 0..<7 {
             guard let day = cal.date(byAdding: .day, value: diff, to: mon) else { continue }
             if restSet.contains(isoFormatter.string(from: day)) { knownDays.insert(diff) }
-            else if day > today { /* hasn't happened yet — leave unknown */ }
         }
         // Denominator: known days for the current week; classic 7 for past weeks
         // where a gap can't be told apart from rest.
@@ -210,95 +186,55 @@ extension Store {
     }
 }
 
-// MARK: - Readiness (multi-factor: HRV + resting HR + sleep)
-struct ReadinessResult {
-    var score: Int?            // 0-100
-    var lnToday: Double?       // today's lnHRV (kept for the HRV detail line)
-    var baseline: Double?      // mean lnHRV baseline
-    var sd: Double?
-    var samples: Int           // HRV baseline sample count (drives the "building" card)
-    /// "rest", "easy", "ready", or "none".
-    var advice: String
-    /// Which signals contributed today (e.g. ["hrv","hr","sleep"]) — for the card.
-    var usedSignals: [String] = []
+// MARK: - Personal normal range (the user's own last 60 days)
+/// Where a nightly value usually sits for this user: mean and SD of the readings
+/// in the `baselineDays` before the day being judged.
+struct PersonalRange {
+    var mean: Double
+    var sd: Double
+    var n: Int
+    func z(_ v: Double) -> Double { sd > 0 ? (v - mean) / sd : 0 }
+}
+
+/// One overnight vital on the latest night, judged against the personal range.
+struct VitalReading: Identifiable {
+    var field: HealthField
+    var value: Double
+    var range: PersonalRange?
+    /// "ok" | "high" | "low" | "building" (not enough nights yet)
+    var status: String
+    var id: String { field.rawValue }
 }
 
 extension Store {
-    /// Multi-factor morning readiness. Each available signal is turned into a
-    /// personal-baseline z-score (positive = more recovered than usual), then the
-    /// signals are combined with fixed weights, renormalized over whatever exists
-    /// that day so it degrades gracefully:
-    ///   • HRV (lnRMSSD, or SDNN from Health) — primary, weight 0.50, higher = better
-    ///   • resting / waking HR (or sleeping HR) — weight 0.30, lower = better
-    ///   • sleep score — weight 0.20, higher = better (absolute anchor until there
-    ///     is enough history for a personal baseline)
-    /// The composite z maps to 0-100 as 50 + 20·z (so ±2.5 SD spans the full range)
-    /// and to the rest/easy/ready advice bands.
-    func readiness() -> ReadinessResult {
-        // HRV: prefer any legacy per-session/daily HRV value, fall back to the
-        // HRV imported from Apple Health — whichever has more days, used
-        // consistently (the z-score works on either; both are HRV in ms).
-        var rmssdMap: [String: Double] = [:]
-        for s in sessions { if let r = s.rmssd, r > 0 { rmssdMap[s.date] = r } }
-        for d in daily { if let r = d.rmssd, r > 0 { rmssdMap[d.date] = r } }
-        var sdnnMap: [String: Double] = [:]
-        // Only HRV measured asleep: daytime readings vary with activity and posture.
-        for d in daily { if let h = d.hrvSleep, h > 0 { sdnnMap[d.date] = h } }
-        let hrvMap = rmssdMap.count >= sdnnMap.count ? rmssdMap : sdnnMap
+    static let baselineDays = 60
+    static let baselineMinReadings = 7
+    /// Readiness is about now: the newest reading stands in for "today" only while
+    /// it is at most this many days old.
+    private static let readinessFreshDays = 3
 
-        var factors: [(name: String, z: Double, w: Double)] = []
-        var hrvSamples = 0
-        var lnToday: Double? = nil, hrvBase: Double? = nil, hrvSD: Double? = nil
-
-        if let f = zFactor(map: hrvMap, transform: { log($0) }, higherIsBetter: true, minN: 5) {
-            factors.append((name: "hrv", z: f.z, w: 0.50))
-            hrvSamples = f.baseCount; lnToday = f.today; hrvBase = f.mean; hrvSD = f.sd
-        }
-
-        // Resting / waking HR (fall back to sleeping HR). Lower than baseline = better.
-        var hrMap: [String: Double] = [:]
-        for d in daily {
-            if let v = d.restHR, v > 0 { hrMap[d.date] = Double(v) }
-            else if let v = d.sleepHR, v > 0 { hrMap[d.date] = Double(v) }
-        }
-        if let f = zFactor(map: hrMap, transform: { $0 }, higherIsBetter: false, minN: 5) {
-            factors.append((name: "hr", z: f.z, w: 0.30))
-        }
-
-        // Sleep score. Use a personal baseline once there's enough history, else an
-        // absolute anchor (≈72/100 a decent night, ±12 spread) so it still counts.
-        var sleepMap: [String: Double] = [:]
-        for d in daily { if let v = d.sleep, v > 0 { sleepMap[d.date] = Double(v) } }
-        if let f = zFactor(map: sleepMap, transform: { $0 }, higherIsBetter: true, minN: 5) {
-            factors.append((name: "sleep", z: f.z, w: 0.20))
-        } else if let latestKey = sleepMap.keys.max(), isRecent(latestKey), let todayScore = sleepMap[latestKey] {
-            factors.append((name: "sleep", z: max(-3, min(3, (todayScore - 72) / 12)), w: 0.20))
-        }
-
-        guard !factors.isEmpty else {
-            return ReadinessResult(score: nil, lnToday: lnToday, baseline: hrvBase, sd: hrvSD,
-                                   samples: hrvSamples, advice: "none", usedSignals: [])
-        }
-        let wSum = factors.reduce(0) { $0 + $1.w }
-        let z = factors.reduce(0) { $0 + $1.z * $1.w } / wSum
-        let score = Int(max(0, min(100, (50 + 20 * z).rounded())))
-        let advice: String
-        switch z {
-        case ..<(-1.0): advice = "rest"
-        case (-1.0)..<(-0.3): advice = "easy"
-        default: advice = "ready"
-        }
-        return ReadinessResult(score: score, lnToday: lnToday, baseline: hrvBase, sd: hrvSD,
-                               samples: hrvSamples, advice: advice, usedSignals: factors.map { $0.name })
+    /// The newest reading of a daily value, if recent enough to describe today.
+    func latestRecent(_ value: (DailyEntry) -> Double?) -> (date: String, value: Double)? {
+        guard let e = sortedDaily.last(where: { (value($0) ?? 0) > 0 }), let v = value(e), isRecent(e.date) else { return nil }
+        return (e.date, v)
     }
 
-    /// Standardize the latest reading of a daily metric against a personal baseline
-    /// of the prior ~60 days. Returns today's z (sign flipped when lower is better,
-    /// clamped to ±3 so one freak reading can't dominate), plus baseline stats.
-    /// Readiness is about now: the newest reading stands in for "today" only while
-    /// it is at most this many days old. An HRV value from weeks ago says nothing
-    /// about how recovered the user is this morning.
-    private static let readinessFreshDays = 3
+    /// The personal range of a daily value over the `baselineDays` before `day`.
+    func personalRange(_ value: (DailyEntry) -> Double?, before day: String,
+                       transform: (Double) -> Double = { $0 }) -> PersonalRange? {
+        guard let end = isoFormatter.date(from: day),
+              let start = Calendar.current.date(byAdding: .day, value: -Store.baselineDays, to: end) else { return nil }
+        let from = isoFormatter.string(from: start)
+        let vals = sortedDaily.compactMap { e -> Double? in
+            guard e.date >= from, e.date < day, let v = value(e), v.isFinite, v != 0 else { return nil }
+            return transform(v)
+        }
+        guard vals.count >= Store.baselineMinReadings else { return nil }
+        let mean = vals.reduce(0, +) / Double(vals.count)
+        let sd = (vals.reduce(0) { $0 + ($1 - mean) * ($1 - mean) } / Double(vals.count)).squareRoot()
+        return PersonalRange(mean: mean, sd: sd, n: vals.count)
+    }
+
     private func isRecent(_ date: String) -> Bool {
         guard let day = isoFormatter.date(from: date),
               let cutoff = Calendar.current.date(byAdding: .day, value: -Store.readinessFreshDays,
@@ -306,27 +242,175 @@ extension Store {
         return day >= cutoff
     }
 
-    private func zFactor(map: [String: Double], transform: (Double) -> Double,
-                         higherIsBetter: Bool, minN: Int)
-        -> (z: Double, today: Double, mean: Double, sd: Double, baseCount: Int)? {
-        let pairs = map.filter { $0.value > 0 }.sorted { $0.key < $1.key }
-        guard let latest = pairs.last, isRecent(latest.key) else { return nil }
-        let vals = pairs.map { transform($0.value) }
-        let today = transform(latest.value)
-        let history = vals.count > 1 ? Array(vals.dropLast()) : vals
-        let base = Array(history.suffix(60))
-        guard base.count >= minN else { return nil }
-        let mean = base.reduce(0, +) / Double(base.count)
-        let variance = base.reduce(0) { $0 + ($1 - mean) * ($1 - mean) } / Double(base.count)
-        let sd = variance.squareRoot()
-        guard sd > 0 else { return nil }
-        var z = (today - mean) / sd
-        if !higherIsBetter { z = -z }
-        return (max(-3, min(3, z)), today, mean, sd, base.count)
+    /// The overnight vitals of the latest night, each against the user's range.
+    /// A value is out of range beyond 2 SD (like Apple's Vitals app), with a floor
+    /// per vital so a very steady baseline does not flag noise. SpO2 below 93 % is
+    /// low whatever the baseline.
+    func nightVitals() -> [VitalReading] {
+        let specs: [(HealthField, floor: Double)] = [
+            (.hrvSleep, 6), (.sleepHR, 3), (.respRate, 1), (.spo2, 2), (.wristTemp, 0.5)
+        ]
+        return specs.compactMap { field, floor in
+            guard let latest = latestRecent({ $0[field] }) else { return nil }
+            let range = personalRange({ $0[field] }, before: latest.date)
+            var status = "building"
+            if let range {
+                let band = max(2 * range.sd, floor)
+                status = latest.value > range.mean + band ? "high" : (latest.value < range.mean - band ? "low" : "ok")
+            }
+            if field == .spo2, latest.value < Store.spo2LowPercent { status = "low" }
+            return VitalReading(field: field, value: latest.value, range: range, status: status)
+        }
+    }
+    static let spo2LowPercent = 93.0
+
+    /// Vitals that point to illness or heavy stress: breathing faster or a warmer
+    /// wrist than usual, or low blood oxygen.
+    func vitalsWarning() -> [HealthField] {
+        nightVitals().filter {
+            ($0.field == .respRate && $0.status == "high") || ($0.field == .wristTemp && $0.status == "high")
+                || ($0.field == .spo2 && $0.status == "low")
+        }.map(\.field)
+    }
+}
+
+// MARK: - Sleep score (duration, efficiency, stages, regularity)
+extension Store {
+    /// 0-100 score of a night. Components without data drop out and the others
+    /// are reweighted, so hours alone still give a score:
+    ///   • duration 50 % — full at 7–9 h (NSF), 0 at 4 h and 12 h
+    ///   • efficiency 15 % — asleep ÷ in bed, full from 85 % (Ohayon 2017), 0 at 65 %
+    ///   • stages 20 % — deep 13–23 % and REM 20–25 % of the time asleep
+    ///   • regularity 15 % — SD of the sleep midpoint over a week, full ≤ 30 min, 0 ≥ 90 min
+    static func sleepScore(hours: Double, inBedHours: Double? = nil, deepMin: Double? = nil,
+                           remMin: Double? = nil, coreMin: Double? = nil, midpointSD: Double? = nil) -> Int {
+        func ramp(_ x: Double, zeroAt a: Double, fullAt b: Double) -> Double { max(0, min(1, (x - a) / (b - a))) }
+        func inBand(_ pct: Double, _ lo: Double, _ hi: Double) -> Double {
+            pct < lo ? ramp(pct, zeroAt: 0, fullAt: lo) : ramp(pct, zeroAt: hi + 15, fullAt: hi)
+        }
+        var parts: [(score: Double, weight: Double)] = [
+            (hours < 7 ? ramp(hours, zeroAt: 4, fullAt: 7) : ramp(hours, zeroAt: 12, fullAt: 9), 0.50)
+        ]
+        if let bed = inBedHours, bed > 0 {
+            parts.append((ramp(min(1, hours / bed), zeroAt: 0.65, fullAt: 0.85), 0.15))
+        }
+        let deep = deepMin ?? 0, rem = remMin ?? 0
+        let staged = deep + rem + (coreMin ?? 0)
+        if staged > 0 {
+            parts.append(((inBand(deep / staged * 100, 13, 23) + inBand(rem / staged * 100, 20, 25)) / 2, 0.20))
+        }
+        if let sd = midpointSD { parts.append((ramp(sd, zeroAt: 90, fullAt: 30), 0.15)) }
+        let weight = parts.reduce(0) { $0 + $1.weight }
+        return Int((parts.reduce(0) { $0 + $1.score * $1.weight } / weight * 100).rounded())
     }
 
-    /// DFA-alpha1 aerobic-threshold estimation requires a continuous R-R interval
-    /// stream from a chest strap. Stubbed until BLE support lands.
+    func sleepScore(of e: DailyEntry, regularity: Double?) -> Int? {
+        guard let h = e.sleepHours, h > 0 else { return nil }
+        return Store.sleepScore(hours: h, inBedHours: e.inBedHours, deepMin: e.sleepDeepMin.map(Double.init),
+                                remMin: e.sleepREMMin.map(Double.init), coreMin: e.sleepCoreMin.map(Double.init),
+                                midpointSD: regularity)
+    }
+
+    /// SD in minutes of the sleep midpoint over the week ending on `date` (at
+    /// least 4 nights), or nil. `byDate` lets the importer pass its working copy.
+    func sleepRegularity(endingOn date: String, in byDate: [String: DailyEntry]? = nil) -> Double? {
+        guard let end = isoFormatter.date(from: date) else { return nil }
+        let lookup = byDate ?? Dictionary(daily.map { ($0.date, $0) }, uniquingKeysWith: { a, _ in a })
+        let mids: [Double] = (0..<Store.regularityNights).compactMap { back in
+            guard let d = Calendar.current.date(byAdding: .day, value: -back, to: end),
+                  let e = lookup[isoFormatter.string(from: d)],
+                  let s = e.sleepStartMin, let w = e.sleepEndMin else { return nil }
+            return Double(s + w) / 2
+        }
+        guard mids.count >= Store.regularityMinNights else { return nil }
+        let mean = mids.reduce(0, +) / Double(mids.count)
+        return (mids.reduce(0) { $0 + ($1 - mean) * ($1 - mean) } / Double(mids.count)).squareRoot()
+    }
+    private static let regularityNights = 7
+    private static let regularityMinNights = 4
+}
+
+// MARK: - Readiness (HRV + resting HR + sleep, checked against overnight vitals)
+struct ReadinessResult {
+    var score: Int?            // 0-100
+    var samples: Int           // HRV baseline readings (drives the "building" card)
+    /// "rest", "easy", "ready", or "none".
+    var advice: String
+    /// Which signals contributed today (e.g. ["hrv","hr","sleep"]) — for the card.
+    var usedSignals: [String] = []
+    /// Overnight vitals outside the personal range (breathing, temperature, SpO2).
+    var warnings: [HealthField] = []
+}
+
+extension Store {
+    /// Morning readiness. Each signal becomes a z-score against the user's own
+    /// previous 60 days (positive = more recovered than usual), combined with
+    /// fixed weights renormalized over the signals present:
+    ///   • HRV measured asleep, ln-transformed — 0.45. Today's reading is blended
+    ///     with the 7-day mean (0.6 / 0.4) to damp single-night noise (Plews,
+    ///     Buchheit)
+    ///   • resting HR (sleeping HR only when there is no resting HR) — 0.25,
+    ///     lower = better
+    ///   • the sleep score — 0.30, against an absolute anchor (75 = neutral)
+    /// The composite maps to 0-100 as 50 + 20·z. An overnight vital out of range
+    /// (fast breathing, warm wrist, low SpO2) caps the day at "easy".
+    func readiness() -> ReadinessResult {
+        var factors: [(name: String, z: Double, w: Double)] = []
+        var hrvSamples = 0
+
+        // Legacy RMSSD only when sleep HRV has nothing recent to say.
+        let sleepHRV: (DailyEntry) -> Double? = { $0.hrvSleep }
+        let hrv = latestRecent(sleepHRV) != nil ? sleepHRV : { $0.rmssd }
+        if let latest = latestRecent(hrv), let range = personalRange(hrv, before: latest.date, transform: log) {
+            hrvSamples = range.n
+            var z = range.z(log(latest.value))
+            let weekStart = Calendar.current.date(byAdding: .day, value: -6, to: Calendar.current.startOfDay(for: Date()))
+                .map { isoFormatter.string(from: $0) } ?? today()
+            let week = sortedDaily.filter { $0.date >= weekStart }
+                .compactMap { e -> Double? in hrv(e).flatMap { $0 > 0 ? log($0) : nil } }
+            if week.count >= 3 { z = 0.6 * z + 0.4 * range.z(week.reduce(0, +) / Double(week.count)) }
+            factors.append(("hrv", clampZ(z), 0.45))
+        } else if let n = personalRangeCount(hrv) {
+            hrvSamples = n
+        }
+
+        let rest: (DailyEntry) -> Double? = { $0.restHR.map(Double.init) }
+        let hr = latestRecent(rest) != nil ? rest : { $0.sleepHR.map(Double.init) }
+        if let latest = latestRecent(hr), let range = personalRange(hr, before: latest.date) {
+            factors.append(("hr", clampZ(-range.z(latest.value)), 0.25))
+        }
+
+        if let latest = latestRecent({ $0.sleep.map(Double.init) }) {
+            factors.append(("sleep", clampZ((latest.value - Store.sleepNeutralScore) / Store.sleepScoreSpread), 0.30))
+        }
+
+        let warnings = vitalsWarning()
+        guard !factors.isEmpty else {
+            return ReadinessResult(score: nil, samples: hrvSamples, advice: "none", warnings: warnings)
+        }
+        let wSum = factors.reduce(0) { $0 + $1.w }
+        let z = factors.reduce(0) { $0 + $1.z * $1.w } / wSum
+        var score = Int(max(0, min(100, (50 + 20 * z).rounded())))
+        if !warnings.isEmpty { score = min(score, Store.readinessReadyFrom - 1) }
+        return ReadinessResult(score: score, samples: hrvSamples, advice: Store.readinessAdvice(score),
+                               usedSignals: factors.map { $0.name }, warnings: warnings)
+    }
+
+    static let readinessRestBelow = 30
+    static let readinessReadyFrom = 45
+    static func readinessAdvice(_ score: Int) -> String {
+        score < readinessRestBelow ? "rest" : (score < readinessReadyFrom ? "easy" : "ready")
+    }
+    private static let sleepNeutralScore = 75.0
+    private static let sleepScoreSpread = 12.0
+
+    private func clampZ(_ z: Double) -> Double { max(-3, min(3, z)) }
+
+    /// Readings so far of a value, for the "building baseline" card.
+    private func personalRangeCount(_ value: (DailyEntry) -> Double?) -> Int? {
+        let n = daily.filter { (value($0) ?? 0) > 0 }.count
+        return n > 0 ? n : nil
+    }
 }
 
 // MARK: - Progressive overload (double progression)
@@ -366,11 +450,13 @@ extension Store {
     /// for the ratio to mean something — the same test the dashboard applies before
     /// showing it (one logged ride alone gives a ratio above 3).
     private func recoveryGate() -> ProgKind? {
-        if let score = readiness().score, score < Store.deloadBelowReadiness { return .deload }
-        if loadDataStatus().reliable, let ratio = acwr().ratio, ratio > Store.holdAboveACWR { return .hold }
-        return nil
+        if let cached = recoveryGateCache { return cached }
+        var gate: ProgKind?
+        if let score = readiness().score, score < Store.readinessRestBelow { gate = .deload }
+        else if loadDataStatus().reliable, let ratio = acwr().ratio, ratio > Store.holdAboveACWR { gate = .hold }
+        recoveryGateCache = .some(gate)
+        return gate
     }
-    private static let deloadBelowReadiness = 30
     private static let holdAboveACWR = 1.3
 
     func progression(planId: String, exercise: String) -> ProgKind? {

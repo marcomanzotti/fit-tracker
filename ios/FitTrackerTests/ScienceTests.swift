@@ -172,4 +172,86 @@ final class ScienceTests: XCTestCase {
         XCTAssertEqual(calendar.dateComponents([.month, .day], from: weekStart(now: sunday, calendar: calendar)),
                        DateComponents(month: 10, day: 12))
     }
+
+    // MARK: Heart rate, VO2max
+
+    func testTrimpDoesNotTreatALowSessionPeakAsTheMaxHR() {
+        store.prefs.restingHR = 60
+        store.prefs.maxHR = 190
+        var lift = benchSession(daysAgo: 0, reps: ["8"])
+        lift.durationSec = 3_600; lift.avgHR = 110
+        var withPeak = lift
+        withPeak.maxHRSes = 125
+
+        XCTAssertEqual(store.trimp(withPeak)!, store.trimp(lift)!, accuracy: 0.001,
+                       "a 125 bpm peak must not make 110 bpm look like 77 % of the reserve")
+    }
+
+    func testVO2EstimateScalesOnlyTheReserveAboveRest() {
+        store.prefs.restingHR = 60
+        store.prefs.maxHR = 190
+        var run = WorkoutSession(date: day(1), planId: "cardio-run", planName: "Run", planColor: "ffe000",
+                                 exercises: [], sport: "running")
+        run.durationSec = 1_800; run.distanceKm = 6; run.avgHR = 164   // 200 m/min at 80 % of HR reserve
+        store.sessions = [run]
+
+        let est = store.vo2maxEstimate()
+        // ACSM: 0.2 × 200 + 3.5 = 43.5; VO2max = 3.5 + 40 / 0.8 = 53.5
+        XCTAssertEqual(est?.value ?? 0, 53.5, accuracy: 0.05)
+        XCTAssertEqual(est?.estimated, true)
+    }
+
+    // MARK: Sleep score
+
+    func testAGoodNightScoresFullMarks() {
+        let score = Store.sleepScore(hours: 8, inBedHours: 8.5, deepMin: 90, remMin: 110, coreMin: 280, midpointSD: 20)
+        XCTAssertEqual(score, 100)
+    }
+
+    func testHoursAloneStillGiveAScore() {
+        XCTAssertEqual(Store.sleepScore(hours: 5.5), 50, "half-way between 4 h and 7 h")
+        XCTAssertEqual(Store.sleepScore(hours: 8), 100)
+        XCTAssertEqual(Store.sleepScore(hours: 12), 0)
+    }
+
+    func testShortDeepSleepAndIrregularHoursLowerTheScore() {
+        let good = Store.sleepScore(hours: 8, inBedHours: 8.5, deepMin: 90, remMin: 110, coreMin: 280, midpointSD: 20)
+        let poor = Store.sleepScore(hours: 8, inBedHours: 8.5, deepMin: 20, remMin: 110, coreMin: 350, midpointSD: 100)
+        XCTAssertLessThan(poor, good - 15)
+    }
+
+    func testSleepRegularityNeedsFourNights() {
+        store.daily = (1...3).map { DailyEntry(date: day($0), sleepStartMin: -60, sleepEndMin: 420) }
+        XCTAssertNil(store.sleepRegularity(endingOn: day(1)))
+
+        store.daily.append(DailyEntry(date: day(4), sleepStartMin: 0, sleepEndMin: 480))
+        // Midpoints 180, 180, 180, 240 → SD 26 min
+        XCTAssertEqual(store.sleepRegularity(endingOn: day(1)) ?? 0, 25.98, accuracy: 0.1)
+    }
+
+    // MARK: Readiness
+
+    func testFastBreathingAtNightCapsReadinessAtEasy() {
+        store.daily = (1...20).map { i in
+            DailyEntry(date: day(i), sleep: 85, restHR: 52, hrvSleep: 60 + Double(i % 3), respRate: 14 + Double(i % 2) * 0.3)
+        } + [DailyEntry(date: day(0), sleep: 90, restHR: 50, hrvSleep: 66, respRate: 18)]
+
+        let r = store.readiness()
+
+        XCTAssertEqual(r.warnings, [.respRate])
+        XCTAssertEqual(r.advice, "easy")
+        XCTAssertLessThan(r.score ?? 100, Store.readinessReadyFrom)
+    }
+
+    func testAGoodMorningIsReady() {
+        store.daily = (1...20).map { i in
+            DailyEntry(date: day(i), sleep: 80, restHR: 54 + i % 2, hrvSleep: 60 + Double(i % 3))
+        } + [DailyEntry(date: day(0), sleep: 88, restHR: 52, hrvSleep: 68)]
+
+        let r = store.readiness()
+
+        XCTAssertEqual(r.advice, "ready")
+        XCTAssertEqual(Set(r.usedSignals), ["hrv", "hr", "sleep"])
+        XCTAssertTrue(r.warnings.isEmpty)
+    }
 }
