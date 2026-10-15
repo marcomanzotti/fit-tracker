@@ -35,6 +35,11 @@ struct FitTrackerApp: App {
         keeper = SessionKeeper(store: store, workout: workout, cardio: cardio, timer: timer, toast: toast)
         // Here and not in a view: iOS may relaunch the app in the background for
         // a Bluetooth event, without showing any window.
+        // New band data in Health (sleep, steps...) is read back into the app at once.
+        BandSyncEngine.fitTracker.onHealthDataWritten = { [weak store] in
+            guard let store, store.prefs.healthKitEnabled else { return }
+            store.syncHealth(days: 3)
+        }
         BandSyncEngine.fitTracker.start()
     }
 
