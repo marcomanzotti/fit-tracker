@@ -106,7 +106,7 @@ struct BodyView: View {
     // MARK: Sleep card — shows Health data when available, otherwise a manual entry form.
     private var sleepCard: some View {
         let e = store.dailyEntry(day)
-        let hrv = (e?.hrvSDNN ?? 0) > 0 ? e?.hrvSDNN : nil
+        let hrv = (e?.hrvSleep ?? 0) > 0 ? e?.hrvSleep : nil
         let score = (e?.sleep ?? 0) > 0 ? e?.sleep : nil
         let sHR = (e?.sleepHR ?? 0) > 0 ? e?.sleepHR : nil
         let hrs = (e?.sleepHours ?? 0) > 0 ? e?.sleepHours : nil
@@ -141,7 +141,7 @@ struct BodyView: View {
                          unit: score != nil ? "/100" : nil, valueColor: Theme.acc2,
                          note: hrs.map { "\(trimNum($0)) h" } ?? "—", info: "sleep")
                 StatTile(label: "HRV", value: hrv.map(trimNum) ?? "—", unit: hrv != nil ? "ms" : nil,
-                         valueColor: Theme.blue, note: t("st.hrv_sdnn"), info: "hrv")
+                         valueColor: Theme.blue, note: t("hrv.sleep_note"), info: "hrv")
                 StatTile(label: t("body.sleep_hr"), value: sHR.map { "\($0)" } ?? "—",
                          unit: sHR != nil ? "bpm" : nil, valueColor: Theme.red, note: t("hk.cat.sleepHR"))
             }
@@ -175,7 +175,7 @@ struct BodyView: View {
     private func prefillManualSleep(_ e: DailyEntry?) {
         if let v = e?.sleepHours, v > 0 { sleepHoursInput = trimNum(v) }
         if let v = e?.sleep, v > 0 { sleepScoreInput = "\(v)" }
-        if let v = e?.hrvSDNN, v > 0 { sleepHRVInput = trimNum(v) }
+        if let v = e?.hrvSleep, v > 0 { sleepHRVInput = trimNum(v) }
         if let v = e?.sleepHR, v > 0 { sleepHRInput = "\(v)" }
     }
 

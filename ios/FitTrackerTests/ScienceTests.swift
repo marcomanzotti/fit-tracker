@@ -102,17 +102,28 @@ final class ScienceTests: XCTestCase {
     func testAnOldLowHRVReadingDoesNotForceADeload() {
         // Baseline of normal nights three weeks ago, then one bad night, then nothing:
         // that last reading is not "today" and must not drive a deload now.
-        store.daily = (0..<10).map { DailyEntry(date: day(40 - $0), hrvSDNN: 60 + Double($0 % 3)) }
-            + [DailyEntry(date: day(21), hrvSDNN: 12)]
+        store.daily = (0..<10).map { DailyEntry(date: day(40 - $0), hrvSleep: 60 + Double($0 % 3)) }
+            + [DailyEntry(date: day(21), hrvSleep: 12)]
         store.sessions = [benchSession(daysAgo: 2, reps: ["8", "8", "8", "8"])]
 
         XCTAssertNil(store.readiness().score)
         XCTAssertEqual(store.progression(planId: "p1", exercise: "Barbell bench press"), .addLoad)
     }
 
-    func testAFreshLowHRVReadingStillDeloads() {
+    func testDaytimeHRVDoesNotDriveReadinessOrDeload() {
+        // The same numbers as a fresh bad night, but measured during the day: only
+        // HRV taken asleep is scored.
         store.daily = (0..<10).map { DailyEntry(date: day(12 - $0), hrvSDNN: 60 + Double($0 % 3)) }
             + [DailyEntry(date: day(0), hrvSDNN: 12)]
+        store.sessions = [benchSession(daysAgo: 2, reps: ["8", "8", "8", "8"])]
+
+        XCTAssertFalse(store.readiness().usedSignals.contains("hrv"))
+        XCTAssertEqual(store.progression(planId: "p1", exercise: "Barbell bench press"), .addLoad)
+    }
+
+    func testAFreshLowHRVReadingStillDeloads() {
+        store.daily = (0..<10).map { DailyEntry(date: day(12 - $0), hrvSleep: 60 + Double($0 % 3)) }
+            + [DailyEntry(date: day(0), hrvSleep: 12)]
         store.sessions = [benchSession(daysAgo: 2, reps: ["8", "8", "8", "8"])]
 
         XCTAssertEqual(store.progression(planId: "p1", exercise: "Barbell bench press"), .deload)

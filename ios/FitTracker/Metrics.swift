@@ -390,9 +390,9 @@ extension Store {
         vitalTrend({ $0.restHR.map(Double.init) }, days: days, higherIsBetter: false)
     }
 
-    /// HRV trend over `days` (higher is better). Prefers SDNN from Health, falling
-    /// back to any legacy RMSSD value so older data still trends.
+    /// HRV trend over `days` (higher is better): HRV measured asleep, falling back
+    /// to any legacy RMSSD value so older data still trends.
     func hrvTrend(days: Int = 30) -> VitalTrend {
-        vitalTrend({ ($0.hrvSDNN ?? $0.rmssd).flatMap { $0 > 0 ? $0 : nil } }, days: days, higherIsBetter: true)
+        vitalTrend({ ($0.hrvSleep ?? $0.rmssd).flatMap { $0 > 0 ? $0 : nil } }, days: days, higherIsBetter: true)
     }
 }

@@ -14,6 +14,8 @@ struct HealthDaySample {
     var steps: Int?
     var restHR: Int?
     var hrvSDNN: Double?
+    /// HRV SDNN averaged over the samples taken while asleep.
+    var hrvSleep: Double?
     var activeKcal: Int?
     var exerciseMin: Int?
     var sleepHours: Double?
@@ -150,6 +152,7 @@ final class HealthKitManager {
         var exMin: [String: Int] = [:]
         var sleepHrs: [String: Double] = [:]
         var sleepHR: [String: Int] = [:]
+        var sleepHRV: [String: Double] = [:]
         var vo2: [String: Double] = [:]
         let group = DispatchGroup()
 
@@ -169,7 +172,8 @@ final class HealthKitManager {
                 group.leave()
             }
         }
-        // HRV SDNN: daily average in milliseconds.
+        // HRV SDNN: daily average in milliseconds — kept as the daytime value; the
+        // HRV the app shows and scores is the sleep one, read with the sleep below.
         if categories.contains("hrv"), let t = HKObjectType.quantityType(forIdentifier: .heartRateVariabilitySDNN) {
             group.enter()
             collect(t, unit: HKUnit.secondUnit(with: .milli), options: .discreteAverage, start: start, end: end, cal: cal) { map in
@@ -204,23 +208,24 @@ final class HealthKitManager {
                 group.leave()
             }
         }
-        // Sleep duration (+ optional sleeping heart rate from the asleep windows).
-        if categories.contains("sleep") || categories.contains("sleepHR") {
+        // Sleep duration (+ sleeping heart rate and sleep HRV from the asleep windows).
+        if categories.contains("sleep") || categories.contains("sleepHR") || categories.contains("hrv") {
             group.enter()
             collectSleep(start: start, end: end, cal: cal,
-                         wantHR: categories.contains("sleepHR")) { hrs, hr, ok in
+                         wantHR: categories.contains("sleepHR"), wantHRV: categories.contains("hrv")) { hrs, hr, hrvs, ok in
                 if !ok { failed = true }
                 if categories.contains("sleep") { sleepHrs = hrs }
                 sleepHR = hr
+                sleepHRV = hrvs
                 group.leave()
             }
         }
 
         group.notify(queue: .main) {
             let keys = Set(steps.keys).union(rest.keys).union(hrv.keys).union(energy.keys)
-                .union(exMin.keys).union(sleepHrs.keys).union(sleepHR.keys).union(vo2.keys)
+                .union(exMin.keys).union(sleepHrs.keys).union(sleepHR.keys).union(vo2.keys).union(sleepHRV.keys)
             let out = keys.sorted().map {
-                HealthDaySample(date: $0, steps: steps[$0], restHR: rest[$0], hrvSDNN: hrv[$0],
+                HealthDaySample(date: $0, steps: steps[$0], restHR: rest[$0], hrvSDNN: hrv[$0], hrvSleep: sleepHRV[$0],
                                 activeKcal: energy[$0], exerciseMin: exMin[$0],
                                 sleepHours: sleepHrs[$0], sleepHR: sleepHR[$0], vo2max: vo2[$0])
             }
@@ -476,16 +481,17 @@ final class HealthKitManager {
     /// Sleep-analysis aggregation: total asleep hours per wake-day, and (optionally)
     /// the average heart rate measured inside those asleep windows. Each asleep
     /// sample is credited to the day it ends on (the morning you wake up).
-    private func collectSleep(start: Date, end: Date, cal: Calendar, wantHR: Bool,
-                              done: @escaping (_ hours: [String: Double], _ heartRate: [String: Int], _ ok: Bool) -> Void) {
-        guard let sleepType = HKObjectType.categoryType(forIdentifier: .sleepAnalysis) else { done([:], [:], false); return }
+    private func collectSleep(start: Date, end: Date, cal: Calendar, wantHR: Bool, wantHRV: Bool,
+                              done: @escaping (_ hours: [String: Double], _ heartRate: [String: Int],
+                                               _ hrv: [String: Double], _ ok: Bool) -> Void) {
+        guard let sleepType = HKObjectType.categoryType(forIdentifier: .sleepAnalysis) else { done([:], [:], [:], false); return }
         let endPlus = cal.date(byAdding: .day, value: 1, to: end) ?? end
         let predicate = HKQuery.predicateForSamples(withStart: start, end: endPlus, options: [])
         let q = HKSampleQuery(sampleType: sleepType, predicate: predicate,
                               limit: HKObjectQueryNoLimit, sortDescriptors: nil) { _, samples, error in
             if let error {
                 appLog.error("Health sleep query failed: \(String(describing: error), privacy: .public)")
-                DispatchQueue.main.async { done([:], [:], false) }
+                DispatchQueue.main.async { done([:], [:], [:], false) }
                 return
             }
             let cats = (samples as? [HKCategorySample]) ?? []
@@ -513,14 +519,13 @@ final class HealthKitManager {
             }
             for k in hours.keys { hours[k] = (hours[k]! * 10).rounded() / 10 }
 
-            guard wantHR, !intervals.isEmpty,
-                  let hrType = HKObjectType.quantityType(forIdentifier: .heartRate) else {
-                DispatchQueue.main.async { done(hours, [:], true) }
+            guard wantHR || wantHRV, !intervals.isEmpty else {
+                DispatchQueue.main.async { done(hours, [:], [:], true) }
                 return
             }
-            // Sorted once, so each heart-rate sample finds its sleep window by
-            // binary search: a year of samples against a year of windows is
-            // otherwise hundreds of millions of comparisons.
+            // Sorted once, so each sample finds its sleep window by binary search:
+            // a year of samples against a year of windows is otherwise hundreds of
+            // millions of comparisons.
             let windows = intervals.sorted { $0.start < $1.start }
             func sleepDay(at t: Date) -> String? {
                 var lo = 0, hi = windows.count          // first window starting after t
@@ -533,25 +538,36 @@ final class HealthKitManager {
                 where t <= windows[i].end { return windows[i].day }
                 return nil
             }
-            let bpm = HKUnit.count().unitDivided(by: .minute())
-            let hrQ = HKSampleQuery(sampleType: hrType, predicate: predicate,
-                                    limit: HKObjectQueryNoLimit, sortDescriptors: nil) { _, hrSamples, error in
-                if let error {
-                    appLog.error("Health sleep heart-rate query failed: \(String(describing: error), privacy: .public)")
-                    DispatchQueue.main.async { done(hours, [:], false) }
-                    return
+            /// Per-night average of a quantity, counting only samples taken while asleep.
+            func averageWhileAsleep(_ id: HKQuantityTypeIdentifier, unit: HKUnit, wanted: Bool,
+                                    then: @escaping ([String: Double]?) -> Void) {
+                guard wanted, let type = HKObjectType.quantityType(forIdentifier: id) else { then([:]); return }
+                let query = HKSampleQuery(sampleType: type, predicate: predicate,
+                                          limit: HKObjectQueryNoLimit, sortDescriptors: nil) { _, samples, error in
+                    if let error {
+                        appLog.error("Health sleep \(id.rawValue, privacy: .public) query failed: \(String(describing: error), privacy: .public)")
+                        then(nil)
+                        return
+                    }
+                    var sum: [String: Double] = [:], cnt: [String: Int] = [:]
+                    for sample in (samples as? [HKQuantitySample]) ?? [] {
+                        guard let day = sleepDay(at: sample.startDate) else { continue }
+                        sum[day, default: 0] += sample.quantity.doubleValue(for: unit)
+                        cnt[day, default: 0] += 1
+                    }
+                    var out: [String: Double] = [:]
+                    for (k, c) in cnt where c > 0 { out[k] = (sum[k] ?? 0) / Double(c) }
+                    then(out)
                 }
-                var sum: [String: Double] = [:], cnt: [String: Int] = [:]
-                for hs in (hrSamples as? [HKQuantitySample]) ?? [] {
-                    guard let day = sleepDay(at: hs.startDate) else { continue }
-                    sum[day, default: 0] += hs.quantity.doubleValue(for: bpm)
-                    cnt[day, default: 0] += 1
-                }
-                var hr: [String: Int] = [:]
-                for (k, c) in cnt where c > 0 { hr[k] = Int(((sum[k] ?? 0) / Double(c)).rounded()) }
-                DispatchQueue.main.async { done(hours, hr, true) }
+                self.store.execute(query)
             }
-            self.store.execute(hrQ)
+            averageWhileAsleep(.heartRate, unit: HKUnit.count().unitDivided(by: .minute()), wanted: wantHR) { hrAvg in
+                averageWhileAsleep(.heartRateVariabilitySDNN, unit: .secondUnit(with: .milli), wanted: wantHRV) { hrvAvg in
+                    let hr = (hrAvg ?? [:]).mapValues { Int($0.rounded()) }
+                    let hrv = (hrvAvg ?? [:]).mapValues { ($0 * 10).rounded() / 10 }
+                    DispatchQueue.main.async { done(hours, hr, hrv, hrAvg != nil && hrvAvg != nil) }
+                }
+            }
         }
         store.execute(q)
     }

@@ -1022,6 +1022,7 @@ extension Store {
             }
             fill(\.restHR, s.restHR) { $0 > 0 }
             fill(\.hrvSDNN, s.hrvSDNN) { $0 > 0 }
+            fill(\.hrvSleep, s.hrvSleep) { $0 > 0 }
             grow(\.activeKcal, s.activeKcal) { $0 > 0 }
             grow(\.exerciseMin, s.exerciseMin) { $0 > 0 }
             grow(\.sleepHours, s.sleepHours) { $0 > 0 }
@@ -1055,7 +1056,7 @@ extension Store {
                 switch c {
                 case .steps:       return (e.steps ?? 0) > 0
                 case .restHR:      return (e.restHR ?? 0) > 0
-                case .hrv:         return (e.hrvSDNN ?? 0) > 0
+                case .hrv:         return (e.hrvSleep ?? 0) > 0
                 case .sleep:       return (e.sleepHours ?? 0) > 0 || (e.sleep ?? 0) > 0
                 case .sleepHR:     return (e.sleepHR ?? 0) > 0
                 case .activeKcal:  return (e.activeKcal ?? 0) > 0
@@ -1086,7 +1087,10 @@ extension Store {
                 // Only a full-year pull that Health answered in full counts as the
                 // backfill. A 30-day manual import, or a year cut short by a locked
                 // phone, must not cancel the automatic one.
-                if complete, days >= Store.healthBackfillDays { self.prefs.healthBackfilled = true }
+                if complete, days >= Store.healthBackfillDays {
+                    self.prefs.healthBackfilled = true
+                    self.prefs.sleepHRVBackfilled = true
+                }
                 completion(complete, n)
             }
         }
@@ -1239,13 +1243,19 @@ extension Store {
             self?.isSyncingHealth = false
             completion?(ok, imported, sources)
         }
-        let window = days ?? (prefs.healthBackfilled == true ? Store.healthRoutineDays : Store.healthBackfillDays)
+        // The year is read again once more after the sleep HRV was added, so past
+        // nights get it too.
+        let backfilled = prefs.healthBackfilled == true && prefs.sleepHRVBackfilled == true
+        let window = days ?? (backfilled ? Store.healthRoutineDays : Store.healthBackfillDays)
         hk.requestAuthorization { granted in
             guard granted else { finish(false, 0, []); return }
             hk.fetch(days: window, categories: self.prefs.healthCategories) { samples, complete in
                 self.applyHealthSamples(samples)
                 // An incomplete answer leaves the backfill to run again next time.
-                if complete, window >= Store.healthBackfillDays { self.prefs.healthBackfilled = true }
+                if complete, window >= Store.healthBackfillDays {
+                    self.prefs.healthBackfilled = true
+                    self.prefs.sleepHRVBackfilled = true
+                }
                 // Keep resting HR profile fresh from the most recent reading.
                 if let last = samples.compactMap({ $0.restHR }).last, last > 0 { self.prefs.restingHR = last }
                 // Importing past workouts from other watches is opt-in (formats
@@ -1798,7 +1808,8 @@ extension Store {
         upsertDaily(date) { e in
             if let hours, hours > 0 { e.sleepHours = hours }
             if let score { e.sleep = min(100, max(0, score)) }
-            if let hrv, hrv > 0 { e.hrvSDNN = hrv }
+            // Typed with the night's sleep, so it is a sleep HRV.
+            if let hrv, hrv > 0 { e.hrvSleep = hrv }
             if let sleepHR, sleepHR > 0 { e.sleepHR = sleepHR }
         }
     }

@@ -174,7 +174,7 @@ struct HealthHistoryView: View {
                     cell(e.steps.map { "\($0)" })
                     cell(e.activeKcal.map { "\($0)" })
                     cell(e.sleepHours.map { trimNum(($0 * 10).rounded() / 10) })
-                    cell(e.hrvSDNN.map { trimNum($0.rounded()) })
+                    cell(e.hrvSleep.map { trimNum($0.rounded()) })
                     cell(e.restHR.map { "\($0)" })
                 }
                 .padding(.vertical, 5)

@@ -242,7 +242,8 @@ extension Store {
         for s in sessions { if let r = s.rmssd, r > 0 { rmssdMap[s.date] = r } }
         for d in daily { if let r = d.rmssd, r > 0 { rmssdMap[d.date] = r } }
         var sdnnMap: [String: Double] = [:]
-        for d in daily { if let h = d.hrvSDNN, h > 0 { sdnnMap[d.date] = h } }
+        // Only HRV measured asleep: daytime readings vary with activity and posture.
+        for d in daily { if let h = d.hrvSleep, h > 0 { sdnnMap[d.date] = h } }
         let hrvMap = rmssdMap.count >= sdnnMap.count ? rmssdMap : sdnnMap
 
         var factors: [(name: String, z: Double, w: Double)] = []

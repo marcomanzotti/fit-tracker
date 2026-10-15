@@ -33,7 +33,8 @@ struct DailyEntry: Codable, Identifiable, Equatable {
     // Recovery (optional, manual entry)
     var rmssd: Double?        // legacy daily HRV value (no longer user-editable; kept for old backups + readiness)
     var restHR: Int?          // morning resting / waking heart rate
-    var hrvSDNN: Double?      // HRV SDNN imported from Apple Health (ms)
+    var hrvSDNN: Double?      // daytime HRV: SDNN average over the whole day from Apple Health (ms); shown apart, not scored
+    var hrvSleep: Double?     // HRV SDNN measured during sleep (Health) or typed with the night's sleep (ms): the HRV the app shows and scores
     var sleepHR: Int?         // average heart rate during sleep (Health / manual)
     var sleepHours: Double?   // sleep duration in hours (Health asleep total)
     // Daily activity, imported from Apple Health (gap-fill, any paired watch)
@@ -586,6 +587,8 @@ struct Prefs: Codable, Equatable {
     /// sync after connecting Health pulls 365 days so the charts start with real
     /// history; every later sync only needs the recent window.
     var healthBackfilled: Bool?
+    /// Set once the year-long import has also filled the sleep HRV (added later).
+    var sleepHRVBackfilled: Bool?
     /// Lead-in countdown before an isometric hold starts, in seconds — time to get
     /// into position. nil => 7 (the default); 0 turns it off.
     var holdPrepSec: Int?
