@@ -191,7 +191,7 @@ struct LiveWorkoutView: View {
         Card(accent: Theme.acc) {
             HStack(spacing: 2) {
                 Lbl(text: t("wk.calories"), color: Theme.acc2)
-                InfoButton(id: "calories", color: Theme.acc2)
+                InfoButton(id: .calories, color: Theme.acc2)
                 Spacer()
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
                     Text(!activeWorkout.caloriesManual.isEmpty ? activeWorkout.caloriesManual : (caloriesReady ? "\(estCalories)" : "—"))
@@ -221,10 +221,10 @@ struct LiveWorkoutView: View {
 
     private var sessionLoadCard: some View {
         Card {
-            InfoLbl(text: t("load.title"), info: "load", color: Theme.acc2).padding(.bottom, 10)
+            InfoLbl(text: t("load.title"), info: .load, color: Theme.acc2).padding(.bottom, 10)
             HMSField(label: t("wk.duration"), seconds: $activeWorkout.durationSec)
             Spacer().frame(height: 12)
-            loadField(t("wk.avg_hr"), $activeWorkout.avgHR, info: "trimp")
+            loadField(t("wk.avg_hr"), $activeWorkout.avgHR, info: .trimp)
             if let v = liveTrimp {
                 HStack(spacing: 6) {
                     Text("TRIMP").font(.head(10, .semibold)).tracking(1.5).foregroundColor(Theme.sub)
@@ -239,7 +239,7 @@ struct LiveWorkoutView: View {
         }
     }
 
-    private func loadField(_ label: String, _ binding: Binding<String>, info: String? = nil,
+    private func loadField(_ label: String, _ binding: Binding<String>, info: InfoTopic? = nil,
                            keyboard: UIKeyboardType = .numberPad) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             FieldLabel(label, info: info)

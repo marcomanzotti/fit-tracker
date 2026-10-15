@@ -197,7 +197,7 @@ struct ProfileFormBody: View {
             VStack(alignment: .leading, spacing: 7) {
                 HStack(spacing: 2) {
                     Lbl(text: t("ob.activity"))
-                    InfoButton(id: "activity")
+                    InfoButton(id: .activity)
                     Spacer()
                 }
                 PillSelect(options: ["sedentary", "light", "moderate", "high", "athlete"],
@@ -342,7 +342,7 @@ struct SettingsView: View {
                         Text(t("set.title").uppercased()).font(.head(18, .bold)).tracking(1).foregroundColor(Theme.txt)
                         Spacer()
                         Button { dismiss() } label: {
-                            Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: 34, height: 34)
+                            Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: Theme.minTapTarget, height: Theme.minTapTarget)
                         }
                     }
                     .padding(.top, 18)
@@ -425,7 +425,7 @@ struct SettingsView: View {
         Card {
             HStack(spacing: 2) {
                 Lbl(text: t("hk.connect"), color: Theme.acc2)
-                InfoButton(id: "steps", color: Theme.acc2)
+                InfoButton(id: .steps, color: Theme.acc2)
                 Spacer()
             }
             .padding(.bottom, 8)

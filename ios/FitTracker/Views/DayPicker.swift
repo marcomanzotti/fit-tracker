@@ -47,7 +47,7 @@ struct DayPickerSheet: View {
                         }
                         Spacer()
                         Button { dismiss() } label: {
-                            Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: 34, height: 34)
+                            Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: Theme.minTapTarget, height: Theme.minTapTarget)
                         }
                     }
                     .padding(.top, 18)
@@ -240,18 +240,18 @@ struct DayPickerSheet: View {
     /// so a value that landed in Health after the last sync shows up on demand.
     @ViewBuilder private var dayHealthSection: some View {
         let e = store.dailyEntry(date)
-        let tiles: [(String, String, String?)] = [
-            ("figure.walk", t("lbl.steps"), e?.steps.map { "\($0)" }),
-            ("flame.fill", t("hk.cat.activeKcal"), e?.activeKcal.map { "\($0)" }),
-            ("timer", t("hk.cat.exerciseMin"), e?.exerciseMin.map { "\($0)" }),
-            ("bed.double.fill", t("hk.cat.sleep"), e?.sleepHours.map { "\(trimNum(($0 * 10).rounded() / 10))h" }),
-            ("waveform.path.ecg", t("hrv.sleep"), e?.hrvSleep.map { trimNum($0.rounded()) }),
-            ("heart.fill", t("hk.cat.restHR"), e?.restHR.map { "\($0)" }),
-            ("drop.fill", "SpO₂", e?.spo2.map { "\(trimNum($0))%" }),
-            ("wind", t("vit.resp_short"), e?.respRate.map { trimNum($0) }),
-            ("figure.walk.motion", t("hk.cat.walkingHR"), e?.walkingHR.map { "\($0)" }),
-            ("figure.stand", t("hk.cat.standHours"), e?.standHours.map { "\($0)" }),
-            ("sun.max.fill", t("hk.cat.daylight"), e?.daylightMin.map { "\($0)′" })
+        let tiles: [(String, String, String?, InfoTopic)] = [
+            ("figure.walk", t("lbl.steps"), e?.steps.map { "\($0)" }, .steps),
+            ("flame.fill", t("hk.cat.activeKcal"), e?.activeKcal.map { "\($0)" }, .activeKcal),
+            ("timer", t("hk.cat.exerciseMin"), e?.exerciseMin.map { "\($0)" }, .exerciseMin),
+            ("bed.double.fill", t("hk.cat.sleep"), e?.sleepHours.map { "\(trimNum(($0 * 10).rounded() / 10))h" }, .sleep),
+            ("waveform.path.ecg", t("hrv.sleep"), e?.hrvSleep.map { trimNum($0.rounded()) }, .hrv),
+            ("heart.fill", t("hk.cat.restHR"), e?.restHR.map { "\($0)" }, .restingHR),
+            ("drop.fill", t("vit.spo2"), e?.spo2.map { "\(trimNum($0))%" }, .spo2),
+            ("wind", t("vit.resp_short"), e?.respRate.map { trimNum($0) }, .respRate),
+            ("figure.walk.motion", t("hk.cat.walkingHR"), e?.walkingHR.map { "\($0)" }, .walkingHR),
+            ("figure.stand", t("hk.cat.standHours"), e?.standHours.map { "\($0)" }, .stand),
+            ("sun.max.fill", t("hk.cat.daylight"), e?.daylightMin.map { "\($0)′" }, .daylight)
         ]
         let any = tiles.contains { $0.2 != nil }
         VStack(alignment: .leading, spacing: 8) {
@@ -270,8 +270,11 @@ struct DayPickerSheet: View {
                     LazyVGrid(columns: cols, spacing: 10) {
                         ForEach(Array(tiles.enumerated()), id: \.offset) { _, tile in
                             VStack(spacing: 3) {
-                                Image(systemName: tile.0).font(.system(size: 11))
-                                    .foregroundColor(tile.2 == nil ? Theme.sub.opacity(0.5) : Theme.acc2)
+                                HStack(spacing: 0) {
+                                    Image(systemName: tile.0).font(.system(size: 11))
+                                        .foregroundColor(tile.2 == nil ? Theme.sub.opacity(0.5) : Theme.acc2)
+                                    InfoButton(id: tile.3, size: 16)
+                                }
                                 Text(tile.2 ?? "—").font(.num(15))
                                     .foregroundColor(tile.2 == nil ? Theme.sub.opacity(0.5) : Theme.txt)
                                     .lineLimit(1).minimumScaleFactor(0.6)

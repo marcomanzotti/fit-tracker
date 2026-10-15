@@ -79,7 +79,7 @@ struct HoldTimerSheet: View {
             }
             Spacer()
             Button { tap(); finish(save: false) } label: {
-                Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: 34, height: 34)
+                Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: Theme.minTapTarget, height: Theme.minTapTarget)
             }
         }
         .padding(.top, 18)

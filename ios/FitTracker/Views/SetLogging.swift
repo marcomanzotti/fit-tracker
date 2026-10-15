@@ -114,12 +114,12 @@ struct IntervalSetBlock: View {
                 Button { tap(); done.wrappedValue = max(0, done.wrappedValue - 1) } label: {
                     Image(systemName: "minus").font(.system(size: 12, weight: .bold)).foregroundColor(Theme.txt)
                         .frame(width: 30, height: 30).background(Theme.c3).clipShape(Circle())
-                }.buttonStyle(PressableStyle())
+                }.buttonStyle(PressableStyle()).hitArea((Theme.minTapTarget - 30) / 2)
                 Text("\(done.wrappedValue)/\(target)").font(.num(18)).frame(minWidth: 50)
                 Button { tap(); done.wrappedValue += 1 } label: {
                     Image(systemName: "plus").font(.system(size: 12, weight: .bold)).foregroundColor(Theme.txt)
                         .frame(width: 30, height: 30).background(Theme.c3).clipShape(Circle())
-                }.buttonStyle(PressableStyle())
+                }.buttonStyle(PressableStyle()).hitArea((Theme.minTapTarget - 30) / 2)
             }
         }
     }
@@ -167,7 +167,7 @@ struct PlateSheet: View {
                         }
                         Spacer()
                         Button { dismiss() } label: {
-                            Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: 34, height: 34)
+                            Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: Theme.minTapTarget, height: Theme.minTapTarget)
                         }
                     }
                     .padding(.top, 18)

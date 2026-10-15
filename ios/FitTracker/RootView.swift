@@ -355,7 +355,7 @@ struct TimerStrip: View {
                 }
                 .hitArea(7)
                 Button { tap(); timer.stop() } label: {
-                    Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: 30, height: 30)
+                    Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: Theme.minTapTarget, height: Theme.minTapTarget)
                 }
                 .hitArea(7)
             }

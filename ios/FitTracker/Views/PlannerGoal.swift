@@ -22,10 +22,10 @@ struct GoalEditorView: View {
                 VStack(alignment: .leading, spacing: 16) {
                     HStack {
                         Text(t("goal.title").uppercased()).font(.head(18, .bold)).tracking(1).foregroundColor(Theme.txt)
-                        InfoButton(id: "goal")
+                        InfoButton(id: .goal)
                         Spacer()
                         Button { dismiss() } label: {
-                            Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: 34, height: 34)
+                            Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: Theme.minTapTarget, height: Theme.minTapTarget)
                         }
                     }
                     .padding(.top, 18)
@@ -106,10 +106,10 @@ struct WeeklyPlanView: View {
                 VStack(alignment: .leading, spacing: 14) {
                     HStack {
                         Text(t("plan.week").uppercased()).font(.head(18, .bold)).tracking(1).foregroundColor(Theme.txt)
-                        InfoButton(id: "weekplan")
+                        InfoButton(id: .weekplan)
                         Spacer()
                         Button { dismiss() } label: {
-                            Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: 34, height: 34)
+                            Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: Theme.minTapTarget, height: Theme.minTapTarget)
                         }
                     }
                     .padding(.top, 18)
@@ -212,12 +212,12 @@ struct WeeklyPlanCard: View {
     var body: some View {
         let sched = store.prefs.weekSchedule
         let todayMon = (Calendar.current.component(.weekday, from: Date()) + 5) % 7
-        let heads = L.weekHeaders   // Monday-first single letters
+        let heads = L.weekHeaders   // Monday-first, two letters
         Button { tap(); editing = true } label: {
             Card {
                 HStack(spacing: 2) {
                     Lbl(text: t("plan.week"), color: Theme.acc2)
-                    InfoButton(id: "weekplan", color: Theme.acc2)
+                    InfoButton(id: .weekplan, color: Theme.acc2)
                     Spacer()
                     Text((store.prefs.hasSchedule ? t("plan.scheduled") : t("plan.rotation")).uppercased())
                         .font(.head(10, .semibold)).tracking(0.8).foregroundColor(Theme.sub).lineLimit(1).minimumScaleFactor(0.8)

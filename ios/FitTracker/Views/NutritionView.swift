@@ -22,7 +22,7 @@ struct NutritionView: View {
         return Card(accent: Theme.acc) {
             HStack(spacing: 6) {
                 Lbl(text: t("nut.target"), color: Theme.acc2)
-                InfoButton(id: "tdee", color: Theme.acc2)
+                InfoButton(id: .tdee, color: Theme.acc2)
                 Spacer()
                 Text(modeLabel(e.mode).uppercased()).font(.head(11, .semibold)).tracking(1).foregroundColor(Theme.acc)
             }
@@ -35,9 +35,9 @@ struct NutritionView: View {
             }
             .padding(.bottom, 12)
             HStack(spacing: 9) {
-                StatTile(label: t("nut.protein"), value: "\(Int(e.protein))", unit: "g", valueColor: Theme.blue, info: "macros")
-                StatTile(label: t("nut.carbs"), value: "\(Int(e.carbs))", unit: "g", valueColor: Theme.acc2, info: "macros")
-                StatTile(label: t("nut.fat"), value: "\(Int(e.fat))", unit: "g", valueColor: Theme.good, info: "macros")
+                StatTile(label: t("nut.protein"), value: "\(Int(e.protein))", unit: "g", valueColor: Theme.blue, info: .macros)
+                StatTile(label: t("nut.carbs"), value: "\(Int(e.carbs))", unit: "g", valueColor: Theme.acc2, info: .macros)
+                StatTile(label: t("nut.fat"), value: "\(Int(e.fat))", unit: "g", valueColor: Theme.good, info: .macros)
             }
         }
     }
@@ -50,7 +50,7 @@ struct NutritionView: View {
         let logged = (entry?.hasNutrition ?? false) && kcal > 0
         let pct = e.target > 0 ? Double(kcal) / e.target : 0
         return Card {
-            Lbl(text: "\(t("nutp.today")) · \(today())", color: Theme.acc2).padding(.bottom, 12)
+            InfoLbl(text: "\(t("nutp.today")) · \(fmtDM(today()))", info: .intake, color: Theme.acc2).padding(.bottom, 12)
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text("\(kcal)").font(.num(30)).foregroundColor(logged ? Theme.acc : Theme.sub)
                 Text("/ \(Int(e.target)) kcal").font(.system(size: 12, weight: .semibold)).foregroundColor(Theme.sub)

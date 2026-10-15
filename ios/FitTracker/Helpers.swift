@@ -31,8 +31,36 @@ func prettyDay(_ date: String) -> String {
     return cachedFormatter("EEEE d MMMM", locale: L.lang == "en" ? "en_US" : "it_IT").string(from: d).capitalized
 }
 
-/// "2024-05-31" -> "05-31"   (mirrors the web app's fmt())
-func fmtShort(_ date: String) -> String { String(date.dropFirst(5)) }
+/// The time window of a chart that would otherwise plot its whole history.
+enum ChartWindow: String, CaseIterable, Identifiable {
+    case m1, m3, m6, y1, all
+    var id: String { rawValue }
+    var label: String { t("chart.win." + rawValue) }
+    private var months: Int? {
+        switch self {
+        case .m1: return 1
+        case .m3: return 3
+        case .m6: return 6
+        case .y1: return 12
+        case .all: return nil
+        }
+    }
+    /// Whether a yyyy-MM-dd date falls inside the window.
+    func contains(_ date: String) -> Bool {
+        guard let months, let from = Calendar.current.date(byAdding: .month, value: -months, to: Date()) else { return true }
+        return date >= isoFormatter.string(from: from)
+    }
+}
+
+/// A yyyy-MM-dd date as a Date for a chart axis (start of that day).
+func chartDay(_ date: String) -> Date { isoFormatter.date(from: date) ?? Date() }
+
+/// An axis label sized to the span shown: days for about two months, months up to
+/// a year, month and year beyond — always a handful of short labels.
+func axisDate(_ d: Date, spanDays: Double) -> String {
+    let format = spanDays <= 70 ? "d MMM" : (spanDays <= 400 ? "MMM" : "MMM yy")
+    return cachedFormatter(format, locale: L.lang == "en" ? "en_US" : "it_IT").string(from: d)
+}
 
 /// "2024-05-31" -> "31/05"   (short, readable day/month for dense charts)
 func fmtDM(_ date: String) -> String {

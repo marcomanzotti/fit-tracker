@@ -282,7 +282,7 @@ struct FoodPickerSheet: View {
             Text(t("food.title")).font(.head(18, .bold)).foregroundColor(Theme.txt)
             Spacer()
             Button { dismiss() } label: {
-                Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: 34, height: 34)
+                Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: Theme.minTapTarget, height: Theme.minTapTarget)
             }
         }
         .padding(.top, 18)
@@ -396,7 +396,7 @@ struct FoodFormSheet: View {
                         Text(t("food.new_title")).font(.head(16, .bold)).foregroundColor(Theme.txt)
                         Spacer()
                         Button { dismiss() } label: {
-                            Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: 34, height: 34)
+                            Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: Theme.minTapTarget, height: Theme.minTapTarget)
                         }
                     }
                     .padding(.top, 18)
@@ -506,7 +506,7 @@ struct FoodQuantitySheet: View {
                     Text(food.name).font(.head(17, .bold)).foregroundColor(Theme.txt).lineLimit(2)
                     Spacer()
                     Button { dismiss() } label: {
-                        Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: 34, height: 34)
+                        Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: Theme.minTapTarget, height: Theme.minTapTarget)
                     }
                 }
                 .padding(.top, 18)

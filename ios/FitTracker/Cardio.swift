@@ -34,7 +34,7 @@ struct CardioLoggerView: View {
                         }
                         Spacer()
                         Button { dismiss() } label: {
-                            Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: 34, height: 34)
+                            Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: Theme.minTapTarget, height: Theme.minTapTarget)
                         }
                     }
                     .padding(.top, 18)
@@ -54,7 +54,7 @@ struct CardioLoggerView: View {
                     Card(accent: Theme.acc) {
                         HStack(spacing: 2) {
                             Lbl(text: t("wk.est_calories"), color: Theme.acc2)
-                            InfoButton(id: "calories", color: Theme.acc2)
+                            InfoButton(id: .calories, color: Theme.acc2)
                             Spacer()
                             HStack(alignment: .firstTextBaseline, spacing: 4) {
                                 Text(calManual.isEmpty ? (estCalories.map { "\($0)" } ?? "—") : calManual)
@@ -129,7 +129,7 @@ struct CardioTypeEditorView: View {
                             .font(.head(18, .bold)).tracking(0.5).foregroundColor(Color(hex: type.color))
                         Spacer()
                         Button { dismiss() } label: {
-                            Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: 34, height: 34)
+                            Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: Theme.minTapTarget, height: Theme.minTapTarget)
                         }
                     }
                     .padding(.top, 18)
@@ -320,7 +320,7 @@ struct LiveCardioView: View {
         Card(accent: Theme.acc) {
             HStack(spacing: 2) {
                 Lbl(text: t("wk.est_calories"), color: Theme.acc2)
-                InfoButton(id: "calories", color: Theme.acc2)
+                InfoButton(id: .calories, color: Theme.acc2)
                 Spacer()
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
                     Text(liveKcal.map { "\($0)" } ?? "—").font(.num(28)).foregroundColor(Theme.acc)

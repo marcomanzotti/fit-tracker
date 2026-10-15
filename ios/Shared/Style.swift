@@ -23,8 +23,9 @@ extension Font {
     static func head(_ size: CGFloat, _ weight: Font.Weight = .semibold) -> Font {
         .system(size: size, weight: weight)
     }
-    /// Numeric font — rounded design for the big stat numbers.
+    /// Numeric font — rounded design for the big stat numbers. Digits are all the
+    /// same width, so a ticking timer or a changing value doesn't shift its row.
     static func num(_ size: CGFloat, _ weight: Font.Weight = .bold) -> Font {
-        .system(size: size, weight: weight, design: .rounded)
+        .system(size: size, weight: weight, design: .rounded).monospacedDigit()
     }
 }

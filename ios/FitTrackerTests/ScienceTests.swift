@@ -254,4 +254,51 @@ final class ScienceTests: XCTestCase {
         XCTAssertEqual(Set(r.usedSignals), ["hrv", "hr", "sleep"])
         XCTAssertTrue(r.warnings.isEmpty)
     }
+
+    // MARK: Info points and charts
+
+    func testEveryInfoPointHasItalianAndEnglishText() {
+        for topic in InfoTopic.allCases {
+            for lang in ["it", "en"] {
+                XCTAssertNotEqual(L.t(topic.titleKey, lang: lang), topic.titleKey, "\(topic) title in \(lang)")
+                XCTAssertNotEqual(L.t(topic.bodyKey, lang: lang), topic.bodyKey, "\(topic) body in \(lang)")
+            }
+        }
+    }
+
+    func testEveryScaleAscendsAndNamesItsBands() {
+        // Personal scales need a baseline: give every nightly value 20 nights.
+        store.daily = (1...20).map { i in
+            DailyEntry(date: day(i), hrvSleep: 60 + Double(i % 4), sleepHR: 52 + i % 3,
+                       respRate: 14 + Double(i % 3) * 0.2, wristTemp: 34.5 + Double(i % 3) * 0.1, walkingHR: 95 + i % 4)
+        }
+        for sex in ["m", "f"] {
+            store.prefs.sex = sex
+            for topic in InfoTopic.allCases {
+                guard let scale = store.infoScale(topic) else { continue }
+                var lower = scale.from
+                for (i, band) in scale.bands.enumerated() {
+                    XCTAssertGreaterThan(band.upTo, lower, "\(topic) band \(i) does not ascend")
+                    lower = band.upTo
+                    XCTAssertNotEqual(L.t("band." + band.key), "band." + band.key, "\(topic): band.\(band.key) missing")
+                }
+            }
+        }
+    }
+
+    func testChartSeriesHaveOneDatedPointPerDayAcrossYears() {
+        // Two sessions on one day, and the same day-of-month a year apart: the old
+        // "MM-dd" labels merged the years and duplicated the day.
+        let thisYear = benchSession(daysAgo: 10, reps: ["8"], weight: "80")
+        let sameDay = benchSession(daysAgo: 10, reps: ["8"], weight: "90")
+        let lastYear = benchSession(daysAgo: 375, reps: ["8"], weight: "70")
+        store.sessions = [thisYear, sameDay, lastYear]
+
+        let history = store.exerciseHistory("Barbell bench press")
+
+        XCTAssertEqual(history.count, 2)
+        XCTAssertLessThan(history[0].day, history[1].day)
+        XCTAssertEqual(history[1].maxW, 90, "the heavier set of the day wins")
+        XCTAssertEqual(history[1].vol, 80 * 8 + 90 * 8, "both sessions' volume add up")
+    }
 }

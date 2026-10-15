@@ -196,11 +196,13 @@ struct PersonalRange {
     func z(_ v: Double) -> Double { sd > 0 ? (v - mean) / sd : 0 }
 }
 
-/// One overnight vital on the latest night, judged against the personal range.
+/// One overnight vital of a night, judged against the personal range.
 struct VitalReading: Identifiable {
     var field: HealthField
     var value: Double
     var range: PersonalRange?
+    /// Distance from the mean beyond which the value is out of range.
+    var band: Double
     /// "ok" | "high" | "low" | "building" (not enough nights yet)
     var status: String
     var id: String { field.rawValue }
@@ -246,20 +248,28 @@ extension Store {
     /// A value is out of range beyond 2 SD (like Apple's Vitals app), with a floor
     /// per vital so a very steady baseline does not flag noise. SpO2 below 93 % is
     /// low whatever the baseline.
-    func nightVitals() -> [VitalReading] {
+    /// The night of `date`, or the latest recent one when nil.
+    func nightVitals(on date: String? = nil) -> [VitalReading] {
         let specs: [(HealthField, floor: Double)] = [
             (.hrvSleep, 6), (.sleepHR, 3), (.respRate, 1), (.spo2, 2), (.wristTemp, 0.5)
         ]
+        let entry = date.flatMap { dailyEntry($0) }
         return specs.compactMap { field, floor in
-            guard let latest = latestRecent({ $0[field] }) else { return nil }
-            let range = personalRange({ $0[field] }, before: latest.date)
+            let reading: (date: String, value: Double)?
+            if let date {
+                reading = entry?[field].flatMap { $0 > 0 ? (date, $0) : nil }
+            } else {
+                reading = latestRecent { $0[field] }
+            }
+            guard let reading else { return nil }
+            let range = personalRange({ $0[field] }, before: reading.date)
+            let band = max(2 * (range?.sd ?? 0), floor)
             var status = "building"
             if let range {
-                let band = max(2 * range.sd, floor)
-                status = latest.value > range.mean + band ? "high" : (latest.value < range.mean - band ? "low" : "ok")
+                status = reading.value > range.mean + band ? "high" : (reading.value < range.mean - band ? "low" : "ok")
             }
-            if field == .spo2, latest.value < Store.spo2LowPercent { status = "low" }
-            return VitalReading(field: field, value: latest.value, range: range, status: status)
+            if field == .spo2, reading.value < Store.spo2LowPercent { status = "low" }
+            return VitalReading(field: field, value: reading.value, range: range, band: band, status: status)
         }
     }
     static let spo2LowPercent = 93.0

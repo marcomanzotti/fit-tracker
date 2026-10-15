@@ -44,7 +44,7 @@ struct HealthHistoryView: View {
             }
             Spacer()
             Button { dismiss() } label: {
-                Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: 34, height: 34)
+                Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: Theme.minTapTarget, height: Theme.minTapTarget)
             }
         }
         .padding(.top, 18)
@@ -125,6 +125,7 @@ struct HealthHistoryView: View {
                         .foregroundColor(n > 0 ? Theme.good : (on ? Theme.red : Theme.sub))
                         .frame(width: 22)
                     Text(t(c.labelKey)).font(.system(size: 13)).foregroundColor(on ? Theme.txt : Theme.sub)
+                    InfoButton(id: c.info, size: 16)
                     Spacer()
                     if !on {
                         Text("—").font(.system(size: 12)).foregroundColor(Theme.sub)

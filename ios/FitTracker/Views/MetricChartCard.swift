@@ -1,14 +1,14 @@
 import SwiftUI
 import Charts
 
-/// A daily metric whose overview chart defaults to a readable weekly average
-/// (last 2 months) and is expandable into a larger horizontally-scrollable view
-/// with a day/week/month/year toggle. Tap a point/bar to see the exact value.
+/// A daily metric whose overview chart shows weekly averages over the last 2
+/// months and expands into a larger view with a day/week/month/year toggle. Tap
+/// a point/bar to see the exact value.
 struct MetricChartCard: View {
     @EnvironmentObject var store: Store
 
     let title: String
-    var info: String? = nil
+    var info: InfoTopic? = nil
     let color: Color
     var kind: Kind = .area
     var yDomain: ClosedRange<Double>? = nil
@@ -30,22 +30,23 @@ struct MetricChartCard: View {
                         if let info { InfoButton(id: info) }
                         Spacer()
                         if let sel = selected {
-                            Text(fmtTooltipValue(sel.value))
-                                .font(.num(13)).foregroundColor(color)
-                            Text("·").foregroundColor(Theme.sub).font(.system(size: 11))
-                            Text(sel.date).font(.system(size: 11)).foregroundColor(Theme.sub)
+                            SelectedValue(value: chartValue(sel.value, unit: unit), day: sel.day,
+                                          granularity: .week, color: color)
                         }
                         Button { tap(); expanded = true } label: {
                             Image(systemName: "arrow.up.left.and.arrow.down.right")
                                 .font(.system(size: 12, weight: .semibold)).foregroundColor(Theme.sub)
                                 .frame(width: 28, height: 28)
                                 .background(Theme.c2).clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                        }.buttonStyle(PressableStyle())
+                        }
+                        .buttonStyle(PressableStyle())
+                        .hitArea((Theme.minTapTarget - 28) / 2)
+                        .accessibilityLabel(t("a11y.expand"))
                     }
                     .padding(.bottom, 8)
-                    InteractiveMetricPlot(data: data, color: color, kind: kind,
-                                          showPoints: false, selected: $selected)
-                        .styledAxes().chartY(yDomain).frame(height: 150)
+                    InteractiveMetricPlot(data: data, color: color, kind: kind, granularity: .week,
+                                          yDomain: yDomain, selected: $selected)
+                        .frame(height: 150)
                 }
                 .sheet(isPresented: $expanded) {
                     ExpandedChartSheet(title: title, color: color, kind: kind,
@@ -54,12 +55,38 @@ struct MetricChartCard: View {
             }
         }
     }
+}
 
-    private func fmtTooltipValue(_ v: Double) -> String {
-        if !unit.isEmpty { return "\(trimNum(v)) \(unit)" }
-        if v >= 1000 { return "\(Int(v.rounded()))" }
-        return trimNum(v)
+/// "72.4 kg · 14 Oct" in a chart header, for the point the user tapped.
+private struct SelectedValue: View {
+    let value: String
+    let day: Date
+    let granularity: Store.ChartGranularity
+    let color: Color
+    var body: some View {
+        HStack(spacing: 6) {
+            Text(value).font(.num(13)).foregroundColor(color)
+            Text("·").foregroundColor(Theme.sub).font(.system(size: 11))
+            Text(pointDate(day, granularity)).font(.system(size: 11)).foregroundColor(Theme.sub)
+        }
     }
+}
+
+private func chartValue(_ v: Double, unit: String) -> String {
+    if !unit.isEmpty { return "\(trimNum(v)) \(unit)" }
+    if v >= 1000 { return "\(Int(v.rounded()))" }
+    return trimNum(v)
+}
+
+/// The tapped bucket's date: the day for day/week buckets, else month or year.
+private func pointDate(_ d: Date, _ g: Store.ChartGranularity) -> String {
+    let format: String
+    switch g {
+    case .day, .week: format = "d MMM yyyy"
+    case .month:      format = "MMMM yyyy"
+    case .year:       format = "yyyy"
+    }
+    return cachedFormatter(format, locale: L.lang == "en" ? "en_US" : "it_IT").string(from: d)
 }
 
 /// Interactive chart with tap/drag selection. Shows a vertical rule + dot on the
@@ -68,32 +95,42 @@ struct InteractiveMetricPlot: View {
     let data: [Store.WeekPoint]
     let color: Color
     let kind: MetricChartCard.Kind
-    var showPoints: Bool
+    let granularity: Store.ChartGranularity
+    var yDomain: ClosedRange<Double>? = nil
+    var showPoints = false
     @Binding var selected: Store.WeekPoint?
 
     var body: some View {
+        let unit = granularity.unit
+        // Bars start at zero; a line gets a range around its own values, and its
+        // area fills down to that floor (an area to 0 would flatten 80 → 79 kg).
+        let range = yDomain ?? (kind == .bar ? 0...max(1, (data.map(\.value).max() ?? 1) * 1.1) : chartRange(data.map(\.value)))
         Chart(data) { p in
             let isSelected = selected?.id == p.id
             if kind == .bar {
-                BarMark(x: .value("g", p.date), y: .value("v", p.value))
+                BarMark(x: .value("d", p.day, unit: unit), y: .value("v", p.value))
                     .foregroundStyle(isSelected ? color : color.opacity(0.55))
-                    .cornerRadius(4)
+                    .cornerRadius(3)
             } else {
-                LineMark(x: .value("g", p.date), y: .value("v", p.value))
+                LineMark(x: .value("d", p.day, unit: unit), y: .value("v", p.value))
                     .interpolationMethod(.catmullRom).foregroundStyle(color)
-                AreaMark(x: .value("g", p.date), y: .value("v", p.value))
+                AreaMark(x: .value("d", p.day, unit: unit), yStart: .value("v", range.lowerBound), yEnd: .value("v", p.value))
                     .interpolationMethod(.catmullRom)
                     .foregroundStyle(LinearGradient(colors: [color.opacity(0.22), .clear],
                                                     startPoint: .top, endPoint: .bottom))
-                if let sel = selected, sel.id == p.id {
-                    RuleMark(x: .value("g", p.date))
+                if showPoints || isSelected {
+                    PointMark(x: .value("d", p.day, unit: unit), y: .value("v", p.value))
+                        .foregroundStyle(color).symbolSize(isSelected ? 36 : 14)
+                }
+                if isSelected {
+                    RuleMark(x: .value("d", p.day, unit: unit))
                         .foregroundStyle(color.opacity(0.4))
                         .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
-                    PointMark(x: .value("g", p.date), y: .value("v", p.value))
-                        .foregroundStyle(color).symbolSize(36)
                 }
             }
         }
+        .chartYScale(domain: range)
+        .dateAxes(data.map(\.day))
         .chartOverlay { proxy in
             GeometryReader { geo in
                 // A plain tap selects the nearest bucket (toggle off if re-tapped).
@@ -102,21 +139,15 @@ struct InteractiveMetricPlot: View {
                 // instead of being captured the instant a finger touches it.
                 Rectangle().fill(Color.clear).contentShape(Rectangle())
                     .onTapGesture { loc in
-                        let x = loc.x - geo[proxy.plotAreaFrame].origin.x
-                        if let date: String = proxy.value(atX: x) {
-                            let pt = closestPoint(to: date)
-                            if selected?.id == pt?.id { selected = nil } else { selected = pt }
-                        }
+                        let pt = closestPoint(atX: loc.x - geo[proxy.plotAreaFrame].origin.x, proxy)
+                        selected = selected?.id == pt?.id ? nil : pt
                     }
                     .gesture(
                         LongPressGesture(minimumDuration: 0.18)
                             .sequenced(before: DragGesture(minimumDistance: 0))
                             .onChanged { value in
                                 if case .second(true, let drag?) = value {
-                                    let x = drag.location.x - geo[proxy.plotAreaFrame].origin.x
-                                    if let date: String = proxy.value(atX: x) {
-                                        selected = closestPoint(to: date)
-                                    }
+                                    selected = closestPoint(atX: drag.location.x - geo[proxy.plotAreaFrame].origin.x, proxy)
                                 }
                             }
                     )
@@ -124,21 +155,56 @@ struct InteractiveMetricPlot: View {
         }
     }
 
-    private func closestPoint(to label: String) -> Store.WeekPoint? {
-        // find the bucket whose label string is lexicographically closest
-        data.min(by: { abs($0.date.compare(label).rawValue) < abs($1.date.compare(label).rawValue) })
+    private func closestPoint(atX x: CGFloat, _ proxy: ChartProxy) -> Store.WeekPoint? {
+        guard let date: Date = proxy.value(atX: x) else { return nil }
+        return data.min { abs($0.day.timeIntervalSince(date)) < abs($1.day.timeIntervalSince(date)) }
     }
 }
 
-extension View {
-    @ViewBuilder func chartY(_ domain: ClosedRange<Double>?) -> some View {
-        if let domain { self.chartYScale(domain: domain) }
-        else { self.chartYScale(domain: .automatic(includesZero: false)) }
+/// A y range around a series with some air above and below, so a line chart shows
+/// how the values move instead of hugging the top of a 0-based axis.
+func chartRange(_ values: [Double]) -> ClosedRange<Double> {
+    guard let lo = values.min(), let hi = values.max() else { return 0...1 }
+    let pad = max((hi - lo) * 0.2, abs(hi) * 0.01, 0.5)
+    return (lo - pad)...(hi + pad)
+}
+
+/// A row of capsule chips to pick one option (chart granularity, time window).
+struct ChipPicker<T: Hashable>: View {
+    let options: [T]
+    @Binding var selection: T
+    let label: (T) -> String
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ForEach(options, id: \.self) { o in
+                let active = selection == o
+                Button { tap(); selection = o } label: {
+                    Text(label(o).uppercased())
+                        .font(.head(10, .semibold)).tracking(0.5)
+                        .foregroundColor(active ? Theme.bg : Theme.sub)
+                        .padding(.vertical, 7).padding(.horizontal, 12)
+                        .background(active ? Theme.acc : Theme.c2)
+                        .clipShape(Capsule())
+                        .overlay(Capsule().stroke(active ? Theme.acc : Theme.brd, lineWidth: 1))
+                }
+                .buttonStyle(PressableStyle())
+                .accessibilityAddTraits(active ? .isSelected : [])
+            }
+        }
     }
 }
 
-/// Full-screen expanded chart: day/week/month/year toggle + horizontally scrollable
-/// plot with its own tap selection. Opened from a MetricChartCard.
+/// 1M / 3M / 6M / 1Y / All above a chart that would otherwise plot every day ever logged.
+struct ChartWindowPicker: View {
+    @Binding var window: ChartWindow
+    var body: some View {
+        ChipPicker(options: ChartWindow.allCases, selection: $window) { $0.label }
+    }
+}
+
+/// Full-screen expanded chart: day/week/month/year toggle and the whole period
+/// on screen, with its own tap selection. Opened from a MetricChartCard.
 struct ExpandedChartSheet: View {
     @EnvironmentObject var store: Store
     @Environment(\.dismiss) private var dismiss
@@ -162,48 +228,26 @@ struct ExpandedChartSheet: View {
                         Text(title.uppercased())
                             .font(.head(18, .bold)).tracking(1).foregroundColor(Theme.txt)
                         if let sel = selected {
-                            HStack(spacing: 6) {
-                                Text(fmtTooltipValue(sel.value))
-                                    .font(.num(15)).foregroundColor(color)
-                                Text("·").foregroundColor(Theme.sub)
-                                Text(sel.date).font(.system(size: 12)).foregroundColor(Theme.sub)
-                            }
+                            SelectedValue(value: chartValue(sel.value, unit: unit), day: sel.day,
+                                          granularity: gran, color: color)
                         }
                     }
                     Spacer()
                     Button { dismiss() } label: {
-                        Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: 34, height: 34)
+                        Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub)
+                            .frame(width: Theme.minTapTarget, height: Theme.minTapTarget)
                     }
                 }
                 .padding(.top, 18)
 
-                HStack(spacing: 6) {
-                    ForEach(Store.ChartGranularity.allCases) { g in
-                        let active = gran == g
-                        Button { tap(); gran = g; selected = nil } label: {
-                            Text(t("chart.gran." + g.rawValue).uppercased())
-                                .font(.head(10, .semibold)).tracking(0.5)
-                                .foregroundColor(active ? Theme.bg : Theme.sub)
-                                .padding(.vertical, 7).padding(.horizontal, 14)
-                                .background(active ? Theme.acc : Theme.c2)
-                                .clipShape(Capsule())
-                                .overlay(Capsule().stroke(active ? Theme.acc : Theme.brd, lineWidth: 1))
-                        }.buttonStyle(PressableStyle())
-                    }
-                }
+                ChipPicker(options: Store.ChartGranularity.allCases, selection: $gran) { t("chart.gran." + $0.rawValue) }
+                    .onChange(of: gran) { _ in selected = nil }
 
                 let data = store.metricSeries(value, granularity: gran)
                 if data.count > 1 {
-                    ScrollView(.horizontal, showsIndicators: true) {
-                        InteractiveMetricPlot(data: data, color: color, kind: kind,
-                                              showPoints: kind == .area, selected: $selected)
-                            .styledAxes()
-                            .chartY(yDomain)
-                            .frame(width: max(UIScreen.main.bounds.width - 36,
-                                              CGFloat(data.count) * 46),
-                                   height: 320)
-                            .padding(.trailing, 12)
-                    }
+                    InteractiveMetricPlot(data: data, color: color, kind: kind, granularity: gran, yDomain: yDomain,
+                                          showPoints: kind == .area && data.count <= 40, selected: $selected)
+                        .frame(height: 320)
                 } else {
                     Spacer()
                     Text(t("st.no_data")).font(.system(size: 13)).foregroundColor(Theme.sub)
@@ -216,12 +260,6 @@ struct ExpandedChartSheet: View {
         }
         .preferredColorScheme(.dark)
         .keyboardDoneBar()
-    }
-
-    private func fmtTooltipValue(_ v: Double) -> String {
-        if !unit.isEmpty { return "\(trimNum(v)) \(unit)" }
-        if v >= 1000 { return "\(Int(v.rounded()))" }
-        return trimNum(v)
     }
 }
 
@@ -241,7 +279,7 @@ struct MuscleVolumeCard: View {
         return Group {
             if !vols.isEmpty {
                 Card {
-                    InfoLbl(text: t("metric.muscle_vol"), info: "muscle_vol", color: Theme.acc2).padding(.bottom, 10)
+                    InfoLbl(text: t("metric.muscle_vol"), info: .muscleVol, color: Theme.acc2).padding(.bottom, 10)
                     VStack(spacing: 10) {
                         ForEach(vols) { v in
                             HStack(spacing: 10) {
@@ -303,22 +341,26 @@ struct VitalsTrendCard: View {
         return Group {
             if show {
                 Card {
-                    InfoLbl(text: t("metric.vitals"), info: "vitals", color: Theme.red).padding(.bottom, 10)
-                    if rhr.status != "none" { vitalRow(t("hk.cat.restHR"), rhr, unit: "bpm") }
+                    InfoLbl(text: t("metric.vitals"), info: .vitals, color: Theme.red).padding(.bottom, 10)
+                    if rhr.status != "none" { vitalRow(t("hk.cat.restHR"), rhr, unit: "bpm", info: .restingHR) }
                     if hrv.status != "none" {
                         Spacer().frame(height: 8)
-                        vitalRow("HRV", hrv, unit: "ms")
+                        vitalRow("HRV", hrv, unit: "ms", info: .hrv)
                     }
                 }
             }
         }
     }
 
-    private func vitalRow(_ label: String, _ tr: Store.VitalTrend, unit: String) -> some View {
+    private func vitalRow(_ label: String, _ tr: Store.VitalTrend, unit: String, info: InfoTopic) -> some View {
         let (icon, color) = statusStyle(tr.status)
         return HStack(spacing: 10) {
-            Text(label.uppercased()).font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.sub)
-                .frame(width: 70, alignment: .leading)
+            HStack(spacing: 2) {
+                Text(label.uppercased()).font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.sub)
+                    .lineLimit(1).minimumScaleFactor(0.7)
+                InfoButton(id: info, size: 16)
+            }
+            .frame(width: 96, alignment: .leading)
             if let c = tr.current { Text("\(trimNum(c)) \(unit)").font(.num(16)).foregroundColor(Theme.txt) }
             Spacer()
             HStack(spacing: 5) {
@@ -344,15 +386,19 @@ struct FitnessCard: View {
     var body: some View {
         let vo2 = store.vo2maxEstimate()
         let zones = store.hrZones()
+        let walking = store.infoValue(.walkingHR)
+        let recovery = store.infoValue(.hrRecovery)
         return Group {
             if vo2 != nil || !zones.isEmpty {
                 Card {
-                    InfoLbl(text: t("metric.fitness"), info: "fitness", color: Theme.good).padding(.bottom, 10)
-                    if let vo2 {
-                        HStack {
+                    InfoLbl(text: t("metric.fitness"), info: .fitness, color: Theme.good).padding(.bottom, 10)
+                    if let vo2, let scale = store.infoScale(.vo2max) {
+                        let cls = scale.bands[scale.bandIndex(of: vo2.value)]
+                        HStack(spacing: 4) {
                             Text("VO₂max").font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.sub)
+                            InfoButton(id: .vo2max, size: 18)
                             Spacer()
-                            Text("\(trimNum(vo2.value))").font(.num(20)).foregroundColor(Theme.good)
+                            Text("\(trimNum(vo2.value))").font(.num(20)).foregroundColor(cls.tone.color)
                             Text("mL/kg·min").font(.system(size: 10, weight: .semibold)).foregroundColor(Theme.sub)
                             if vo2.estimated {
                                 Text(t("metric.estimated")).font(.head(10, .semibold)).tracking(0.5).foregroundColor(Theme.acc2)
@@ -360,6 +406,22 @@ struct FitnessCard: View {
                                     .background(Theme.acc2.opacity(0.14)).clipShape(Capsule())
                             }
                         }
+                        RangeBar(scale: scale, value: vo2.value).padding(.top, 6)
+                        Text(t("band." + cls.key) + " · " + t("metric.vo2_norm"))
+                            .font(.system(size: 10)).foregroundColor(Theme.sub).padding(.top, 4)
+                    }
+                    if walking != nil || recovery != nil {
+                        HStack(spacing: 9) {
+                            if let walking {
+                                StatTile(label: t("hk.cat.walkingHR"), value: "\(Int(walking.rounded()))", unit: "bpm",
+                                         valueColor: Theme.txt, info: .walkingHR)
+                            }
+                            if let recovery {
+                                StatTile(label: t("metric.hr_recovery"), value: "−\(Int(recovery.rounded()))", unit: "bpm",
+                                         valueColor: tone(.hrRecovery, recovery), info: .hrRecovery)
+                            }
+                        }
+                        .padding(.top, 12)
                     }
                     if !zones.isEmpty {
                         Spacer().frame(height: 12)
@@ -378,6 +440,11 @@ struct FitnessCard: View {
                 }
             }
         }
+    }
+
+    private func tone(_ topic: InfoTopic, _ v: Double) -> Color {
+        guard let s = store.infoScale(topic) else { return Theme.txt }
+        return s.bands[s.bandIndex(of: v)].tone.color
     }
 
     private func zoneColor(_ i: Int) -> Color {

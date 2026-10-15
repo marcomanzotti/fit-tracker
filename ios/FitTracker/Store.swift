@@ -452,11 +452,12 @@ extension Store {
         return sorted
     }
 
-    /// One time-bucketed average point (week/month/year) for an overview chart.
-    struct WeekPoint: Identifiable { var date: String; var value: Double; var id: String { date } }
+    /// One time-bucketed average point (day/week/month/year) for an overview chart;
+    /// `day` is the start of its bucket.
+    struct WeekPoint: Identifiable { var day: Date; var value: Double; var id: Date { day } }
 
     /// Bucket granularity for the overview charts. The overview shows `.week` over
-    /// ~3 months by default (readable trend); the expanded view lets the user switch.
+    /// the last 2 months (a readable trend); the expanded view lets the user switch.
     enum ChartGranularity: String, CaseIterable, Identifiable {
         case day, week, month, year
         var id: String { rawValue }
@@ -476,6 +477,15 @@ extension Store {
             case .week:  return [.yearForWeekOfYear, .weekOfYear]
             case .month: return [.year, .month]
             case .year:  return [.year]
+            }
+        }
+        /// The bucket width on a Date axis (bar width, tap targets).
+        var unit: Calendar.Component {
+            switch self {
+            case .day:   return .day
+            case .week:  return .weekOfYear
+            case .month: return .month
+            case .year:  return .year
             }
         }
     }
@@ -501,20 +511,8 @@ extension Store {
         }
         return byBucket.keys.sorted().map { b in
             let acc = byBucket[b]!
-            return WeekPoint(date: bucketLabel(b, granularity: granularity),
-                             value: ((acc.sum / Double(acc.n)) * 10).rounded() / 10)
+            return WeekPoint(day: b, value: ((acc.sum / Double(acc.n)) * 10).rounded() / 10)
         }
-    }
-
-    /// Compact axis label for a bucket start date, tuned per granularity.
-    private func bucketLabel(_ d: Date, granularity: ChartGranularity) -> String {
-        let format: String
-        switch granularity {
-        case .day, .week: format = "MM-dd"
-        case .month:      format = "yyyy-MM"
-        case .year:       format = "yyyy"
-        }
-        return cachedFormatter(format).string(from: d)
     }
 
     /// Most recent lastUsed date across a family's variants (for "recent" sorting).
@@ -976,9 +974,9 @@ extension Store {
 
     /// Series of logged-intake days for the nutrition charts (most recent `days`).
     struct NutPoint: Identifiable {
-        var date: String; var kcal: Int
+        var day: Date; var kcal: Int
         var protein: Double; var carbs: Double; var fat: Double
-        var id: String { date }
+        var id: Date { day }
     }
 
     /// Weekly-averaged nutrition series for the charts. Mirrors `metricSeries`:
@@ -1001,16 +999,13 @@ extension Store {
         }
         return byBucket.keys.sorted().map { b in
             let a = byBucket[b]!; let n = Double(max(1, a.n))
-            return NutPoint(date: weekBucketLabel(b),
+            return NutPoint(day: b,
                             kcal: Int((a.kcal / n).rounded()),
                             protein: (a.p / n * 10).rounded() / 10,
                             carbs: (a.c / n * 10).rounded() / 10,
                             fat: (a.f / n * 10).rounded() / 10)
         }
     }
-
-    /// MM-dd label for a week bucket's start date (matches the day/week axis style).
-    private func weekBucketLabel(_ d: Date) -> String { cachedFormatter("MM-dd").string(from: d) }
 
     // MARK: Apple Health import
     /// The v1 sleep score (hours only, peak at 8 h): only used to recognise, in old
@@ -1759,29 +1754,33 @@ extension Store {
             .sorted { $0.base.localizedCaseInsensitiveCompare($1.base) == .orderedAscending }
     }
 
-    struct ExPoint { var date: String; var maxW: Double; var vol: Double }
+    /// One day of an exercise's history: the top weight and the volume of that day.
+    struct ExPoint: Identifiable { var day: Date; var maxW: Double; var vol: Double; var id: Date { day } }
     func exerciseHistory(_ name: String) -> [ExPoint] {
-        sessions.filter { s in s.exercises.contains { $0.name == name } }
-            .sorted { $0.date < $1.date }
-            .map { s in
-                let ex = s.exercises.first { $0.name == name }!
-                return ExPoint(date: fmtShort(s.date), maxW: ex.maxWeight, vol: ex.volume.rounded())
-            }
+        exerciseHistory(names: [name])
     }
 
-    /// History aggregated over every variant in a movement family: per session the
+    /// History aggregated over every variant in a movement family: per day the
     /// max weight across variants and the summed volume.
     func exerciseHistory(family base: String) -> [ExPoint] {
         let names = Set(exerciseItems.filter { exerciseBase($0.name) == base }.map { $0.name })
             .union(plans.flatMap { $0.exercises.map { $0.name } }.filter { exerciseBase($0) == base })
-        return sessions.filter { s in s.exercises.contains { names.contains($0.name) } }
-            .sorted { $0.date < $1.date }
-            .map { s in
-                let exs = s.exercises.filter { names.contains($0.name) }
-                let maxW = exs.map { $0.maxWeight }.max() ?? 0
-                let vol = exs.reduce(0.0) { $0 + $1.volume }
-                return ExPoint(date: fmtShort(s.date), maxW: maxW, vol: vol.rounded())
-            }
+        return exerciseHistory(names: names)
+    }
+
+    /// Two sessions on one day make one point, so the chart has one value per date.
+    private func exerciseHistory(names: Set<String>) -> [ExPoint] {
+        var byDay: [String: (maxW: Double, vol: Double)] = [:]
+        for s in sessions {
+            let exs = s.exercises.filter { names.contains($0.name) }
+            guard !exs.isEmpty else { continue }
+            let acc = byDay[s.date] ?? (0, 0)
+            byDay[s.date] = (max(acc.maxW, exs.map(\.maxWeight).max() ?? 0), acc.vol + exs.reduce(0) { $0 + $1.volume })
+        }
+        return byDay.keys.sorted().compactMap { date in
+            guard let day = isoFormatter.date(from: date), let v = byDay[date] else { return nil }
+            return ExPoint(day: day, maxW: v.maxW, vol: v.vol.rounded())
+        }
     }
 
     var bodyLatest: BodyEntry? { body.max { $0.date < $1.date } }

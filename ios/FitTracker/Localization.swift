@@ -10,7 +10,11 @@ enum L {
     static var lang: String = "it"   // "it" | "en"
 
     /// Raw localized string for the current language (no formatting).
-    static func t(_ key: String) -> String {
+    static func t(_ key: String) -> String { t(key, lang: lang) }
+
+    /// The string in a given language, whatever the app's (the info sheets let the
+    /// user read the other one).
+    static func t(_ key: String, lang: String) -> String {
         let entry = table[key]
         return (lang == "en" ? entry?.en : entry?.it) ?? entry?.it ?? key
     }
@@ -26,11 +30,11 @@ enum L {
             ? ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
             : ["Dom", "Lun", "Mar", "Mer", "Gio", "Ven", "Sab"]
     }
-    /// Monday-first weekday headers for the calendar grid.
+    /// Monday-first two-letter weekday headers (one letter was ambiguous: M/M, T/T, S/S).
     static var weekHeaders: [String] {
         lang == "en"
-            ? ["M", "T", "W", "T", "F", "S", "S"]
-            : ["L", "M", "M", "G", "V", "S", "D"]
+            ? ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"]
+            : ["Lu", "Ma", "Me", "Gi", "Ve", "Sa", "Do"]
     }
 
     typealias E = (it: String, en: String)
@@ -58,6 +62,7 @@ enum L {
         "wk.rest_label": ("Recupero", "Rest"),
         "wk.go":       ("Vai", "Go"),
         "a11y.close":  ("Chiudi", "Close"),
+        "a11y.expand": ("Ingrandisci il grafico", "Expand the chart"),
         "a11y.remove": ("Rimuovi", "Remove"),
         "a11y.info":   ("Spiegazione", "Explanation"),
         "a11y.restart_rest": ("Ricomincia il recupero", "Restart rest"),
@@ -66,6 +71,8 @@ enum L {
         "a11y.plates": ("Dischi da caricare", "Plates to load"),
         "a11y.prev_day": ("Giorno precedente", "Previous day"),
         "a11y.next_day": ("Giorno successivo", "Next day"),
+        "a11y.prev_month": ("Mese precedente", "Previous month"),
+        "a11y.next_month": ("Mese successivo", "Next month"),
         "home.weight_invalid": ("Peso non valido: deve essere tra %@ e %@ %@", "Invalid weight: it must be between %@ and %@ %@"),
         "body.steps_invalid": ("Inserisci un numero di passi", "Enter a step count"),
 
@@ -479,6 +486,11 @@ enum L {
         "chart.gran.week":   ("Settimana", "Week"),
         "chart.gran.month":  ("Mese", "Month"),
         "chart.gran.year":   ("Anno", "Year"),
+        "chart.win.m1":      ("1M", "1M"),
+        "chart.win.m3":      ("3M", "3M"),
+        "chart.win.m6":      ("6M", "6M"),
+        "chart.win.y1":      ("1A", "1Y"),
+        "chart.win.all":     ("Tutto", "All"),
         "wk.cardio_saved":   ("Attività salvata", "Activity saved"),
         "wk.cardio_deleted": ("Attività eliminata", "Activity deleted"),
         "wk.delete_cardio_q":("Eliminare questa attività?", "Delete this activity?"),
@@ -555,6 +567,210 @@ enum L {
         "load.trend_title":  ("Andamento carico · 14 giorni", "Load trend · 14 days"),
 
         // --- Info popups (scientific metrics) -------------------------------
+        "band.rest": ("Riposo", "Rest"),
+        "band.easy": ("Leggero", "Easy"),
+        "band.ready": ("Pronto", "Ready"),
+        "band.optimal": ("Ottimale", "Optimal"),
+        "band.detraining": ("Sotto carico", "Detraining"),
+        "band.sweet_spot": ("Zona ideale", "Sweet spot"),
+        "band.caution": ("Attenzione", "Caution"),
+        "band.danger": ("Rischio", "Danger"),
+        "band.varied": ("Vario", "Varied"),
+        "band.monotonous": ("Monotono", "Monotonous"),
+        "band.lighter": ("Più leggero", "Lighter"),
+        "band.usual": ("Nella tua norma", "Your usual"),
+        "band.high": ("Alto", "High"),
+        "band.very_high": ("Molto alto", "Very high"),
+        "band.light": ("Leggero", "Light"),
+        "band.moderate": ("Moderato", "Moderate"),
+        "band.hard": ("Duro", "Hard"),
+        "band.very_hard": ("Molto duro", "Very hard"),
+        "band.poor": ("Scarso", "Poor"),
+        "band.fair": ("Discreto", "Fair"),
+        "band.good": ("Buono", "Good"),
+        "band.excellent": ("Eccellente", "Excellent"),
+        "band.low": ("Basso", "Low"),
+        "band.slightly_low": ("Un po' basso", "Slightly low"),
+        "band.normal": ("Normale", "Normal"),
+        "band.regular": ("Regolare", "Regular"),
+        "band.irregular": ("Irregolare", "Irregular"),
+        "band.very_irregular": ("Molto irregolare", "Very irregular"),
+        "band.very_low": ("Molto basso", "Very low"),
+        "band.below_usual": ("Sotto la tua norma", "Below your usual"),
+        "band.above_usual": ("Sopra la tua norma", "Above your usual"),
+        "band.slightly_high": ("Un po' alto", "Slightly high"),
+        "band.athlete": ("Da atleta", "Athlete"),
+        "band.average": ("Nella media", "Average"),
+        "band.sedentary": ("Sedentario", "Sedentary"),
+        "band.low_active": ("Poco attivo", "Low active"),
+        "band.active": ("Attivo", "Active"),
+        "band.very_active": ("Molto attivo", "Very active"),
+        "band.underweight": ("Sottopeso", "Underweight"),
+        "band.overweight": ("Sovrappeso", "Overweight"),
+        "band.obese": ("Obesità", "Obese"),
+        "band.essential": ("Essenziale", "Essential"),
+        "band.athletic": ("Atletico", "Athletic"),
+        "band.fitness": ("In forma", "Fitness"),
+        "band.below_average": ("Sotto la media", "Below average"),
+        "band.above_average": ("Sopra la media", "Above average"),
+        "band.superior": ("Superiore", "Superior"),
+        "band.rare": ("Raro senza farmaci", "Rare drug-free"),
+        "band.risk": ("Rischio", "Risk"),
+        "band.adequate": ("Adeguata", "Adequate"),
+        "band.well_under": ("Molto sotto", "Well under"),
+        "band.under": ("Sotto", "Under"),
+        "band.on_target": ("In obiettivo", "On target"),
+        "band.over": ("Sopra", "Over"),
+        "band.well_over": ("Molto sopra", "Well over"),
+        "band.very_poor": ("Molto scarso", "Very poor"),
+        "info.your_value": ("Il tuo valore", "Your value"),
+        "info.no_value": ("Ancora nessun dato", "No data yet"),
+        "vit.resp_short": ("Respiro", "Breathing"),
+        "info.vo2max.title": ("VO₂max", "VO₂max"),
+        "info.vo2max.body": (
+            "Il massimo ossigeno che il corpo usa sotto sforzo, in mL per kg al minuto. È il miglior indicatore della tua forma aerobica: sale con l'allenamento di resistenza e cala con l'età e l'inattività.\n\nViene dall'Apple Watch (misurato durante camminate e corse all'aperto) oppure, se manca, lo stimiamo dalle tue corse: vedi «Fitness cardio e zone».\n\nLa scala usa le norme del Cooper Institute per il tuo sesso e la tua età. Passare da una classe alla successiva vale molto per la salute: ogni punto di VO₂max in più è associato a un rischio cardiovascolare più basso.",
+            "The most oxygen your body uses at full effort, in mL per kg per minute. It is the best marker of your aerobic fitness: it rises with endurance training and falls with age and inactivity.\n\nIt comes from Apple Watch (measured on outdoor walks and runs) or, when missing, we estimate it from your runs: see \"Cardio fitness and zones\".\n\nThe scale uses the Cooper Institute norms for your sex and age. Moving up one class matters a lot for health: every extra point of VO₂max is linked to lower cardiovascular risk."
+        ),
+        "info.night_vitals.title": ("Parametri notturni", "Overnight vitals"),
+        "info.night_vitals.body": (
+            "Ogni notte l'orologio o la band misurano mentre dormi HRV, battito, frequenza respiratoria, ossigeno nel sangue e temperatura del polso. Qui li vedi confrontati con la tua norma.\n\nLa tua norma è la media degli ultimi 60 giorni ± 2 deviazioni standard: circa il 95% delle tue notti cade lì dentro, come nell'app Parametri vitali di Apple. Un valore fuori è segnato.\n\nPerché conta: respiro più veloce, polso più caldo e ossigeno più basso del solito, soprattutto insieme, spesso arrivano uno o due giorni prima dei sintomi di un raffreddore, o dopo alcol, viaggi o stress forte. In quei giorni la prontezza si ferma a «leggero».\n\nNon sono dati medici: se un valore resta fuori per giorni, parlane con un medico.",
+            "Every night your watch or band measures HRV, heart rate, breathing rate, blood oxygen and wrist temperature while you sleep. Here they are compared with your usual.\n\nYour usual is your average over the last 60 days ± 2 standard deviations: about 95% of your nights fall inside it, as in Apple's Vitals app. A value outside is flagged.\n\nWhy it matters: faster breathing, a warmer wrist and lower oxygen than usual, especially together, often come a day or two before cold symptoms, or after alcohol, travel or heavy stress. On those days readiness stops at \"easy\".\n\nThis is not medical data: if a value stays out of range for days, talk to a doctor."
+        ),
+        "info.sleep_stages.title": ("Fasi del sonno", "Sleep stages"),
+        "info.sleep_stages.body": (
+            "Durante la notte il sonno passa per fasi diverse:\n• Profondo: recupero fisico, ormone della crescita, riparazione muscolare. Di solito il 13–23% del sonno\n• REM: memoria, apprendimento motorio, equilibrio emotivo. Di solito il 20–25%\n• Core (leggero): il resto, circa metà della notte\n\nLa scala mostra la quota di sonno profondo dell'ultima notte. Il profondo cala con l'età ed è più alto nella prima parte della notte; alcol e cene tardive lo riducono.\n\nOrologi e band stimano le fasi da movimento e battito: sono indicative, non come un esame in laboratorio. Guarda la tendenza, non la singola notte.",
+            "Through the night sleep moves between stages:\n• Deep: physical recovery, growth hormone, muscle repair. Usually 13–23% of sleep\n• REM: memory, motor learning, emotional balance. Usually 20–25%\n• Core (light): the rest, about half the night\n\nThe scale shows last night's share of deep sleep. Deep sleep falls with age and is highest early in the night; alcohol and late dinners reduce it.\n\nWatches and bands estimate stages from movement and heart rate: they are indicative, not a lab test. Look at the trend, not one night."
+        ),
+        "info.sleep_eff.title": ("Efficienza del sonno", "Sleep efficiency"),
+        "info.sleep_eff.body": (
+            "Il tempo in cui hai dormito diviso per il tempo passato a letto, dal primo all'ultimo dato della notte.\n\nSopra l'85% è considerato un buon sonno (consenso della National Sleep Foundation, Ohayon 2017). Valori bassi vogliono dire molto tempo sveglio a letto: addormentarsi tardi, risvegli o restare a letto dopo la sveglia.\n\nCosa aiuta: andare a letto solo quando hai sonno, orari regolari, camera buia e fresca, niente schermi e caffeina la sera.",
+            "The time you slept divided by the time in bed, from the first to the last reading of the night.\n\nAbove 85% counts as good sleep (National Sleep Foundation consensus, Ohayon 2017). Low values mean a lot of time awake in bed: falling asleep late, waking up, or lying in after the alarm.\n\nWhat helps: going to bed only when sleepy, regular hours, a dark and cool room, no screens or caffeine in the evening."
+        ),
+        "info.sleep_reg.title": ("Regolarità del sonno", "Sleep regularity"),
+        "info.sleep_reg.body": (
+            "Quanto cambia, da una notte all'altra, l'orario della metà del tuo sonno nell'ultima settimana (deviazione standard, in minuti). Servono almeno 4 notti.\n\nSotto i 30 minuti il ritmo è regolare. Sopra l'ora e mezza è come avere un piccolo jet lag ogni settimana: gli studi sulla regolarità del sonno (Phillips 2017) la collegano a umore, metabolismo e prestazioni peggiori, anche a parità di ore dormite.\n\nCosa aiuta: svegliarsi alla stessa ora anche nel weekend.",
+            "How much the middle of your sleep moves from night to night over the last week (standard deviation, in minutes). It needs at least 4 nights.\n\nUnder 30 minutes your rhythm is regular. Over an hour and a half it is like a small jet lag every week: sleep-regularity studies (Phillips 2017) link it to worse mood, metabolism and performance, even with the same hours slept.\n\nWhat helps: waking up at the same time, weekends included."
+        ),
+        "info.sleep_hr.title": ("FC nel sonno", "Sleeping heart rate"),
+        "info.sleep_hr.body": (
+            "Il battito medio mentre dormi, misurato dall'orologio o dalla band solo nelle fasi di sonno.\n\nÈ di solito il valore più basso della giornata e il più affidabile per capire il recupero. Qualche battito sopra la tua norma dopo un allenamento duro, alcol, una cena pesante o un malanno in arrivo è normale; se resta alto per giorni è un segnale di affaticamento.\n\nLa scala è centrata sulla tua media degli ultimi 60 giorni.",
+            "Your average heart rate while asleep, measured by the watch or band during sleep only.\n\nIt is usually the lowest value of the day and the most reliable one to read recovery. A few beats above your usual after a hard session, alcohol, a heavy dinner or an oncoming cold is normal; staying high for days signals fatigue.\n\nThe scale is centred on your average over the last 60 days."
+        ),
+        "info.spo2.title": ("Ossigeno nel sangue", "Blood oxygen"),
+        "info.spo2.body": (
+            "La saturazione di ossigeno (SpO₂): quanta emoglobina nel sangue trasporta ossigeno. Usiamo la media misurata durante il sonno.\n\nIn una persona sana a livello del mare sta tra 95 e 100%. Di notte scende un po' ed è normale vedere 93–95%. Valori sotto il 93% contano come bassi e fermano la prontezza a «leggero»; sotto il 90% ripetuti meritano un controllo medico (per esempio per apnee notturne).\n\nI sensori da polso sono meno precisi di un saturimetro da dito: guarda le notti ripetute, non un singolo valore.",
+            "Oxygen saturation (SpO₂): how much of the haemoglobin in your blood carries oxygen. We use the average measured while asleep.\n\nIn a healthy person at sea level it sits between 95 and 100%. It drops a little at night and 93–95% is normal. Values below 93% count as low and cap readiness at \"easy\"; repeated readings below 90% deserve a medical check (sleep apnoea, for instance).\n\nWrist sensors are less precise than a finger oximeter: look at repeated nights, not one reading."
+        ),
+        "info.resp_rate.title": ("Frequenza respiratoria", "Breathing rate"),
+        "info.resp_rate.body": (
+            "Quanti respiri fai al minuto mentre dormi. Negli adulti a riposo è tipicamente tra 12 e 20.\n\nÈ molto stabile da notte a notte per la stessa persona, quindi uno spostamento conta: un aumento di 1–2 respiri sopra la tua norma è uno dei segnali più precoci di infezione, febbre o sovrallenamento. In quel caso la prontezza si ferma a «leggero».\n\nLa scala è centrata sulla tua media degli ultimi 60 giorni (± 2 deviazioni standard).",
+            "How many breaths per minute you take while asleep. In resting adults it is typically between 12 and 20.\n\nIt is very stable night to night for the same person, so a shift matters: a rise of 1–2 breaths above your usual is one of the earliest signs of infection, fever or overreaching. Readiness then stops at \"easy\".\n\nThe scale is centred on your average over the last 60 days (± 2 standard deviations)."
+        ),
+        "info.wrist_temp.title": ("Temperatura del polso", "Wrist temperature"),
+        "info.wrist_temp.body": (
+            "La temperatura della pelle al polso durante il sonno, misurata dall'Apple Watch (Series 8 e successivi). Non è la temperatura corporea: conta solo lo scarto dalla tua media degli ultimi 60 giorni.\n\nUno scarto tra −0,5 e +0,5 °C è normale. Più di +0,5 °C indica che il corpo è più caldo del solito: può essere l'inizio di un malanno, alcol, una camera calda o, per le donne, la fase del ciclo dopo l'ovulazione. Sopra +0,5 °C la prontezza si ferma a «leggero».",
+            "Skin temperature at the wrist while asleep, measured by Apple Watch (Series 8 and later). It is not body temperature: only the deviation from your 60-day average matters.\n\nA deviation between −0.5 and +0.5 °C is normal. More than +0.5 °C means your body runs warmer than usual: an oncoming illness, alcohol, a warm room or, for women, the phase of the cycle after ovulation. Above +0.5 °C readiness stops at \"easy\"."
+        ),
+        "info.resting_hr.title": ("FC a riposo", "Resting heart rate"),
+        "info.resting_hr.body": (
+            "Il battito più basso a riposo, calcolato dall'orologio durante la giornata e la notte.\n\nUn cuore allenato pompa più sangue per battito, quindi batte meno: la FC a riposo scende con la forma aerobica. Valori tipici negli adulti: 60–80; sotto 60 è comune in chi si allena, sotto 50 negli atleti di resistenza.\n\nNel breve conta il confronto con te stesso: qualche battito in più del solito per giorni indica stanchezza, stress o un malanno. Per questo la prontezza la confronta con la tua media degli ultimi 60 giorni.",
+            "Your lowest heart rate at rest, computed by the watch through the day and night.\n\nA trained heart pumps more blood per beat, so it beats less: resting HR falls as aerobic fitness rises. Typical adult values: 60–80; under 60 is common in people who train, under 50 in endurance athletes.\n\nDay to day, the comparison with yourself is what counts: a few extra beats for days point to fatigue, stress or illness. That is why readiness compares it with your 60-day average."
+        ),
+        "info.walking_hr.title": ("FC media camminando", "Walking heart rate"),
+        "info.walking_hr.body": (
+            "Il battito medio mentre cammini, calcolato dall'Apple Watch durante le camminate della giornata.\n\nÈ un buon indicatore della forma nel tempo perché lo sforzo (camminare) è sempre simile: se nelle settimane scende, la tua forma aerobica migliora; se sale, può esserci stanchezza, caldo o un periodo di poca attività.\n\nLa scala è centrata sulla tua media degli ultimi 60 giorni.",
+            "Your average heart rate while walking, computed by Apple Watch from the day's walks.\n\nIt is a good fitness marker over time because the effort (walking) is always similar: if it drops over the weeks your aerobic fitness is improving; if it rises there may be fatigue, heat or a period of low activity.\n\nThe scale is centred on your average over the last 60 days."
+        ),
+        "info.hr_recovery.title": ("Recupero FC a 1 minuto", "1-minute HR recovery"),
+        "info.hr_recovery.body": (
+            "Di quanti battiti scende il cuore nel primo minuto dopo la fine di un allenamento intenso. L'Apple Watch lo misura a fine allenamento.\n\nUn recupero rapido indica un sistema nervoso parasimpatico efficiente e una buona forma. Riferimenti: 12 battiti o meno è considerato anomalo e associato a un rischio cardiovascolare più alto (Cole 1999); 12–20 discreto; 20–30 buono; oltre 30 eccellente.\n\nIl valore dipende da quanto forte hai spinto: confronta allenamenti simili.",
+            "How many beats your heart drops in the first minute after a hard workout ends. Apple Watch measures it at the end of a workout.\n\nA fast recovery means an efficient parasympathetic nervous system and good fitness. References: 12 beats or fewer is considered abnormal and linked to higher cardiovascular risk (Cole 1999); 12–20 fair; 20–30 good; over 30 excellent.\n\nThe value depends on how hard you pushed: compare similar workouts."
+        ),
+        "info.active_kcal.title": ("Energia attiva", "Active energy"),
+        "info.active_kcal.body": (
+            "Le calorie bruciate con il movimento durante la giornata, oltre a quelle che il corpo consuma a riposo. Le stima l'orologio da battito e movimento.\n\nÈ la parte del consumo che cambia di più da un giorno all'altro. Le stime da polso possono sbagliare del 20–30%: usale per confrontare i giorni tra loro, non come numero esatto.",
+            "The calories burned by moving during the day, on top of what the body uses at rest. Your watch estimates them from heart rate and motion.\n\nIt is the part of your expenditure that changes most from day to day. Wrist estimates can be 20–30% off: use them to compare days, not as an exact number."
+        ),
+        "info.exercise_min.title": ("Minuti di attività", "Exercise minutes"),
+        "info.exercise_min.body": (
+            "I minuti di movimento almeno pari a una camminata veloce, contati dall'Apple Watch (l'anello verde).\n\nLe linee guida dell'OMS consigliano 150–300 minuti a settimana di attività moderata (circa 20–40 al giorno), oppure 75–150 di attività intensa.",
+            "Minutes of movement at least as hard as a brisk walk, counted by Apple Watch (the green ring).\n\nWHO guidelines recommend 150–300 minutes a week of moderate activity (about 20–40 a day), or 75–150 of vigorous activity."
+        ),
+        "info.stand.title": ("Ore in piedi", "Stand hours"),
+        "info.stand.body": (
+            "Le ore della giornata in cui ti sei alzato e mosso per almeno un minuto, contate dall'Apple Watch (l'anello blu). L'obiettivo di Apple è 12.\n\nStare seduti a lungo è un fattore di rischio a sé, anche per chi si allena: interrompere la sedentarietà ogni ora migliora glicemia e circolazione. La scala usa la media degli ultimi 7 giorni.",
+            "The hours of the day in which you stood and moved for at least a minute, counted by Apple Watch (the blue ring). Apple's goal is 12.\n\nLong sitting is a risk factor of its own, even for people who train: breaking it up every hour improves blood sugar and circulation. The scale uses your 7-day average."
+        ),
+        "info.daylight.title": ("Luce del giorno", "Time in daylight"),
+        "info.daylight.body": (
+            "I minuti passati alla luce del giorno, misurati dal sensore di luce dell'Apple Watch (da iOS 17).\n\nLa luce del mattino regola l'orologio biologico: aiuta ad addormentarsi la sera, migliora umore e regolarità del sonno. Molti studi indicano come utili almeno 20–30 minuti al giorno all'aperto, meglio se al mattino; oltre due ore è ottimo. La scala usa la media degli ultimi 7 giorni.",
+            "The minutes spent in daylight, measured by Apple Watch's light sensor (iOS 17 and later).\n\nMorning light sets your body clock: it helps you fall asleep at night and improves mood and sleep regularity. Many studies point to at least 20–30 minutes a day outdoors, ideally in the morning; over two hours is excellent. The scale uses your 7-day average."
+        ),
+        "info.flights.title": ("Piani saliti", "Flights climbed"),
+        "info.flights.body": (
+            "I piani di scale saliti nella giornata (circa 3 metri di dislivello l'uno), contati dal telefono o dall'orologio.\n\nSalire le scale è un'attività breve ma intensa: anche pochi piani al giorno sono associati a una migliore forma cardiovascolare. La scala usa la media degli ultimi 7 giorni.",
+            "The flights of stairs climbed in the day (about 3 metres each), counted by your phone or watch.\n\nClimbing stairs is short but intense: even a few flights a day are linked to better cardiovascular fitness. The scale uses your 7-day average."
+        ),
+        "info.weight.title": ("Peso", "Weight"),
+        "info.weight.body": (
+            "Il grafico mostra la media settimanale del peso, così le oscillazioni di un giorno (acqua, sale, carboidrati, intestino) non confondono la tendenza.\n\nIl peso arriva da quello che inserisci o da una bilancia collegata ad Apple Salute; un valore scritto a mano ha sempre la precedenza. Pesati sempre nelle stesse condizioni, per esempio al mattino dopo il bagno.\n\nPer capire se stai perdendo grasso o muscolo guarda anche grasso corporeo e FFMI.",
+            "The chart shows your weekly average weight, so one day's swings (water, salt, carbs, digestion) don't hide the trend.\n\nWeight comes from what you type or from a scale connected to Apple Health; a typed value always wins. Weigh yourself in the same conditions, for instance in the morning after the bathroom.\n\nTo tell fat from muscle, look at body fat and FFMI too."
+        ),
+        "info.measures.title": ("Misure corporee", "Body measurements"),
+        "info.measures.body": (
+            "Le circonferenze (vita, petto, braccia, gambe, collo, fianchi) nel tempo.\n\nSono utili quando il peso non si muove: se la vita scende e braccia e petto restano uguali o salgono, stai cambiando composizione corporea nel verso giusto. Vita e collo servono anche alla stima Navy del grasso corporeo.\n\nMisura sempre negli stessi punti, a muscoli rilassati, con il metro aderente ma non stretto.",
+            "Your circumferences (waist, chest, arms, legs, neck, hips) over time.\n\nThey help when the scale doesn't move: if your waist shrinks while arms and chest hold or grow, your body composition is changing the right way. Waist and neck also feed the Navy body-fat estimate.\n\nAlways measure at the same spots, muscles relaxed, tape snug but not tight."
+        ),
+        "info.volume.title": ("Volume per seduta", "Volume per session"),
+        "info.volume.body": (
+            "Il volume è la somma di peso × ripetizioni di tutte le serie di un esercizio in una seduta (kg totali sollevati).\n\nPer la crescita muscolare il volume settimanale conta più del singolo picco: aumentarlo gradualmente è uno dei modi principali di progredire. Un calo improvviso può voler dire stanchezza o una seduta più leggera voluta. Se fai due sedute lo stesso giorno vengono sommate.",
+            "Volume is the sum of weight × reps over every set of an exercise in a session (total kg lifted).\n\nFor muscle growth weekly volume matters more than any single peak: raising it gradually is one of the main ways to progress. A sudden drop can mean fatigue or a planned lighter session. Two sessions on the same day are added together."
+        ),
+        "info.intake.title": ("Calorie e macro", "Calories and macros"),
+        "info.intake.body": (
+            "Il grafico mostra la media settimanale di quello che hai mangiato; la linea tratteggiata è il tuo obiettivo.\n\nLa scala confronta la media degli ultimi 7 giorni (oggi escluso, non è finito) con l'obiettivo calorico: tra 90 e 110% sei in linea. Ricorda che quasi tutti sottostimano quello che mangiano del 10–20%: se il peso non segue l'obiettivo, controlla prima la registrazione.",
+            "The chart shows your weekly average intake; the dashed line is your target.\n\nThe scale compares the last 7 days (today left out, it isn't over) with your calorie target: between 90 and 110% you are on track. Keep in mind almost everyone under-logs by 10–20%: if your weight doesn't follow the goal, check your logging first."
+        ),
+        "info.nut_calendar.title": ("Calendario alimentare", "Nutrition calendar"),
+        "info.nut_calendar.body": (
+            "Ogni giorno mostra le calorie registrate, colorate rispetto al tuo obiettivo:\n• Verde: tra l'85 e il 112% dell'obiettivo\n• Arancio: sotto l'85%\n• Rosso: sopra il 112%\nI giorni vuoti non hanno dati. Tocca un giorno per vederlo o modificarlo.",
+            "Each day shows the calories you logged, colored against your target:\n• Green: between 85 and 112% of the target\n• Orange: below 85%\n• Red: above 112%\nEmpty days have no data. Tap a day to see or edit it."
+        ),
+        "info.salt.title": ("Sale", "Salt"),
+        "info.salt.body": (
+            "L'Organizzazione Mondiale della Sanità consiglia di non superare 5 g di sale al giorno (circa 2 g di sodio). Un consumo più alto è associato a pressione alta.\n\nChi suda molto in allenamento ne perde una parte, ma per la maggior parte delle persone il problema è l'eccesso, non la carenza: pane, salumi, formaggi e cibi pronti ne contengono molto.",
+            "The World Health Organization advises no more than 5 g of salt a day (about 2 g of sodium). Higher intake is linked to high blood pressure.\n\nHeavy sweaters lose some in training, but for most people the problem is too much, not too little: bread, cured meats, cheese and ready meals carry a lot."
+        ),
+        "sleep.stages":       ("Fasi", "Stages"),
+        "body.sleep_hr_short": ("FC", "HR"),
+        "sleep.deep":         ("Profondo", "Deep"),
+        "sleep.core":         ("Core", "Core"),
+        "sleep.rem":          ("REM", "REM"),
+        "sleep.awake":        ("Sveglio", "Awake"),
+        "sleep.efficiency":   ("Efficienza", "Efficiency"),
+        "sleep.regularity":   ("Regolarità", "Regularity"),
+        "sleep.times":        ("A letto", "In bed"),
+        "vit.title":          ("Parametri notturni", "Overnight vitals"),
+        "vit.all_ok":         ("TUTTO NELLA NORMA", "ALL USUAL"),
+        "vit.out_count":      ("%d FUORI NORMA", "%d OUT OF RANGE"),
+        "vit.ok":             ("Norma", "Usual"),
+        "vit.high":           ("Sopra", "High"),
+        "vit.low":            ("Sotto", "Low"),
+        "vit.building":       ("Impara", "Learning"),
+        "vit.hrv":            ("HRV", "HRV"),
+        "vit.sleep_hr":       ("FC nel sonno", "Sleeping HR"),
+        "vit.spo2":           ("SpO₂", "SpO₂"),
+        "vit.temp":           ("Temp. polso", "Wrist temp."),
+        "load.vitals_warning": ("Fuori dalla tua norma stanotte: %@. Possibile malanno o stress: oggi vacci piano.", "Out of your usual last night: %@. Possible illness or stress: take it easy today."),
+        "metric.vo2_norm":    ("norme Cooper per età e sesso", "Cooper norms for age and sex"),
+        "metric.hr_recovery": ("Recupero FC 1′", "HR recovery 1′"),
+        "st.hrv_time":        ("HRV nel sonno nel tempo", "Sleep HRV over time"),
+        "st.rhr_time":        ("FC a riposo nel tempo", "Resting HR over time"),
+        "st.resp_time":       ("Frequenza respiratoria nel tempo", "Breathing rate over time"),
+        "st.spo2_time":       ("Ossigeno notturno nel tempo", "Night blood oxygen over time"),
+        "st.walk_hr_time":    ("FC camminando nel tempo", "Walking HR over time"),
+        "st.daylight_time":   ("Luce del giorno nel tempo", "Daylight over time"),
+        "st.stand_time":      ("Ore in piedi nel tempo", "Stand hours over time"),
         "info.trimp.title": ("TRIMP", "TRIMP"),
         "info.trimp.body": (
             "Il TRIMP (Training Impulse) è una metrica scientifica che quantifica il carico di allenamento interno di una sessione. Combina quanto a lungo hai allenato con quanto forte hai spinto, usando la frequenza cardiaca come misura dell'intensità. Il risultato è un singolo punteggio che rappresenta lo stress fisiologico totale imposto al corpo, indipendentemente dal tipo di sport.\n\nPerché è utile: è il modo più preciso per confrontare sessioni di tipo diverso — una corsa leggera da 60 minuti e un interval training da 30 producono carichi molto diversi, e il TRIMP li cattura correttamente.\n\nRange per singola sessione:\n• Recupero / molto facile: 30–80\n• Moderato: 80–150\n• Duro: 150–250\n• Massimale: 250–500+\n\nRange settimanale (volume totale):\n• Principianti: 500–1.000\n• Intermedi: 1.000–1.500\n• Avanzati: 1.500–2.000\n• Élite: oltre 2.000\n\nCosa influenza il valore: la durata della sessione, la frequenza cardiaca media, e la frequenza cardiaca a riposo e massima dal tuo profilo. Senza questi dati il TRIMP non può essere calcolato.",
@@ -585,15 +801,17 @@ enum L {
         "info.vitals.body": (
             "Mostra la direzione, nelle ultime settimane, della tua frequenza cardiaca a riposo e della variabilità (HRV), calcolata con una regressione lineare sui dati di Apple Salute.\n\nCome leggerla: una FC a riposo che scende e un'HRV che sale indicano in genere un miglioramento della forma e del recupero. L'opposto, prolungato, può segnalare affaticamento, stress o malattia in arrivo.\n\nServe qualche settimana di dati perché il trend sia affidabile.",
             "Shows the direction, over the last few weeks, of your resting heart rate and heart-rate variability (HRV), computed with a linear regression on Apple Health data.\n\nHow to read it: a falling resting HR and a rising HRV usually indicate improving fitness and recovery. The opposite, if sustained, can flag accumulated fatigue, stress, or oncoming illness.\n\nIt needs a few weeks of data before the trend is reliable."),
-        "info.fitness.title":     ("Fitness cardio (VO₂max e zone)", "Cardio fitness (VO₂max & zones)"),
+        "info.fitness.title": ("Fitness cardio e zone", "Cardio fitness and zones"),
         "info.fitness.body": (
-            "VO₂max stima la tua capacità aerobica massima. Se Apple Salute ne registra uno misurato, usiamo quello; altrimenti lo stimiamo dalla tua corsa più intensa recente combinando velocità e frequenza cardiaca media (equazione ACSM corretta per la riserva di FC).\n\nLe zone FC dividono lo sforzo in cinque fasce calcolate con il metodo di Karvonen (% della riserva di frequenza cardiaca), dalla FC a riposo alla FC massima del tuo profilo. Usale per dosare l'intensità: Z1–Z2 per il fondo aerobico, Z4–Z5 per il lavoro ad alta intensità.",
-            "VO₂max estimates your maximal aerobic capacity. If Apple Health has a measured value we use it; otherwise we estimate it from your most intense recent run, combining speed and average heart rate (ACSM equation adjusted for heart-rate reserve).\n\nThe HR zones split effort into five bands using the Karvonen method (% of heart-rate reserve), from your profile's resting HR to max HR. Use them to dose intensity: Z1–Z2 for aerobic base, Z4–Z5 for high-intensity work."),
+            "Il VO₂max è il massimo ossigeno che il corpo usa sotto sforzo (mL per kg al minuto): il miglior singolo indicatore della forma aerobica e uno dei più forti predittori di salute a lungo termine.\n\nSe Apple Salute ha un valore misurato dall'orologio usiamo quello. Altrimenti lo stimiamo dalle tue corse con battito medio: VO₂ alla tua velocità (equazione ACSM), poi scalato sulla percentuale di riserva cardiaca usata: VO₂max = 3,5 + (VO₂ − 3,5) ÷ %FCR. Contano solo corse di almeno 10 minuti ad almeno il 60% della riserva, e prendiamo la mediana delle tre migliori.\n\nLe classi vengono dalle norme del Cooper Institute per il tuo sesso e la tua età.\n\nLe zone di frequenza cardiaca (metodo Karvonen, % della riserva tra FC a riposo e massima): Z1–Z2 fondo aerobico, Z3 medio, Z4–Z5 alta intensità.",
+            "VO₂max is the most oxygen your body can use at full effort (mL per kg per minute): the best single marker of aerobic fitness and one of the strongest predictors of long-term health.\n\nIf Apple Health has a value measured by your watch we use it. Otherwise we estimate it from your runs with average heart rate: VO₂ at your speed (ACSM equation), then scaled by the share of heart-rate reserve used: VO₂max = 3.5 + (VO₂ − 3.5) ÷ %HRR. Only runs of at least 10 minutes at 60% of reserve or more count, and we take the median of the best three.\n\nThe classes come from the Cooper Institute norms for your sex and age.\n\nHeart-rate zones (Karvonen method, % of the reserve between resting and max HR): Z1–Z2 aerobic base, Z3 tempo, Z4–Z5 high intensity."
+        ),
 
         "info.readiness.title": ("Prontezza", "Readiness"),
         "info.readiness.body": (
-            "La Prontezza è un punteggio composito 0–100 che riassume quanto il tuo sistema nervoso e corporeo è recuperato in questo momento. Raccoglie i segnali del mattino — variabilità della frequenza cardiaca, frequenza a riposo e qualità del sonno — e li confronta con la tua media personale degli ultimi due mesi. In questo modo il punteggio è calibrato su di te, non su valori universali.\n\nPerché è utile: ti aiuta a decidere se spingere forte, allenarsi a un'intensità moderata o recuperare. Usarlo insieme all'ACWR e al carico settimanale rende le decisioni di allenamento più intelligenti.\n\nInterpretazione:\n• 70–100 — recupero ottimale, puoi spingere\n• 50–70 — nella tua norma, allenamento normale\n• 30–50 — leggermente sotto la norma, intensità moderata\n• 0–30 — recupero incompleto, preferisci riposo o attività leggera\n\nCosa influenza il valore: l'HRV del mattino ha il peso maggiore, seguito dalla frequenza a riposo e dalle ore di sonno. Con un solo segnale disponibile il punteggio funziona comunque, ma con tutti e tre è molto più affidabile.",
-            "Readiness is a composite score from 0 to 100 that summarises how well your nervous system and body have recovered at this moment. It collects your morning signals — heart rate variability, resting heart rate and sleep quality — and compares them to your personal average over the last two months. This way the score is calibrated to you, not to universal reference values.\n\nWhy it matters: it helps you decide whether to train hard, at moderate intensity, or to recover. Using it alongside ACWR and weekly load makes training decisions smarter and more data-driven.\n\nInterpretation:\n• 70–100 — optimal recovery, you can push hard\n• 50–70 — within your normal range, train as planned\n• 30–50 — slightly below normal, keep intensity moderate\n• 0–30 — incomplete recovery, prefer rest or light activity\n\nWhat influences the value: morning HRV carries the most weight, followed by resting heart rate and sleep hours. The score works with just one signal, but it becomes significantly more reliable with all three."),
+            "La prontezza (0–100) dice quanto sei recuperato stamattina rispetto a te stesso. Confronta i segnali della notte con la tua norma degli ultimi 60 giorni, quindi è calibrata su di te.\n\nCome si calcola:\n• HRV misurata nel sonno (peso 45%): il valore di stanotte è mescolato con la media degli ultimi 7 giorni, così una sola notte storta non decide tutto\n• FC a riposo (25%): più bassa del solito è un buon segno\n• Punteggio del sonno (30%)\nOgni segnale diventa uno scarto dalla tua media; 50 vuol dire «come al solito».\n\nSe stanotte la frequenza respiratoria o la temperatura del polso sono sopra la tua norma, o l'ossigeno è sotto il 93%, la prontezza si ferma a «leggero»: spesso sono i primi segni di un malanno o di stress forte.\n\nCome usarla: sotto 30 riposa o fai attività leggera; 30–45 allenati ma senza spingere; sopra 45 allenati come previsto.\n\nServono almeno 7 notti di dati per la tua norma.",
+            "Readiness (0–100) tells you how recovered you are this morning compared with yourself. It compares last night's signals with your own last 60 days, so it is calibrated to you.\n\nHow it is computed:\n• HRV measured asleep (45%): last night's value is blended with the 7-day average, so one odd night doesn't decide everything\n• Resting heart rate (25%): lower than usual is a good sign\n• Sleep score (30%)\nEach signal becomes a deviation from your average; 50 means \"as usual\".\n\nIf last night your breathing rate or wrist temperature was above your usual, or blood oxygen below 93%, readiness stops at \"easy\": these are often the first signs of illness or heavy stress.\n\nHow to use it: below 30 rest or move lightly; 30–45 train without pushing; above 45 train as planned.\n\nIt needs at least 7 nights of data to learn your usual."
+        ),
 
         "info.load.title": ("Carico interno · 14 giorni", "Internal load · 14 days"),
         "info.load.body": (
@@ -610,10 +828,11 @@ enum L {
             "Lo Strain combina il volume totale di allenamento della settimana con la sua monotonia per dare un indice complessivo dello stress accumulato. Non è il semplice totale delle sessioni: due settimane con lo stesso carico totale ma distribuzioni diverse possono avere strain molto differenti.\n\nPerché è utile: è un indicatore precoce di sovraccarico. Valori elevati precedono spesso affaticamento profondo, calo della performance o malanni. Usalo per pianificare le settimane di scarico prima che il corpo te lo chieda da solo.\n\nNon esistono range assoluti validi per tutti: dipende dal tuo livello e dal tuo sport. Ciò che conta è monitorare il trend nel tempo — uno strain in costante aumento senza settimane di recupero è il segnale da tenere d'occhio.\n\nCosa influenza il valore: il carico TRIMP totale della settimana e la monotonia. Settimane ad alta monotonia amplificano lo strain anche con lo stesso volume.",
             "Strain combines the total training volume of the week with its monotony to give an overall index of accumulated stress. It is not a simple sum of sessions: two weeks with the same total load but different distributions can have very different strain values.\n\nWhy it matters: it is an early indicator of overreaching. High values often precede deep fatigue, performance drops or illness. Use it to plan deload weeks before your body forces one on you.\n\nThere are no absolute ranges valid for everyone: it depends on your level and your sport. What matters is monitoring the trend over time — a strain that keeps rising without recovery weeks is the signal to watch.\n\nWhat influences the value: total TRIMP load for the week and monotony. High-monotony weeks amplify strain even with the same volume."),
 
-        "info.hrv.title": ("HRV — Variabilità della frequenza cardiaca", "HRV — Heart rate variability"),
+        "info.hrv.title": ("HRV nel sonno", "Sleep HRV"),
         "info.hrv.body": (
-            "L'HRV (variabilità della frequenza cardiaca) misura la variazione negli intervalli di tempo tra battiti consecutivi, espressa in millisecondi. Valori più alti indicano una maggiore attività del sistema nervoso parasimpatico, associata a un buon recupero, bassa fatica e buona salute cardiovascolare.\n\nPerché è utile: l'HRV è uno dei pochi marcatori fisiologici che cambia giorno per giorno in risposta ad allenamento, sonno, stress e salute generale. Monitorarlo nel tempo permette di individuare stati di sovraccarico prima che diventino infortuni o malanni.\n\nNon esistono valori assoluti ottimali: l'HRV varia enormemente tra individui. Un atleta può avere 80–100 ms, una persona sedentaria 20–30 ms, ed entrambi essere nella propria norma. Ciò che conta è il confronto con la tua media personale nel tempo, non un numero fisso.\n\nDa dove arriva: l'app importa automaticamente l'HRV da Apple Salute / dal tuo orologio (Apple Watch, Garmin, Polar…) e la usa per calcolare il punteggio di Prontezza. Non devi inserirla a mano.",
-            "HRV (heart rate variability) measures the variation in time intervals between consecutive heartbeats, expressed in milliseconds. Higher values indicate greater parasympathetic nervous system activity, associated with good recovery, low fatigue and cardiovascular health.\n\nWhy it matters: HRV is one of the few physiological markers that changes day to day in response to training, sleep, stress and general health. Tracking it over time lets you spot overreaching before it becomes injury or illness.\n\nThere are no universal optimal values: HRV varies enormously between individuals. An athlete may have 80–100 ms, a sedentary person 20–30 ms, and both can be within their own normal range. What matters is comparing against your personal average over time, not a fixed number.\n\nWhere it comes from: the app automatically imports HRV from Apple Health / your watch (Apple Watch, Garmin, Polar…) and uses it to compute your Readiness score. You never have to type it in."),
+            "L'HRV (variabilità della frequenza cardiaca) misura quanto variano gli intervalli tra un battito e l'altro, in millisecondi. Valori più alti indicano un sistema nervoso più rilassato e un buon recupero.\n\nUsiamo solo l'HRV misurata durante il sonno: di giorno cambia troppo con movimento, postura e caffè. Apple Salute la registra come SDNN.\n\nNon esiste un valore giusto per tutti: un atleta può stare a 80–100 ms, una persona sedentaria a 20–30, ed entrambi essere nella norma. Per questo la scala è la tua: il centro è la tua media degli ultimi 60 giorni. Un valore sotto la tua norma per più giorni di fila è un segnale di affaticamento; un singolo valore basso conta poco.",
+            "HRV (heart-rate variability) measures how much the time between heartbeats varies, in milliseconds. Higher values mean a more relaxed nervous system and good recovery.\n\nWe only use HRV measured asleep: during the day it moves too much with movement, posture and coffee. Apple Health records it as SDNN.\n\nThere is no right value for everyone: an athlete can sit at 80–100 ms, a sedentary person at 20–30, and both be normal. That is why the scale is yours: its centre is your average over the last 60 days. Several days in a row below your usual signal fatigue; one low night means little."
+        ),
 
         "info.bmi.title": ("BMI — Indice di massa corporea", "BMI — Body mass index"),
         "info.bmi.body": (
@@ -670,15 +889,7 @@ enum L {
             "Il livello di attività è un moltiplicatore che viene applicato al metabolismo basale per stimare il consumo calorico totale giornaliero (TDEE). Tiene conto del fatto che una persona che si allena 5 volte a settimana brucia molte più calorie di una persona sedentaria, anche a parità di corporatura.\n\nPerché è utile: scegliere il livello corretto è il passo più importante per ottenere un TDEE accurato. Un errore qui si traduce in obiettivi calorici troppo bassi (che causano perdita di muscolo e affaticamento cronico) o troppo alti (che rendono impossibile il taglio calorico).\n\nLivelli disponibili:\n• Sedentario — lavoro d'ufficio, poco o nessun movimento extra\n• Leggero — 1–2 sessioni di allenamento a settimana\n• Moderato — 3–4 sessioni a settimana\n• Alto — 5–6 sessioni a settimana\n• Atleta — 6–7 sessioni a settimana, o lavoro fisico intenso, o doppie sedute\n\nCosa influenza il valore: il livello selezionato e il metabolismo basale calcolato dal tuo profilo. Puoi cambiarlo in qualsiasi momento dal tuo profilo.",
             "The activity level is a multiplier applied to your basal metabolic rate to estimate your total daily calorie expenditure (TDEE). It accounts for the fact that a person training five times per week burns far more calories than a sedentary person of the same size.\n\nWhy it matters: choosing the correct level is the most important step for getting an accurate TDEE. An error here translates into calorie targets that are too low (causing muscle loss and chronic fatigue) or too high (making a caloric cut impossible).\n\nAvailable levels:\n• Sedentary — desk job, little or no extra movement\n• Light — 1–2 training sessions per week\n• Moderate — 3–4 sessions per week\n• High — 5–6 sessions per week\n• Athlete — 6–7 sessions per week, or physically demanding job, or twice-daily sessions\n\nWhat influences the value: the selected level and the basal metabolic rate calculated from your profile. You can change it at any time from your profile."),
 
-        "info.srpe.title": ("sRPE — Carico percepito", "sRPE — Perceived load"),
-        "info.srpe.body": (
-            "L'sRPE (session Rate of Perceived Exertion) combina la durata della sessione con quanto ti sei sentito sotto sforzo, su una scala da 1 a 10. È il metodo più semplice per quantificare il carico interno di qualsiasi tipo di allenamento, anche senza un cardiofrequenzimetro.\n\nPerché è utile: permette di stimare il carico di sessioni per cui non hai dati di frequenza cardiaca — allenamenti con i pesi, yoga, sport di squadra, sessioni all'aperto. È meno preciso del TRIMP ma universalmente applicabile.\n\nScala RPE (Borg CR10):\n• 1–2 — sforzo molto lieve (passeggiata)\n• 3–4 — moderato (puoi parlare comodamente)\n• 5–6 — impegnativo (parli a fatica)\n• 7–8 — molto duro (poche parole per volta)\n• 9–10 — massimale (impossibile parlare)\n\nNella versione attuale dell'app l'sRPE è usato principalmente per i dati storici. Il carico delle sessioni nuove si basa sul TRIMP (frequenza cardiaca media), che è più preciso quando i dati cardio sono disponibili.",
-            "sRPE (session Rate of Perceived Exertion) combines session duration with how hard you felt you were working, on a scale from 1 to 10. It is the simplest method to quantify the internal load of any type of training, even without a heart rate monitor.\n\nWhy it matters: it allows you to estimate the load of sessions for which you have no heart rate data — weight training, yoga, team sports, outdoor sessions. It is less precise than TRIMP but universally applicable.\n\nRPE scale (Borg CR10):\n• 1–2 — very light effort (walking)\n• 3–4 — moderate (can speak comfortably)\n• 5–6 — challenging (speaking is effortful)\n• 7–8 — very hard (only a few words at a time)\n• 9–10 — maximal (impossible to speak)\n\nIn the current version of the app sRPE is used primarily for historical data. The load of new sessions is based on TRIMP (average heart rate), which is more precise when cardiac data is available."),
 
-        "info.dfa.title": ("DFA-alpha1 (soglia aerobica)", "DFA-alpha1 (aerobic threshold)"),
-        "info.dfa.body": (
-            "Il DFA-alpha1 è un indice avanzato che analizza la natura frattale degli intervalli tra i battiti cardiaci. Quando l'intensità dell'esercizio sale e si avvicina alla soglia aerobica (la prima soglia di lattato), il pattern dei battiti cardiaci perde progressivamente la sua complessità frattale. Questo cambiamento è misurabile e permette di individuare la soglia aerobica in tempo reale durante lo sforzo, senza bisogno di un test in laboratorio.\n\nPerché è utile: la soglia aerobica è uno dei marker di fitness più importanti per gli sport di resistenza. Sapere quando la superi durante l'allenamento permette di ottimizzare la distribuzione dell'intensità, una delle strategie più efficaci per migliorare la performance a lungo termine.\n\nRange:\n• DFA-alpha1 sopra 0,75 — intensità sotto soglia aerobica\n• DFA-alpha1 intorno a 0,75 — zona di soglia aerobica\n• DFA-alpha1 sotto 0,75 — intensità sopra soglia aerobica\n\nQuesta funzione richiede un flusso continuo di dati battito-battito da una fascia cardio Bluetooth (non è supportata dagli smartwatch ottici). È in arrivo con il supporto BLE dell'app.",
-            "DFA-alpha1 is an advanced index that analyses the fractal nature of the intervals between heartbeats. When exercise intensity rises and approaches the aerobic threshold (the first lactate threshold), the heartbeat pattern progressively loses its fractal complexity. This change is measurable and allows the aerobic threshold to be identified in real time during exercise, without the need for a laboratory test.\n\nWhy it matters: the aerobic threshold is one of the most important fitness markers for endurance sports. Knowing when you cross it during training allows you to optimise intensity distribution, one of the most effective strategies for improving long-term performance.\n\nRanges:\n• DFA-alpha1 above 0.75 — intensity below the aerobic threshold\n• DFA-alpha1 around 0.75 — aerobic threshold zone\n• DFA-alpha1 below 0.75 — intensity above the aerobic threshold\n\nThis feature requires a continuous beat-to-beat data stream from a Bluetooth chest strap (optical smartwatches are not supported). It is coming with the app's BLE support."),
 
         "info.weekplan.title": ("Piano settimanale", "Weekly plan"),
         "info.weekplan.body": (
@@ -695,10 +906,11 @@ enum L {
             "I passi giornalieri sono una misura dell'attività fisica non strutturata — tutto il movimento che fai al di fuori dell'allenamento formale: camminare, salire le scale, muoversi in casa o al lavoro. Questa componente è chiamata NEAT (Non-Exercise Activity Thermogenesis) e può incidere sul consumo calorico giornaliero totale anche più dell'allenamento stesso.\n\nPerché è utile: molte persone si concentrano esclusivamente sulle sessioni di allenamento trascurando il resto della giornata. Tenere traccia dei passi aiuta a mantenere un livello di attività complessiva sufficiente, specialmente in periodi di allenamento ridotto, e migliora la precisione del TDEE adattivo.\n\nRange di riferimento:\n• Sotto 5.000 passi/giorno — livello molto sedentario\n• 5.000–7.500 — poco attivo\n• 7.500–10.000 — moderatamente attivo\n• Sopra 10.000 — attivo\n\nQuesti range sono indicativi: il valore ottimale dipende dal tuo stile di vita e da quanto ti alleni. Un atleta che si allena intensamente potrebbe avere meno bisogno di camminare molto; una persona sedentaria che aumenta i passi può ottenere benefici metabolici significativi.\n\nI passi vengono importati automaticamente da Apple Salute se l'integrazione è attiva, oppure puoi inserirli manualmente.",
             "Daily steps are a measure of unstructured physical activity — all the movement you do outside of formal training: walking, climbing stairs, moving around at home or at work. This component is called NEAT (Non-Exercise Activity Thermogenesis) and can contribute to total daily calorie expenditure even more than training itself.\n\nWhy it matters: many people focus exclusively on training sessions while neglecting the rest of the day. Tracking steps helps maintain a sufficient overall activity level, especially during periods of reduced training, and improves the accuracy of the adaptive TDEE.\n\nReference ranges:\n• Below 5,000 steps/day — very sedentary\n• 5,000–7,500 — lightly active\n• 7,500–10,000 — moderately active\n• Above 10,000 — active\n\nThese ranges are indicative: the optimal value depends on your lifestyle and how much you train. An athlete training intensely may need fewer steps; a sedentary person who increases daily steps can achieve significant metabolic benefits.\n\nSteps are imported automatically from Apple Health if the integration is active, or you can enter them manually."),
 
-        "info.sleep.title": ("Sonno & recupero", "Sleep & recovery"),
+        "info.sleep.title": ("Punteggio del sonno", "Sleep score"),
         "info.sleep.body": (
-            "Il punteggio del sonno rappresenta la qualità complessiva della notte, tenendo conto sia della durata che della qualità percepita del riposo. Il sonno è il fattore di recupero più importante in assoluto: è durante le ore di sonno che avvengono la sintesi proteica muscolare, il ripristino ormonale, la consolidazione della memoria motoria e la rigenerazione del sistema nervoso.\n\nPerché è utile: la qualità del sonno influenza quasi ogni altro indicatore monitorato nell'app — la prontezza, la variabilità della frequenza cardiaca, la performance negli allenamenti e la composizione corporea nel tempo. Capire come il sonno si correla con gli altri dati aiuta a prendere decisioni migliori su quando spingere e quando recuperare.\n\nLe ore di sonno vengono importate automaticamente da Apple Salute se l'integrazione è attiva (Apple Watch o app di tracking del sonno). Il punteggio soggettivo 0–100 puoi inserirlo manualmente per catturare la qualità percepita anche quando non hai sensori.\n\nNon esiste un punteggio ottimale fisso: confronta il tuo valore con la tua media personale e osserva come le notti migliori si riflettono sugli allenamenti successivi.",
-            "The sleep score represents the overall quality of the night, taking into account both duration and perceived quality of rest. Sleep is by far the most important recovery factor: it is during sleep hours that muscle protein synthesis, hormonal restoration, motor memory consolidation and nervous system regeneration occur.\n\nWhy it matters: sleep quality influences almost every other indicator monitored in the app — readiness, heart rate variability, training performance and body composition over time. Understanding how sleep correlates with other data helps you make better decisions about when to push and when to recover.\n\nSleep hours are imported automatically from Apple Health if the integration is active (Apple Watch or sleep tracking apps). The subjective 0–100 score can be entered manually to capture perceived quality even when you have no sensors.\n\nThere is no fixed optimal score: compare your value against your personal average and observe how better nights reflect on subsequent training sessions."),
+            "Il punteggio (0–100) riassume la qualità della notte. Lo calcoliamo dai dati del tuo orologio o della band:\n• Durata (50%): pieno tra 7 e 9 ore, come raccomanda la National Sleep Foundation; scende fino a 0 a 4 o 12 ore\n• Efficienza (15%): tempo addormentato ÷ tempo a letto, pieno dall'85%\n• Fasi (20%): sonno profondo tra 13 e 23% e REM tra 20 e 25% del sonno\n• Regolarità (15%): quanto cambia l'orario della metà della notte nell'ultima settimana\nSe un dato manca (per esempio le fasi), il punteggio usa gli altri.\n\nLa notte va al giorno in cui ti svegli. Se Apple Watch e band registrano la stessa notte, usiamo una sola fonte (quella con più sonno), senza sommarle.\n\nSe inserisci tu il punteggio, l'app non lo cambia più.",
+            "The score (0–100) sums up the quality of the night. We compute it from your watch or band:\n• Duration (50%): full marks between 7 and 9 hours, as the National Sleep Foundation recommends; down to 0 at 4 or 12 hours\n• Efficiency (15%): time asleep ÷ time in bed, full marks from 85%\n• Stages (20%): deep sleep 13–23% and REM 20–25% of your sleep\n• Regularity (15%): how much the middle of your night moved over the last week\nIf something is missing (stages, for instance), the score uses the rest.\n\nThe night belongs to the day you wake up. When Apple Watch and the band record the same night we use one source (the one with more sleep) and never add them up.\n\nIf you type a score yourself, the app never changes it."
+        ),
 
         "info.goal.title": ("Obiettivo & progressi", "Goal & progress"),
         "info.goal.body": (

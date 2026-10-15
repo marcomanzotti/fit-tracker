@@ -13,6 +13,8 @@ struct StatsView: View {
     @State private var exSortKey: ExSortKey = .recent
     @State private var exSortAsc = false
     @State private var showManage = false
+    @State private var compWindow: ChartWindow = .m6
+    @State private var progWindow: ChartWindow = .y1
 
     private var tabs: [(String, String)] {
         [("overview", t("st.overview")), ("pr", t("st.records")), ("prog", t("st.progress")), ("storico", t("st.history"))]
@@ -43,46 +45,64 @@ struct StatsView: View {
     }
 
     // MARK: Overview
-    // Every daily-derived metric uses MetricChartCard: it defaults to a weekly
-    // average over the last 3 months (so the x-axis never crowds) and carries an
-    // expand button → a larger, horizontally-scrollable view with a
+    // Every daily-derived metric uses MetricChartCard: weekly averages over the
+    // last 2 months, and an expand button → a larger view with a
     // day/week/month/year toggle.
     private var overview: some View {
         let ws = store.sortedDaily
         let withW = ws.filter { $0.weight != nil }
         let bf = store.currentBF
         return Group {
-            MetricChartCard(title: t("home.weight"), color: Theme.acc) {
+            MetricChartCard(title: t("home.weight"), info: .weight, color: Theme.acc) {
                 $0.weight.map { Units.wOut($0) }
             }
-            MetricChartCard(title: t("st.sleep"), info: "sleep", color: Theme.blue, yDomain: 0...100) {
+            MetricChartCard(title: t("st.sleep"), info: .sleep, color: Theme.blue, yDomain: 0...100) {
                 $0.sleep.map(Double.init)
             }
-            MetricChartCard(title: t("st.steps_time"), color: Color(hex: "ff9500"), kind: .bar) {
+            MetricChartCard(title: t("st.steps_time"), info: .steps, color: Color(hex: "ff9500"), kind: .bar) {
                 $0.steps.map(Double.init)
             }
-            MetricChartCard(title: t("st.vo2_time"), color: Theme.good) {
+            MetricChartCard(title: t("st.vo2_time"), info: .vo2max, color: Theme.good) {
                 $0.vo2max
             }
-            MetricChartCard(title: t("st.bmi_time"), color: Color(hex: "b08fff")) {
+            MetricChartCard(title: t("st.bmi_time"), info: .bmi, color: Color(hex: "b08fff")) {
                 e in e.weight.map { store.bmi($0) }
             }
             // FFMI alongside BMI: same weight series, but read as lean mass. Only
             // plots once a body-fat figure exists (ffmiFor returns nil otherwise).
-            MetricChartCard(title: t("st.ffmi_time"), info: "ffmi", color: Theme.blue) {
+            MetricChartCard(title: t("st.ffmi_time"), info: .ffmi, color: Theme.blue) {
                 e in e.weight.flatMap { store.ffmiFor(weight: $0) }
+            }
+            // Recovery and activity from the watch or band: each card only appears
+            // once Health has delivered that value in two different weeks.
+            MetricChartCard(title: t("st.hrv_time"), info: .hrv, color: Theme.blue, unit: "ms") { $0.hrvSleep }
+            MetricChartCard(title: t("st.rhr_time"), info: .restingHR, color: Theme.red, unit: "bpm") {
+                $0.restHR.map(Double.init)
+            }
+            MetricChartCard(title: t("st.resp_time"), info: .respRate, color: Color(hex: "4fb8c4"), unit: "/min") { $0.respRate }
+            MetricChartCard(title: t("st.spo2_time"), info: .spo2, color: Color(hex: "ff5d5d"), unit: "%") { $0.spo2 }
+            MetricChartCard(title: t("st.walk_hr_time"), info: .walkingHR, color: Theme.acc2, unit: "bpm") {
+                $0.walkingHR.map(Double.init)
+            }
+            MetricChartCard(title: t("st.daylight_time"), info: .daylight, color: Theme.acc, kind: .bar, unit: "min") {
+                $0.daylightMin.map(Double.init)
+            }
+            MetricChartCard(title: t("st.stand_time"), info: .stand, color: Theme.good, kind: .bar, unit: "h") {
+                $0.standHours.map(Double.init)
             }
             if withW.count > 1 {
                 if let bf {
+                    let shown = withW.filter { compWindow.contains($0.date) }
                     Card {
-                        Lbl(text: t("st.composition")).padding(.bottom, 8)
+                        InfoLbl(text: t("st.composition"), info: .bodyfat).padding(.bottom, 8)
+                        ChartWindowPicker(window: $compWindow).padding(.bottom, 10)
                         Chart {
-                            ForEach(withW) { e in
-                                LineMark(x: .value("g", fmtShort(e.date)),
+                            ForEach(shown) { e in
+                                LineMark(x: .value("d", chartDay(e.date), unit: .day),
                                          y: .value("w", Units.wOut(((e.weight ?? 0) * (1 - bf / 100) * 10).rounded() / 10)),
                                          series: .value("s", t("st.lean")))
                                     .foregroundStyle(Theme.blue).interpolationMethod(.catmullRom)
-                                LineMark(x: .value("g", fmtShort(e.date)),
+                                LineMark(x: .value("d", chartDay(e.date), unit: .day),
                                          y: .value("w", Units.wOut(((e.weight ?? 0) * bf / 100 * 10).rounded() / 10)),
                                          series: .value("s", t("st.fat")))
                                     .foregroundStyle(Theme.fat).interpolationMethod(.catmullRom)
@@ -90,7 +110,8 @@ struct StatsView: View {
                         }
                         .chartForegroundStyleScale(domain: [t("st.lean"), t("st.fat")], range: [Theme.blue, Theme.fat])
                         .chartLegend(position: .bottom, spacing: 8)
-                        .chartYScale(domain: .automatic(includesZero: false)).styledAxes().frame(height: 155)
+                        .chartYScale(domain: .automatic(includesZero: false))
+                        .dateAxes(shown.map { chartDay($0.date) }).frame(height: 155)
                     }
                 }
             }
@@ -235,27 +256,30 @@ struct StatsView: View {
             if !selEx.isEmpty {
                 // A chosen variant narrows the history to that one exercise name;
                 // otherwise the whole family is aggregated.
-                let data = selVariant.map { store.exerciseHistory($0) } ?? store.exerciseHistory(family: selEx)
-                if data.isEmpty {
+                let all = selVariant.map { store.exerciseHistory($0) } ?? store.exerciseHistory(family: selEx)
+                let data = all.filter { progWindow.contains(isoFormatter.string(from: $0.day)) }
+                if all.isEmpty {
                     Card { EmptyBox(title: t("st.no_data"), text: t("st.progress_hint"), icon: "dumbbell") }
                 } else {
+                    ChartWindowPicker(window: $progWindow)
                     Card {
-                        Lbl(text: t("st.max_per_session")).padding(.bottom, 8)
-                        Chart(data, id: \.date) { d in
-                            LineMark(x: .value("g", d.date), y: .value("kg", d.maxW))
+                        InfoLbl(text: t("st.max_per_session"), info: .overload).padding(.bottom, 8)
+                        Chart(data) { d in
+                            LineMark(x: .value("d", d.day, unit: .day), y: .value("kg", d.maxW))
                                 .foregroundStyle(Theme.acc).interpolationMethod(.catmullRom)
-                            PointMark(x: .value("g", d.date), y: .value("kg", d.maxW))
-                                .foregroundStyle(Theme.acc).symbolSize(30)
+                            PointMark(x: .value("d", d.day, unit: .day), y: .value("kg", d.maxW))
+                                .foregroundStyle(Theme.acc).symbolSize(data.count > 40 ? 10 : 30)
                         }
-                        .chartYScale(domain: .automatic(includesZero: false)).styledAxes().frame(height: 155)
+                        .chartYScale(domain: .automatic(includesZero: false))
+                        .dateAxes(data.map(\.day)).frame(height: 155)
                     }
                     Card {
-                        Lbl(text: t("st.vol_per_session")).padding(.bottom, 8)
-                        Chart(data, id: \.date) { d in
-                            BarMark(x: .value("g", d.date), y: .value("vol", d.vol))
-                                .foregroundStyle(Theme.acc.opacity(0.55)).cornerRadius(5)
+                        InfoLbl(text: t("st.vol_per_session"), info: .volume).padding(.bottom, 8)
+                        Chart(data) { d in
+                            BarMark(x: .value("d", d.day, unit: .day), y: .value("vol", d.vol))
+                                .foregroundStyle(Theme.acc.opacity(0.55)).cornerRadius(3)
                         }
-                        .styledAxes().frame(height: 120)
+                        .dateAxes(data.map(\.day)).frame(height: 120)
                     }
                     if data.count >= 2, let f = data.first, let l = data.last {
                         HStack(spacing: 9) {
@@ -525,7 +549,7 @@ struct ExerciseFamilyEditor: View {
                         Text(t("st.edit_family").uppercased()).font(.head(16, .bold)).tracking(1).foregroundColor(Theme.txt)
                         Spacer()
                         Button { dismiss() } label: {
-                            Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: 34, height: 34)
+                            Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: Theme.minTapTarget, height: Theme.minTapTarget)
                         }
                     }
                     .padding(.top, 18)
@@ -684,7 +708,7 @@ struct ExerciseManagerView: View {
             Text(t("st.manage").uppercased()).font(.head(16, .bold)).tracking(1).foregroundColor(Theme.txt)
             Spacer()
             Button { dismiss() } label: {
-                Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: 34, height: 34)
+                Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: Theme.minTapTarget, height: Theme.minTapTarget)
             }
         }
         .padding(.top, 18)
@@ -751,7 +775,7 @@ struct RenameExerciseSheet: View {
                 HStack {
                     Text(t("st.rename").uppercased()).font(.head(16, .bold)).tracking(1).foregroundColor(Theme.txt)
                     Spacer()
-                    Button { dismiss() } label: { Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: 34, height: 34) }
+                    Button { dismiss() } label: { Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: Theme.minTapTarget, height: Theme.minTapTarget) }
                 }
                 .padding(.top, 18)
                 Text("\(t("st.rename_from")) \"\(oldName)\"").font(.system(size: 12)).foregroundColor(Theme.sub)
@@ -793,7 +817,7 @@ struct MergeExerciseSheet: View {
                 HStack {
                     Text(t("st.merge").uppercased()).font(.head(16, .bold)).tracking(1).foregroundColor(Theme.txt)
                     Spacer()
-                    Button { dismiss() } label: { Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: 34, height: 34) }
+                    Button { dismiss() } label: { Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: Theme.minTapTarget, height: Theme.minTapTarget) }
                 }
                 .padding(.top, 18)
                 Text(t("st.merge_pick")).font(.system(size: 12)).foregroundColor(Theme.sub)

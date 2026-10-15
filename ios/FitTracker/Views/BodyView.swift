@@ -13,6 +13,7 @@ struct BodyView: View {
     @State private var importing = false
     @State private var pendingImport: IdentURL?
     @State private var stepsInput = ""
+    @State private var measWindow: ChartWindow = .all
     // Manual sleep entry (shown when Health has no data for today)
     @State private var sleepHoursInput = ""
     @State private var sleepScoreInput = ""
@@ -43,6 +44,7 @@ struct BodyView: View {
         dayBar
         bodyLogCard(bl: bl)
         sleepCard
+        NightVitalsCard(day: day)
         stepsCard
         analysisCard(lw: lw, bmi: bmi, cat: cat, bl: bl, navy: navy, bf: bf, lean: lean, fat: fat)
         chartsSection
@@ -57,7 +59,7 @@ struct BodyView: View {
                     Image(systemName: "chevron.left").accessibilityLabel(t("a11y.prev_day")).font(.system(size: 13, weight: .bold))
                         .foregroundColor(Theme.txt).frame(width: 34, height: 34)
                         .background(Theme.c2).clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-                }.buttonStyle(PressableStyle())
+                }.buttonStyle(PressableStyle()).hitArea((Theme.minTapTarget - 34) / 2)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(prettyDay(day)).font(.head(14, .bold)).tracking(0.5)
@@ -74,6 +76,7 @@ struct BodyView: View {
                         .background(Theme.c2).clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
                 }
                 .buttonStyle(PressableStyle())
+                .hitArea((Theme.minTapTarget - 34) / 2)
                 .disabled(isToday)
 
                 Button { tap(); showHealthHistory = true } label: {
@@ -81,7 +84,7 @@ struct BodyView: View {
                         .foregroundColor(Color(hex: Theme.appleGreen))
                         .frame(width: 34, height: 34)
                         .background(Theme.c2).clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-                }.buttonStyle(PressableStyle())
+                }.buttonStyle(PressableStyle()).hitArea((Theme.minTapTarget - 34) / 2)
             }
         }
         .sheet(isPresented: $showHealthHistory) { HealthHistoryView() }
@@ -139,11 +142,14 @@ struct BodyView: View {
             HStack(spacing: 9) {
                 StatTile(label: t("home.sleep"), value: score.map { "\($0)" } ?? "—",
                          unit: score != nil ? "/100" : nil, valueColor: Theme.acc2,
-                         note: hrs.map { "\(trimNum($0)) h" } ?? "—", info: "sleep")
+                         note: hrs.map { "\(trimNum($0)) h" } ?? "—", info: .sleep)
                 StatTile(label: "HRV", value: hrv.map(trimNum) ?? "—", unit: hrv != nil ? "ms" : nil,
-                         valueColor: Theme.blue, note: t("hrv.sleep_note"), info: "hrv")
-                StatTile(label: t("body.sleep_hr"), value: sHR.map { "\($0)" } ?? "—",
-                         unit: sHR != nil ? "bpm" : nil, valueColor: Theme.red, note: t("hk.cat.sleepHR"))
+                         valueColor: Theme.blue, note: t("hrv.sleep_note"), info: .hrv)
+                StatTile(label: t("body.sleep_hr_short"), value: sHR.map { "\($0)" } ?? "—",
+                         unit: sHR != nil ? "bpm" : nil, valueColor: Theme.red, note: t("hrv.sleep_note"), info: .sleepHR)
+            }
+            if let e, hrs != nil {
+                SleepNightDetail(entry: e).padding(.top, 12)
             }
 
             // Manual entry form (always accessible via pencil button)
@@ -196,7 +202,7 @@ struct BodyView: View {
     private var stepsCard: some View {
         Card {
             HStack(spacing: 6) {
-                Lbl(text: t("lbl.steps"), color: Theme.acc2)
+                InfoLbl(text: t("lbl.steps"), info: .steps, color: Theme.acc2)
                 Spacer()
                 Text(t("hk.from_health").uppercased()).font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.sub)
             }
@@ -394,7 +400,7 @@ struct BodyView: View {
                     Text(t("body.composition")).font(.system(size: 12, weight: .medium)).foregroundColor(Theme.sub)
                 }
                 Spacer()
-                InfoButton(id: "bodyfat", color: Theme.acc2)
+                InfoButton(id: .bodyfat, color: Theme.acc2)
             }
             .padding(.bottom, 14)
 
@@ -416,22 +422,22 @@ struct BodyView: View {
             }
             .padding(.bottom, 16)
 
-            let metrics: [(String, String, String?, Color, String)] = [
-                ("BMI", trimNum(bmi), nil, cat.color, cat.text.replacingOccurrences(of: "BMI \(trimNum(bmi)) · ", with: "")),
+            let metrics: [(String, String, String?, Color, String, InfoTopic)] = [
+                ("BMI", trimNum(bmi), nil, cat.color, cat.text.replacingOccurrences(of: "BMI \(trimNum(bmi)) · ", with: ""), .bmi),
                 (t("body.fat"), bf.map(trimNum) ?? "—", bf == nil ? nil : "%", Theme.fat,
-                 bfCat.map { t($0.key) } ?? t("body.ffmi_need_bf")),
-                (t("body.fat_mass"), fat.map(dispW) ?? "—", fat == nil ? nil : Units.wLabel, Theme.acc2, t("body.fat_mass_note")),
-                (t("body.lean_mass"), lean.map(dispW) ?? "—", lean == nil ? nil : Units.wLabel, Theme.blue, t("body.lean_mass_note")),
+                 bfCat.map { t($0.key) } ?? t("body.ffmi_need_bf"), .bodyfat),
+                (t("body.fat_mass"), fat.map(dispW) ?? "—", fat == nil ? nil : Units.wLabel, Theme.acc2, t("body.fat_mass_note"), .bodyfat),
+                (t("body.lean_mass"), lean.map(dispW) ?? "—", lean == nil ? nil : Units.wLabel, Theme.blue, t("body.lean_mass_note"), .ffmi),
                 (t("body.ffmi"), ffmi.map { trimNum($0.raw) } ?? "—", nil, ffmiCat?.color ?? Theme.sub,
-                 ffmiCat.map { t($0.key) } ?? t("body.ffmi_need_bf")),
+                 ffmiCat.map { t($0.key) } ?? t("body.ffmi_need_bf"), .ffmi),
                 (t("body.ffmi_norm"), ffmi.map { trimNum($0.normalized) } ?? "—", nil, ffmiCat?.color ?? Theme.sub,
-                 "\(trimNum(Units.heightOut(store.prefs.height))) \(Units.heightLabel)")
+                 "\(trimNum(Units.heightOut(store.prefs.height))) \(Units.heightLabel)", .ffmi)
             ]
             let columns = [GridItem(.flexible(), spacing: 9), GridItem(.flexible(), spacing: 9)]
             LazyVGrid(columns: columns, spacing: 9) {
                 ForEach(Array(metrics.enumerated()), id: \.offset) { _, metric in
                     compositionMetric(label: metric.0, value: metric.1, unit: metric.2,
-                                      color: metric.3, note: metric.4)
+                                      color: metric.3, note: metric.4, info: metric.5)
                 }
             }
 
@@ -463,12 +469,14 @@ struct BodyView: View {
     }
 
     private func compositionMetric(label: String, value: String, unit: String?,
-                                   color: Color, note: String) -> some View {
+                                   color: Color, note: String, info: InfoTopic) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
                 Circle().fill(color).frame(width: 7, height: 7)
                 Text(label.uppercased()).font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.sub)
                     .lineLimit(1).minimumScaleFactor(0.7)
+                Spacer(minLength: 0)
+                InfoButton(id: info, size: 16)
             }
             HStack(alignment: .firstTextBaseline, spacing: 3) {
                 Text(value).font(.num(23)).foregroundColor(color).lineLimit(1).minimumScaleFactor(0.55)
@@ -488,15 +496,18 @@ struct BodyView: View {
 
     // MARK: Charts
     private var chartsSection: some View {
-        let bw = store.body.sorted { $0.date < $1.date }
+        let all = store.body.sorted { $0.date < $1.date }
+        let bw = all.filter { measWindow.contains($0.date) }
+        let days = bw.map { chartDay($0.date) }
         return Group {
-            if bw.count > 1 {
+            if all.count > 1 {
+                ChartWindowPicker(window: $measWindow)
                 Card {
-                    Lbl(text: t("body.all_measures")).padding(.bottom, 8)
+                    InfoLbl(text: t("body.all_measures"), info: .measures).padding(.bottom, 8)
                     Chart {
                         ForEach(measureFields) { m in
                             ForEach(bw.filter { $0.value(for: m.key) != nil }) { e in
-                                LineMark(x: .value("g", fmtShort(e.date)),
+                                LineMark(x: .value("d", chartDay(e.date), unit: .day),
                                          y: .value("v", Units.lenOut(e.value(for: m.key) ?? 0)),
                                          series: .value("p", measLabel(m.key)))
                                     .foregroundStyle(Color(hex: m.color))
@@ -507,21 +518,24 @@ struct BodyView: View {
                     .chartForegroundStyleScale(domain: measureFields.map { measLabel($0.key) },
                                                range: measureFields.map { Color(hex: $0.color) })
                     .chartLegend(position: .bottom, spacing: 8)
-                    .styledAxes()
+                    .dateAxes(days)
                     .frame(height: 205)
                 }
                 ForEach(measureFields.filter { f in bw.filter { $0.value(for: f.key) != nil }.count >= 2 }) { m in
                     Card {
                         Lbl(text: measLabel(m.key), color: Color(hex: m.color)).padding(.bottom, 8)
-                        Chart(bw.filter { $0.value(for: m.key) != nil }) { e in
-                            LineMark(x: .value("g", fmtShort(e.date)), y: .value("v", Units.lenOut(e.value(for: m.key) ?? 0)))
+                        let pts = bw.filter { $0.value(for: m.key) != nil }
+                        let range = chartRange(pts.map { Units.lenOut($0.value(for: m.key) ?? 0) })
+                        Chart(pts) { e in
+                            LineMark(x: .value("d", chartDay(e.date), unit: .day), y: .value("v", Units.lenOut(e.value(for: m.key) ?? 0)))
                                 .foregroundStyle(Color(hex: m.color)).interpolationMethod(.catmullRom)
-                            AreaMark(x: .value("g", fmtShort(e.date)), y: .value("v", Units.lenOut(e.value(for: m.key) ?? 0)))
+                            AreaMark(x: .value("d", chartDay(e.date), unit: .day), yStart: .value("v", range.lowerBound),
+                                     yEnd: .value("v", Units.lenOut(e.value(for: m.key) ?? 0)))
                                 .foregroundStyle(LinearGradient(colors: [Color(hex: m.color).opacity(0.25), .clear], startPoint: .top, endPoint: .bottom))
                                 .interpolationMethod(.catmullRom)
                         }
-                        .chartYScale(domain: .automatic(includesZero: false))
-                        .styledAxes()
+                        .chartYScale(domain: range)
+                        .dateAxes(days)
                         .frame(height: 120)
                     }
                 }

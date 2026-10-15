@@ -62,13 +62,13 @@ struct WorkoutSummaryView: View {
                     HStack(spacing: 9) {
                         StatTile(label: t("sum.sets"), value: "\(summary.sets)", valueColor: Theme.txt)
                         StatTile(label: t("wk.vol"), value: "\(Int(summary.volume))", unit: "kg",
-                                 valueColor: Theme.txt, note: volumeNote)
+                                 valueColor: Theme.txt, note: volumeNote, info: .volume)
                     }
                     HStack(spacing: 9) {
                         StatTile(label: t("wk.calories"), value: "\(summary.kcal)", unit: "kcal",
-                                 valueColor: Theme.acc, info: "calories")
+                                 valueColor: Theme.acc, info: .calories)
                         StatTile(label: "TRIMP", value: summary.trimp.map { "\(Int($0.rounded()))" } ?? "—",
-                                 valueColor: Theme.acc2, info: "trimp")
+                                 valueColor: Theme.acc2, info: .trimp)
                     }
                     if !summary.records.isEmpty { recordsCard }
                     BigButton(title: t("sum.done"), color: accent) { dismiss() }

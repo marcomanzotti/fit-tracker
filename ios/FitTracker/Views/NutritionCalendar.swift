@@ -21,26 +21,7 @@ struct NutritionCalendarCard: View {
         let target = store.energyTargets().target
 
         return Card {
-            HStack {
-                Button { tap(); monthOffset -= 1 } label: {
-                    Image(systemName: "chevron.left").foregroundColor(Theme.sub).frame(width: 30, height: 30)
-                }
-                Spacer()
-                Text("\(L.months[comps.month! - 1]) \(comps.year!)".uppercased())
-                    .font(.head(13, .semibold)).tracking(1).foregroundColor(Theme.txt)
-                Spacer()
-                Button { tap(); if monthOffset < 0 { monthOffset += 1 } } label: {
-                    Image(systemName: "chevron.right").foregroundColor(monthOffset < 0 ? Theme.sub : Theme.mut).frame(width: 30, height: 30)
-                }
-            }
-            .padding(.bottom, 8)
-
-            HStack(spacing: 0) {
-                ForEach(Array(L.weekHeaders.enumerated()), id: \.offset) { _, d in
-                    Text(d).font(.head(10, .semibold)).foregroundColor(Theme.sub).frame(maxWidth: .infinity)
-                }
-            }
-            .padding(.bottom, 6)
+            MonthHeader(monthOffset: $monthOffset, month: comps.month!, year: comps.year!)
 
             let cells = firstWeekday + daysInMonth
             let rows = Int(ceil(Double(cells) / 7.0))
@@ -59,8 +40,11 @@ struct NutritionCalendarCard: View {
                     }
                 }
             }
-            Text(t("nut.cal_hint_tap")).font(.system(size: 11)).foregroundColor(Theme.sub)
-                .frame(maxWidth: .infinity).padding(.top, 10)
+            HStack(spacing: 2) {
+                Text(t("nut.cal_hint_tap")).font(.system(size: 11)).foregroundColor(Theme.sub)
+                InfoButton(id: .nutCalendar, size: 18)
+            }
+            .frame(maxWidth: .infinity).padding(.top, 10)
         }
         .sheet(item: $editDate) { d in NutritionDayEditor(date: d.date) }
     }
@@ -91,8 +75,9 @@ struct NutritionCalendarCard: View {
                 Text("\(day)").font(.system(size: 12, weight: isToday ? .bold : .regular))
                     .foregroundColor(color != nil ? Theme.bg : (isToday ? Theme.acc : Theme.txt))
                 if logged {
-                    Text("\(kcal)").font(.system(size: 10, weight: .bold)).foregroundColor(Theme.bg)
-                        .lineLimit(1).minimumScaleFactor(0.6)
+                    // "2.4k" fits a narrow cell at a readable size; "2450" shrank to ~6 pt.
+                    Text(compactKcal(kcal)).font(.system(size: 10, weight: .bold)).foregroundColor(Theme.bg)
+                        .lineLimit(1).minimumScaleFactor(0.85)
                 }
             }
             .frame(maxWidth: .infinity).frame(height: 40)
@@ -164,7 +149,7 @@ struct NutritionDayEditor: View {
             }
             Spacer()
             Button { dismiss() } label: {
-                Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: 34, height: 34)
+                Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: Theme.minTapTarget, height: Theme.minTapTarget)
             }
         }
         .padding(.top, 18)
@@ -334,22 +319,23 @@ struct NutritionChartsSection: View {
             if s.count < 2 {
                 Card { EmptyBox(title: t("nut.no_log"), text: t("nut.charts_hint"), icon: "fork.knife") }
             } else {
-                macroChart("\(t("nut.kcal"))\(avg)", s.map { ($0.date, Double($0.kcal)) }, Theme.acc, target: target.target)
-                macroChart("\(t("nut.protein")) (g)\(avg)", s.map { ($0.date, $0.protein) }, Theme.blue, target: target.protein)
-                macroChart("\(t("nut.carbs")) (g)\(avg)", s.map { ($0.date, $0.carbs) }, Theme.acc2, target: target.carbs)
-                macroChart("\(t("nut.fat")) (g)\(avg)", s.map { ($0.date, $0.fat) }, Theme.good, target: target.fat)
+                macroChart("\(t("nut.kcal"))\(avg)", s.map { ($0.day, Double($0.kcal)) }, Theme.acc, target: target.target)
+                macroChart("\(t("nut.protein")) (g)\(avg)", s.map { ($0.day, $0.protein) }, Theme.blue, target: target.protein)
+                macroChart("\(t("nut.carbs")) (g)\(avg)", s.map { ($0.day, $0.carbs) }, Theme.acc2, target: target.carbs)
+                macroChart("\(t("nut.fat")) (g)\(avg)", s.map { ($0.day, $0.fat) }, Theme.good, target: target.fat)
             }
         }
     }
 
-    private func macroChart(_ title: String, _ pts: [(String, Double)], _ color: Color, target: Double?) -> some View {
-        Card {
-            Lbl(text: title).padding(.bottom, 8)
+    private func macroChart(_ title: String, _ pts: [(Date, Double)], _ color: Color, target: Double?) -> some View {
+        let range = chartRange(pts.map(\.1) + [target ?? pts.first?.1 ?? 0])
+        return Card {
+            InfoLbl(text: title, info: .intake).padding(.bottom, 8)
             Chart {
                 ForEach(pts, id: \.0) { p in
-                    LineMark(x: .value("g", fmtShort(p.0)), y: .value("v", p.1))
+                    LineMark(x: .value("d", p.0, unit: .weekOfYear), y: .value("v", p.1))
                         .interpolationMethod(.catmullRom).foregroundStyle(color)
-                    AreaMark(x: .value("g", fmtShort(p.0)), y: .value("v", p.1))
+                    AreaMark(x: .value("d", p.0, unit: .weekOfYear), yStart: .value("v", range.lowerBound), yEnd: .value("v", p.1))
                         .interpolationMethod(.catmullRom)
                         .foregroundStyle(LinearGradient(colors: [color.opacity(0.25), .clear], startPoint: .top, endPoint: .bottom))
                 }
@@ -359,7 +345,7 @@ struct NutritionChartsSection: View {
                         .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 3]))
                 }
             }
-            .chartYScale(domain: .automatic(includesZero: false)).styledAxes().frame(height: 140)
+            .chartYScale(domain: range).dateAxes(pts.map(\.0)).frame(height: 140)
         }
     }
 }
@@ -376,4 +362,47 @@ struct SectionHeader: View {
         }
         .padding(.top, 4)
     }
+}
+
+/// Month title with previous / next arrows and the Monday-first weekday row, shared
+/// by the training and nutrition calendars. The future is not browsable.
+struct MonthHeader: View {
+    @Binding var monthOffset: Int
+    let month: Int
+    let year: Int
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                arrow("chevron.left", label: t("a11y.prev_month"), enabled: true) { monthOffset -= 1 }
+                Spacer()
+                Text("\(L.months[month - 1]) \(year)".uppercased())
+                    .font(.head(13, .semibold)).tracking(1).foregroundColor(Theme.txt)
+                Spacer()
+                arrow("chevron.right", label: t("a11y.next_month"), enabled: monthOffset < 0) { monthOffset += 1 }
+            }
+            .padding(.bottom, 4)
+            HStack(spacing: 0) {
+                ForEach(Array(L.weekHeaders.enumerated()), id: \.offset) { _, d in
+                    Text(d).font(.head(10, .semibold)).foregroundColor(Theme.sub).frame(maxWidth: .infinity)
+                }
+            }
+            .padding(.bottom, 6)
+        }
+    }
+
+    private func arrow(_ icon: String, label: String, enabled: Bool, action: @escaping () -> Void) -> some View {
+        Button { tap(); action() } label: {
+            Image(systemName: icon).foregroundColor(enabled ? Theme.sub : Theme.mut)
+                .frame(width: Theme.minTapTarget, height: Theme.minTapTarget)
+                .contentShape(Rectangle())
+        }
+        .disabled(!enabled)
+        .accessibilityLabel(label)
+    }
+}
+
+/// kcal in a calendar cell: "850", "2.4k".
+func compactKcal(_ k: Int) -> String {
+    k < 1000 ? "\(k)" : String(format: "%.1fk", Double(k) / 1000)
 }

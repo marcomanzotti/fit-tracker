@@ -29,11 +29,11 @@ struct HomeView: View {
         // Sessions). Body fat lives in the goals section, so it's not repeated here.
         HStack(spacing: 9) {
             StatTile(label: t("home.weight"), value: dispW(lw), unit: Units.wLabel,
-                     note: comment.text, info: "bmi")
+                     note: comment.text, info: .bmi)
             StatTile(label: t("home.streak"), value: "\(store.streak)", valueColor: Theme.acc,
-                     note: store.streak == 1 ? t("home.day") : t("home.days"), info: "streak")
+                     note: store.streak == 1 ? t("home.day") : t("home.days"), info: .streak)
             StatTile(label: t("home.sessions"), value: "\(store.sessions.count)", valueColor: Theme.blue,
-                     note: t("home.total"), info: "sessions")
+                     note: t("home.total"), info: .sessions)
         }
 
         weekStripCard
@@ -187,7 +187,7 @@ struct HomeView: View {
         return Card {
             HStack(spacing: 2) {
                 Lbl(text: t("home.goals"), color: Theme.acc2)
-                InfoButton(id: "goal", color: Theme.acc2)
+                InfoButton(id: .goal, color: Theme.acc2)
                 Spacer()
                 Button { tap(); editingGoal = true } label: {
                     HStack(spacing: 5) {
@@ -279,14 +279,21 @@ struct HomeView: View {
 
 // MARK: - Chart axis styling shared across the app
 extension View {
-    func styledAxes() -> some View {
-        self
-            // Vertical guide bands: faint lines in the same gray as the numeric
-            // labels (Theme.sub) so the eye can read a value back to its date.
+    /// The axes of every dated chart. The x axis asks for about four labels
+    /// whatever the number of points and formats them for the span shown, so the
+    /// dates never run into each other. Vertical guide lines in the label gray
+    /// let the eye read a value back to its date.
+    func dateAxes(_ dates: [Date]) -> some View {
+        let span = (dates.max() ?? Date()).timeIntervalSince(dates.min() ?? Date()) / 86_400
+        return self
             .chartXAxis {
-                AxisMarks { _ in
+                AxisMarks(values: .automatic(desiredCount: 4)) { value in
                     AxisGridLine().foregroundStyle(Theme.sub.opacity(0.18))
-                    AxisValueLabel().font(.system(size: 10)).foregroundStyle(Theme.sub)
+                    AxisValueLabel {
+                        if let d = value.as(Date.self) {
+                            Text(axisDate(d, spanDays: span)).font(.system(size: 10)).foregroundStyle(Theme.sub)
+                        }
+                    }
                 }
             }
             .chartYAxis {

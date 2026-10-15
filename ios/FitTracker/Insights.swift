@@ -25,7 +25,7 @@ struct ReadinessCard: View {
         Group {
             if r.score != nil || r.samples > 0 {
                 Card(accent: zoneColor(r.advice)) {
-                    InfoLbl(text: t("load.readiness"), info: "readiness", color: Theme.acc2).padding(.bottom, 10)
+                    InfoLbl(text: t("load.readiness"), info: .readiness, color: Theme.acc2).padding(.bottom, 10)
                     if let score = r.score {
                         HStack(alignment: .firstTextBaseline, spacing: 6) {
                             Text("\(score)").font(.num(34)).foregroundColor(zoneColor(r.advice))
@@ -35,7 +35,14 @@ struct ReadinessCard: View {
                                 .font(.head(11, .semibold)).tracking(1).foregroundColor(zoneColor(r.advice))
                         }
                         .padding(.bottom, 8)
-                        Bar(value: Double(score) / 100, gradient: [zoneColor(r.advice), Theme.acc])
+                        if let scale = store.infoScale(.readiness) { RangeBar(scale: scale, value: Double(score)) }
+                        if !r.warnings.isEmpty {
+                            Label(t("load.vitals_warning", r.warnings.map { t(NightVitalsCard.spec($0).name) }.joined(separator: ", ")),
+                                  systemImage: "exclamationmark.triangle.fill")
+                                .font(.system(size: 11, weight: .medium)).foregroundColor(Theme.acc2)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .padding(.top, 8)
+                        }
                         if !r.usedSignals.isEmpty {
                             HStack(spacing: 5) {
                                 Text(t("load.from").uppercased()).font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.sub)
@@ -75,7 +82,7 @@ struct TrimpCard: View {
                 Card(accent: Theme.acc2) {
                     HStack(spacing: 2) {
                         Lbl(text: t("trimp.title"), color: Theme.acc2)
-                        InfoButton(id: "trimp", color: Theme.acc2)
+                        InfoButton(id: .trimp, color: Theme.acc2)
                         Spacer()
                         if let last {
                             Text("\(t("trimp.last")) \(Int(last.value.rounded()))")
@@ -130,7 +137,7 @@ struct LoadCard: View {
         Card(accent: Theme.acc2) {
             HStack(spacing: 2) {
                 Lbl(text: t("load.title"), color: Theme.acc2)
-                InfoButton(id: "load", color: Theme.acc2)
+                InfoButton(id: .load, color: Theme.acc2)
                 Spacer()
                 Badge(text: t("load.building"), color: Theme.acc2, bg: Theme.acc2.opacity(0.14))
             }
@@ -151,7 +158,7 @@ struct LoadCard: View {
     private func fullCard(acwr: ACWRResult, wk: WeekLoad) -> some View {
         Group {
                 Card {
-                    InfoLbl(text: t("load.title"), info: "load", color: Theme.acc2).padding(.bottom, 12)
+                    InfoLbl(text: t("load.title"), info: .load, color: Theme.acc2).padding(.bottom, 12)
                     // Runaway acute load plus a monotonous week is Foster's classic
                     // overreaching signature — the one combination worth acting on.
                     if store.deloadAdvice() {
@@ -173,21 +180,21 @@ struct LoadCard: View {
                     if let ratio = acwr.ratio {
                         HStack(spacing: 2) {
                             Text(t("load.acwr")).font(.system(size: 12, weight: .medium)).foregroundColor(Theme.sub)
-                            InfoButton(id: "acwr")
+                            InfoButton(id: .acwr)
                             Spacer()
                             Text(trimNum(ratio)).font(.num(20)).foregroundColor(zoneColor(acwr.zone))
                         }
                         .padding(.bottom, 5)
-                        Bar(value: min(1, ratio / 2), gradient: [zoneColor(acwr.zone), zoneColor(acwr.zone)])
+                        if let scale = store.infoScale(.acwr) { RangeBar(scale: scale, value: ratio) }
                         Text(t(acwrKey(acwr.zone))).font(.system(size: 10)).foregroundColor(zoneColor(acwr.zone))
                             .padding(.top, 5).padding(.bottom, 12)
                     }
                     HStack(spacing: 9) {
-                        StatTile(label: t("load.weekly"), value: "\(Int(wk.total))", valueColor: Theme.txt, info: "trimp")
+                        StatTile(label: t("load.weekly"), value: "\(Int(wk.total))", valueColor: Theme.txt, info: .trimp)
                         StatTile(label: t("load.monotony"), value: wk.monotony.map { trimNum(($0 * 10).rounded() / 10) } ?? "—",
-                                 valueColor: (wk.monotony ?? 0) > 2 ? Theme.acc2 : Theme.txt, info: "monotony")
+                                 valueColor: (wk.monotony ?? 0) > 2 ? Theme.acc2 : Theme.txt, info: .monotony)
                         StatTile(label: t("load.strain"), value: wk.strain.map { "\(Int($0))" } ?? "—",
-                                 valueColor: Theme.blue, info: "strain")
+                                 valueColor: Theme.blue, info: .strain)
                     }
                 }
         }
@@ -213,7 +220,7 @@ struct LoadTrendCard: View {
                 Card {
                     HStack(spacing: 2) {
                         Lbl(text: t("load.trend_title"), color: Theme.acc2)
-                        InfoButton(id: "load", color: Theme.acc2)
+                        InfoButton(id: .load, color: Theme.acc2)
                         Spacer()
                         // Only surface ACWR here once it's reliable; otherwise it
                         // lives in the "building baseline" card above and a number
@@ -273,7 +280,7 @@ struct NutritionCard: View {
         Card(accent: Theme.acc) {
             HStack(spacing: 6) {
                 Lbl(text: t("nut.title"), color: Theme.acc2)
-                InfoButton(id: "tdee", color: Theme.acc2)
+                InfoButton(id: .tdee, color: Theme.acc2)
                 Spacer()
                 if e.adaptive { Badge(text: t("nut.adaptive"), color: Theme.good, bg: Theme.good.opacity(0.14)) }
                 Text(modeLabel(e.mode).uppercased()).font(.head(11, .semibold)).tracking(1).foregroundColor(Theme.acc)
@@ -289,9 +296,9 @@ struct NutritionCard: View {
             .padding(.bottom, 12)
 
             HStack(spacing: 9) {
-                StatTile(label: t("nut.protein"), value: "\(Int(e.protein))", unit: "g", valueColor: Theme.blue, info: "macros")
-                StatTile(label: t("nut.carbs"), value: "\(Int(e.carbs))", unit: "g", valueColor: Theme.acc2, info: "macros")
-                StatTile(label: t("nut.fat"), value: "\(Int(e.fat))", unit: "g", valueColor: Theme.good, info: "macros")
+                StatTile(label: t("nut.protein"), value: "\(Int(e.protein))", unit: "g", valueColor: Theme.blue, info: .macros)
+                StatTile(label: t("nut.carbs"), value: "\(Int(e.carbs))", unit: "g", valueColor: Theme.acc2, info: .macros)
+                StatTile(label: t("nut.fat"), value: "\(Int(e.fat))", unit: "g", valueColor: Theme.good, info: .macros)
             }
             .padding(.bottom, 10)
             // Carb-cycling targets stacked one per line — the "rest day" label
@@ -303,9 +310,10 @@ struct NutritionCard: View {
                     Text("\(t("nut.carb_low")): \(Int(e.carbLow))g")
                         .font(.system(size: 10)).foregroundColor(Theme.sub)
                 }
-                InfoButton(id: "carbcycle")
+                InfoButton(id: .carbcycle)
                 Spacer()
                 Text("\(t("nut.salt")) \(trimNum(e.saltMax))g").font(.system(size: 10)).foregroundColor(Theme.sub)
+                InfoButton(id: .salt, size: 16)
             }
             .padding(.bottom, 12)
 
@@ -313,7 +321,7 @@ struct NutritionCard: View {
             if let rate = trend.ratePerWeek {
                 HStack(spacing: 2) {
                     Text(t("nut.trend")).font(.system(size: 12, weight: .medium)).foregroundColor(Theme.sub)
-                    InfoButton(id: "trend")
+                    InfoButton(id: .trend)
                     Spacer()
                     Text("\(rate > 0 ? "+" : "")\(trimNum(rate)) \(t("nut.per_week"))")
                         .font(.num(15)).foregroundColor(zoneColor(trend.status))
@@ -325,7 +333,7 @@ struct NutritionCard: View {
                     Text("\(t(lea.risk == "risk" ? "nut.lea_risk" : "nut.lea_warn"))" + (lea.ea.map { " · EA \(trimNum($0))" } ?? ""))
                         .font(.head(11, .semibold)).tracking(0.3)
                         .foregroundColor(lea.risk == "risk" ? Theme.red : Theme.acc2)
-                    InfoButton(id: "lea", color: lea.risk == "risk" ? Theme.red : Theme.acc2)
+                    InfoButton(id: .lea, color: lea.risk == "risk" ? Theme.red : Theme.acc2)
                     Spacer()
                 }
                 .padding(.top, 8)
@@ -335,14 +343,14 @@ struct NutritionCard: View {
                 Rectangle().fill(Theme.brd).frame(height: 1).padding(.vertical, 10)
                 HStack(spacing: 2) {
                     Text(t("nut.adherence")).font(.system(size: 12, weight: .medium)).foregroundColor(Theme.sub)
-                    InfoButton(id: "adherence")
+                    InfoButton(id: .adherence)
                     Spacer()
                 }
                 HStack(spacing: 9) {
                     StatTile(label: t("nut.logging"), value: "\(Int((adh.loggingPct * 100).rounded()))", unit: "%",
-                             valueColor: adh.status == "low_logging" ? Theme.acc2 : Theme.good)
+                             valueColor: adh.status == "low_logging" ? Theme.acc2 : Theme.good, info: .adherence)
                     StatTile(label: t("nut.steps_avg"), value: adh.avgSteps.map { "\($0)" } ?? "—",
-                             valueColor: Theme.blue, info: "steps")
+                             valueColor: Theme.blue, info: .steps)
                     StatTile(label: t("nut.vol_sessions"), value: "\(adh.sessions)", valueColor: Theme.txt)
                 }
                 if adh.status == "low_logging" {
@@ -388,26 +396,7 @@ struct CalendarCard: View {
         let monthSessions = store.sessions.filter { $0.date.hasPrefix(monthPrefix(firstOfMonth)) }
 
         return Card {
-            HStack {
-                Button { tap(); monthOffset -= 1 } label: {
-                    Image(systemName: "chevron.left").foregroundColor(Theme.sub).frame(width: 30, height: 30)
-                }
-                Spacer()
-                Text("\(L.months[comps.month! - 1]) \(comps.year!)".uppercased())
-                    .font(.head(13, .semibold)).tracking(1).foregroundColor(Theme.txt)
-                Spacer()
-                Button { tap(); if monthOffset < 0 { monthOffset += 1 } } label: {
-                    Image(systemName: "chevron.right").foregroundColor(monthOffset < 0 ? Theme.sub : Theme.mut).frame(width: 30, height: 30)
-                }
-            }
-            .padding(.bottom, 8)
-
-            HStack(spacing: 0) {
-                ForEach(Array(L.weekHeaders.enumerated()), id: \.offset) { _, d in
-                    Text(d).font(.head(10, .semibold)).foregroundColor(Theme.sub).frame(maxWidth: .infinity)
-                }
-            }
-            .padding(.bottom, 6)
+            MonthHeader(monthOffset: $monthOffset, month: comps.month!, year: comps.year!)
 
             let cells = firstWeekday + daysInMonth
             let rows = Int(ceil(Double(cells) / 7.0))
@@ -497,17 +486,17 @@ struct SessionEditorView: View {
                         }
                         Spacer()
                         Button { dismiss() } label: {
-                            Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: 34, height: 34)
+                            Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: Theme.minTapTarget, height: Theme.minTapTarget)
                         }
                     }
                     .padding(.top, 18)
 
                     // Session-level internal load fields (TRIMP from duration + avg HR)
                     Card {
-                        InfoLbl(text: t("load.title"), info: "load").padding(.bottom, 12)
+                        InfoLbl(text: t("load.title"), info: .load).padding(.bottom, 12)
                         HMSField(label: t("wk.duration"), seconds: durationBinding)
                         Spacer().frame(height: 12)
-                        metricField(t("wk.avg_hr"), intBinding(\.avgHR), info: "trimp")
+                        metricField(t("wk.avg_hr"), intBinding(\.avgHR), info: .trimp)
                         if session.sportType.isCardio {
                             Spacer().frame(height: 12)
                             metricField("\(t("wk.distance")) (\(Units.distLabel))", distanceBinding, keyboard: .decimalPad)
@@ -531,7 +520,7 @@ struct SessionEditorView: View {
                     Card(accent: Theme.acc) {
                         HStack(spacing: 2) {
                             Lbl(text: t("wk.calories"), color: Theme.acc2)
-                            InfoButton(id: "calories", color: Theme.acc2)
+                            InfoButton(id: .calories, color: Theme.acc2)
                             Spacer()
                             HStack(alignment: .firstTextBaseline, spacing: 4) {
                                 Text("\(store.estimateCalories(session))").font(.num(26)).foregroundColor(Theme.acc)
@@ -717,7 +706,7 @@ struct SessionEditorView: View {
         }
     }
 
-    private func metricField(_ label: String, _ binding: Binding<String>, info: String? = nil,
+    private func metricField(_ label: String, _ binding: Binding<String>, info: InfoTopic? = nil,
                              keyboard: UIKeyboardType = .numberPad) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             FieldLabel(label, info: info)

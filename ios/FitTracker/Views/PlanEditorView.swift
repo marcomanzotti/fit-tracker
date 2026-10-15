@@ -541,7 +541,7 @@ struct ExercisePickerSheet: View {
             Text(t("pe.browse")).font(.head(18, .bold)).foregroundColor(Theme.txt)
             Spacer()
             Button { dismiss() } label: {
-                Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: 34, height: 34)
+                Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: Theme.minTapTarget, height: Theme.minTapTarget)
             }
         }
         .padding(.top, 18)
