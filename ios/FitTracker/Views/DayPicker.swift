@@ -252,8 +252,8 @@ struct DayPickerSheet: View {
             ("figure.walk.motion", t("hk.cat.walkingHR"), e?.walkingHR.map { "\($0)" }, .walkingHR),
             ("figure.stand", t("hk.cat.standHours"), e?.standHours.map { "\($0)" }, .stand),
             ("sun.max.fill", t("hk.cat.daylight"), e?.daylightMin.map { "\($0)′" }, .daylight)
-        ]
-        let any = tiles.contains { $0.2 != nil }
+        ].filter { $0.2 != nil }   // what this day's devices did not measure is not shown
+        let any = !tiles.isEmpty
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
                 Lbl(text: t("hk.day_health"), color: Theme.acc2)

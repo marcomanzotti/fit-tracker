@@ -13,12 +13,27 @@ import HealthKit
 struct HealthDaySample {
     var date: String
     var values: [HealthField: Double] = [:]
+    /// The night ending this day, stage by stage (see `DailyEntry.sleepTimeline`).
+    var sleepTimeline: [Int]?
 }
 
 // MARK: - Sleep, grouped into nights
 /// One sleep-analysis sample as Health reports it.
 struct SleepSample {
-    enum Stage { case inBed, awake, asleep, core, deep, rem }
+    enum Stage {
+        case inBed, awake, asleep, core, deep, rem
+        /// Code in `DailyEntry.sleepTimeline`; nil for time in bed, which is not drawn.
+        var code: Int? {
+            switch self {
+            case .awake:  return 0
+            case .core:   return 1
+            case .deep:   return 2
+            case .rem:    return 3
+            case .asleep: return 4
+            case .inBed:  return nil
+            }
+        }
+    }
     var start: Date
     var end: Date
     var stage: Stage
@@ -31,6 +46,7 @@ struct SleepNight {
     var start: Date                          // first sample of the night
     var end: Date                            // last sample of the night
     var asleep: [(start: Date, end: Date)]   // merged time asleep
+    var slices: [SleepSample] = []           // the night stage by stage, no overlaps
     var deepMin = 0.0, remMin = 0.0, coreMin = 0.0, awakeMin = 0.0
     var asleepHours: Double { asleep.reduce(0) { $0 + $1.end.timeIntervalSince($1.start) } / 3600 }
     var inBedHours: Double { end.timeIntervalSince(start) / 3600 }
@@ -100,12 +116,13 @@ enum SleepWindows {
 
     private static func night(from cluster: [SleepSample], cal: Calendar) -> SleepNight? {
         let asleepStages: Set<SleepSample.Stage> = [.asleep, .core, .deep, .rem]
-        let asleep = merge(cluster.filter { asleepStages.contains($0.stage) }.map { ($0.start, $0.end) })
+        let slices = paint(cluster)
+        let asleep = merge(slices.filter { asleepStages.contains($0.stage) }.map { ($0.start, $0.end) })
         guard !asleep.isEmpty,
               let start = cluster.map(\.start).min(), let end = cluster.map(\.end).max() else { return nil }
         var night = SleepNight(day: isoFormatter.string(from: cal.startOfDay(for: end)),
-                               start: start, end: end, asleep: asleep)
-        for s in cluster {
+                               start: start, end: end, asleep: asleep, slices: slices)
+        for s in slices {
             let minutes = s.end.timeIntervalSince(s.start) / 60
             switch s.stage {
             case .deep:  night.deepMin += minutes
@@ -116,6 +133,35 @@ enum SleepWindows {
             }
         }
         return night
+    }
+
+    /// One source's night as non-overlapping slices. Where its samples overlap,
+    /// a sleep stage beats "in bed", and between stages the one that started
+    /// later wins: a source that re-scores the night (the Xiaomi band did, every
+    /// half hour) must not count the same minutes twice.
+    static func paint(_ samples: [SleepSample]) -> [SleepSample] {
+        let sorted = samples.filter { $0.end > $0.start }.sorted { $0.start < $1.start }
+        let bounds = Array(Set(sorted.flatMap { [$0.start, $0.end] })).sorted()
+        func beats(_ a: SleepSample, _ b: SleepSample) -> Bool {
+            (a.stage == .inBed) != (b.stage == .inBed) ? b.stage == .inBed : a.start > b.start
+        }
+        var slices: [SleepSample] = []
+        var active: [SleepSample] = []
+        var next = 0
+        for (from, to) in zip(bounds, bounds.dropFirst()) {
+            while next < sorted.count, sorted[next].start <= from {
+                active.append(sorted[next])
+                next += 1
+            }
+            active.removeAll { $0.end <= from }
+            guard let top = active.reduce(nil, { best, s in best.map { beats(s, $0) ? s : $0 } ?? s }) else { continue }
+            if let last = slices.last, last.stage == top.stage, last.end == from {
+                slices[slices.count - 1].end = to
+            } else {
+                slices.append(SleepSample(start: from, end: to, stage: top.stage, source: top.source))
+            }
+        }
+        return slices
     }
 }
 
@@ -214,6 +260,7 @@ final class HealthKitManager {
         guard isAvailable else { completion([], false); return }
         let cal = Calendar.current
         var values: [String: [HealthField: Double]] = [:]
+        var timelines: [String: [Int]] = [:]
         var failed = false
         // Every callback below arrives on the main queue, so these writes never race.
         func put(_ field: HealthField, _ map: [String: Double]?) {
@@ -241,15 +288,18 @@ final class HealthKitManager {
         let nightCategories = Set([HealthCategory.sleep, .sleepHR, .hrv, .spo2, .respRate, .wristTemp].map(\.rawValue))
         if !categories.isDisjoint(with: nightCategories) {
             group.enter()
-            collectNights(start: start, end: end, cal: cal, categories: categories) { byDay, ok in
+            collectNights(start: start, end: end, cal: cal, categories: categories) { byDay, nightTimelines, ok in
                 if !ok { failed = true }
                 for (day, fields) in byDay { values[day, default: [:]].merge(fields) { _, new in new } }
+                timelines = nightTimelines
                 group.leave()
             }
         }
 
         group.notify(queue: .main) {
-            completion(values.keys.sorted().map { HealthDaySample(date: $0, values: values[$0] ?? [:]) }, !failed)
+            completion(values.keys.sorted().map {
+                HealthDaySample(date: $0, values: values[$0] ?? [:], sleepTimeline: timelines[$0])
+            }, !failed)
         }
         #else
         completion([], false)
@@ -560,8 +610,9 @@ final class HealthKitManager {
     /// The nights ending in `[start, end]`: their sleep fields, and the overnight
     /// vitals averaged over each night.
     private func collectNights(start: Date, end: Date, cal: Calendar, categories: Set<String>,
-                               done: @escaping (_ byDay: [String: [HealthField: Double]], _ ok: Bool) -> Void) {
-        guard let sleepType = HKObjectType.categoryType(forIdentifier: .sleepAnalysis) else { done([:], false); return }
+                               done: @escaping (_ byDay: [String: [HealthField: Double]],
+                                                _ timelines: [String: [Int]], _ ok: Bool) -> Void) {
+        guard let sleepType = HKObjectType.categoryType(forIdentifier: .sleepAnalysis) else { done([:], [:], false); return }
         // The night that ends on `start` began the evening before.
         let from = cal.date(byAdding: .day, value: -1, to: start) ?? start
         let to = cal.date(byAdding: .day, value: 1, to: end) ?? end
@@ -570,7 +621,7 @@ final class HealthKitManager {
                                   limit: HKObjectQueryNoLimit, sortDescriptors: nil) { _, samples, error in
             if let error {
                 appLog.error("Health sleep query failed: \(String(describing: error), privacy: .public)")
-                DispatchQueue.main.async { done([:], false) }
+                DispatchQueue.main.async { done([:], [:], false) }
                 return
             }
             let sleep = ((samples as? [HKCategorySample]) ?? []).compactMap { s -> SleepSample? in
@@ -581,12 +632,16 @@ final class HealthKitManager {
             let first = isoFormatter.string(from: start), last = isoFormatter.string(from: end)
             let nights = SleepWindows.nights(sleep, cal: cal).filter { $0.day >= first && $0.day <= last }
             var byDay: [String: [HealthField: Double]] = [:]
+            var timelines: [String: [Int]] = [:]
             if categories.contains(HealthCategory.sleep.rawValue) {
-                for n in nights { byDay[n.day] = Self.sleepFields(n, cal: cal) }
+                for n in nights {
+                    byDay[n.day] = Self.sleepFields(n, cal: cal)
+                    timelines[n.day] = Self.timeline(n, cal: cal)
+                }
             }
             let vitals = Self.nightVitals.filter { categories.contains($0.category.rawValue) }
             guard !vitals.isEmpty, !nights.isEmpty else {
-                DispatchQueue.main.async { done(byDay, true) }
+                DispatchQueue.main.async { done(byDay, timelines, true) }
                 return
             }
             let group = DispatchGroup()
@@ -608,7 +663,7 @@ final class HealthKitManager {
                     guard let map else { ok = false; continue }
                     for (day, value) in map { byDay[day, default: [:]][field] = value }
                 }
-                done(byDay, ok)
+                done(byDay, timelines, ok)
             }
         }
         store.execute(query)
@@ -629,6 +684,17 @@ final class HealthKitManager {
             f[.sleepAwakeMin] = n.awakeMin
         }
         return f
+    }
+
+    /// The night as `[start, end, stage code]` triplets in minutes from the wake
+    /// day's midnight (negative before it), for the stage chart.
+    private static func timeline(_ n: SleepNight, cal: Calendar) -> [Int] {
+        let midnight = cal.startOfDay(for: n.end)
+        return n.slices.flatMap { s -> [Int] in
+            guard let code = s.stage.code else { return [] }
+            return [Int((s.start.timeIntervalSince(midnight) / 60).rounded()),
+                    Int((s.end.timeIntervalSince(midnight) / 60).rounded()), code]
+        }
     }
 
     private static func stage(_ value: Int) -> SleepSample.Stage? {

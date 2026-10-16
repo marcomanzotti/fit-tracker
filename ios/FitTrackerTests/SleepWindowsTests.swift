@@ -102,4 +102,20 @@ final class SleepWindowsTests: XCTestCase {
         XCTAssertEqual(n?.isAsleep(at: oct14(23)), true)
         XCTAssertNil(SleepWindows.night(at: oct14(20), in: nights))
     }
+
+    func testANightScoredTwiceIsNotCountedTwice() {
+        // The Xiaomi band re-scores the whole night from bed time and both
+        // scorings reach Health: 23–01 light + 01–03 deep, then 23–00 light,
+        // 00–02 deep, 02–03 light. Four hours asleep, not eight.
+        let first = [sample(23, 25, .core, "band"), sample(25, 27, .deep, "band")]
+        let second = [sample(23, 24, .core, "band"), sample(24, 26, .deep, "band"), sample(26, 27, .core, "band")]
+
+        let nights = SleepWindows.nights(first + second, cal: cal)
+
+        XCTAssertEqual(nights.count, 1)
+        let n = nights[0]
+        XCTAssertEqual(n.asleepHours, 4, accuracy: 0.001)
+        XCTAssertEqual(n.deepMin + n.coreMin, 240, accuracy: 0.001, "every minute counted once")
+        XCTAssertEqual(n.slices.reduce(0) { $0 + $1.end.timeIntervalSince($1.start) } / 3600, 4, accuracy: 0.001)
+    }
 }

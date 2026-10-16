@@ -20,6 +20,9 @@ struct BodyView: View {
     @State private var sleepHRVInput = ""
     @State private var sleepHRInput = ""
     @State private var showManualSleep = false
+    /// The full night (stage chart, totals, last 7 nights) under the sleep tiles:
+    /// closed by default, the tiles above already answer "how did I sleep".
+    @State private var showSleepDetail = false
     // The day every entry card reads and writes. Defaults to today; stepping back
     // lets the user see and correct what Apple Health imported for a past day
     // (yesterday's steps, last week's sleep) instead of only ever seeing today.
@@ -142,14 +145,36 @@ struct BodyView: View {
             HStack(spacing: 9) {
                 StatTile(label: t("home.sleep"), value: score.map { "\($0)" } ?? "—",
                          unit: score != nil ? "/100" : nil, valueColor: Theme.acc2,
-                         note: hrs.map { "\(trimNum($0)) h" } ?? "—", info: .sleep)
-                StatTile(label: "HRV", value: hrv.map(trimNum) ?? "—", unit: hrv != nil ? "ms" : nil,
-                         valueColor: Theme.blue, note: t("hrv.sleep_note"), info: .hrv)
+                         note: score.flatMap { sleepBand(Double($0)) } ?? "—", info: .sleep)
+                // Time actually asleep: the number the watch or band shows first.
+                StatTile(label: t("sleep.slept"), value: hrs.map { fmtMinutes(Int(($0 * 60).rounded())) } ?? "—",
+                         valueColor: Theme.blue, note: t("sleep.slept_note"), info: .sleep)
                 StatTile(label: t("body.sleep_hr_short"), value: sHR.map { "\($0)" } ?? "—",
                          unit: sHR != nil ? "bpm" : nil, valueColor: Theme.red, note: t("hrv.sleep_note"), info: .sleepHR)
             }
             if let e, hrs != nil {
-                SleepNightDetail(entry: e).padding(.top, 12)
+                Button {
+                    tap(); withAnimation(Theme.settle) { showSleepDetail.toggle() }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "moon.zzz.fill").font(.system(size: 12))
+                        Text(t(showSleepDetail ? "sleep.hide_all" : "sleep.show_all")).font(.head(12, .semibold))
+                        Spacer()
+                        Image(systemName: "chevron.down").font(.system(size: 11, weight: .bold))
+                            .rotationEffect(.degrees(showSleepDetail ? 180 : 0))
+                    }
+                    .foregroundColor(Theme.blue)
+                    .padding(.vertical, 11).padding(.horizontal, 12)
+                    .frame(minHeight: Theme.minTapTarget)
+                    .chrome(Theme.radiusS, fill: Theme.blue.opacity(0.08), stroke: Theme.blue.opacity(0.3))
+                }
+                .buttonStyle(PressableStyle())
+                .padding(.top, 12)
+                if showSleepDetail {
+                    SleepNightDetail(entry: e)
+                        .padding(.top, 14)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                }
             }
 
             // Manual entry form (always accessible via pencil button)
@@ -169,6 +194,10 @@ struct BodyView: View {
                 .padding(.top, 4)
             }
         }
+    }
+
+    private func sleepBand(_ score: Double) -> String? {
+        store.infoScale(.sleep).map { t("band." + $0.bands[$0.bandIndex(of: score)].key) }
     }
 
     private func sleepField(_ label: String, _ ph: String, _ b: Binding<String>, _ kb: UIKeyboardType = .decimalPad) -> some View {

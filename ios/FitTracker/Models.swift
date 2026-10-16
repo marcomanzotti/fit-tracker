@@ -49,6 +49,9 @@ struct DailyEntry: Codable, Identifiable, Equatable {
     var inBedHours: Double?   // first to last sleep sample of the night
     var sleepStartMin: Int?   // minutes from this day's midnight (negative = the evening before)
     var sleepEndMin: Int?
+    /// The night stage by stage: [start, end, code] triplets in minutes from this
+    /// day's midnight; codes 0 awake, 1 core / light, 2 deep, 3 REM, 4 asleep (no stage).
+    var sleepTimeline: [Int]?
     // Overnight vitals, averaged over the time asleep (Health)
     var spo2: Double?         // blood oxygen, %
     var respRate: Double?     // breaths/min

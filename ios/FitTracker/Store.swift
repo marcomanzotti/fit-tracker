@@ -1040,6 +1040,7 @@ extension Store {
                 if field == .weight { e.weightFromHealth = true }
             }
             if overwrite, s.values[.sleepHours] != nil { e.clearSleepScoreManual() }
+            if let timeline = s.sleepTimeline, overwrite || !e.isManual(.sleepHours) { e.sleepTimeline = timeline }
             guard e != before else { continue }
             byDate[s.date] = e
             touched.insert(s.date)
