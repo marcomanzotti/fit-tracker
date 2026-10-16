@@ -1046,11 +1046,15 @@ extension Store {
             touched.insert(s.date)
         }
         // Scores last: regularity compares each night with the ones before it.
-        for date in touched {
+        // Every day read is rescored, so a change to the formula reaches the
+        // nights already stored on the next sync.
+        for date in Set(samples.map(\.date)) {
             guard var e = byDate[date], !e.sleepScoreManual,
-                  let score = sleepScore(of: e, regularity: sleepRegularity(endingOn: date, in: byDate)) else { continue }
+                  let score = sleepScore(of: e, regularity: sleepRegularity(endingOn: date, in: byDate)),
+                  score != e.sleep else { continue }
             e.sleep = score
             byDate[date] = e
+            touched.insert(date)
         }
         if !touched.isEmpty { daily = byDate.values.sorted { $0.date < $1.date } }
         return touched.count

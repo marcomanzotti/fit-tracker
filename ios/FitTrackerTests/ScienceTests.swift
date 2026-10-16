@@ -220,6 +220,13 @@ final class ScienceTests: XCTestCase {
         XCTAssertLessThan(poor, good - 15)
     }
 
+    func testADeviceWithoutREMIsNotPenalised() {
+        // The band's 15–16 Oct night: 9h35 asleep, deep 2h04, light 7h31, no REM.
+        let band = Store.sleepScore(hours: 9.58, inBedHours: 10.7, deepMin: 124, remMin: 0, coreMin: 451)
+        let noStages = Store.sleepScore(hours: 9.58, inBedHours: 10.7)
+        XCTAssertGreaterThanOrEqual(band, noStages, "healthy deep sleep must not lower the score")
+    }
+
     func testSleepRegularityNeedsFourNights() {
         store.daily = (1...3).map { DailyEntry(date: day($0), sleepStartMin: -60, sleepEndMin: 420) }
         XCTAssertNil(store.sleepRegularity(endingOn: day(1)))

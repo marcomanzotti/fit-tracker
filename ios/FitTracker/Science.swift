@@ -290,7 +290,8 @@ extension Store {
     /// are reweighted, so hours alone still give a score:
     ///   • duration 50 % — full at 7–9 h (NSF), 0 at 4 h and 12 h
     ///   • efficiency 15 % — asleep ÷ in bed, full from 85 % (Ohayon 2017), 0 at 65 %
-    ///   • stages 20 % — deep 13–23 % and REM 20–25 % of the time asleep
+    ///   • stages 20 % — deep 13–23 % and REM 20–25 % of the time asleep (deep
+    ///     alone when the device reports no REM)
     ///   • regularity 15 % — SD of the sleep midpoint over a week, full ≤ 30 min, 0 ≥ 90 min
     static func sleepScore(hours: Double, inBedHours: Double? = nil, deepMin: Double? = nil,
                            remMin: Double? = nil, coreMin: Double? = nil, midpointSD: Double? = nil) -> Int {
@@ -307,7 +308,10 @@ extension Store {
         let deep = deepMin ?? 0, rem = remMin ?? 0
         let staged = deep + rem + (coreMin ?? 0)
         if staged > 0 {
-            parts.append(((inBand(deep / staged * 100, 13, 23) + inBand(rem / staged * 100, 20, 25)) / 2, 0.20))
+            // Some devices (the Xiaomi band) stage deep and light sleep but never
+            // REM: a night without any REM is their limit, not a bad night.
+            let deepScore = inBand(deep / staged * 100, 13, 23)
+            parts.append((rem > 0 ? (deepScore + inBand(rem / staged * 100, 20, 25)) / 2 : deepScore, 0.20))
         }
         if let sd = midpointSD { parts.append((ramp(sd, zeroAt: 90, fullAt: 30), 0.15)) }
         let weight = parts.reduce(0) { $0 + $1.weight }
