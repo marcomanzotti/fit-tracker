@@ -121,6 +121,7 @@ struct StatsView: View {
             MuscleVolumeCard()
             VitalsTrendCard()
             FitnessCard()
+            IntensityCard()
             profileCard
         }
     }
@@ -133,6 +134,7 @@ struct StatsView: View {
     // MARK: Records
     @ViewBuilder
     private var records: some View {
+        StrengthCard()
         prFeed
         currentMaxes
     }

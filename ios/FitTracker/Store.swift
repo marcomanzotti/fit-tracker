@@ -32,6 +32,9 @@ final class Store: ObservableObject {
         case saveFailed(String)
     }
     @Published private(set) var storageProblem: StorageProblem?
+    /// Heart-rate zones and drift of the recent workouts, read from Health at each
+    /// sync (any watch, Apple Watch included). Not saved: Health keeps the source.
+    @Published var workoutIntensity: [WorkoutIntensity] = []
 
     enum ImportOutcome: Equatable { case imported, invalidFile, snapshotFailed }
 
@@ -1279,6 +1282,7 @@ extension Store {
                 self.applyHealthSamples(samples)
                 // An incomplete answer leaves the backfill to run again next time.
                 if complete, window >= Store.healthBackfillDays { self.markHealthBackfilled() }
+                self.refreshWorkoutIntensity()
                 // Keep resting HR profile fresh from the most recent reading.
                 if let last = samples.compactMap({ $0.values[.restHR] }).last, last > 0 {
                     self.prefs.restingHR = Int(last.rounded())

@@ -344,6 +344,54 @@ extension Store {
     private static let regularityMinNights = 4
 }
 
+// MARK: - Sleep debt, social jet lag, HRV stability
+extension Store {
+    /// The nightly need the debt is counted against: the middle of the 7–9 h
+    /// adults are advised to sleep.
+    static let sleepNeedHours = 8.0
+    private static let sleepDebtNights = 14
+
+    /// Hours of sleep owed over the last two weeks: each night short of the need
+    /// adds, each long night pays back; never below zero. Nights without data
+    /// are skipped, not counted as zero. nil under 7 nights.
+    func sleepDebt() -> Double? {
+        let nights = recentNights(Store.sleepDebtNights).compactMap(\.sleepHours)
+        guard nights.count >= Store.sleepDebtNights / 2 else { return nil }
+        return max(0, nights.reduce(0) { $0 + Store.sleepNeedHours - $1 })
+    }
+
+    /// Social jet lag (Wittmann, Roenneberg): how far the middle of the night
+    /// moves between work days and free days (nights ending on Saturday or
+    /// Sunday), in minutes, over the last four weeks.
+    func socialJetLag() -> Double? {
+        var free: [Double] = [], work: [Double] = []
+        for e in recentNights(28) {
+            guard let s = e.sleepStartMin, let w = e.sleepEndMin, let d = isoFormatter.date(from: e.date) else { continue }
+            let weekday = Calendar.current.component(.weekday, from: d)   // 1 Sunday … 7 Saturday
+            if weekday == 1 || weekday == 7 { free.append(Double(s + w) / 2) } else { work.append(Double(s + w) / 2) }
+        }
+        guard free.count >= 2, work.count >= 3 else { return nil }
+        return abs(free.reduce(0, +) / Double(free.count) - work.reduce(0, +) / Double(work.count))
+    }
+
+    /// Week-to-week stability of HRV (Plews): the coefficient of variation of
+    /// ln HRV measured asleep over the last 7 days, %. A rising CV is an early
+    /// sign the body is not coping with the load. nil under 5 readings.
+    func hrvStability() -> Double? {
+        let values = recentNights(7).compactMap(\.hrvSleep).filter { $0 > 0 }.map { log($0) }
+        guard values.count >= 5 else { return nil }
+        let mean = values.reduce(0, +) / Double(values.count)
+        let sd = (values.reduce(0) { $0 + ($1 - mean) * ($1 - mean) } / Double(values.count)).squareRoot()
+        return mean > 0 ? sd / mean * 100 : nil
+    }
+
+    /// The entries of the last `n` days, today included.
+    private func recentNights(_ n: Int) -> [DailyEntry] {
+        let from = Calendar.current.date(byAdding: .day, value: -(n - 1), to: Date()).map { isoFormatter.string(from: $0) } ?? ""
+        return sortedDaily.filter { $0.date >= from }
+    }
+}
+
 // MARK: - Readiness (HRV + resting HR + sleep, checked against overnight vitals)
 struct ReadinessResult {
     var score: Int?            // 0-100

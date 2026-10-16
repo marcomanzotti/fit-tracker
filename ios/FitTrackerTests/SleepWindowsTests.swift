@@ -118,4 +118,15 @@ final class SleepWindowsTests: XCTestCase {
         XCTAssertEqual(n.deepMin + n.coreMin, 240, accuracy: 0.001, "every minute counted once")
         XCTAssertEqual(n.slices.reduce(0) { $0 + $1.end.timeIntervalSince($1.start) } / 3600, 4, accuracy: 0.001)
     }
+
+    func testTheWatchNightWithREMIsPreferredOverALongerBandNight() {
+        let band = [sample(23, 31, .core, "band")]                                    // 8 h, no REM
+        let watch = [sample(23.5, 26, .core, "watch"), sample(26, 27.5, .rem, "watch"),
+                     sample(27.5, 30.5, .core, "watch")]                               // 7 h, staged
+        XCTAssertEqual(SleepWindows.nights(band + watch, cal: cal).first?.remMin ?? 0, 90, accuracy: 0.001)
+
+        let deadWatch = [sample(23.5, 25, .core, "watch"), sample(25, 26, .rem, "watch")] // 2.5 h
+        XCTAssertEqual(SleepWindows.nights(band + deadWatch, cal: cal).first?.asleepHours ?? 0, 8, accuracy: 0.001,
+                       "a watch that stopped early loses to the full band night")
+    }
 }

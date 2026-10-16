@@ -742,6 +742,9 @@ enum L {
             "The World Health Organization advises no more than 5 g of salt a day (about 2 g of sodium). Higher intake is linked to high blood pressure.\n\nHeavy sweaters lose some in training, but for most people the problem is too much, not too little: bread, cured meats, cheese and ready meals carry a lot."
         ),
         "sleep.stages":       ("Fasi", "Stages"),
+        "sleep.debt_note":    ("ultime 2 settimane", "last 2 weeks"),
+        "recovery.today":     ("oggi", "today"),
+        "recovery.yesterday": ("ieri", "yesterday"),
         "sleep.slept":        ("Dormito", "Slept"),
         "sleep.slept_note":   ("addormentato", "asleep"),
         "sleep.show_all":     ("Tutti i dati del sonno", "All sleep data"),
@@ -780,6 +783,98 @@ enum L {
         "st.walk_hr_time":    ("FC camminando nel tempo", "Walking HR over time"),
         "st.daylight_time":   ("Luce del giorno nel tempo", "Daylight over time"),
         "st.stand_time":      ("Ore in piedi nel tempo", "Stand hours over time"),
+        "band.overreaching": ("Sovraccarico", "Overreaching"),
+        "band.productive": ("Allenamento produttivo", "Productive training"),
+        "band.maintaining": ("Mantenimento", "Maintaining"),
+        "band.fresh": ("Fresco", "Fresh"),
+        "band.too_hard": ("Troppa intensità", "Too much intensity"),
+        "band.mixed": ("Misto", "Mixed"),
+        "band.polarized": ("80/20", "80/20"),
+        "band.mostly_easy": ("Quasi tutto facile", "Mostly easy"),
+        "band.aerobic_solid": ("Base aerobica solida", "Solid aerobic base"),
+        "band.drifting": ("Deriva alta", "High drift"),
+        "band.stable": ("Stabile", "Stable"),
+        "band.unstable": ("Instabile", "Unstable"),
+        "band.very_unstable": ("Molto instabile", "Very unstable"),
+        "band.younger": ("Più giovane", "Younger"),
+        "band.in_line": ("Come la tua età", "In line"),
+        "band.older": ("Più vecchia", "Older"),
+        "band.untrained": ("Non allenato", "Untrained"),
+        "band.beginner": ("Principiante", "Beginner"),
+        "band.novice": ("Base", "Novice"),
+        "band.intermediate": ("Intermedio", "Intermediate"),
+        "band.advanced": ("Avanzato", "Advanced"),
+        "band.elite": ("Élite", "Elite"),
+        "info.form.title": ("Forma, fitness e fatica", "Form, fitness and fatigue"),
+        "info.form.body": (
+            "Il modello di Banister, lo stesso del Performance Management Chart di TrainingPeaks, separa due effetti di ogni allenamento:\n• Fitness: la media del carico (TRIMP) degli ultimi ~42 giorni. Sale lentamente e misura quanto sei allenato\n• Fatica: la media degli ultimi ~7 giorni. Sale e scende in fretta\n• Forma = fitness di ieri − fatica di ieri\n\nCome leggere la forma:\n• Sotto −30: rischio di sovraccarico, serve recupero\n• Da −30 a −10: zona produttiva, stai costruendo forma\n• Da −10 a +5: mantenimento\n• Da +5 a +25: fresco, il momento per una gara o un test\n• Sopra +25: stai perdendo allenamento\n\nConta solo il carico delle sedute con il battito medio.",
+            "Banister's model, the same as TrainingPeaks' Performance Management Chart, splits every workout into two effects:\n• Fitness: the average load (TRIMP) of the last ~42 days. It rises slowly and measures how trained you are\n• Fatigue: the average of the last ~7 days. It rises and falls quickly\n• Form = yesterday's fitness − yesterday's fatigue\n\nHow to read form:\n• Below −30: overreaching risk, you need recovery\n• −30 to −10: productive zone, you are building fitness\n• −10 to +5: maintaining\n• +5 to +25: fresh, the time for a race or a test\n• Above +25: you are losing fitness\n\nOnly sessions with average heart rate carry load."
+        ),
+        "info.recovery.title": ("Recupero stimato", "Estimated recovery"),
+        "info.recovery.body": (
+            "Quante ore chiede l'ultima seduta con battito registrato prima di rifare uno sforzo intenso. Una seduta pesante quanto una tua giornata media di allenamento chiede circa un giorno; il doppio circa 40 ore. Più sei allenato (fitness alta), meno ore servono; se stamattina la prontezza è bassa, servono circa il 20% in più.\n\nÈ una stima, nello spirito del tempo di recupero di Firstbeat e Garmin: nelle ore di recupero va bene muoversi leggero, non spingere. Se la seduta arriva da Salute conosciamo l'ora di fine e contiamo le ore che mancano.",
+            "How many hours your last session with heart rate asks for before another hard effort. A session as heavy as your average training day needs about a day; twice that about 40 hours. The fitter you are the fewer hours it takes; with low readiness this morning add about 20%.\n\nIt is an estimate, in the spirit of Firstbeat's and Garmin's recovery time: during recovery, easy movement is fine, pushing is not. When the session comes from Health we know when it ended and count the hours left."
+        ),
+        "info.intensity.title": ("Intensità settimanale", "Weekly intensity"),
+        "info.intensity.body": (
+            "Il tempo passato in ogni zona di frequenza cardiaca durante gli allenamenti, settimana per settimana, letto dal battito che il tuo orologio ha registrato (Apple Watch o altri, tramite Salute).\n\nGli atleti di resistenza di alto livello passano circa l'80% del tempo a intensità bassa (zone 1–2) e il 20% alta (zone 4–5): è il modello polarizzato di Seiler, che migliora la forma con meno rischio di sovraccarico. Chi fa tutto a media intensità (zona 3) si stanca senza migliorare molto.\n\nLa scala mostra la quota di tempo facile delle ultime 4 settimane. Le zone sono quelle della tua scheda Fitness (metodo Karvonen).",
+            "The time spent in each heart-rate zone during workouts, week by week, read from the heart rate your watch recorded (Apple Watch or others, through Health).\n\nTop endurance athletes spend about 80% of their time at low intensity (zones 1–2) and 20% high (zones 4–5): Seiler's polarized model, which builds fitness with less risk of overreaching. Doing everything at medium intensity (zone 3) tires you without much progress.\n\nThe scale shows the easy share of the last 4 weeks. The zones are those of your Fitness card (Karvonen method)."
+        ),
+        "info.decoupling.title": ("Deriva cardiaca", "Aerobic decoupling"),
+        "info.decoupling.body": (
+            "Nelle corse di almeno 30 minuti confrontiamo la seconda metà con la prima: quanta strada fai per ogni battito. Se a parità di passo il battito sale, la seconda metà è meno efficiente: il cuore \"deriva\".\n\nSotto il 5% la tua base aerobica regge tutta la durata (Joe Friel): è il segnale che sei pronto ad allungare le uscite. Sopra il 10% la corsa era troppo lunga o veloce per la forma attuale, oppure faceva caldo o eri disidratato. Funziona con passo costante: una corsa con ripetute non è confrontabile.",
+            "On runs of at least 30 minutes we compare the second half with the first: how much ground you cover per heartbeat. If heart rate climbs at the same pace, the second half is less efficient: the heart \"drifts\".\n\nUnder 5% your aerobic base holds for the whole run (Joe Friel): a sign you are ready to go longer. Above 10% the run was too long or fast for your current fitness, or it was hot or you were dehydrated. It needs a steady pace: a run with intervals is not comparable."
+        ),
+        "info.sleep_debt.title": ("Debito di sonno", "Sleep debt"),
+        "info.sleep_debt.body": (
+            "Le ore di sonno che ti mancano nelle ultime due settimane, contro un bisogno di 8 ore a notte (il centro delle 7–9 raccomandate). Ogni notte corta aggiunge debito, ogni notte lunga lo ripaga; le notti senza dati non contano.\n\nUn debito di poche ore è normale. Sopra le 7 ore in due settimane calano attenzione, recupero muscolare e controllo dell'appetito, anche se ti senti abituato. Si recupera con qualche notte più lunga e orari regolari, non con un'unica dormita.",
+            "The hours of sleep you are short over the last two weeks, against a need of 8 hours a night (the middle of the recommended 7–9). Each short night adds debt, each long night pays it back; nights without data don't count.\n\nA debt of a few hours is normal. Above 7 hours in two weeks attention, muscle recovery and appetite control decline, even if you feel used to it. It is paid back with a few longer nights and regular hours, not with one long sleep."
+        ),
+        "info.jet_lag.title": ("Jet lag sociale", "Social jet lag"),
+        "info.jet_lag.body": (
+            "Quanto si sposta la metà della tua notte tra i giorni di lavoro e il weekend (le notti che finiscono di sabato e domenica), nelle ultime 4 settimane.\n\nIl termine è di Till Roenneberg: dormire molto più tardi nel weekend equivale a cambiare fuso orario ogni settimana. Più di un'ora è comune, oltre le due ore è associato a peggior umore, metabolismo e sonno del lunedì. Si riduce tenendo la sveglia vicina all'orario dei giorni feriali anche nel weekend.",
+            "How far the middle of your night moves between work days and the weekend (nights ending on Saturday and Sunday), over the last 4 weeks.\n\nThe term is Till Roenneberg's: sleeping much later at weekends is like changing time zone every week. More than an hour is common; above two hours it is linked to worse mood, metabolism and Monday sleep. It shrinks by keeping the weekend alarm close to the weekday one."
+        ),
+        "info.hrv_stability.title": ("Stabilità dell'HRV", "HRV stability"),
+        "info.hrv_stability.body": (
+            "Quanto oscilla la tua HRV notturna da una notte all'altra negli ultimi 7 giorni (coefficiente di variazione del logaritmo, come negli studi di Plews e Buchheit).\n\nNon conta solo il livello dell'HRV ma anche la sua stabilità: oscillazioni che crescono indicano che il corpo fatica ad adattarsi al carico, spesso prima che la media scenda. Sotto il 5% è stabile, sopra il 10% merita attenzione.\n\nServe un dispositivo che misuri l'HRV nel sonno (Apple Watch) per almeno 5 notti della settimana.",
+            "How much your night HRV swings from night to night over the last 7 days (coefficient of variation of its logarithm, as in Plews' and Buchheit's studies).\n\nNot only the HRV level matters but its stability: growing swings show the body struggling to adapt to the load, often before the average drops. Under 5% is stable, above 10% deserves attention.\n\nIt needs a device that measures HRV asleep (Apple Watch) on at least 5 nights of the week."
+        ),
+        "info.fitness_age.title": ("Età fitness", "Fitness age"),
+        "info.fitness_age.body": (
+            "L'età per cui il tuo VO₂max sarebbe nella media: con 46 mL/kg·min a 40 anni hai la forma aerobica di un trentenne medio. Usiamo le norme del Cooper Institute per il tuo sesso.\n\nL'idea viene dagli studi norvegesi HUNT, dove l'età fitness predice il rischio cardiovascolare meglio dell'età anagrafica. È una stima: il VO₂max dell'orologio o stimato dalle corse può sbagliare di qualche punto.",
+            "The age at which your VO₂max would be average: 46 mL/kg·min at 40 means the aerobic fitness of an average 30-year-old. We use the Cooper Institute norms for your sex.\n\nThe idea comes from Norway's HUNT studies, where fitness age predicts cardiovascular risk better than calendar age. It is an estimate: the watch's VO₂max or the one estimated from runs can be off by a few points."
+        ),
+        "info.strength.title": ("Forza relativa", "Relative strength"),
+        "info.strength.body": (
+            "Il tuo massimale stimato (1RM con la formula di Epley, dalla serie migliore) diviso per il peso corporeo, per panca piana, squat, stacco e lento avanti con bilanciere.\n\nI livelli (principiante, base, intermedio, avanzato, élite) sono gli standard di forza per adulti come su Strength Level, diversi per uomini e donne. Servono a vedere quale alzata è indietro rispetto alle altre, non come giudizio: dipendono anche da età, altezza e anni di allenamento. Manubri e macchine non contano.",
+            "Your estimated max (1RM with Epley's formula, from your best set) divided by body weight, for barbell bench press, squat, deadlift and overhead press.\n\nThe levels (beginner, novice, intermediate, advanced, elite) are adult strength standards as on Strength Level, different for men and women. They show which lift lags behind the others, not a verdict: they also depend on age, height and years of training. Dumbbells and machines don't count."
+        ),
+        "form.title": ("Forma", "Form"),
+        "form.fitness": ("Fitness", "Fitness"),
+        "form.fatigue": ("Fatica", "Fatigue"),
+        "form.form": ("Forma", "Form"),
+        "form.chart_fitness": ("Fitness e fatica · 90 giorni", "Fitness and fatigue · 90 days"),
+        "form.chart_form": ("Forma giorno per giorno", "Form day by day"),
+        "recovery.title": ("Recupero", "Recovery"),
+        "recovery.left": ("ancora %d h", "%d h left"),
+        "recovery.done": ("Recuperato", "Recovered"),
+        "recovery.total": ("%d h dopo la seduta di %@", "%d h after the %@ session"),
+        "intensity.title": ("Intensità settimanale", "Weekly intensity"),
+        "intensity.easy": ("facile", "easy"),
+        "intensity.hard": ("intenso", "hard"),
+        "intensity.zone": ("Z%d", "Z%d"),
+        "decoupling.title": ("Deriva cardiaca", "Cardiac drift"),
+        "sleep.debt": ("Debito", "Debt"),
+        "sleep.jetlag": ("Jet lag sociale", "Social jet lag"),
+        "vit.stability": ("Stabilità HRV", "HRV stability"),
+        "metric.fitness_age": ("Età fitness", "Fitness age"),
+        "metric.years": ("anni", "years"),
+        "strength.title": ("Forza relativa", "Relative strength"),
+        "lift.bench": ("Panca piana", "Bench press"),
+        "lift.squat": ("Squat", "Squat"),
+        "lift.deadlift": ("Stacco", "Deadlift"),
+        "lift.press": ("Lento avanti", "Overhead press"),
         "info.trimp.title": ("TRIMP", "TRIMP"),
         "info.trimp.body": (
             "Il TRIMP (Training Impulse) è una metrica scientifica che quantifica il carico di allenamento interno di una sessione. Combina quanto a lungo hai allenato con quanto forte hai spinto, usando la frequenza cardiaca come misura dell'intensità. Il risultato è un singolo punteggio che rappresenta lo stress fisiologico totale imposto al corpo, indipendentemente dal tipo di sport.\n\nPerché è utile: è il modo più preciso per confrontare sessioni di tipo diverso — una corsa leggera da 60 minuti e un interval training da 30 producono carichi molto diversi, e il TRIMP li cattura correttamente.\n\nRange per singola sessione:\n• Recupero / molto facile: 30–80\n• Moderato: 80–150\n• Duro: 150–250\n• Massimale: 250–500+\n\nRange settimanale (volume totale):\n• Principianti: 500–1.000\n• Intermedi: 1.000–1.500\n• Avanzati: 1.500–2.000\n• Élite: oltre 2.000\n\nCosa influenza il valore: la durata della sessione, la frequenza cardiaca media, e la frequenza cardiaca a riposo e massima dal tuo profilo. Senza questi dati il TRIMP non può essere calcolato.",

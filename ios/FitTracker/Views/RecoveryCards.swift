@@ -63,6 +63,19 @@ struct SleepNightDetail: View {
                     StatTile(label: "HRV", value: trimNum(hrv.rounded()), unit: "ms", valueColor: Theme.blue, info: .hrv)
                 }
             }
+            let debt = store.sleepDebt(), jetLag = store.socialJetLag()
+            if debt != nil || jetLag != nil {
+                HStack(spacing: 9) {
+                    if let debt {
+                        StatTile(label: t("sleep.debt"), value: fmtMinutes(Int((debt * 60).rounded())),
+                                 valueColor: tone(.sleepDebt, debt), note: t("sleep.debt_note"), info: .sleepDebt)
+                    }
+                    if let jetLag {
+                        StatTile(label: t("sleep.jetlag"), value: fmtMinutes(Int(jetLag.rounded())),
+                                 valueColor: tone(.jetLag, jetLag), info: .jetLag)
+                    }
+                }
+            }
             WeekSleepChart(endingOn: entry.date)
         }
     }

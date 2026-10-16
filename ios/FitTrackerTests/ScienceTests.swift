@@ -308,4 +308,97 @@ final class ScienceTests: XCTestCase {
         XCTAssertEqual(history[1].maxW, 90, "the heavier set of the day wins")
         XCTAssertEqual(history[1].vol, 80 * 8 + 90 * 8, "both sessions' volume add up")
     }
+
+    // MARK: Training and sleep algorithms
+
+    private func ride(daysAgo: Int, hr: Int = 140) -> WorkoutSession {
+        var r = WorkoutSession(date: day(daysAgo), planId: "cardio-bike", planName: "Bike", planColor: "7fc950",
+                               exercises: [], sport: "cycling")
+        r.durationSec = 3_600; r.avgHR = hr
+        return r
+    }
+
+    func testSteadyTrainingSettlesFitnessAndFatigueOnTheSameLoad() {
+        store.prefs.restingHR = 60; store.prefs.maxHR = 190
+        store.sessions = (0..<200).map { ride(daysAgo: $0) }
+        let load = store.trimp(store.sessions[0])!
+
+        let today = store.formSeries(days: 5).last!
+
+        XCTAssertEqual(today.fitness, load, accuracy: load * 0.05)
+        XCTAssertEqual(today.fatigue, load, accuracy: load * 0.01)
+        XCTAssertEqual(today.form, 0, accuracy: load * 0.05, "steady training is neither fresh nor overloaded")
+    }
+
+    func testRestDaysMakeYouFresh() {
+        store.prefs.restingHR = 60; store.prefs.maxHR = 190
+        store.sessions = (10..<200).map { ride(daysAgo: $0) }
+        XCTAssertGreaterThan(store.formSeries(days: 1).last!.form, 10)
+    }
+
+    func testRecoveryIsLongerAfterAHarderSession() {
+        store.prefs.restingHR = 60; store.prefs.maxHR = 190
+        store.sessions = [ride(daysAgo: 0, hr: 120)]
+        let easy = store.recoveryEstimate()!.hours
+        store.sessions = [ride(daysAgo: 0, hr: 175)]
+        let hard = store.recoveryEstimate()!.hours
+        XCTAssertLessThan(easy, hard)
+        XCTAssertTrue((8...72).contains(hard))
+    }
+
+    func testSleepDebtCountsShortNightsAndPaysBackLongOnes() {
+        store.daily = (0..<14).map { DailyEntry(date: day($0), sleepHours: $0 < 7 ? 6 : 9) }
+        // 7 nights 2 h short, 7 nights 1 h long → 7 h of debt.
+        XCTAssertEqual(store.sleepDebt() ?? 0, 7, accuracy: 0.001)
+        store.daily = (0..<5).map { DailyEntry(date: day($0), sleepHours: 5) }
+        XCTAssertNil(store.sleepDebt(), "not enough nights")
+    }
+
+    func testSocialJetLagIsTheShiftOfTheWeekendNight() {
+        store.daily = (0..<28).map { i in
+            let ds = day(i)
+            let weekday = Calendar.current.component(.weekday, from: isoFormatter.date(from: ds)!)
+            let weekend = weekday == 1 || weekday == 7
+            return DailyEntry(date: ds, sleepStartMin: weekend ? 60 : -60, sleepEndMin: weekend ? 600 : 420)
+        }
+        // Midpoints 180 on work days, 330 at weekends.
+        XCTAssertEqual(store.socialJetLag() ?? 0, 150, accuracy: 0.001)
+    }
+
+    func testHRVStabilityIsZeroForAFlatWeekAndGrowsWithSwings() {
+        store.daily = (0..<7).map { DailyEntry(date: day($0), hrvSleep: 60) }
+        XCTAssertEqual(store.hrvStability() ?? -1, 0, accuracy: 0.0001)
+        store.daily = (0..<7).map { DailyEntry(date: day($0), hrvSleep: $0 % 2 == 0 ? 40 : 90) }
+        XCTAssertGreaterThan(store.hrvStability() ?? 0, 5)
+    }
+
+    func testFitnessAgeOfATypicalVO2IsAboutTheSameAge() {
+        store.prefs.sex = "m"; store.prefs.birthDate = "1986-01-01"
+        store.daily = [DailyEntry(date: day(1), vo2max: 39)]            // typical for the 40s row
+        XCTAssertEqual(Double(store.fitnessAge() ?? 0), 45, accuracy: 1)
+        store.daily = [DailyEntry(date: day(1), vo2max: 52)]
+        XCTAssertLessThan(store.fitnessAge() ?? 99, 30)
+    }
+
+    func testRelativeStrengthUsesTheBestBarbellLift() {
+        store.daily = [DailyEntry(date: day(1), weight: 80)]
+        let bench = LoggedExercise(name: "Barbell bench press", sets: [SetEntry(reps: "5", weight: "100")], notes: "", target: "")
+        let dumbbell = LoggedExercise(name: "Dumbbell bench press", sets: [SetEntry(reps: "5", weight: "60")], notes: "", target: "")
+        store.sessions = [WorkoutSession(date: day(1), planId: "p1", planName: "Push", planColor: "ff5a52",
+                                         exercises: [bench, dumbbell])]
+
+        let lifts = store.relativeStrength()
+
+        XCTAssertEqual(lifts.map(\.lift), [.bench])
+        XCTAssertEqual(lifts[0].ratio, 100 * (1 + 5.0 / 30) / 80, accuracy: 0.001)
+    }
+
+    func testZoneWeeksReportTheEasyShare() {
+        store.workoutIntensity = [
+            WorkoutIntensity(date: day(1), end: Date(), sport: "running", zoneSeconds: [1_800, 1_800, 0, 600, 300], decoupling: 3)
+        ]
+        let week = store.intensityWeeks().last!
+        XCTAssertEqual(week.easyShare, 3_600.0 / 4_500 * 100, accuracy: 0.001)
+        XCTAssertEqual(store.lastDecoupling?.value, 3)
+    }
 }

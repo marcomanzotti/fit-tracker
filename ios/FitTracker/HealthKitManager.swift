@@ -70,23 +70,35 @@ enum SleepWindows {
     /// Samples of one source closer than this belong to the same night.
     static let nightGap: TimeInterval = 3 * 3600
 
-    /// One night per wake-up day. Each source's samples are grouped into nights,
-    /// and for every day the longest sleep of the source that recorded the most
-    /// time asleep wins. Taking one source, not the union of all of them, keeps
-    /// the Watch and the band from adding up, and keeps an "awake" period of the
-    /// chosen source out of the time asleep. A nap is shorter than the night, so
-    /// it never replaces it.
+    /// One night per wake-up day, from a single source: taking one source, not
+    /// the union of all of them, keeps the Watch and the band from adding up and
+    /// keeps an "awake" period of the chosen source out of the time asleep.
+    ///
+    /// Each source's samples are grouped into nights; per day each source keeps
+    /// its longest one (a nap never replaces the night). Then, between sources,
+    /// a night with REM staging (Apple Watch) wins as long as it covers at least
+    /// 85 % of the longest: it is the more detailed and better validated
+    /// recording, while a watch that died at 3 am still loses to the band.
     static func nights(_ samples: [SleepSample], cal: Calendar) -> [SleepNight] {
-        var best: [String: SleepNight] = [:]
-        for group in Dictionary(grouping: samples, by: \.source).values {
+        var bySource: [String: [String: SleepNight]] = [:]
+        for (source, group) in Dictionary(grouping: samples, by: \.source) {
             for cluster in clusters(group) {
                 guard let night = night(from: cluster, cal: cal) else { continue }
-                if let current = best[night.day], current.asleepHours >= night.asleepHours { continue }
-                best[night.day] = night
+                if let current = bySource[source]?[night.day], current.asleepHours >= night.asleepHours { continue }
+                bySource[source, default: [:]][night.day] = night
             }
         }
-        return best.values.sorted { $0.start < $1.start }
+        let candidates = Dictionary(grouping: bySource.values.flatMap(\.values), by: \.day)
+        return candidates.values.compactMap { nights -> SleepNight? in
+            guard let longest = nights.max(by: { $0.asleepHours < $1.asleepHours }) else { return nil }
+            let detailed = nights.filter { $0.remMin > 0 && $0.asleepHours >= longest.asleepHours * preferredShare }
+            return detailed.max(by: { $0.asleepHours < $1.asleepHours }) ?? longest
+        }
+        .sorted { $0.start < $1.start }
     }
+
+    /// How much of the longest night a fully staged one must cover to be preferred.
+    static let preferredShare = 0.85
 
     /// The night whose span contains `t` (nights sorted by start).
     static func night(at t: Date, in nights: [SleepNight]) -> SleepNight? {
@@ -188,7 +200,8 @@ final class HealthKitManager {
     static let shared = HealthKitManager()
 
     #if canImport(HealthKit)
-    private let store = HKHealthStore()
+    /// Internal so the training queries in Training.swift share the same store.
+    let store = HKHealthStore()
     #endif
 
     var isAvailable: Bool {

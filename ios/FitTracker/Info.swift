@@ -12,12 +12,15 @@ enum InfoTopic: String, CaseIterable {
     // Load and training
     case trimp, acwr, load, monotony, strain, overload, volume, muscleVol = "muscle_vol"
     case calories, pace, activity, weekplan, sessions, streak, goal
+    case form, recovery, intensity, decoupling, strength
     // Recovery and sleep
     case readiness, hrv, vitals, nightVitals = "night_vitals", sleep, sleepStages = "sleep_stages"
-    case sleepEff = "sleep_eff", sleepReg = "sleep_reg", sleepHR = "sleep_hr"
+    case sleepEff = "sleep_eff", sleepReg = "sleep_reg", sleepHR = "sleep_hr", sleepDebt = "sleep_debt"
+    case jetLag = "jet_lag", hrvStability = "hrv_stability"
     case spo2, respRate = "resp_rate", wristTemp = "wrist_temp"
     // Heart and fitness
     case restingHR = "resting_hr", walkingHR = "walking_hr", hrRecovery = "hr_recovery", vo2max, fitness
+    case fitnessAge = "fitness_age"
     // Daily activity
     case steps, activeKcal = "active_kcal", exerciseMin = "exercise_min", stand, daylight, flights
     // Body
@@ -192,6 +195,30 @@ extension Store {
         case .adherence:
             return InfoScale(from: 0, bands: [band(50, "low", .bad), band(80, "fair", .fair),
                                               band(100, "good", .great)], unit: "%")
+        case .form:
+            return InfoScale(from: -45, bands: [band(-30, "overreaching", .bad), band(-10, "productive", .great),
+                                                band(5, "maintaining", .good), band(25, "fresh", .great),
+                                                band(40, "detraining", .fair)])
+        case .intensity:
+            return InfoScale(from: 0, bands: [band(60, "too_hard", .bad), band(75, "mixed", .fair),
+                                              band(90, "polarized", .great), band(100, "mostly_easy", .good)], unit: "%")
+        case .decoupling:
+            return InfoScale(from: -5, bands: [band(5, "aerobic_solid", .great), band(10, "fair", .fair),
+                                               band(25, "drifting", .bad)], unit: "%", decimals: 1)
+        case .sleepDebt:
+            return InfoScale(from: 0, bands: [band(3, "low", .great), band(7, "moderate", .fair),
+                                              band(14, "high", .bad), band(25, "very_high", .bad)], unit: "h", decimals: 1)
+        case .jetLag:
+            return InfoScale(from: 0, bands: [band(30, "low", .great), band(60, "fair", .good),
+                                              band(120, "high", .fair), band(240, "very_high", .bad)], unit: "min")
+        case .hrvStability:
+            return InfoScale(from: 0, bands: [band(5, "stable", .great), band(10, "normal", .good),
+                                              band(15, "unstable", .fair), band(25, "very_unstable", .bad)],
+                             unit: "%", decimals: 1)
+        case .fitnessAge:
+            guard let age = prefs.age.map(Double.init) else { return nil }
+            return InfoScale(from: max(15, age - 25), bands: [band(age - 5, "younger", .great), band(age + 5, "in_line", .good),
+                                                              band(age + 25, "older", .fair)])
         default:
             return nil
         }
@@ -243,6 +270,16 @@ extension Store {
             guard !days.isEmpty, target > 0 else { return nil }
             return Double(days.reduce(0) { $0 + $1.totalKcal }) / Double(days.count) / target * 100
         case .adherence:   return adherence().loggingPct * 100
+        case .form:        return formSeries(days: 1).last?.form
+        case .intensity:
+            let recent = intensityWeeks().suffix(4)
+            let total = recent.reduce(0) { $0 + $1.total }
+            return total > 0 ? recent.reduce(0) { $0 + $1.zoneSeconds[0] + $1.zoneSeconds[1] } / total * 100 : nil
+        case .decoupling:  return lastDecoupling?.value
+        case .sleepDebt:   return sleepDebt()
+        case .jetLag:      return socialJetLag()
+        case .hrvStability: return hrvStability()
+        case .fitnessAge:  return fitnessAge().map(Double.init)
         default:           return nil
         }
     }
@@ -296,12 +333,12 @@ extension Store {
 
     /// Upper bounds of the VO₂max classes very poor … excellent for the user's sex
     /// and age (Cooper Institute norms; under 20 uses the 20–29 row).
-    func vo2Thresholds() -> [Double] {
+    func vo2Thresholds(age: Int? = nil) -> [Double] {
         let men: [[Double]] = [[33, 36.5, 42.5, 46.5, 52.5], [31.5, 35.5, 41, 45, 49.5], [30.2, 33.6, 39, 43.8, 48.1],
                                [26.1, 31, 35.8, 41, 45.4], [20.5, 26.1, 32.3, 36.5, 44.3]]
         let women: [[Double]] = [[23.6, 29, 33, 37, 41.1], [22.8, 27, 31.5, 35.7, 40.1], [21, 24.5, 29, 32.9, 37],
                                  [20.2, 22.8, 27, 31.5, 35.8], [17.5, 20.2, 24.5, 30.3, 31.5]]
-        let row = min(4, max(0, ((prefs.age ?? 30) - 20) / 10))
+        let row = min(4, max(0, ((age ?? prefs.age ?? 30) - 20) / 10))
         return (prefs.sex_ == "f" ? women : men)[row]
     }
 }

@@ -38,6 +38,89 @@ extension Store {
 
 }
 
+// MARK: - Fitness age and relative strength
+extension Store {
+    /// The age whose typical VO₂max (the fair / good boundary of the Cooper
+    /// norms for the user's sex) equals the user's: a VO₂max of 46 at 40 reads
+    /// like an average 28-year-old. Interpolated between decades, 20–80.
+    func fitnessAge() -> Int? {
+        guard let vo2 = vo2maxEstimate()?.value else { return nil }
+        let ages: [Double] = [25, 35, 45, 55, 65]
+        let typical = ages.map { vo2Thresholds(age: Int($0))[2] }
+        if vo2 >= typical[0] { return max(20, Int((25 - (vo2 - typical[0]) / (typical[0] - typical[1]) * 10).rounded())) }
+        for i in 1..<ages.count where vo2 >= typical[i] {
+            let f = (typical[i - 1] - vo2) / (typical[i - 1] - typical[i])
+            return Int((ages[i - 1] + f * 10).rounded())
+        }
+        let slope = typical[3] - typical[4]
+        return min(80, Int((65 + (typical[4] - vo2) / max(slope, 1) * 10).rounded()))
+    }
+
+    enum Lift: String, CaseIterable {
+        case bench, squat, deadlift, press
+        /// Words that identify the lift in an exercise name, in English or Italian.
+        var keywords: [String] {
+            switch self {
+            case .bench:    return ["bench press", "panca piana", "distensioni su panca"]
+            case .squat:    return ["back squat", "squat con bilanciere", "barbell squat", "squat"]
+            case .deadlift: return ["deadlift", "stacco"]
+            case .press:    return ["overhead press", "military press", "lento avanti", "shoulder press"]
+            }
+        }
+        /// Estimated 1RM ÷ body weight to reach beginner, novice, intermediate,
+        /// advanced, elite (adult lifters' standards, as on Strength Level).
+        func standards(female: Bool) -> [Double] {
+            switch (self, female) {
+            case (.bench, false):    return [0.5, 0.75, 1.25, 1.75, 2.0]
+            case (.bench, true):     return [0.25, 0.5, 0.75, 1.0, 1.5]
+            case (.squat, false):    return [0.75, 1.25, 1.5, 2.25, 2.75]
+            case (.squat, true):     return [0.5, 0.75, 1.25, 1.5, 2.0]
+            case (.deadlift, false): return [1.0, 1.5, 2.0, 2.5, 3.0]
+            case (.deadlift, true):  return [0.5, 1.0, 1.25, 1.75, 2.5]
+            case (.press, false):    return [0.35, 0.55, 0.8, 1.05, 1.35]
+            case (.press, true):     return [0.2, 0.35, 0.5, 0.75, 1.0]
+            }
+        }
+    }
+
+    struct LiftStrength: Identifiable {
+        let lift: Lift
+        let exercise: String
+        let e1RM: Double
+        let ratio: Double       // e1RM ÷ body weight
+        var id: String { lift.rawValue }
+    }
+
+    /// The best estimated 1RM of each main lift the user has logged, as a
+    /// multiple of the current body weight. Machines and dumbbells don't count.
+    func relativeStrength() -> [LiftStrength] {
+        let bw = lastWeight
+        guard bw > 0 else { return [] }
+        let names = Set(sessions.flatMap { $0.exercises.map(\.name) })
+        return Lift.allCases.compactMap { lift in
+            let matches = names.filter { n in
+                let l = n.lowercased()
+                return lift.keywords.contains { l.contains($0) }
+                    && !["dumbbell", "manubri", "machine", "macchina", "smith", "incline", "inclinata"].contains { l.contains($0) }
+            }
+            guard let best = matches.compactMap({ n in bestE1RM(n).map { (n, $0) } }).max(by: { $0.1 < $1.1 }) else { return nil }
+            return LiftStrength(lift: lift, exercise: best.0, e1RM: best.1, ratio: best.1 / bw)
+        }
+    }
+
+    /// Scale for a lift's ratio: untrained … elite.
+    func strengthScale(_ lift: Lift) -> InfoScale {
+        let s = lift.standards(female: prefs.sex_ == "f")
+        return InfoScale(from: 0, bands: [InfoBand(upTo: s[0], key: "untrained", tone: .bad),
+                                          InfoBand(upTo: s[1], key: "beginner", tone: .fair),
+                                          InfoBand(upTo: s[2], key: "novice", tone: .good),
+                                          InfoBand(upTo: s[3], key: "intermediate", tone: .good),
+                                          InfoBand(upTo: s[4], key: "advanced", tone: .great),
+                                          InfoBand(upTo: s[4] * 1.25, key: "elite", tone: .great)],
+                         unit: "×", decimals: 2)
+    }
+}
+
 // MARK: - FFMI (fat-free mass index)
 // BMI counts every kilo the same, so a lean, muscular person reads "overweight".
 // FFMI measures only the lean mass against height, which is what strength training

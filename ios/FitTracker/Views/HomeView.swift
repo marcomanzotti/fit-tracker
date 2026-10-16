@@ -45,10 +45,12 @@ struct HomeView: View {
         // Headline metrics are computable from your data: TRIMP (avg HR) and
         // ACWR (EWMA). Readiness only appears if you log HRV (optional sensor).
         Group {
+            ReadinessCard()
+            RecoveryCard()
             TrimpCard()
             LoadTrendCard()
+            FormCard()
             LoadCard()
-            ReadinessCard()
             NutritionCard()
         }
 

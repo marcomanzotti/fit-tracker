@@ -337,7 +337,8 @@ struct VitalsTrendCard: View {
     var body: some View {
         let rhr = store.restingHRTrend()
         let hrv = store.hrvTrend()
-        let show = rhr.status != "none" || hrv.status != "none"
+        let stability = store.hrvStability()
+        let show = rhr.status != "none" || hrv.status != "none" || stability != nil
         return Group {
             if show {
                 Card {
@@ -346,6 +347,20 @@ struct VitalsTrendCard: View {
                     if hrv.status != "none" {
                         Spacer().frame(height: 8)
                         vitalRow("HRV", hrv, unit: "ms", info: .hrv)
+                    }
+                    if let stability, let scale = store.infoScale(.hrvStability) {
+                        Spacer().frame(height: 8)
+                        HStack(spacing: 10) {
+                            HStack(spacing: 2) {
+                                Text(t("vit.stability").uppercased()).font(.head(10, .semibold)).tracking(1)
+                                    .foregroundColor(Theme.sub).lineLimit(1).minimumScaleFactor(0.7)
+                                InfoButton(id: .hrvStability, size: 16)
+                            }
+                            .frame(width: 96, alignment: .leading)
+                            Text(String(format: "%.1f%%", stability)).font(.num(16)).foregroundColor(Theme.txt)
+                            Spacer()
+                            BandLabel(scale: scale, value: stability)
+                        }
                     }
                 }
             }
@@ -409,6 +424,21 @@ struct FitnessCard: View {
                         RangeBar(scale: scale, value: vo2.value).padding(.top, 6)
                         Text(t("band." + cls.key) + " · " + t("metric.vo2_norm"))
                             .font(.system(size: 10)).foregroundColor(Theme.sub).padding(.top, 4)
+                    }
+                    let fitAge = store.fitnessAge()
+                    let drift = store.lastDecoupling
+                    if fitAge != nil || drift != nil {
+                        HStack(spacing: 9) {
+                            if let fitAge {
+                                StatTile(label: t("metric.fitness_age"), value: "\(fitAge)", unit: t("metric.years"),
+                                         valueColor: tone(.fitnessAge, Double(fitAge)), info: .fitnessAge)
+                            }
+                            if let drift {
+                                StatTile(label: t("decoupling.title"), value: String(format: "%.1f", drift.value), unit: "%",
+                                         valueColor: tone(.decoupling, drift.value), note: fmtDM(drift.date), info: .decoupling)
+                            }
+                        }
+                        .padding(.top, 12)
                     }
                     if walking != nil || recovery != nil {
                         HStack(spacing: 9) {
