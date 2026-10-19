@@ -7,7 +7,7 @@ struct IdentDate: Identifiable { let id = UUID(); let date: String }
 struct RestChip: View {
     var size: CGFloat = 13
     var body: some View {
-        Image(systemName: Theme.restIcon).font(.system(size: size, weight: .bold)).foregroundColor(Theme.bg)
+        Image(systemName: Theme.restIcon).font(.ui(size, weight: .bold)).foregroundColor(Theme.bg)
     }
 }
 
@@ -43,7 +43,7 @@ struct DayPickerSheet: View {
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(t("day.title").uppercased()).font(.head(16, .bold)).tracking(1).foregroundColor(Theme.txt)
-                            Text(prettyDay(date)).font(.system(size: 11)).foregroundColor(Theme.sub)
+                            Text(prettyDay(date)).font(.ui(11)).foregroundColor(Theme.sub)
                         }
                         Spacer()
                         Button { dismiss() } label: {
@@ -52,7 +52,7 @@ struct DayPickerSheet: View {
                     }
                     .padding(.top, 18)
 
-                    Text(t("day.hint")).font(.system(size: 12)).foregroundColor(Theme.sub).lineSpacing(3)
+                    Text(t("day.hint")).font(.ui(12)).foregroundColor(Theme.sub).lineSpacing(3)
 
                     // Workouts already logged on this day — tap to open the editor.
                     // Shown first so a day that already has sessions still gives
@@ -70,7 +70,7 @@ struct DayPickerSheet: View {
                                 Button { tap(); toggleMergeMode(logged) } label: {
                                     HStack(spacing: 4) {
                                         Image(systemName: merging ? "xmark" : "arrow.triangle.merge")
-                                            .font(.system(size: 10, weight: .bold))
+                                            .font(.ui(10, weight: .bold))
                                         Text((merging ? t("cancel") : t("day.merge")).uppercased())
                                             .font(.head(10, .semibold)).tracking(0.5)
                                     }
@@ -109,7 +109,7 @@ struct DayPickerSheet: View {
                                     RestChip(size: 16)
                                 }
                                 Text(store.isRestDay(date) ? t("day.clear_rest") : t("day.mark_rest"))
-                                    .font(.system(size: 15, weight: .semibold)).foregroundColor(Theme.txt)
+                                    .font(.ui(15, weight: .semibold)).foregroundColor(Theme.txt)
                                 Spacer()
                                 Image(systemName: store.isRestDay(date) ? "checkmark.circle.fill" : "chevron.right")
                                     .foregroundColor(store.isRestDay(date) ? Theme.good : Theme.sub)
@@ -187,12 +187,12 @@ struct DayPickerSheet: View {
         let green = Color(hex: Theme.appleGreen)
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
-                Image(systemName: "heart.fill").font(.system(size: 11)).foregroundColor(green)
+                Image(systemName: "heart.fill").font(.ui(11)).foregroundColor(green)
                 Lbl(text: t("day.import_health"), color: green)
                 Spacer()
                 if healthState == .loaded {
                     Button { tap(); loadHealth() } label: {
-                        Image(systemName: "arrow.clockwise").font(.system(size: 12, weight: .semibold)).foregroundColor(Theme.sub)
+                        Image(systemName: "arrow.clockwise").font(.ui(12, weight: .semibold)).foregroundColor(Theme.sub)
                     }.buttonStyle(PressableStyle())
                 }
             }
@@ -201,19 +201,19 @@ struct DayPickerSheet: View {
                 case .idle, .loading:
                     HStack(spacing: 10) {
                         ProgressView().tint(green)
-                        Text(t("day.health_loading")).font(.system(size: 13)).foregroundColor(Theme.sub)
+                        Text(t("day.health_loading")).font(.ui(13)).foregroundColor(Theme.sub)
                         Spacer()
                     }.padding(.vertical, 6)
                 case .unavailable:
-                    Text(t("day.health_unavailable")).font(.system(size: 12)).foregroundColor(Theme.sub).padding(.vertical, 6)
+                    Text(t("day.health_unavailable")).font(.ui(12)).foregroundColor(Theme.sub).padding(.vertical, 6)
                 case .loaded:
                     if importable.isEmpty {
                         VStack(alignment: .leading, spacing: 10) {
-                            Text(t("day.health_none")).font(.system(size: 13)).foregroundColor(Theme.sub)
+                            Text(t("day.health_none")).font(.ui(13)).foregroundColor(Theme.sub)
                             Button { tap(); loadHealth() } label: {
                                 HStack(spacing: 6) {
-                                    Image(systemName: "arrow.clockwise").font(.system(size: 11, weight: .bold))
-                                    Text(t("day.health_recheck")).font(.system(size: 12, weight: .semibold))
+                                    Image(systemName: "arrow.clockwise").font(.ui(11, weight: .bold))
+                                    Text(t("day.health_recheck")).font(.ui(12, weight: .semibold))
                                 }
                                 .foregroundColor(green)
                                 .padding(.vertical, 7).padding(.horizontal, 12)
@@ -259,7 +259,7 @@ struct DayPickerSheet: View {
                 Lbl(text: t("hk.day_health"), color: Theme.acc2)
                 Spacer()
                 Button { tap(); refreshDayHealth() } label: {
-                    Image(systemName: "arrow.clockwise").font(.system(size: 12, weight: .semibold))
+                    Image(systemName: "arrow.clockwise").font(.ui(12, weight: .semibold))
                         .foregroundColor(Theme.sub)
                 }.buttonStyle(PressableStyle())
             }
@@ -271,7 +271,7 @@ struct DayPickerSheet: View {
                         ForEach(Array(tiles.enumerated()), id: \.offset) { _, tile in
                             VStack(spacing: 3) {
                                 HStack(spacing: 0) {
-                                    Image(systemName: tile.0).font(.system(size: 11))
+                                    Image(systemName: tile.0).font(.ui(11))
                                         .foregroundColor(tile.2 == nil ? Theme.sub.opacity(0.5) : Theme.acc2)
                                     InfoButton(id: tile.3, size: 16)
                                 }
@@ -288,7 +288,7 @@ struct DayPickerSheet: View {
                         }
                     }
                 } else {
-                    Text(t("hk.no_day_data")).font(.system(size: 12)).foregroundColor(Theme.sub)
+                    Text(t("hk.no_day_data")).font(.ui(12)).foregroundColor(Theme.sub)
                         .padding(.vertical, 4)
                 }
             }
@@ -349,22 +349,22 @@ struct DayPickerSheet: View {
             HStack(spacing: 12) {
                 if merging {
                     Image(systemName: selected.contains(s.id) ? "checkmark.circle.fill" : "circle")
-                        .font(.system(size: 19))
+                        .font(.ui(19))
                         .foregroundColor(selected.contains(s.id) ? Theme.acc : Theme.brd2)
                 }
                 ZStack {
                     RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color(hex: s.planColor).opacity(0.16)).frame(width: 38, height: 38)
                     Image(systemName: s.sportType.isCardio ? s.sportType.icon : "dumbbell.fill")
-                        .font(.system(size: 16, weight: .bold)).foregroundColor(Color(hex: s.planColor))
+                        .font(.ui(16, weight: .bold)).foregroundColor(Color(hex: s.planColor))
                 }
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 5) {
-                        Text(s.planName).font(.system(size: 15, weight: .semibold)).foregroundColor(Theme.txt).lineLimit(1)
+                        Text(s.planName).font(.ui(15, weight: .semibold)).foregroundColor(Theme.txt).lineLimit(1)
                         if s.source != nil {
-                            Image(systemName: "heart.fill").font(.system(size: 10)).foregroundColor(Theme.red)
+                            Image(systemName: "heart.fill").font(.ui(10)).foregroundColor(Theme.red)
                         }
                     }
-                    Text(loggedSummary(s)).font(.system(size: 11)).foregroundColor(Theme.sub).lineLimit(1)
+                    Text(loggedSummary(s)).font(.ui(11)).foregroundColor(Theme.sub).lineLimit(1)
                 }
                 Spacer()
                 Image(systemName: "slider.horizontal.3").foregroundColor(Theme.sub)
@@ -399,14 +399,14 @@ struct DayPickerSheet: View {
             HStack(spacing: 12) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 10, style: .continuous).fill(green.opacity(0.16)).frame(width: 38, height: 38)
-                    Image(systemName: icon).font(.system(size: 16, weight: .bold)).foregroundColor(green)
+                    Image(systemName: icon).font(.ui(16, weight: .bold)).foregroundColor(green)
                 }
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 5) {
-                        Text(w.displayName).font(.system(size: 15, weight: .semibold)).foregroundColor(Theme.txt).lineLimit(1)
-                        Image(systemName: "heart.fill").font(.system(size: 10)).foregroundColor(Theme.red)
+                        Text(w.displayName).font(.ui(15, weight: .semibold)).foregroundColor(Theme.txt).lineLimit(1)
+                        Image(systemName: "heart.fill").font(.ui(10)).foregroundColor(Theme.red)
                     }
-                    Text(healthSummary(w)).font(.system(size: 11)).foregroundColor(Theme.sub).lineLimit(1)
+                    Text(healthSummary(w)).font(.ui(11)).foregroundColor(Theme.sub).lineLimit(1)
                 }
                 Spacer()
                 Image(systemName: "square.and.arrow.down").foregroundColor(green)
@@ -431,11 +431,11 @@ struct DayPickerSheet: View {
             HStack(spacing: 12) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color(hex: color).opacity(0.16)).frame(width: 38, height: 38)
-                    Image(systemName: icon).font(.system(size: 16, weight: .bold)).foregroundColor(Color(hex: color))
+                    Image(systemName: icon).font(.ui(16, weight: .bold)).foregroundColor(Color(hex: color))
                 }
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(name).font(.system(size: 15, weight: .semibold)).foregroundColor(Theme.txt).lineLimit(1)
-                    if !sub.isEmpty { Text(sub).font(.system(size: 11)).foregroundColor(Theme.sub).lineLimit(1) }
+                    Text(name).font(.ui(15, weight: .semibold)).foregroundColor(Theme.txt).lineLimit(1)
+                    if !sub.isEmpty { Text(sub).font(.ui(11)).foregroundColor(Theme.sub).lineLimit(1) }
                 }
                 Spacer()
                 Image(systemName: "chevron.right").foregroundColor(Theme.sub)

@@ -76,7 +76,7 @@ struct HoldTimerSheet: View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
                 Text(t("hold.title").uppercased()).font(.head(15, .bold)).tracking(1).foregroundColor(Theme.txt)
-                Text(title).font(.system(size: 12)).foregroundColor(Theme.sub).lineLimit(1)
+                Text(title).font(.ui(12)).foregroundColor(Theme.sub).lineLimit(1)
             }
             Spacer()
             Button { tap(); finish(save: false) } label: {
@@ -147,7 +147,7 @@ struct HoldTimerSheet: View {
             Text(t("hold.done").uppercased()).font(.head(13, .bold)).tracking(2).foregroundColor(Theme.good)
         case .idle:
             Text(isFree ? t("hold.free_hint") : "\(t("hold.prep")) \(prepSeconds)s")
-                .font(.system(size: 11)).foregroundColor(Theme.sub)
+                .font(.ui(11)).foregroundColor(Theme.sub)
                 .multilineTextAlignment(.center)
         }
     }
@@ -166,7 +166,7 @@ struct HoldTimerSheet: View {
 
     private func stepButton(_ icon: String, _ action: @escaping () -> Void) -> some View {
         Button { tap(); action() } label: {
-            Image(systemName: icon).font(.system(size: 13, weight: .bold)).foregroundColor(Theme.txt)
+            Image(systemName: icon).font(.ui(13, weight: .bold)).foregroundColor(Theme.txt)
                 .frame(width: 38, height: 38).background(Theme.c3).clipShape(Circle())
         }.buttonStyle(PressableStyle())
     }

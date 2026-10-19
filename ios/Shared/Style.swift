@@ -1,4 +1,7 @@
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 // Colour, font and formatting helpers shared by the phone app, the watch app and
 // the widgets, so the three look the same and the definitions exist once.
@@ -56,14 +59,37 @@ extension Color {
     }
 }
 
+// MARK: - Type that follows the text-size setting
+/// Sizes are written for the default text size and grow with the person's Dynamic
+/// Type setting, up to a cap so the dense rows still fit. On the phone no text goes
+/// below 12 pt; the watch keeps its own small sizes.
+enum TypeScale {
+    static let textCap: CGFloat = 1.5
+    static let numberCap: CGFloat = 1.3
+    static let minPhoneSize: CGFloat = 12
+
+    static func scaled(_ size: CGFloat, cap: CGFloat) -> CGFloat {
+        #if os(iOS)
+        let base = max(size, minPhoneSize)
+        return min(UIFontMetrics.default.scaledValue(for: base), base * cap)
+        #else
+        return size
+        #endif
+    }
+}
+
 extension Font {
+    /// Body and label text.
+    static func ui(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
+        .system(size: TypeScale.scaled(size, cap: TypeScale.textCap), weight: weight)
+    }
     /// Heading / label font — used uppercase with tracking.
     static func head(_ size: CGFloat, _ weight: Font.Weight = .semibold) -> Font {
-        .system(size: size, weight: weight)
+        .system(size: TypeScale.scaled(size, cap: TypeScale.textCap), weight: weight)
     }
     /// Numeric font — rounded design for the big stat numbers. Digits are all the
     /// same width, so a ticking timer or a changing value doesn't shift its row.
     static func num(_ size: CGFloat, _ weight: Font.Weight = .bold) -> Font {
-        .system(size: size, weight: weight, design: .rounded).monospacedDigit()
+        .system(size: TypeScale.scaled(size, cap: TypeScale.numberCap), weight: weight, design: .rounded).monospacedDigit()
     }
 }

@@ -39,6 +39,7 @@ struct RootView: View {
     @State private var showSettings = false
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var typeSize
     /// Which floating strips are up; drives their shared enter/exit animation.
     private var stripsShown: [Bool] {
         [activeWorkout.isActive && (tab != .allena || activeWorkout.minimized),
@@ -76,8 +77,9 @@ struct RootView: View {
                     }
                     .scrollDismissesKeyboard(.interactively)
                     // A new scroll view per tab: each tab opens at its top instead
-                    // of inheriting the previous tab's scroll position.
-                    .id(tab)
+                    // of inheriting the previous tab's scroll position. A new text
+                    // size redraws it too, since the sizes are read when drawn.
+                    .id("\(tab.rawValue)-\(typeSize)")
                 }
             }
 
@@ -209,23 +211,22 @@ struct HeaderBar: View {
         let d = headerDate()
         HStack(alignment: .center) {
             VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 0) {
-                    Text("FIT TR").foregroundColor(Theme.txt)
-                    Text("A").foregroundColor(Theme.acc)
-                    Text("CKER").foregroundColor(Theme.txt)
-                }
-                .font(.head(23, .bold)).tracking(1)
-                Text(tab.sub.uppercased()).font(.system(size: 10, weight: .semibold)).tracking(1.5)
+                // One line whatever the text size: the logo shrinks instead of wrapping.
+                (Text("FIT TR").foregroundColor(Theme.txt) + Text("A").foregroundColor(Theme.acc)
+                    + Text("CKER").foregroundColor(Theme.txt))
+                    .font(.head(23, .bold)).tracking(1)
+                    .lineLimit(1).minimumScaleFactor(0.6)
+                Text(tab.sub.uppercased()).font(.ui(10, weight: .semibold)).tracking(1.5)
                     .foregroundColor(Theme.sub)
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 2) {
                 Text(d.full).font(.num(16)).foregroundColor(Theme.txt)
-                Text(d.day.uppercased()).font(.system(size: 10, weight: .semibold)).tracking(1).foregroundColor(Theme.sub)
+                Text(d.day.uppercased()).font(.ui(10, weight: .semibold)).tracking(1).foregroundColor(Theme.sub)
                 Text("\(dispW(store.lastWeight)) \(Units.wLabel)").font(.num(15)).foregroundColor(Theme.acc)
             }
             Button { tap(); onSettings() } label: {
-                Image(systemName: "gearshape.fill").accessibilityLabel(t("set.title")).foregroundColor(Theme.sub).font(.system(size: 18))
+                Image(systemName: "gearshape.fill").accessibilityLabel(t("set.title")).foregroundColor(Theme.sub).font(.ui(18))
                     .frame(width: 38, height: 38)
             }
             .padding(.leading, 6)
@@ -250,7 +251,7 @@ struct NavBar: View {
                     // current page legible at a glance.
                     VStack(spacing: 6) {
                         Image(systemName: t.icon)
-                            .font(.system(size: 20, weight: t == tab ? .semibold : .regular))
+                            .font(.ui(20, weight: t == tab ? .semibold : .regular))
                             .foregroundColor(t == tab ? Theme.acc : Theme.sub)
                         Circle().fill(t == tab ? Theme.acc : .clear).frame(width: 5, height: 5)
                     }
@@ -322,7 +323,7 @@ struct ActiveWorkoutStrip: View {
                 ElapsedClock(startDate: activeWorkout.startDate)
 
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.sub)
+                    .font(.ui(11, weight: .semibold)).foregroundColor(Theme.sub)
             }
             .padding(.vertical, 11).padding(.horizontal, 16)
             .chrome(18, stroke: planColor.opacity(0.4))
@@ -358,7 +359,7 @@ struct ActiveCardioStrip: View {
                         .font(.num(22)).foregroundColor(Theme.txt).monospacedDigit()
                 }
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.sub)
+                    .font(.ui(11, weight: .semibold)).foregroundColor(Theme.sub)
             }
             .padding(.vertical, 11).padding(.horizontal, 16)
             .chrome(18, stroke: color.opacity(0.4))
@@ -379,6 +380,7 @@ struct ElapsedClock: View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
             Text(format(max(0, Int(context.date.timeIntervalSince(startDate ?? context.date)))))
                 .font(.num(size)).foregroundColor(Theme.txt).monospacedDigit()
+                .lineLimit(1).minimumScaleFactor(0.6)
         }
     }
 }

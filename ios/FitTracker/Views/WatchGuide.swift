@@ -78,19 +78,19 @@ struct WatchSetupGuide: View {
                     // 1) Connect Apple Health (the hub every brand below feeds into).
                     Card {
                         Lbl(text: t("hk.connect"), color: Theme.acc2).padding(.bottom, 8)
-                        Text(t("guide.intro")).font(.system(size: 12)).foregroundColor(Theme.sub).lineSpacing(3)
+                        Text(t("guide.intro")).font(.ui(12)).foregroundColor(Theme.sub).lineSpacing(3)
                             .padding(.bottom, 12)
                         if HealthKitManager.shared.isAvailable {
                             FilledButton(title: t("hk.sync")) { syncNow() }
                         } else {
-                            Text(t("hk.unavailable")).font(.system(size: 12)).foregroundColor(Theme.sub)
+                            Text(t("hk.unavailable")).font(.ui(12)).foregroundColor(Theme.sub)
                         }
                     }
 
                     // 2) The band FitTracker talks to directly, no vendor app.
                     Card {
                         Lbl(text: t("band.title"), color: Theme.acc2).padding(.bottom, 8)
-                        Text(t("band.note")).font(.system(size: 12)).foregroundColor(Theme.sub).lineSpacing(3)
+                        Text(t("band.note")).font(.ui(12)).foregroundColor(Theme.sub).lineSpacing(3)
                             .padding(.bottom, 12)
                         FilledButton(title: t("band.open"), color: Theme.blue) { showingBand = true }
                     }
@@ -102,7 +102,7 @@ struct WatchSetupGuide: View {
                     // 4) Universal fallback for closed ecosystems.
                     Lbl(text: t("guide.other_group"), color: Theme.sub).padding(.top, 4)
                     Card {
-                        Text(t("guide.other_note")).font(.system(size: 12)).foregroundColor(Theme.sub).lineSpacing(3)
+                        Text(t("guide.other_note")).font(.ui(12)).foregroundColor(Theme.sub).lineSpacing(3)
                             .padding(.bottom, 12)
                         FilledButton(title: t("guide.import_file"), color: Theme.blue) { importing = true }
                     }
@@ -125,7 +125,7 @@ struct WatchSetupGuide: View {
             Text(t("guide.title")).font(.head(20, .bold)).foregroundColor(Theme.txt)
             Spacer()
             Button { dismiss() } label: {
-                Image(systemName: "xmark.circle.fill").font(.system(size: 22)).foregroundColor(Theme.sub)
+                Image(systemName: "xmark.circle.fill").font(.ui(22)).foregroundColor(Theme.sub)
             }
         }
         .padding(.top, 18)
@@ -134,7 +134,7 @@ struct WatchSetupGuide: View {
     private func brandCard(_ b: Brand) -> some View {
         Card {
             HStack(spacing: 9) {
-                Image(systemName: b.icon).font(.system(size: 16)).foregroundColor(Theme.acc)
+                Image(systemName: b.icon).font(.ui(16)).foregroundColor(Theme.acc)
                 Text(b.name).font(.head(15, .semibold)).foregroundColor(Theme.txt)
             }
             .padding(.bottom, 8)
@@ -143,7 +143,7 @@ struct WatchSetupGuide: View {
                     HStack(alignment: .top, spacing: 8) {
                         Text("\(i + 1)").font(.num(11)).foregroundColor(Theme.bg)
                             .frame(width: 18, height: 18).background(Theme.acc).clipShape(Circle())
-                        Text(step).font(.system(size: 12)).foregroundColor(Theme.sub).lineSpacing(2)
+                        Text(step).font(.ui(12)).foregroundColor(Theme.sub).lineSpacing(2)
                     }
                 }
             }

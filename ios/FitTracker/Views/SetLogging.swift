@@ -56,9 +56,9 @@ struct TimedSetRows: View {
             HStack(spacing: 9) {
                 Spacer().frame(width: 28)
                 Text(t("pe.target_sec").uppercased()).font(.head(10, .semibold)).tracking(1.5)
-                    .foregroundColor(Theme.sub).frame(width: 66)
+                    .foregroundColor(Theme.sub).frame(width: SmallNumField.width)
                 Text(bodyweight ? "+KG" : "KG").font(.head(10, .semibold)).tracking(1.5)
-                    .foregroundColor(bodyweight ? Theme.good : Theme.sub).frame(width: 66)
+                    .foregroundColor(bodyweight ? Theme.good : Theme.sub).frame(width: SmallNumField.width)
                 Spacer()
                 LastTimeCaption(prev: previous, date: lastDate)
             }
@@ -74,7 +74,7 @@ struct TimedSetRows: View {
                     if let holdTarget, let onStartHold {
                         // Run the hold instead of guessing the number afterwards.
                         Button { tap(); onStartHold(set.id, holdTarget(set)) } label: {
-                            Image(systemName: "play.circle.fill").font(.system(size: 22))
+                            Image(systemName: "play.circle.fill").font(.ui(22))
                                 .foregroundColor(Theme.acc).frame(width: 34, height: 42)
                         }.buttonStyle(PressableStyle())
                     }
@@ -83,7 +83,7 @@ struct TimedSetRows: View {
                         let id = set.id
                         afterKeyboardDismissed { exercise.sets.removeAll { $0.id == id } }
                     } label: {
-                        Image(systemName: "xmark").accessibilityLabel(t("a11y.remove")).font(.system(size: 13)).foregroundColor(Theme.red.opacity(0.5))
+                        Image(systemName: "xmark").accessibilityLabel(t("a11y.remove")).font(.ui(13)).foregroundColor(Theme.red.opacity(0.5))
                             .frame(width: 30, height: 42)
                     }.buttonStyle(PressableStyle())
                     Spacer(minLength: 0)
@@ -116,12 +116,12 @@ struct IntervalSetBlock: View {
                     .foregroundColor(Theme.sub)
                 Spacer()
                 Button { tap(); done.wrappedValue = max(0, done.wrappedValue - 1) } label: {
-                    Image(systemName: "minus").font(.system(size: 12, weight: .bold)).foregroundColor(Theme.txt)
+                    Image(systemName: "minus").font(.ui(12, weight: .bold)).foregroundColor(Theme.txt)
                         .frame(width: 30, height: 30).background(Theme.c3).clipShape(Circle())
                 }.buttonStyle(PressableStyle()).hitArea((Theme.minTapTarget - 30) / 2)
                 Text("\(done.wrappedValue)/\(target)").font(.num(18)).frame(minWidth: 50)
                 Button { tap(); done.wrappedValue += 1 } label: {
-                    Image(systemName: "plus").font(.system(size: 12, weight: .bold)).foregroundColor(Theme.txt)
+                    Image(systemName: "plus").font(.ui(12, weight: .bold)).foregroundColor(Theme.txt)
                         .frame(width: 30, height: 30).background(Theme.c3).clipShape(Circle())
                 }.buttonStyle(PressableStyle()).hitArea((Theme.minTapTarget - 30) / 2)
             }
@@ -167,7 +167,7 @@ struct PlateSheet: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(t("plate.title").uppercased()).font(.head(16, .bold)).tracking(1)
                                 .foregroundColor(Theme.txt)
-                            Text(exercise).font(.system(size: 11)).foregroundColor(Theme.sub).lineLimit(1)
+                            Text(exercise).font(.ui(11)).foregroundColor(Theme.sub).lineLimit(1)
                         }
                         Spacer()
                         Button { dismiss() } label: {
@@ -177,7 +177,7 @@ struct PlateSheet: View {
                     .padding(.top, 18)
 
                     if target <= 0 {
-                        Card { Text(t("plate.no_target")).font(.system(size: 12)).foregroundColor(Theme.sub) }
+                        Card { Text(t("plate.no_target")).font(.ui(12)).foregroundColor(Theme.sub) }
                     } else {
                         plateCard
                         warmupCard
@@ -200,7 +200,7 @@ struct PlateSheet: View {
                 Spacer()
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
                     Text(trimNum(target)).font(.num(28)).foregroundColor(Theme.acc)
-                    Text("kg").font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.sub)
+                    Text("kg").font(.ui(11, weight: .semibold)).foregroundColor(Theme.sub)
                 }
             }
             .padding(.bottom, 12)
@@ -225,7 +225,7 @@ struct PlateSheet: View {
                 if !load.exact {
                     // Never quietly load a different weight than asked for.
                     Text(t("plate.unreachable", trimNum(load.achieved)))
-                        .font(.system(size: 10)).foregroundColor(Theme.acc2).padding(.top, 10)
+                        .font(.ui(10)).foregroundColor(Theme.acc2).padding(.top, 10)
                 }
             }
         }
@@ -242,12 +242,12 @@ struct PlateSheet: View {
                             Text("\(Int(step.pct * 100))%").font(.head(11, .semibold)).tracking(0.5)
                                 .foregroundColor(Theme.sub).frame(width: 42, alignment: .leading)
                             Text("\(trimNum(step.weight)) kg").font(.num(16)).foregroundColor(Theme.txt)
-                            Text("× \(step.reps)").font(.system(size: 13, weight: .semibold))
+                            Text("× \(step.reps)").font(.ui(13, weight: .semibold))
                                 .foregroundColor(Theme.sub)
                             Spacer()
                             if let l = store.plateBreakdown(target: step.weight), !l.plates.isEmpty {
                                 Text(l.plates.map { trimNum($0) }.joined(separator: " · "))
-                                    .font(.system(size: 10)).foregroundColor(Theme.acc2)
+                                    .font(.ui(10)).foregroundColor(Theme.acc2)
                                     .lineLimit(1).minimumScaleFactor(0.7)
                             }
                         }

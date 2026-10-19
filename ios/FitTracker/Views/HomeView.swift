@@ -35,7 +35,7 @@ struct HomeView: View {
             HStack {
                 Lbl(text: t("home.week_activity"), color: Theme.acc2)
                 Spacer()
-                Text(t("home.tap_to_log")).font(.system(size: 10, weight: .medium)).foregroundColor(Theme.sub)
+                Text(t("home.tap_to_log")).font(.ui(10, weight: .medium)).foregroundColor(Theme.sub)
             }
             .padding(.bottom, 12)
             HStack(spacing: 7) {
@@ -72,16 +72,16 @@ struct HomeView: View {
                                 lineWidth: isToday ? 2 : 1)
                     if trained {
                         Image(systemName: sess.first!.sportType.isCardio ? sess.first!.sportType.icon : "dumbbell.fill")
-                            .font(.system(size: 13, weight: .bold)).foregroundColor(Theme.bg)
+                            .font(.ui(13, weight: .bold)).foregroundColor(Theme.bg)
                         if sess.count > 1 {
-                            Text("\(sess.count)").font(.system(size: 10, weight: .bold)).foregroundColor(Theme.bg)
+                            Text("\(sess.count)").font(.ui(10, weight: .bold)).foregroundColor(Theme.bg)
                                 .frame(width: 13, height: 13).background(Theme.bg.opacity(0.001))
                                 .offset(x: 13, y: -13)
                         }
                     } else if rest {
                         RestChip()
                     } else {
-                        Image(systemName: "plus").font(.system(size: 12, weight: .bold)).foregroundColor(Theme.sub)
+                        Image(systemName: "plus").font(.ui(12, weight: .bold)).foregroundColor(Theme.sub)
                     }
                 }
                 .frame(height: 42)
@@ -111,12 +111,12 @@ struct HomeView: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(t("home.checkin_done").uppercased()).font(.head(12, .semibold)).tracking(1).foregroundColor(Theme.good)
                     Text("\(dispW(tw?.weight ?? store.lastWeight)) \(Units.wLabel) · \(store.bmiComment(weight: tw?.weight ?? store.lastWeight).text)")
-                        .font(.system(size: 11)).foregroundColor(Theme.sub)
+                        .font(.ui(11)).foregroundColor(Theme.sub)
                 }
                 Spacer()
                 HStack(alignment: .firstTextBaseline, spacing: 3) {
                     Text("\(store.streak)").font(.num(22)).foregroundColor(Theme.good)
-                    Text(store.streak == 1 ? t("home.day") : t("home.days")).font(.system(size: 11)).foregroundColor(Theme.sub)
+                    Text(store.streak == 1 ? t("home.day") : t("home.days")).font(.ui(11)).foregroundColor(Theme.sub)
                 }
             }
         }
@@ -154,15 +154,15 @@ struct HomeView: View {
                 HStack {
                     Lbl(text: t("nutp.today"), color: Theme.acc2)
                     Spacer()
-                    Image(systemName: "chevron.right").font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.sub)
+                    Image(systemName: "chevron.right").font(.ui(11, weight: .semibold)).foregroundColor(Theme.sub)
                 }
                 .padding(.bottom, 10)
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Text("\(kcal)").font(.num(28)).foregroundColor(kcal > 0 ? Theme.acc : Theme.sub)
-                    Text("/ \(Int(e.target)) kcal").font(.system(size: 12, weight: .semibold)).foregroundColor(Theme.sub)
+                    Text("/ \(Int(e.target)) kcal").font(.ui(12, weight: .semibold)).foregroundColor(Theme.sub)
                     Spacer()
                     Text("\(t("nut.protein")) \(Int(protein)) / \(Int(e.protein)) g")
-                        .font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.blue)
+                        .font(.ui(11, weight: .semibold)).foregroundColor(Theme.blue)
                 }
                 .padding(.bottom, 8)
                 Bar(value: min(1, pct), gradient: pct > 1.12 ? [Theme.red, Theme.red] : [Theme.acc, Theme.acc2])
@@ -186,13 +186,13 @@ struct HomeView: View {
                                 }
                                 .padding(.bottom, 6)
                                 HStack(spacing: 8) {
-                                    Image(systemName: item.icon).font(.system(size: 18, weight: .bold))
+                                    Image(systemName: item.icon).font(.ui(18, weight: .bold))
                                         .foregroundColor(Color(hex: item.color))
                                     Text(item.name.uppercased()).font(.head(22, .bold)).tracking(0.5)
                                         .foregroundColor(Color(hex: item.color))
                                 }
                                 if !item.sub.isEmpty {
-                                    Text(item.sub).font(.system(size: 11)).foregroundColor(Theme.sub).padding(.top, 5)
+                                    Text(item.sub).font(.ui(11)).foregroundColor(Theme.sub).padding(.top, 5)
                                 }
                             }
                             Spacer()
@@ -204,7 +204,7 @@ struct HomeView: View {
                 .overlay(alignment: .trailing) {
                     Button { haptic(.success); store.startRequest = item.id; tab = .allena } label: {
                         Image(systemName: "play.fill").accessibilityLabel(t("a11y.start"))
-                            .font(.system(size: 17, weight: .bold)).foregroundColor(Theme.bg)
+                            .font(.ui(17, weight: .bold)).foregroundColor(Theme.bg)
                             .frame(width: 46, height: 46).background(Color(hex: item.color)).clipShape(Circle())
                     }
                     .buttonStyle(PressableStyle())
@@ -229,7 +229,7 @@ extension View {
                     AxisGridLine().foregroundStyle(Theme.sub.opacity(0.18))
                     AxisValueLabel {
                         if let d = value.as(Date.self) {
-                            Text(axisDate(d, spanDays: span)).font(.system(size: 10)).foregroundStyle(Theme.sub)
+                            Text(axisDate(d, spanDays: span)).font(.ui(10)).foregroundStyle(Theme.sub)
                         }
                     }
                 }
@@ -237,7 +237,7 @@ extension View {
             .chartYAxis {
                 AxisMarks { _ in
                     AxisGridLine().foregroundStyle(Theme.mut)
-                    AxisValueLabel().font(.system(size: 10)).foregroundStyle(Theme.sub)
+                    AxisValueLabel().font(.ui(10)).foregroundStyle(Theme.sub)
                 }
             }
     }

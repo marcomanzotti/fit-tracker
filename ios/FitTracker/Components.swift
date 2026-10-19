@@ -27,7 +27,7 @@ extension View {
                     UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder),
                                                     to: nil, from: nil, for: nil)
                 }
-                .font(.system(size: 16, weight: .semibold)).tint(Theme.acc)
+                .font(.ui(16, weight: .semibold)).tint(Theme.acc)
             }
         }
     }
@@ -120,12 +120,12 @@ struct StatTile: View {
                 // same size and baseline across all tiles in a row.
                 Text(value).font(.num(30)).foregroundColor(valueColor)
                     .lineLimit(1).minimumScaleFactor(0.5)
-                if let unit { Text(unit).font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.sub) }
+                if let unit { Text(unit).font(.ui(11, weight: .semibold)).foregroundColor(Theme.sub) }
             }
             if let note {
                 // Reserve two lines so tiles in a row keep identical heights even
                 // when one note wraps and another is a single word.
-                Text(note).font(.system(size: 11)).foregroundColor(Theme.sub)
+                Text(note).font(.ui(11)).foregroundColor(Theme.sub)
                     .lineLimit(2, reservesSpace: true)
             }
         }
@@ -208,7 +208,7 @@ struct FilledButton: View {
     var action: () -> Void
     var body: some View {
         Button { tap(); action() } label: {
-            Text(title).font(.system(size: 13, weight: .bold))
+            Text(title).font(.ui(13, weight: .bold))
                 .foregroundColor(Theme.bg)
                 .frame(maxWidth: .infinity, minHeight: 46)
                 .background(color)
@@ -240,7 +240,7 @@ struct GhostButton: View {
     var action: () -> Void
     var body: some View {
         Button { tap(); action() } label: {
-            Text(title).font(.system(size: 12, weight: .semibold)).foregroundColor(color)
+            Text(title).font(.ui(12, weight: .semibold)).foregroundColor(color)
                 .lineLimit(1).fixedSize(horizontal: true, vertical: false)   // "Timer 60s" must not wrap
                 .padding(.vertical, 8).padding(.horizontal, 14)
                 .frame(minHeight: 38)
@@ -304,7 +304,7 @@ struct HMSField: View {
         VStack(spacing: 4) {
             TextField("", text: b, prompt: Text(ph).foregroundColor(Theme.sub))
                 .keyboardType(.numberPad).multilineTextAlignment(.center)
-                .foregroundColor(Theme.txt).font(.system(size: 16, weight: .medium))
+                .foregroundColor(Theme.txt).font(.ui(16, weight: .medium))
                 .padding(.vertical, 13)
                 .frame(maxWidth: .infinity)
                 .chrome()
@@ -350,13 +350,13 @@ struct PaceField: View {
             TextField("", text: $text,
                       prompt: Text(auto.map { dec($0) } ?? "—").foregroundColor(Theme.sub))
                 .keyboardType(.decimalPad)
-                .foregroundColor(Theme.txt).font(.system(size: 16, weight: .medium))
+                .foregroundColor(Theme.txt).font(.ui(16, weight: .medium))
                 .padding(.vertical, 13).padding(.horizontal, 15)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .chrome()
             if let shown = shownPace {
                 Text("\(text.isEmpty ? t("wk.pace_auto") : t("wk.pace")) · \(readable(shown))")
-                    .font(.system(size: 10)).foregroundColor(Theme.sub)
+                    .font(.ui(10)).foregroundColor(Theme.sub)
             }
         }
         .onAppear { if !synced { if let m = manual { text = dec(m) }; synced = true } }
@@ -376,7 +376,7 @@ struct InputField: View {
         TextField("", text: $text, prompt: Text(placeholder).foregroundColor(Theme.sub))
             .keyboardType(keyboard)
             .foregroundColor(Theme.txt)
-            .font(.system(size: 16, weight: .medium))
+            .font(.ui(16, weight: .medium))
             .padding(.vertical, 13).padding(.horizontal, 15)
             .chrome()
     }
@@ -386,13 +386,15 @@ struct SmallNumField: View {
     @Binding var text: String
     var placeholder: String = "–"
     var highlight: Bool = false
+    /// Width of a set field and of its column header, growing with the text size.
+    static var width: CGFloat { TypeScale.scaled(66, cap: 1.35) }
     var body: some View {
         TextField("", text: $text, prompt: Text(placeholder).foregroundColor(Theme.sub))
             .keyboardType(.decimalPad)
             .multilineTextAlignment(.center)
             .foregroundColor(Theme.txt)
-            .font(.system(size: 15, weight: .semibold))
-            .frame(width: 66)
+            .font(.ui(15, weight: .semibold))
+            .frame(width: Self.width)
             .padding(.vertical, 10)
             .chrome(9, fill: highlight ? Theme.acc.opacity(0.07) : Theme.c2, stroke: highlight ? Theme.acc : Theme.brd)
     }
@@ -415,7 +417,7 @@ struct BodyweightChip: View {
         } label: {
             HStack(spacing: 4) {
                 Image(systemName: "figure.strengthtraining.functional")
-                    .font(.system(size: 10, weight: .bold))
+                    .font(.ui(10, weight: .bold))
                 Text(t("wk.bodyweight")).font(.head(10, .semibold)).tracking(0.5)
             }
             .foregroundColor(bw ? Theme.bg : Theme.sub)
@@ -481,7 +483,7 @@ struct EffortField: View {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .stroke(isOn ? Theme.red.opacity(0.5) : Theme.brd, lineWidth: 1)
                     Image(systemName: isOn ? "bolt.fill" : "bolt")
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.ui(13, weight: .semibold))
                         .foregroundColor(isOn ? Theme.red : Theme.sub)
                 }
                 .frame(width: 48, height: 42)
@@ -501,11 +503,11 @@ struct EmptyBox: View {
     var body: some View {
         VStack(spacing: 8) {
             if let icon {
-                Image(systemName: icon).font(.system(size: 26, weight: .semibold)).foregroundColor(Theme.brd2)
+                Image(systemName: icon).font(.ui(26, weight: .semibold)).foregroundColor(Theme.brd2)
                     .padding(.bottom, 4).accessibilityHidden(true)
             }
             Text(title.uppercased()).font(.head(15, .semibold)).tracking(1).foregroundColor(Theme.sub)
-            Text(text).font(.system(size: 13)).foregroundColor(Theme.sub).multilineTextAlignment(.center)
+            Text(text).font(.ui(13)).foregroundColor(Theme.sub).multilineTextAlignment(.center)
                 .lineSpacing(4)
         }
         .frame(maxWidth: .infinity)

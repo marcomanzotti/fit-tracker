@@ -41,7 +41,7 @@ struct NutritionCalendarCard: View {
                 }
             }
             HStack(spacing: 2) {
-                Text(t("nut.cal_hint_tap")).font(.system(size: 11)).foregroundColor(Theme.sub)
+                Text(t("nut.cal_hint_tap")).font(.ui(11)).foregroundColor(Theme.sub)
                 InfoButton(id: .nutCalendar, size: 18)
             }
             .frame(maxWidth: .infinity).padding(.top, 10)
@@ -72,11 +72,11 @@ struct NutritionCalendarCard: View {
             tap(); if !future { editDate = IdentDate(date: ds) }
         } label: {
             VStack(spacing: 1) {
-                Text("\(day)").font(.system(size: 12, weight: isToday ? .bold : .regular))
+                Text("\(day)").font(.ui(12, weight: isToday ? .bold : .regular))
                     .foregroundColor(color != nil ? Theme.bg : (isToday ? Theme.acc : Theme.txt))
                 if logged {
                     // "2.4k" fits a narrow cell at a readable size; "2450" shrank to ~6 pt.
-                    Text(compactKcal(kcal)).font(.system(size: 10, weight: .bold)).foregroundColor(Theme.bg)
+                    Text(compactKcal(kcal)).font(.ui(10, weight: .bold)).foregroundColor(Theme.bg)
                         .lineLimit(1).minimumScaleFactor(0.85)
                 }
             }
@@ -156,7 +156,7 @@ struct NutritionDayEditor: View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
                 Text(t("nut.edit_day").uppercased()).font(.head(16, .bold)).tracking(1).foregroundColor(Theme.txt)
-                Text(prettyDay(date)).font(.system(size: 11)).foregroundColor(Theme.sub)
+                Text(prettyDay(date)).font(.ui(11)).foregroundColor(Theme.sub)
             }
             Spacer()
             Button { dismiss() } label: {
@@ -191,7 +191,7 @@ struct NutritionDayEditor: View {
                     Spacer()
                     HStack(alignment: .firstTextBaseline, spacing: 4) {
                         Text("\(mealTotalKcal)").font(.num(26)).foregroundColor(Theme.acc)
-                        Text("kcal").font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.sub)
+                        Text("kcal").font(.ui(11, weight: .semibold)).foregroundColor(Theme.sub)
                     }
                 }
             }
@@ -202,8 +202,8 @@ struct NutritionDayEditor: View {
         let hasFoods = !(mealFoods[slot.rawValue]?.isEmpty ?? true)
         return Card {
             HStack(spacing: 8) {
-                Image(systemName: slot.icon).font(.system(size: 14, weight: .bold)).foregroundColor(Color(hex: slot.color))
-                Text(t(slot.labelKey)).font(.system(size: 14, weight: .semibold)).foregroundColor(Theme.txt)
+                Image(systemName: slot.icon).font(.ui(14, weight: .bold)).foregroundColor(Color(hex: slot.color))
+                Text(t(slot.labelKey)).font(.ui(14, weight: .semibold)).foregroundColor(Theme.txt)
                 Spacer()
             }
             .padding(.bottom, 10)
@@ -383,7 +383,7 @@ struct SectionHeader: View {
     var icon: String
     var body: some View {
         HStack(spacing: 8) {
-            Image(systemName: icon).font(.system(size: 13, weight: .bold)).foregroundColor(Theme.acc)
+            Image(systemName: icon).font(.ui(13, weight: .bold)).foregroundColor(Theme.acc)
             Text(text.uppercased()).font(.head(13, .bold)).tracking(1.5).foregroundColor(Theme.txt)
             Spacer()
         }

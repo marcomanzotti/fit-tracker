@@ -39,7 +39,7 @@ struct TodayCard: View {
         if let score = r.score {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text("\(score)").font(.num(34)).foregroundColor(zoneColor(r.advice))
-                Text("/100").font(.system(size: 12)).foregroundColor(Theme.sub)
+                Text("/100").font(.ui(12)).foregroundColor(Theme.sub)
                 Spacer()
                 Text(t(adviceKey(r.advice)).uppercased())
                     .font(.head(11, .semibold)).tracking(1).foregroundColor(zoneColor(r.advice))
@@ -49,12 +49,12 @@ struct TodayCard: View {
             if !r.warnings.isEmpty {
                 Label(t("load.vitals_warning", r.warnings.map { t(NightVitalsCard.spec($0).name) }.joined(separator: ", ")),
                       systemImage: "exclamationmark.triangle.fill")
-                    .font(.system(size: 11, weight: .medium)).foregroundColor(Theme.acc2)
+                    .font(.ui(11, weight: .medium)).foregroundColor(Theme.acc2)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.top, 8)
             }
         } else {
-            Text(t("load.need_data")).font(.system(size: 12)).foregroundColor(Theme.sub)
+            Text(t("load.need_data")).font(.ui(12)).foregroundColor(Theme.sub)
         }
     }
 
@@ -63,7 +63,7 @@ struct TodayCard: View {
         return VStack(alignment: .leading, spacing: 6) {
             Rectangle().fill(Theme.brd).frame(height: 1).padding(.vertical, 6)
             HStack(spacing: 2) {
-                Text(t("recovery.title")).font(.system(size: 12, weight: .medium)).foregroundColor(Theme.sub)
+                Text(t("recovery.title")).font(.ui(12, weight: .medium)).foregroundColor(Theme.sub)
                 InfoButton(id: .recovery)
                 Spacer()
                 Text(left.map { $0 == 0 ? t("recovery.done") : t("recovery.left", $0) } ?? "\(r.hours) h")
@@ -73,7 +73,7 @@ struct TodayCard: View {
                 Bar(value: Double(r.hours - left) / Double(max(1, r.hours)), gradient: [Theme.acc2, Theme.good])
             }
             Text(t("recovery.total", r.hours, relativeDay(r.sessionDate)))
-                .font(.system(size: 11)).foregroundColor(Theme.sub)
+                .font(.ui(11)).foregroundColor(Theme.sub)
         }
     }
 
@@ -108,13 +108,13 @@ struct WeekLoadCard: View {
                             Lbl(text: t("trimp.title"), color: Theme.acc2)
                             Spacer()
                             if let form, let scale = store.infoScale(.form) { BandLabel(scale: scale, value: form) }
-                            Image(systemName: "chevron.right").font(.system(size: 11, weight: .semibold))
+                            Image(systemName: "chevron.right").font(.ui(11, weight: .semibold))
                                 .foregroundColor(Theme.sub).padding(.leading, 6)
                         }
                         .padding(.bottom, 12)
                         HStack(alignment: .firstTextBaseline, spacing: 6) {
                             Text("\(Int(week.rounded()))").font(.num(34)).foregroundColor(Theme.acc2)
-                            Text(t("trimp.this_week")).font(.system(size: 12, weight: .semibold)).foregroundColor(Theme.sub)
+                            Text(t("trimp.this_week")).font(.ui(12, weight: .semibold)).foregroundColor(Theme.sub)
                             Spacer()
                         }
                         .padding(.bottom, 12)
@@ -130,7 +130,7 @@ struct WeekLoadCard: View {
 
     private func cmpRow(_ label: String, _ value: Double, _ mx: Double, _ color: Color) -> some View {
         HStack(spacing: 10) {
-            Text(label).font(.system(size: 10, weight: .semibold)).foregroundColor(Theme.sub).frame(width: 78, alignment: .leading)
+            Text(label).font(.ui(10, weight: .semibold)).foregroundColor(Theme.sub).frame(width: 78, alignment: .leading)
             Bar(value: value / mx, gradient: [color, color.opacity(0.6)], height: 8)
             Text("\(Int(value.rounded()))").font(.num(13)).foregroundColor(Theme.txt).frame(width: 38, alignment: .trailing)
         }
@@ -165,7 +165,7 @@ struct LoadCard: View {
             }
             .padding(.bottom, 10)
             Text(t("load.building_body", ds.needSessions, ds.needDays))
-                .font(.system(size: 12)).foregroundColor(Theme.txt).lineSpacing(4)
+                .font(.ui(12)).foregroundColor(Theme.txt).lineSpacing(4)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.bottom, 12)
             HStack(spacing: 9) {
@@ -186,11 +186,11 @@ struct LoadCard: View {
                     if store.deloadAdvice() {
                         VStack(alignment: .leading, spacing: 4) {
                             HStack(spacing: 6) {
-                                Image(systemName: "exclamationmark.triangle.fill").font(.system(size: 11))
+                                Image(systemName: "exclamationmark.triangle.fill").font(.ui(11))
                                 Text(t("load.deload")).font(.head(12, .bold)).tracking(0.3)
                             }
                             .foregroundColor(Theme.red)
-                            Text(t("load.deload_why")).font(.system(size: 10)).foregroundColor(Theme.sub)
+                            Text(t("load.deload_why")).font(.ui(10)).foregroundColor(Theme.sub)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                         .padding(.vertical, 9).padding(.horizontal, 11)
@@ -247,7 +247,7 @@ struct LoadTrendCard: View {
                             AxisValueLabel(centered: false) {
                                 if let d = v.as(Date.self) {
                                     Text(fmtDM(isoFormatter.string(from: d)))
-                                        .font(.system(size: 10)).foregroundColor(Theme.sub)
+                                        .font(.ui(10)).foregroundColor(Theme.sub)
                                 }
                             }
                         }
@@ -255,7 +255,7 @@ struct LoadTrendCard: View {
                     .chartYAxis {
                         AxisMarks { _ in
                             AxisGridLine().foregroundStyle(Theme.mut)
-                            AxisValueLabel().font(.system(size: 10)).foregroundStyle(Theme.sub)
+                            AxisValueLabel().font(.ui(10)).foregroundStyle(Theme.sub)
                         }
                     }
                     .frame(height: 120)
@@ -285,9 +285,9 @@ struct NutritionCard: View {
 
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text("\(Int(e.target))").font(.num(34)).foregroundColor(Theme.txt)
-                Text("kcal").font(.system(size: 12, weight: .semibold)).foregroundColor(Theme.sub)
+                Text("kcal").font(.ui(12, weight: .semibold)).foregroundColor(Theme.sub)
                 Spacer()
-                Text("TDEE \(Int(e.tdee)) · BMR \(Int(e.bmr))").font(.system(size: 10)).foregroundColor(Theme.sub)
+                Text("TDEE \(Int(e.tdee)) · BMR \(Int(e.bmr))").font(.ui(10)).foregroundColor(Theme.sub)
             }
             .padding(.bottom, 12)
 
@@ -302,13 +302,13 @@ struct NutritionCard: View {
             HStack(alignment: .top, spacing: 2) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text("\(t("nut.carb_high")): \(Int(e.carbHigh))g")
-                        .font(.system(size: 10)).foregroundColor(Theme.sub)
+                        .font(.ui(10)).foregroundColor(Theme.sub)
                     Text("\(t("nut.carb_low")): \(Int(e.carbLow))g")
-                        .font(.system(size: 10)).foregroundColor(Theme.sub)
+                        .font(.ui(10)).foregroundColor(Theme.sub)
                 }
                 InfoButton(id: .carbcycle)
                 Spacer()
-                Text("\(t("nut.salt")) \(trimNum(e.saltMax))g").font(.system(size: 10)).foregroundColor(Theme.sub)
+                Text("\(t("nut.salt")) \(trimNum(e.saltMax))g").font(.ui(10)).foregroundColor(Theme.sub)
                 InfoButton(id: .salt, size: 16)
             }
             .padding(.bottom, 12)
@@ -316,13 +316,13 @@ struct NutritionCard: View {
             // Real weight trend vs target
             if let rate = trend.ratePerWeek {
                 HStack(spacing: 2) {
-                    Text(t("nut.trend")).font(.system(size: 12, weight: .medium)).foregroundColor(Theme.sub)
+                    Text(t("nut.trend")).font(.ui(12, weight: .medium)).foregroundColor(Theme.sub)
                     InfoButton(id: .trend)
                     Spacer()
                     Text("\(rate > 0 ? "+" : "")\(trimNum(rate)) \(t("nut.per_week"))")
                         .font(.num(15)).foregroundColor(zoneColor(trend.status))
                 }
-                Text(trendText(trend)).font(.system(size: 10)).foregroundColor(zoneColor(trend.status)).padding(.top, 3)
+                Text(trendText(trend)).font(.ui(10)).foregroundColor(zoneColor(trend.status)).padding(.top, 3)
             }
             if lea.risk == "risk" || lea.risk == "warn" {
                 HStack(spacing: 2) {
@@ -338,7 +338,7 @@ struct NutritionCard: View {
             if adh.status != "none" {
                 Rectangle().fill(Theme.brd).frame(height: 1).padding(.vertical, 10)
                 HStack(spacing: 2) {
-                    Text(t("nut.adherence")).font(.system(size: 12, weight: .medium)).foregroundColor(Theme.sub)
+                    Text(t("nut.adherence")).font(.ui(12, weight: .medium)).foregroundColor(Theme.sub)
                     InfoButton(id: .adherence)
                     Spacer()
                 }
@@ -350,10 +350,10 @@ struct NutritionCard: View {
                     StatTile(label: t("nut.vol_sessions"), value: "\(adh.sessions)", valueColor: Theme.txt)
                 }
                 if adh.status == "low_logging" {
-                    Text(t("nut.low_logging")).font(.system(size: 10)).foregroundColor(Theme.acc2).padding(.top, 8)
+                    Text(t("nut.low_logging")).font(.ui(10)).foregroundColor(Theme.acc2).padding(.top, 8)
                 }
             }
-            Text(t("nut.who_note")).font(.system(size: 10)).foregroundColor(Theme.sub).padding(.top, 8)
+            Text(t("nut.who_note")).font(.ui(10)).foregroundColor(Theme.sub).padding(.top, 8)
         }
     }
     private func modeLabel(_ m: GoalMode) -> String {
@@ -412,7 +412,7 @@ struct CalendarCard: View {
                 }
             }
             if monthSessions.isEmpty {
-                Text(t("cal.tap_hint")).font(.system(size: 11)).foregroundColor(Theme.sub)
+                Text(t("cal.tap_hint")).font(.ui(11)).foregroundColor(Theme.sub)
                     .frame(maxWidth: .infinity).padding(.top, 10)
             }
         }
@@ -445,12 +445,12 @@ struct CalendarCard: View {
             if !future { pickerDate = IdentDate(date: ds) }
         } label: {
             VStack(spacing: 1) {
-                Text("\(day)").font(.system(size: 12, weight: isToday ? .bold : .regular))
+                Text("\(day)").font(.ui(12, weight: isToday ? .bold : .regular))
                     .foregroundColor(dark ? Theme.bg : (isToday ? Theme.acc : Theme.txt))
                 if daySessions.count > 1 {
-                    Text("\(daySessions.count)").font(.system(size: 10, weight: .bold)).foregroundColor(Theme.bg)
+                    Text("\(daySessions.count)").font(.ui(10, weight: .bold)).foregroundColor(Theme.bg)
                 } else if rest {
-                    Image(systemName: Theme.restIcon).font(.system(size: 10, weight: .bold)).foregroundColor(Theme.bg)
+                    Image(systemName: Theme.restIcon).font(.ui(10, weight: .bold)).foregroundColor(Theme.bg)
                 }
             }
             .frame(maxWidth: .infinity).frame(height: 38)

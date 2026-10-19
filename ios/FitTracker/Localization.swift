@@ -934,7 +934,7 @@ enum L {
         "recovery.title": ("Recupero", "Recovery"),
         "recovery.left": ("ancora %d h", "%d h left"),
         "recovery.done": ("Recuperato", "Recovered"),
-        "recovery.total": ("%d h dopo la seduta di %@", "%d h after the %@ session"),
+        "recovery.total": ("%d h dopo la seduta di %@", "%d h after the session (%@)"),
         "intensity.title": ("Intensità settimanale", "Weekly intensity"),
         "intensity.easy": ("facile", "easy"),
         "intensity.hard": ("intenso", "hard"),

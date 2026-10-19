@@ -30,7 +30,7 @@ struct GoalEditorView: View {
                     }
                     .padding(.top, 18)
 
-                    Text(t("goal.hint")).font(.system(size: 12)).foregroundColor(Theme.sub).lineSpacing(3)
+                    Text(t("goal.hint")).font(.ui(12)).foregroundColor(Theme.sub).lineSpacing(3)
 
                     Card {
                         FieldRow(label: t("ob.goal_mode")) {
@@ -116,7 +116,7 @@ struct WeeklyPlanView: View {
                     }
                     .padding(.top, 18)
 
-                    Text(t("plan.week_hint")).font(.system(size: 12)).foregroundColor(Theme.sub).lineSpacing(3)
+                    Text(t("plan.week_hint")).font(.ui(12)).foregroundColor(Theme.sub).lineSpacing(3)
 
                     Card {
                         ForEach(0..<7, id: \.self) { wd in
@@ -145,7 +145,7 @@ struct WeeklyPlanView: View {
         let cur = store.prefs.weekSchedule[wd]
         return HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text(dayNames[wd]).font(.system(size: 14, weight: .semibold)).foregroundColor(isToday ? Theme.acc : Theme.txt)
+                Text(dayNames[wd]).font(.ui(14, weight: .semibold)).foregroundColor(isToday ? Theme.acc : Theme.txt)
                 if isToday { Text(t("plan.today").uppercased()).font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.acc) }
             }
             Spacer()
@@ -169,13 +169,13 @@ struct WeeklyPlanView: View {
                     ZStack {
                         RoundedRectangle(cornerRadius: 5, style: .continuous).fill(slotColor(cur)).frame(width: 18, height: 18)
                         if cur == "rest" {
-                            Image(systemName: Theme.restIcon).font(.system(size: 10, weight: .bold)).foregroundColor(Theme.bg)
+                            Image(systemName: Theme.restIcon).font(.ui(10, weight: .bold)).foregroundColor(Theme.bg)
                         } else if let icon = slotIcon(cur) {
-                            Image(systemName: icon).font(.system(size: 10, weight: .bold)).foregroundColor(Theme.bg)
+                            Image(systemName: icon).font(.ui(10, weight: .bold)).foregroundColor(Theme.bg)
                         }
                     }
-                    Text(slotLabel(cur)).font(.system(size: 13, weight: .semibold)).foregroundColor(Theme.txt)
-                    Image(systemName: "chevron.down").font(.system(size: 10)).foregroundColor(Theme.sub)
+                    Text(slotLabel(cur)).font(.ui(13, weight: .semibold)).foregroundColor(Theme.txt)
+                    Image(systemName: "chevron.down").font(.ui(10)).foregroundColor(Theme.sub)
                 }
                 .padding(.vertical, 8).padding(.horizontal, 12)
                 .chrome(9)
@@ -223,7 +223,7 @@ struct WeeklyPlanCard: View {
                     Spacer()
                     Text((store.prefs.hasSchedule ? t("plan.scheduled") : t("plan.rotation")).uppercased())
                         .font(.head(10, .semibold)).tracking(0.8).foregroundColor(Theme.sub).lineLimit(1).minimumScaleFactor(0.8)
-                    Image(systemName: "chevron.right").font(.system(size: 11)).foregroundColor(Theme.sub).padding(.leading, 4)
+                    Image(systemName: "chevron.right").font(.ui(11)).foregroundColor(Theme.sub).padding(.leading, 4)
                 }
                 .padding(.bottom, 12)
                 HStack(spacing: 6) {
@@ -241,7 +241,7 @@ struct WeeklyPlanCard: View {
                                     // too, exactly like rest days show a moon.
                                     if sched[wd] == "rest" { RestChip(size: 11) }
                                     else if let icon = slotIcon(sched[wd]) {
-                                        Image(systemName: icon).font(.system(size: 13, weight: .bold))
+                                        Image(systemName: icon).font(.ui(13, weight: .bold))
                                             .foregroundColor(Theme.bg)
                                     }
                                 }

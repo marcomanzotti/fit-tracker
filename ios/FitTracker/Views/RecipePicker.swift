@@ -64,7 +64,7 @@ struct RecipePickerSheet: View {
                 ScrollView {
                     LazyVStack(spacing: 8) {
                         if filtered.isEmpty {
-                            Text(t("recipe.none")).font(.system(size: 12)).foregroundColor(Theme.sub)
+                            Text(t("recipe.none")).font(.ui(12)).foregroundColor(Theme.sub)
                                 .frame(maxWidth: .infinity).padding(.top, 24)
                         }
                         ForEach(filtered) { r in recipeRow(r) }
@@ -117,7 +117,7 @@ struct RecipePickerSheet: View {
                             Text(key.label).font(.head(10, .semibold)).tracking(0.5)
                             if active {
                                 Image(systemName: sortAsc ? "arrow.up" : "arrow.down")
-                                    .font(.system(size: 10, weight: .bold))
+                                    .font(.ui(10, weight: .bold))
                             }
                         }
                         .foregroundColor(active ? Theme.bg : Theme.sub)
@@ -136,17 +136,17 @@ struct RecipePickerSheet: View {
         HStack(spacing: 10) {
             Button { tap(); sheet = .qty(r) } label: {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(r.name).font(.system(size: 14, weight: .semibold)).foregroundColor(Theme.txt).lineLimit(1)
+                    Text(r.name).font(.ui(14, weight: .semibold)).foregroundColor(Theme.txt).lineLimit(1)
                     let sub = r.perServing
                         ? "\(trimNum(r.effK100)) kcal/\(t("recipe.serving")) · P \(trimNum(r.effP100)) C \(trimNum(r.effC100)) F \(trimNum(r.effF100))"
                         : "\(trimNum(r.effK100)) kcal · P \(trimNum(r.effP100)) C \(trimNum(r.effC100)) F \(trimNum(r.effF100)) · /100g"
-                    Text(sub).font(.system(size: 10)).foregroundColor(Theme.sub).lineLimit(1)
+                    Text(sub).font(.ui(10)).foregroundColor(Theme.sub).lineLimit(1)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .buttonStyle(PressableStyle())
             Button { tap(); sheet = .form(r) } label: {
-                Image(systemName: "slider.horizontal.3").font(.system(size: 13)).foregroundColor(Theme.sub).frame(width: 30, height: 30)
+                Image(systemName: "slider.horizontal.3").font(.ui(13)).foregroundColor(Theme.sub).frame(width: 30, height: 30)
             }
         }
         .padding(.vertical, 9).padding(.horizontal, 12)
@@ -212,7 +212,7 @@ struct RecipeQuantitySheet: View {
     private func macro(_ value: String, _ label: String, _ color: Color) -> some View {
         VStack(spacing: 2) {
             Text(value).font(.num(20)).foregroundColor(color)
-            Text(label).font(.system(size: 10, weight: .semibold)).foregroundColor(Theme.sub)
+            Text(label).font(.ui(10, weight: .semibold)).foregroundColor(Theme.sub)
         }
         .frame(maxWidth: .infinity)
     }
@@ -329,8 +329,8 @@ struct RecipeFormSheet: View {
             VStack(alignment: .leading, spacing: 12) {
                 Toggle(isOn: $perServing) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(t("recipe.per_serving_toggle")).font(.system(size: 13)).foregroundColor(Theme.txt)
-                        Text(t("recipe.per_serving_hint")).font(.system(size: 10)).foregroundColor(Theme.sub)
+                        Text(t("recipe.per_serving_toggle")).font(.ui(13)).foregroundColor(Theme.txt)
+                        Text(t("recipe.per_serving_hint")).font(.ui(10)).foregroundColor(Theme.sub)
                     }
                 }.tint(Theme.acc)
 
@@ -376,7 +376,7 @@ struct RecipeFormSheet: View {
                             Text(t("nut.day_total").uppercased()).font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.sub)
                             Spacer()
                             Text("\(totK) kcal · P\(trimNum(totP)) C\(trimNum(totC)) F\(trimNum(totF))")
-                                .font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.acc)
+                                .font(.ui(11, weight: .semibold)).foregroundColor(Theme.acc)
                         }
                     }
                     GhostButton(title: "+ \(t("recipe.add_ingredient"))") { tap(); pickingIngredient = true }
@@ -387,8 +387,8 @@ struct RecipeFormSheet: View {
             Card {
                 Toggle(isOn: $perServing) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(t("recipe.per_serving_toggle")).font(.system(size: 13)).foregroundColor(Theme.txt)
-                        Text(t("recipe.per_serving_hint")).font(.system(size: 10)).foregroundColor(Theme.sub)
+                        Text(t("recipe.per_serving_toggle")).font(.ui(13)).foregroundColor(Theme.txt)
+                        Text(t("recipe.per_serving_hint")).font(.ui(10)).foregroundColor(Theme.sub)
                     }
                 }.tint(Theme.acc)
                 if perServing {
@@ -405,12 +405,12 @@ struct RecipeFormSheet: View {
     private func ingredientRow(_ ing: RecipeIngredient) -> some View {
         HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(ing.name).font(.system(size: 13, weight: .semibold)).foregroundColor(Theme.txt).lineLimit(1)
-                Text("\(trimNum(ing.grams)) g · \(ing.kcal) kcal").font(.system(size: 10)).foregroundColor(Theme.sub)
+                Text(ing.name).font(.ui(13, weight: .semibold)).foregroundColor(Theme.txt).lineLimit(1)
+                Text("\(trimNum(ing.grams)) g · \(ing.kcal) kcal").font(.ui(10)).foregroundColor(Theme.sub)
             }
             Spacer()
             Button { tap(); ingredients.removeAll { $0.id == ing.id } } label: {
-                Image(systemName: "xmark.circle.fill").font(.system(size: 17)).foregroundColor(Theme.mut)
+                Image(systemName: "xmark.circle.fill").font(.ui(17)).foregroundColor(Theme.mut)
             }
         }
         .padding(.vertical, 7).padding(.horizontal, 10)

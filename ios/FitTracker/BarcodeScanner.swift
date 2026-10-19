@@ -36,7 +36,7 @@ struct BarcodeScannerSheet: View {
                     Button {
                         if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
                     } label: {
-                        Text(t("hk.open_settings")).font(.system(size: 14, weight: .semibold)).foregroundColor(Theme.bg)
+                        Text(t("hk.open_settings")).font(.ui(14, weight: .semibold)).foregroundColor(Theme.bg)
                             .padding(.horizontal, 20).frame(minHeight: Theme.minTapTarget)
                             .background(Theme.acc).clipShape(Capsule())
                     }
@@ -54,14 +54,14 @@ struct BarcodeScannerSheet: View {
                 HStack {
                     Spacer()
                     Button { dismiss() } label: {
-                        Image(systemName: "xmark.circle.fill").font(.system(size: 28))
+                        Image(systemName: "xmark.circle.fill").font(.ui(28))
                             .foregroundColor(.white).shadow(radius: 3)
                             .frame(width: Theme.minTapTarget, height: Theme.minTapTarget)
                             .accessibilityLabel(t("a11y.close"))
                     }
                 }
                 Spacer()
-                Text(t("food.scan_hint")).font(.system(size: 12, weight: .medium))
+                Text(t("food.scan_hint")).font(.ui(12, weight: .medium))
                     .foregroundColor(.white).padding(.vertical, 8).padding(.horizontal, 14)
                     .background(.black.opacity(0.5)).clipShape(Capsule())
                     .padding(.bottom, 30)
@@ -78,8 +78,8 @@ struct BarcodeScannerSheet: View {
 
     private func message(_ text: String) -> some View {
         VStack(spacing: 12) {
-            Image(systemName: "barcode.viewfinder").font(.system(size: 40)).foregroundColor(Theme.sub)
-            Text(text).font(.system(size: 13)).foregroundColor(Theme.sub)
+            Image(systemName: "barcode.viewfinder").font(.ui(40)).foregroundColor(Theme.sub)
+            Text(text).font(.ui(13)).foregroundColor(Theme.sub)
                 .multilineTextAlignment(.center).padding(.horizontal, 30)
         }
     }

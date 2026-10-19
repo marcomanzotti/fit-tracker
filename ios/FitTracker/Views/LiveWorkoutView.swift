@@ -63,8 +63,8 @@ struct LiveWorkoutView: View {
             BigButton(title: t("wk.finish_session")) { showFinish = true }
             Button { tap(); confirmDiscard = true } label: {
                 HStack(spacing: 6) {
-                    Image(systemName: "trash").font(.system(size: 12, weight: .bold))
-                    Text(t("wk.discard_session")).font(.system(size: 14, weight: .semibold))
+                    Image(systemName: "trash").font(.ui(12, weight: .bold))
+                    Text(t("wk.discard_session")).font(.ui(14, weight: .semibold))
                 }
                 .foregroundColor(Theme.red)
                 .frame(maxWidth: .infinity, minHeight: 48)
@@ -85,7 +85,7 @@ struct LiveWorkoutView: View {
             ToolbarItemGroup(placement: .keyboard) {
                 if focus != nil {
                     Button(t("kb.next")) { advanceFocus() }
-                        .font(.system(size: 16, weight: .semibold)).tint(Theme.acc)
+                        .font(.ui(16, weight: .semibold)).tint(Theme.acc)
                 }
             }
         }
@@ -170,7 +170,7 @@ struct LiveWorkoutView: View {
     private func liveStat(_ v: String, _ unit: String, _ color: Color) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 3) {
             Text(v).font(.num(16)).foregroundColor(color)
-            if !unit.isEmpty { Text(unit).font(.system(size: 10, weight: .semibold)).foregroundColor(Theme.sub) }
+            if !unit.isEmpty { Text(unit).font(.ui(10, weight: .semibold)).foregroundColor(Theme.sub) }
         }
     }
 
@@ -184,7 +184,7 @@ struct LiveWorkoutView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(plan.name.uppercased()).font(.head(20, .bold)).tracking(0.5)
                     .foregroundColor(Color(hex: plan.color))
-                Text("\(plan.sub) · \(fmtDM(today()))").font(.system(size: 10)).foregroundColor(Theme.sub)
+                Text("\(plan.sub) · \(fmtDM(today()))").font(.ui(10)).foregroundColor(Theme.sub)
             }
             Spacer()
         }
@@ -204,7 +204,7 @@ struct LiveWorkoutView: View {
         return Card {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(ex.name).font(.system(size: 14, weight: .semibold)).foregroundColor(Theme.txt)
+                    Text(ex.name).font(.ui(14, weight: .semibold)).foregroundColor(Theme.txt)
                     HStack(spacing: 6) {
                         if !ex.target.isEmpty { Tag(text: ex.target) }
                         if bw { Badge(text: t("wk.bodyweight"), color: Theme.good, bg: Theme.good.opacity(0.14)) }
@@ -220,7 +220,7 @@ struct LiveWorkoutView: View {
                         if kind == .reps, !bw {
                             Button { tap(); plates = PlateTarget(name: ex.name, weight: plateTarget(ex, sug: sug)) } label: {
                                 Image(systemName: "circle.hexagongrid.fill").accessibilityLabel(t("a11y.plates"))
-                                    .font(.system(size: 13)).foregroundColor(Theme.acc2)
+                                    .font(.ui(13)).foregroundColor(Theme.acc2)
                                     .frame(width: 26, height: 22)
                             }.buttonStyle(PressableStyle()).hitArea(9)
                         }
@@ -242,7 +242,7 @@ struct LiveWorkoutView: View {
                             // more comparable across rep ranges than top weight alone.
                             if let e = store.bestE1RM(ex.name), e > 0 {
                                 HStack(spacing: 0) {
-                                    Text("e1RM \(trimNum(e)) kg").font(.system(size: 10, weight: .semibold)).foregroundColor(Theme.acc2)
+                                    Text("e1RM \(trimNum(e)) kg").font(.ui(10, weight: .semibold)).foregroundColor(Theme.acc2)
                                     InfoButton(id: .e1rm, color: Theme.acc2, size: 16)
                                 }
                             }
@@ -260,8 +260,8 @@ struct LiveWorkoutView: View {
 
             if let sug {
                 HStack(spacing: 6) {
-                    Image(systemName: "arrow.up.right").font(.system(size: 11))
-                    Text("\(t("wk.try")) \(trimNum(sug)) kg").font(.system(size: 12, weight: .bold))
+                    Image(systemName: "arrow.up.right").font(.ui(11))
+                    Text("\(t("wk.try")) \(trimNum(sug)) kg").font(.ui(12, weight: .bold))
                 }
                 .foregroundColor(Theme.acc2)
                 .padding(.vertical, 6).padding(.horizontal, 13)
@@ -273,8 +273,8 @@ struct LiveWorkoutView: View {
 
             if let prog, prog == .addLoad || prog == .addReps {
                 HStack(spacing: 6) {
-                    Image(systemName: prog == .addLoad ? "scalemass" : "plus.forwardslash.minus").font(.system(size: 11))
-                    Text(t(prog.key)).font(.system(size: 12, weight: .bold))
+                    Image(systemName: prog == .addLoad ? "scalemass" : "plus.forwardslash.minus").font(.ui(11))
+                    Text(t(prog.key)).font(.ui(12, weight: .bold))
                 }
                 .foregroundColor(prog == .addLoad ? Theme.acc : Theme.blue)
                 .padding(.vertical, 6).padding(.horizontal, 13)
@@ -306,8 +306,8 @@ struct LiveWorkoutView: View {
                 // columns whose placeholders it explains.
                 HStack(spacing: 9) {
                     Spacer().frame(width: 28)
-                    Text(t("wk.reps").uppercased()).font(.head(10, .semibold)).tracking(1.5).foregroundColor(Theme.sub).frame(width: 66)
-                    Text(bw ? "+KG" : "KG").font(.head(10, .semibold)).tracking(1.5).foregroundColor(bw ? Theme.good : Theme.sub).frame(width: 66)
+                    Text(t("wk.reps").uppercased()).font(.head(10, .semibold)).tracking(1.5).foregroundColor(Theme.sub).frame(width: SmallNumField.width)
+                    Text(bw ? "+KG" : "KG").font(.head(10, .semibold)).tracking(1.5).foregroundColor(bw ? Theme.good : Theme.sub).frame(width: SmallNumField.width)
                     if effortScale != nil {
                         Text(effortScale!.label).font(.head(10, .semibold)).tracking(1.5).foregroundColor(Theme.acc2).frame(width: 48)
                     }
@@ -322,7 +322,7 @@ struct LiveWorkoutView: View {
 
                 // Bodyweight hint
                 if bw {
-                    Text(t("wk.bw_hint")).font(.system(size: 10)).foregroundColor(Theme.sub).padding(.top, 4)
+                    Text(t("wk.bw_hint")).font(.ui(10)).foregroundColor(Theme.sub).padding(.top, 4)
                 }
             }
 
@@ -338,7 +338,7 @@ struct LiveWorkoutView: View {
                 Spacer()
                 if ex.volume > 0 {
                     Text(volumeLabel(ex, kind: kind, bw: bw))
-                        .font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.sub)
+                        .font(.ui(11, weight: .semibold)).foregroundColor(Theme.sub)
                 }
             }
             .padding(.top, 9)
@@ -347,13 +347,13 @@ struct LiveWorkoutView: View {
             if activeWorkout.openNotes.contains(ex.id) {
                 TextField("", text: exB.notes, prompt: Text(t("wk.note_ph")).foregroundColor(Theme.sub), axis: .vertical)
                     .lineLimit(2...4)
-                    .font(.system(size: 13)).foregroundColor(Theme.txt)
+                    .font(.ui(13)).foregroundColor(Theme.txt)
                     .padding(.vertical, 10).padding(.horizontal, 14)
                     .chrome(10)
                     .padding(.top, 9)
             } else {
                 Button { tap(); withAnimation(Theme.settle) { _ = activeWorkout.openNotes.insert(ex.id) } } label: {
-                    Text(t("wk.add_note")).font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.sub)
+                    Text(t("wk.add_note")).font(.ui(11, weight: .semibold)).foregroundColor(Theme.sub)
                         .padding(.vertical, 8).padding(.horizontal, 12)
                         .chrome(9)
                 }
@@ -458,7 +458,7 @@ struct LiveWorkoutView: View {
             }
             Button { confirmSet(set, in: exB, prev: prevSet, suggested: suggested) } label: {
                 Image(systemName: set.wrappedValue.filled ? "checkmark.circle.fill" : "checkmark.circle")
-                    .font(.system(size: 26))
+                    .font(.ui(26))
                     .foregroundColor(set.wrappedValue.filled ? Theme.good : Theme.sub)
                     .frame(width: Theme.minTapTarget, height: Theme.minTapTarget)
                     .accessibilityLabel(t("a11y.set_done"))
@@ -549,17 +549,17 @@ struct LiveWorkoutView: View {
             Lbl(text: t("wk.add_ex")).padding(.bottom, 8)
             HStack(spacing: 9) {
                 TextField("", text: $addName, prompt: Text(t("wk.add_ex_ph")).foregroundColor(Theme.sub))
-                    .font(.system(size: 15, weight: .medium)).foregroundColor(Theme.txt)
+                    .font(.ui(15, weight: .medium)).foregroundColor(Theme.txt)
                     .padding(.vertical, 12).padding(.horizontal, 14)
                     .chrome()
                 Button { addExercise() } label: {
-                    Image(systemName: "plus").font(.system(size: 16, weight: .bold)).foregroundColor(Theme.bg)
+                    Image(systemName: "plus").font(.ui(16, weight: .bold)).foregroundColor(Theme.bg)
                         .frame(width: 50, height: 48).background(Theme.acc)
                         .clipShape(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous))
                 }.buttonStyle(PressableStyle())
             }
             Text(t("wk.add_ex_hint"))
-                .font(.system(size: 10)).foregroundColor(Theme.sub).padding(.top, 8)
+                .font(.ui(10)).foregroundColor(Theme.sub).padding(.top, 8)
         }
     }
 
@@ -687,7 +687,7 @@ struct FinishSessionSheet: View {
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
                     Text(!activeWorkout.caloriesManual.isEmpty ? activeWorkout.caloriesManual : (caloriesReady ? "\(estCalories)" : "—"))
                         .font(.num(28)).foregroundColor(caloriesReady ? Theme.acc : Theme.sub)
-                    Text("kcal").font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.sub)
+                    Text("kcal").font(.ui(11, weight: .semibold)).foregroundColor(Theme.sub)
                 }
             }
             .padding(.bottom, 10)
@@ -698,7 +698,7 @@ struct FinishSessionSheet: View {
                     .frame(width: 110)
             }
             Text(caloriesReady ? t("wk.cal_hint") : t("wk.cal_at_finish"))
-                .font(.system(size: 10)).foregroundColor(Theme.sub).padding(.top, 6)
+                .font(.ui(10)).foregroundColor(Theme.sub).padding(.top, 6)
         }
     }
 
@@ -721,7 +721,7 @@ struct FinishSessionSheet: View {
                     Text("TRIMP").font(.head(10, .semibold)).tracking(1.5).foregroundColor(Theme.sub)
                     Text("\(Int(v.rounded()))").font(.num(16)).foregroundColor(Theme.acc2)
                     Spacer()
-                    Text(t("load.trimp_hint")).font(.system(size: 10)).foregroundColor(Theme.sub)
+                    Text(t("load.trimp_hint")).font(.ui(10)).foregroundColor(Theme.sub)
                 }
                 .padding(.top, 12)
             }

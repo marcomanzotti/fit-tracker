@@ -27,11 +27,11 @@ struct NutritionView: View {
             InfoLbl(text: "\(t("nutp.today")) · \(fmtDM(today()))", info: .intake, color: Theme.acc2).padding(.bottom, 12)
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text("\(kcal)").font(.num(30)).foregroundColor(logged ? Theme.acc : Theme.sub)
-                Text("/ \(Int(e.target)) kcal").font(.system(size: 12, weight: .semibold)).foregroundColor(Theme.sub)
+                Text("/ \(Int(e.target)) kcal").font(.ui(12, weight: .semibold)).foregroundColor(Theme.sub)
                 Spacer()
                 if logged {
                     Text(t("nut.macros_short", Int(entry?.totalProtein ?? 0), Int(entry?.totalCarbs ?? 0), Int(entry?.totalFat ?? 0)))
-                        .font(.system(size: 10)).foregroundColor(Theme.sub)
+                        .font(.ui(10)).foregroundColor(Theme.sub)
                 }
             }
             .padding(.bottom, 8)
@@ -80,7 +80,7 @@ struct FoodDatabaseCard: View {
             }
             .padding(.bottom, foods.isEmpty ? 0 : 10)
             if foods.isEmpty {
-                Text(t("nutp.no_foods")).font(.system(size: 11)).foregroundColor(Theme.sub)
+                Text(t("nutp.no_foods")).font(.ui(11)).foregroundColor(Theme.sub)
                     .frame(maxWidth: .infinity).padding(.top, 12)
             } else {
                 VStack(spacing: 8) {
@@ -102,7 +102,7 @@ struct FoodDatabaseCard: View {
                     Color.black.opacity(0.4).ignoresSafeArea()
                     VStack(spacing: 10) {
                         ProgressView().tint(Theme.acc)
-                        Text(t("food.looking")).font(.system(size: 12)).foregroundColor(Theme.txt)
+                        Text(t("food.looking")).font(.ui(12)).foregroundColor(Theme.txt)
                     }
                     .padding(22).background(Theme.c1).clipShape(RoundedRectangle(cornerRadius: 14))
                 }
@@ -114,12 +114,12 @@ struct FoodDatabaseCard: View {
         Button { tap(); sheet = .form(f) } label: {
             HStack(spacing: 10) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(f.name).font(.system(size: 14, weight: .semibold)).foregroundColor(Theme.txt).lineLimit(1)
+                    Text(f.name).font(.ui(14, weight: .semibold)).foregroundColor(Theme.txt).lineLimit(1)
                     Text("\(trimNum(f.k100)) kcal · P \(trimNum(f.p100)) C \(trimNum(f.c100)) F \(trimNum(f.f100)) · /100\(f.unit)")
-                        .font(.system(size: 10)).foregroundColor(Theme.sub).lineLimit(1)
+                        .font(.ui(10)).foregroundColor(Theme.sub).lineLimit(1)
                 }
                 Spacer()
-                Image(systemName: "slider.horizontal.3").font(.system(size: 13)).foregroundColor(Theme.sub)
+                Image(systemName: "slider.horizontal.3").font(.ui(13)).foregroundColor(Theme.sub)
             }
             .padding(.vertical, 9).padding(.horizontal, 12)
             .frame(maxWidth: .infinity, alignment: .leading)

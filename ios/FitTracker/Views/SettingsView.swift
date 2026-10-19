@@ -60,7 +60,7 @@ struct SettingsView: View {
                     if section == "profile" || section == "training" {
                         BigButton(title: t("save")) { save() }
                     }
-                    Text(appVersionLabel).font(.system(size: 12)).foregroundColor(Theme.sub)
+                    Text(appVersionLabel).font(.ui(12)).foregroundColor(Theme.sub)
                         .frame(maxWidth: .infinity).padding(.bottom, 30)
                 }
                 .padding(.horizontal, 18)
@@ -105,8 +105,8 @@ struct SettingsView: View {
     private func toggleRow(_ title: String, _ hint: String, _ binding: Binding<Bool>) -> some View {
         Toggle(isOn: binding) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.system(size: 14, weight: .medium)).foregroundColor(Theme.txt)
-                if !hint.isEmpty { Text(hint).font(.system(size: 10)).foregroundColor(Theme.sub) }
+                Text(title).font(.ui(14, weight: .medium)).foregroundColor(Theme.txt)
+                if !hint.isEmpty { Text(hint).font(.ui(10)).foregroundColor(Theme.sub) }
             }
         }
         .tint(Theme.acc)
@@ -145,7 +145,7 @@ struct SettingsView: View {
             }
             Card {
                 FieldRow(label: t("set.hold_prep")) { InputField(placeholder: "7", text: $draft.holdPrep, keyboard: .numberPad) }
-                Text(t("set.hold_prep_hint")).font(.system(size: 10)).foregroundColor(Theme.sub).padding(.top, 6)
+                Text(t("set.hold_prep_hint")).font(.ui(10)).foregroundColor(Theme.sub).padding(.top, 6)
                 Spacer().frame(height: 14)
                 FieldRow(label: t("set.bar_weight")) { InputField(placeholder: "20", text: $draft.barWeight) }
                 Spacer().frame(height: 14)
@@ -161,12 +161,12 @@ struct SettingsView: View {
     private var volumeTargetsCard: some View {
         Card {
             Lbl(text: t("set.vol_targets"), color: Theme.acc2).padding(.bottom, 4)
-            Text(t("set.vol_targets_hint")).font(.system(size: 10)).foregroundColor(Theme.sub).padding(.bottom, 8)
+            Text(t("set.vol_targets_hint")).font(.ui(10)).foregroundColor(Theme.sub).padding(.bottom, 8)
             ForEach(Self.volumeGroups) { g in
                 Stepper(value: Binding(get: { store.volumeTarget(g) }, set: { setVolumeTarget(g, $0) }), in: 4...30) {
                     HStack {
                         Circle().fill(Color(hex: g.color)).frame(width: 8, height: 8)
-                        Text(t(g.labelKey)).font(.system(size: 13)).foregroundColor(Theme.txt)
+                        Text(t(g.labelKey)).font(.ui(13)).foregroundColor(Theme.txt)
                         Spacer()
                         Text("\(store.volumeTarget(g))").font(.num(15)).foregroundColor(Theme.acc2)
                     }
@@ -198,7 +198,7 @@ struct SettingsView: View {
                 Spacer()
             }
             .padding(.bottom, 8)
-            Text(t("hk.hint")).font(.system(size: 11)).foregroundColor(Theme.sub).lineSpacing(3).padding(.bottom, 12)
+            Text(t("hk.hint")).font(.ui(11)).foregroundColor(Theme.sub).lineSpacing(3).padding(.bottom, 12)
             if HealthKitManager.shared.isAvailable {
                 if store.prefs.healthKitEnabled { connectedHealth } else {
                     FilledButton(title: t("hk.connect")) {
@@ -211,7 +211,7 @@ struct SettingsView: View {
                 Spacer().frame(height: 14)
                 GhostButton(title: t("guide.open"), color: Theme.blue) { showGuide = true }.padding(.bottom, 4)
             } else {
-                Text(t("hk.unavailable")).font(.system(size: 12)).foregroundColor(Theme.sub)
+                Text(t("hk.unavailable")).font(.ui(12)).foregroundColor(Theme.sub)
             }
         }
     }
@@ -234,8 +234,8 @@ struct SettingsView: View {
                     p.setHealthCategories(cats)
                 })) {
                     HStack(spacing: 8) {
-                        Image(systemName: cat.icon).font(.system(size: 12)).foregroundColor(Theme.acc2).frame(width: 18)
-                        Text(t(cat.labelKey)).font(.system(size: 13)).foregroundColor(Theme.txt)
+                        Image(systemName: cat.icon).font(.ui(12)).foregroundColor(Theme.acc2).frame(width: 18)
+                        Text(t(cat.labelKey)).font(.ui(13)).foregroundColor(Theme.txt)
                     }
                 }
                 .tint(Theme.acc)
@@ -250,10 +250,10 @@ struct SettingsView: View {
             // categories actually arrived.
             Button { tap(); showHealthHistory = true } label: {
                 HStack(spacing: 8) {
-                    Image(systemName: "clock.arrow.circlepath").font(.system(size: 13, weight: .bold))
-                    Text(t("hk.history")).font(.system(size: 13, weight: .semibold))
+                    Image(systemName: "clock.arrow.circlepath").font(.ui(13, weight: .bold))
+                    Text(t("hk.history")).font(.ui(13, weight: .semibold))
                     Spacer()
-                    Image(systemName: "chevron.right").font(.system(size: 11))
+                    Image(systemName: "chevron.right").font(.ui(11))
                 }
                 .foregroundColor(Theme.acc2)
                 .padding(.vertical, 10)
@@ -316,7 +316,7 @@ struct HealthStatusRow: View {
                 Button {
                     if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
                 } label: {
-                    Text(t("hk.open_settings")).font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.acc2)
+                    Text(t("hk.open_settings")).font(.ui(11, weight: .semibold)).foregroundColor(Theme.acc2)
                 }
                 .buttonStyle(.plain)
             }
@@ -345,7 +345,7 @@ struct BackupCard: View {
     var body: some View {
         Card {
             Lbl(text: t("home.backup")).padding(.bottom, 4)
-            Text(t("home.backup_auto")).font(.system(size: 10)).foregroundColor(Theme.sub).padding(.bottom, 10)
+            Text(t("home.backup_auto")).font(.ui(10)).foregroundColor(Theme.sub).padding(.bottom, 10)
             HStack(spacing: 10) {
                 GhostButton(title: t("home.export")) {
                     if let url = store.exportFile() { shareURL = IdentURL(url: url) }

@@ -34,7 +34,7 @@ struct StorageBanner: View {
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: "exclamationmark.triangle.fill").foregroundColor(Theme.red)
-            Text(t("store.save_failed", reason)).font(.system(size: 12, weight: .semibold))
+            Text(t("store.save_failed", reason)).font(.ui(12, weight: .semibold))
                 .foregroundColor(Theme.txt).fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
         }
@@ -220,7 +220,7 @@ struct ProfileFormBody: View {
                 }
                 PillSelect(options: ["sedentary", "light", "moderate", "high", "athlete"],
                            title: activityTitle, selection: $f.activity)
-                Text(activityDesc(f.activity)).font(.system(size: 11)).foregroundColor(Theme.sub)
+                Text(activityDesc(f.activity)).font(.ui(11)).foregroundColor(Theme.sub)
                     .padding(.top, 2)
             }
             HStack(spacing: 12) {
@@ -231,7 +231,7 @@ struct ProfileFormBody: View {
             // Learned from the workouts, offered and never applied alone.
             if let suggested = store.suggestedMaxHR, f.maxHR != String(suggested) {
                 Button { f.maxHR = String(suggested) } label: {
-                    Text(t("ob.max_hr_suggest", suggested)).font(.system(size: 12, weight: .semibold)).foregroundColor(Theme.acc2)
+                    Text(t("ob.max_hr_suggest", suggested)).font(.ui(12, weight: .semibold)).foregroundColor(Theme.acc2)
                 }
                 .buttonStyle(.plain)
             }
@@ -270,7 +270,7 @@ struct OnboardingView: View {
                     case 2: Card { yourGoal }
                     default: healthStep
                     }
-                    if let problem { Text(problem).font(.system(size: 12, weight: .medium)).foregroundColor(Theme.acc2) }
+                    if let problem { Text(problem).font(.ui(12, weight: .medium)).foregroundColor(Theme.acc2) }
                     HStack(spacing: 10) {
                         if step > 0 { GhostButton(title: t("ob.back")) { step -= 1 } }
                         BigButton(title: step == Self.steps - 1 ? t("ob.finish") : t("ob.next")) { next() }
@@ -303,7 +303,7 @@ struct OnboardingView: View {
             .font(.head(28, .bold)).tracking(1)
             Text("\(t("ob.welcome").uppercased()) · \(step + 1)/\(Self.steps)")
                 .font(.head(13, .semibold)).tracking(2).foregroundColor(Theme.acc)
-            if step == 0 { Text(t("ob.intro")).font(.system(size: 14)).foregroundColor(Theme.sub).lineSpacing(4) }
+            if step == 0 { Text(t("ob.intro")).font(.ui(14)).foregroundColor(Theme.sub).lineSpacing(4) }
             Bar(value: Double(step + 1) / Double(Self.steps))
         }
         .padding(.top, 30)
@@ -334,7 +334,7 @@ struct OnboardingView: View {
                 PillSelect(options: ["sedentary", "light", "moderate", "high", "athlete"],
                            title: activityTitle, selection: $f.activity)
             }
-            Text(activityDesc(f.activity)).font(.system(size: 11)).foregroundColor(Theme.sub)
+            Text(activityDesc(f.activity)).font(.ui(11)).foregroundColor(Theme.sub)
         }
     }
 
@@ -356,9 +356,9 @@ struct OnboardingView: View {
         VStack(alignment: .leading, spacing: 16) {
             Card {
                 Lbl(text: t("hk.connect"), color: Theme.acc2).padding(.bottom, 6)
-                Text(t("hk.hint")).font(.system(size: 11)).foregroundColor(Theme.sub).lineSpacing(3).padding(.bottom, 12)
+                Text(t("hk.hint")).font(.ui(11)).foregroundColor(Theme.sub).lineSpacing(3).padding(.bottom, 12)
                 if !HealthKitManager.shared.isAvailable {
-                    Text(t("hk.unavailable")).font(.system(size: 12)).foregroundColor(Theme.sub)
+                    Text(t("hk.unavailable")).font(.ui(12)).foregroundColor(Theme.sub)
                 } else if healthLinked {
                     Text(t("hk.connected").uppercased()).font(.head(11, .semibold)).tracking(0.5).foregroundColor(Theme.good)
                 } else {
@@ -374,7 +374,7 @@ struct OnboardingView: View {
             // Any wearable (Apple Watch, Garmin, Polar, Huawei via file…) can feed the app.
             Card {
                 Lbl(text: t("guide.open"), color: Theme.acc2).padding(.bottom, 6)
-                Text(t("guide.intro")).font(.system(size: 11)).foregroundColor(Theme.sub).lineSpacing(3).padding(.bottom, 10)
+                Text(t("guide.intro")).font(.ui(11)).foregroundColor(Theme.sub).lineSpacing(3).padding(.bottom, 10)
                 GhostButton(title: t("guide.open"), color: Theme.blue) { showGuide = true }
             }
         }

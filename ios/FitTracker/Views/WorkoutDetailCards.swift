@@ -23,24 +23,24 @@ struct DeviceMetricsCard: View {
                 Lbl(text: t("dev.title"), color: Theme.acc2)
                 Spacer()
                 if let src = session.source {
-                    Text(src).font(.system(size: 10, weight: .semibold)).foregroundColor(Theme.sub).lineLimit(1)
+                    Text(src).font(.ui(10, weight: .semibold)).foregroundColor(Theme.sub).lineLimit(1)
                 }
             }
             .padding(.bottom, 6)
-            Text(t(rows.isEmpty ? "dev.empty" : "dev.note")).font(.system(size: 11)).foregroundColor(Theme.sub)
+            Text(t(rows.isEmpty ? "dev.empty" : "dev.note")).font(.ui(11)).foregroundColor(Theme.sub)
                 .padding(.bottom, 10)
             ForEach(rows.filter { !$0.isDeviceScore }) { MetricRow(session: $session, metric: $0) }
             let scores = rows.filter(\.isDeviceScore)
             if !scores.isEmpty {
                 Lbl(text: t("dev.scores")).padding(.top, 12)
-                Text(t("dev.scores_note")).font(.system(size: 10)).foregroundColor(Theme.sub).padding(.vertical, 4)
+                Text(t("dev.scores_note")).font(.ui(10)).foregroundColor(Theme.sub).padding(.vertical, 4)
                 ForEach(scores) { MetricRow(session: $session, metric: $0) }
             }
             if !missing.isEmpty {
                 Menu {
                     ForEach(missing) { m in Button(t(m.labelKey)) { added.append(m) } }
                 } label: {
-                    Label(t("dev.add"), systemImage: "plus").font(.system(size: 12, weight: .semibold))
+                    Label(t("dev.add"), systemImage: "plus").font(.ui(12, weight: .semibold))
                         .foregroundColor(Theme.sub).padding(.vertical, 8).padding(.horizontal, 14)
                         .frame(minHeight: 38).chrome(9)
                 }
@@ -62,20 +62,20 @@ private struct MetricRow: View {
     var body: some View {
         HStack(spacing: 8) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(t(metric.labelKey)).font(.system(size: 13, weight: .medium)).foregroundColor(Theme.txt)
+                Text(t(metric.labelKey)).font(.ui(13, weight: .medium)).foregroundColor(Theme.txt)
                     .lineLimit(1).minimumScaleFactor(0.8)
-                Text(provenance).font(.system(size: 10)).foregroundColor(text.isEmpty ? Theme.sub : Theme.acc2)
+                Text(provenance).font(.ui(10)).foregroundColor(text.isEmpty ? Theme.sub : Theme.acc2)
             }
             Spacer(minLength: 4)
             TextField("", text: $text, prompt: Text(device.map(metric.format) ?? "—").foregroundColor(Theme.sub))
                 .keyboardType(.decimalPad).multilineTextAlignment(.trailing)
-                .foregroundColor(Theme.txt).font(.system(size: 15, weight: .medium))
+                .foregroundColor(Theme.txt).font(.ui(15, weight: .medium))
                 .padding(.vertical, 8).padding(.horizontal, 10)
                 .frame(width: 92).chrome(9)
-            Text(metric.unit).font(.system(size: 10, weight: .semibold)).foregroundColor(Theme.sub)
+            Text(metric.unit).font(.ui(10, weight: .semibold)).foregroundColor(Theme.sub)
                 .frame(width: 54, alignment: .leading).lineLimit(1).minimumScaleFactor(0.7)
             Button { tap(); text = "" } label: {
-                Image(systemName: "arrow.uturn.backward").font(.system(size: 11, weight: .bold))
+                Image(systemName: "arrow.uturn.backward").font(.ui(11, weight: .bold))
                     .foregroundColor(Theme.sub).frame(width: 28, height: Theme.minTapTarget)
             }
             .accessibilityLabel(t("dev.reset"))
@@ -123,7 +123,7 @@ struct WorkoutSeriesCard: View {
             } else if let s = series, !s.isEmpty {
                 content(s)
             } else {
-                Text(t("series.none")).font(.system(size: 11)).foregroundColor(Theme.sub)
+                Text(t("series.none")).font(.ui(11)).foregroundColor(Theme.sub)
             }
         }
         .task(id: uuid) {
@@ -179,7 +179,7 @@ struct WorkoutSeriesCard: View {
                     HStack(spacing: 8) {
                         Text("Z\(i + 1)").font(.num(11)).foregroundColor(Self.zoneColors[i]).frame(width: 22, alignment: .leading)
                         Bar(value: seconds[i] / total, gradient: [Self.zoneColors[i], Self.zoneColors[i]], height: 6)
-                        Text(fmtClock(Int(seconds[i]))).font(.system(size: 10, weight: .medium)).foregroundColor(Theme.sub)
+                        Text(fmtClock(Int(seconds[i]))).font(.ui(10, weight: .medium)).foregroundColor(Theme.sub)
                             .frame(width: 48, alignment: .trailing)
                     }
                 }
@@ -192,13 +192,13 @@ struct WorkoutSeriesCard: View {
             Lbl(text: t("series.splits"))
             ForEach(splits) { split in
                 HStack {
-                    Text("\(split.index) km").font(.system(size: 12, weight: .medium)).foregroundColor(Theme.txt)
+                    Text("\(split.index) km").font(.ui(12, weight: .medium)).foregroundColor(Theme.txt)
                         .frame(width: 52, alignment: .leading)
                     Text(paceIsSpeed ? "\(trimNum((3600 / split.seconds * 10).rounded() / 10)) km/h" : "\(fmtClock(Int(split.seconds))) /km")
                         .font(.num(13)).foregroundColor(Theme.acc)
                     Spacer()
                     if let hr = split.avgHR {
-                        Text("\(Int(hr.rounded())) bpm").font(.system(size: 11)).foregroundColor(Theme.sub)
+                        Text("\(Int(hr.rounded())) bpm").font(.ui(11)).foregroundColor(Theme.sub)
                     }
                 }
             }
@@ -242,7 +242,7 @@ struct SessionEditorView: View {
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(t("wk.edit_session").uppercased()).font(.head(16, .bold)).tracking(1).foregroundColor(Theme.txt)
-                            Text("\(session.planName) · \(fmtDM(session.date))").font(.system(size: 11)).foregroundColor(Theme.sub)
+                            Text("\(session.planName) · \(fmtDM(session.date))").font(.ui(11)).foregroundColor(Theme.sub)
                         }
                         Spacer()
                         Button { if isDirty { confirmClose = true } else { dismiss() } } label: {
@@ -277,7 +277,7 @@ struct SessionEditorView: View {
                                 Text("TRIMP").font(.head(10, .semibold)).tracking(1.5).foregroundColor(Theme.sub)
                                 Text("\(Int(v.rounded()))").font(.num(16)).foregroundColor(Theme.acc2)
                                 Spacer()
-                                Text(t("load.trimp_hint")).font(.system(size: 10)).foregroundColor(Theme.sub)
+                                Text(t("load.trimp_hint")).font(.ui(10)).foregroundColor(Theme.sub)
                             }
                             .padding(.top, 12)
                         }
@@ -293,7 +293,7 @@ struct SessionEditorView: View {
                             Spacer()
                             HStack(alignment: .firstTextBaseline, spacing: 4) {
                                 Text("\(store.estimateCalories(session))").font(.num(26)).foregroundColor(Theme.acc)
-                                Text("kcal").font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.sub)
+                                Text("kcal").font(.ui(11, weight: .semibold)).foregroundColor(Theme.sub)
                             }
                         }
                         .padding(.bottom, 10)
@@ -302,7 +302,7 @@ struct SessionEditorView: View {
                         // number to compare across devices.
                         if session.caloriesManual != nil {
                             Text("\(t("wk.cal_app")): \(store.estimateCalories(appEstimateSession)) kcal")
-                                .font(.system(size: 10)).foregroundColor(Theme.sub).padding(.top, 6)
+                                .font(.ui(10)).foregroundColor(Theme.sub).padding(.top, 6)
                         }
                     }
 
@@ -329,7 +329,7 @@ struct SessionEditorView: View {
                             haptic(.success); toast.show(t("wk.repeated")); dismiss()
                         } label: {
                             HStack(spacing: 7) {
-                                Image(systemName: "arrow.trianglehead.2.clockwise").font(.system(size: 13, weight: .bold))
+                                Image(systemName: "arrow.trianglehead.2.clockwise").font(.ui(13, weight: .bold))
                                 Text(t("wk.repeat_today")).font(.head(13, .semibold))
                             }
                             .foregroundColor(Theme.blue)
@@ -344,7 +344,7 @@ struct SessionEditorView: View {
                        store.plan(session.planId) == nil {
                         Button { tap(); store.recreatePlan(from: session); haptic(.success); toast.show(t("wk.day_created")); dismiss() } label: {
                             HStack(spacing: 7) {
-                                Image(systemName: "plus.square.on.square").font(.system(size: 13, weight: .bold))
+                                Image(systemName: "plus.square.on.square").font(.ui(13, weight: .bold))
                                 Text(t("wk.recreate_plan")).font(.head(13, .semibold))
                             }
                             .foregroundColor(Theme.acc)
@@ -389,11 +389,11 @@ struct SessionEditorView: View {
             Lbl(text: t("wk.add_ex")).padding(.bottom, 8)
             HStack(spacing: 9) {
                 TextField("", text: $addName, prompt: Text(t("wk.add_ex_ph")).foregroundColor(Theme.sub))
-                    .font(.system(size: 15, weight: .medium)).foregroundColor(Theme.txt)
+                    .font(.ui(15, weight: .medium)).foregroundColor(Theme.txt)
                     .padding(.vertical, 12).padding(.horizontal, 14)
                     .chrome()
                 Button { addExercise() } label: {
-                    Image(systemName: "plus").accessibilityLabel(t("wk.add_ex")).font(.system(size: 16, weight: .bold))
+                    Image(systemName: "plus").accessibilityLabel(t("wk.add_ex")).font(.ui(16, weight: .bold))
                         .foregroundColor(Theme.bg).frame(width: 50, height: 48).background(Theme.acc)
                         .clipShape(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous))
                 }
@@ -433,7 +433,7 @@ struct SessionEditorView: View {
         return Card {
             // Name + kind badge + bodyweight toggle
             HStack(spacing: 8) {
-                Text(ex.name).font(.system(size: 14, weight: .semibold)).foregroundColor(Theme.txt)
+                Text(ex.name).font(.ui(14, weight: .semibold)).foregroundColor(Theme.txt)
                 if kind != .reps {
                     Badge(text: t(kind.labelKey), color: Theme.acc2, bg: Theme.acc2.opacity(0.14))
                 }
@@ -444,7 +444,7 @@ struct SessionEditorView: View {
                         Label(t("wk.remove_ex"), systemImage: "trash")
                     }
                 } label: {
-                    Image(systemName: "ellipsis").accessibilityLabel(t("a11y.more")).font(.system(size: 14, weight: .bold))
+                    Image(systemName: "ellipsis").accessibilityLabel(t("a11y.more")).font(.ui(14, weight: .bold))
                         .foregroundColor(Theme.sub).frame(width: Theme.minTapTarget, height: Theme.minTapTarget)
                 }
             }
@@ -458,7 +458,7 @@ struct SessionEditorView: View {
             case .timed:
                 TimedSetRows(exercise: exB, bodyweight: bw)
                 if bw {
-                    Text(t("wk.bw_hint")).font(.system(size: 10)).foregroundColor(Theme.sub).padding(.top, 4)
+                    Text(t("wk.bw_hint")).font(.ui(10)).foregroundColor(Theme.sub).padding(.top, 4)
                 }
                 GhostButton(title: t("wk.add_set")) { exB.wrappedValue.sets.append(SetEntry()) }
                     .padding(.top, 10)
@@ -489,8 +489,8 @@ struct SessionEditorView: View {
                     }
                 } label: {
                     HStack(spacing: 5) {
-                        Text(cur.label).font(.system(size: 12, weight: .semibold)).foregroundColor(Theme.txt)
-                        Image(systemName: "chevron.down").font(.system(size: 10)).foregroundColor(Theme.sub)
+                        Text(cur.label).font(.ui(12, weight: .semibold)).foregroundColor(Theme.txt)
+                        Image(systemName: "chevron.down").font(.ui(10)).foregroundColor(Theme.sub)
                     }
                     .padding(.vertical, 6).padding(.horizontal, 10)
                     .chrome(8)
@@ -499,12 +499,12 @@ struct SessionEditorView: View {
                 if isGrouped {
                     Text(t("pe.group").uppercased()).font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.sub)
                     Button { tap(); let g = (exB.wrappedValue.supersetGroup ?? 1); exB.wrappedValue.supersetGroup = max(1, g - 1) } label: {
-                        Image(systemName: "minus").font(.system(size: 10, weight: .bold)).foregroundColor(Theme.txt)
+                        Image(systemName: "minus").font(.ui(10, weight: .bold)).foregroundColor(Theme.txt)
                             .frame(width: 24, height: 24).background(Theme.c3).clipShape(Circle())
                     }.buttonStyle(PressableStyle())
                     Text("\(exB.wrappedValue.supersetGroup ?? 1)").font(.num(15)).frame(minWidth: 14)
                     Button { tap(); exB.wrappedValue.supersetGroup = (exB.wrappedValue.supersetGroup ?? 0) + 1 } label: {
-                        Image(systemName: "plus").font(.system(size: 10, weight: .bold)).foregroundColor(Theme.txt)
+                        Image(systemName: "plus").font(.ui(10, weight: .bold)).foregroundColor(Theme.txt)
                             .frame(width: 24, height: 24).background(Theme.c3).clipShape(Circle())
                     }.buttonStyle(PressableStyle())
                 }
@@ -525,7 +525,7 @@ struct SessionEditorView: View {
                             afterKeyboardDismissed { exB.wrappedValue.sets.removeAll { $0.id == id } }
                         } label: { Label(t("a11y.remove"), systemImage: "trash") }
                     } label: {
-                        Text("\(t("wk.set")) \(n)").font(.system(size: 11)).foregroundColor(Theme.sub)
+                        Text("\(t("wk.set")) \(n)").font(.ui(11)).foregroundColor(Theme.sub)
                             .frame(width: 54, height: Theme.minTapTarget, alignment: .leading)
                     }
                     SmallNumField(text: $set.reps, placeholder: t("wk.reps"))
@@ -537,7 +537,7 @@ struct SessionEditorView: View {
                 .padding(.vertical, 4)
             }
             if bw {
-                Text(t("wk.bw_hint")).font(.system(size: 10)).foregroundColor(Theme.sub).padding(.top, 4)
+                Text(t("wk.bw_hint")).font(.ui(10)).foregroundColor(Theme.sub).padding(.top, 4)
             }
             GhostButton(title: t("wk.add_set")) { exB.wrappedValue.sets.append(SetEntry()) }
                 .padding(.top, 10)

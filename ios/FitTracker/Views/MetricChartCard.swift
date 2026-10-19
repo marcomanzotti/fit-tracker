@@ -35,7 +35,7 @@ struct MetricChartCard: View {
                         }
                         Button { tap(); expanded = true } label: {
                             Image(systemName: "arrow.up.left.and.arrow.down.right")
-                                .font(.system(size: 12, weight: .semibold)).foregroundColor(Theme.sub)
+                                .font(.ui(12, weight: .semibold)).foregroundColor(Theme.sub)
                                 .frame(width: 28, height: 28)
                                 .background(Theme.c2).clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                         }
@@ -66,8 +66,8 @@ private struct SelectedValue: View {
     var body: some View {
         HStack(spacing: 6) {
             Text(value).font(.num(13)).foregroundColor(color)
-            Text("·").foregroundColor(Theme.sub).font(.system(size: 11))
-            Text(pointDate(day, granularity)).font(.system(size: 11)).foregroundColor(Theme.sub)
+            Text("·").foregroundColor(Theme.sub).font(.ui(11))
+            Text(pointDate(day, granularity)).font(.ui(11)).foregroundColor(Theme.sub)
         }
     }
 }
@@ -254,7 +254,7 @@ struct ExpandedChartSheet: View {
                         .frame(height: 320)
                 } else {
                     Spacer()
-                    Text(t("st.no_data")).font(.system(size: 13)).foregroundColor(Theme.sub)
+                    Text(t("st.no_data")).font(.ui(13)).foregroundColor(Theme.sub)
                         .frame(maxWidth: .infinity, alignment: .center)
                     Spacer()
                 }
@@ -289,10 +289,10 @@ struct MuscleVolumeCard: View {
                             HStack(spacing: 10) {
                                 Circle().fill(Color(hex: v.group.color)).frame(width: 8, height: 8)
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text(t(v.group.labelKey)).font(.system(size: 12, weight: .semibold)).foregroundColor(Theme.txt)
+                                    Text(t(v.group.labelKey)).font(.ui(12, weight: .semibold)).foregroundColor(Theme.txt)
                                     if v.target > 0 {
                                         Text(t("st.vol_target", v.range.low, v.range.high))
-                                            .font(.system(size: 10)).foregroundColor(Theme.sub)
+                                            .font(.ui(10)).foregroundColor(Theme.sub)
                                     }
                                 }
                                 .frame(width: 92, alignment: .leading)
@@ -320,7 +320,7 @@ struct MuscleVolumeCard: View {
                             }
                         }
                     }
-                    Text(t("metric.muscle_vol_hint")).font(.system(size: 10)).foregroundColor(Theme.sub).padding(.top, 8)
+                    Text(t("metric.muscle_vol_hint")).font(.ui(10)).foregroundColor(Theme.sub).padding(.top, 8)
                 }
             }
         }
@@ -383,8 +383,8 @@ struct VitalsTrendCard: View {
             if let c = tr.current { Text("\(trimNum(c)) \(unit)").font(.num(16)).foregroundColor(Theme.txt) }
             Spacer()
             HStack(spacing: 5) {
-                Image(systemName: icon).font(.system(size: 11, weight: .bold))
-                Text(t("trend." + tr.status)).font(.system(size: 11, weight: .semibold))
+                Image(systemName: icon).font(.ui(11, weight: .bold))
+                Text(t("trend." + tr.status)).font(.ui(11, weight: .semibold))
             }
             .foregroundColor(color)
         }
@@ -418,7 +418,7 @@ struct FitnessCard: View {
                             InfoButton(id: .vo2max, size: 18)
                             Spacer()
                             Text("\(trimNum(vo2.value))").font(.num(20)).foregroundColor(cls.tone.color)
-                            Text("mL/kg·min").font(.system(size: 10, weight: .semibold)).foregroundColor(Theme.sub)
+                            Text("mL/kg·min").font(.ui(10, weight: .semibold)).foregroundColor(Theme.sub)
                             if vo2.estimated {
                                 Text(t("metric.estimated")).font(.head(10, .semibold)).tracking(0.5).foregroundColor(Theme.acc2)
                                     .padding(.vertical, 2).padding(.horizontal, 6)
@@ -427,7 +427,7 @@ struct FitnessCard: View {
                         }
                         RangeBar(scale: scale, value: vo2.value).padding(.top, 6)
                         Text(t("band." + cls.key) + " · " + t("metric.vo2_norm"))
-                            .font(.system(size: 10)).foregroundColor(Theme.sub).padding(.top, 4)
+                            .font(.ui(10)).foregroundColor(Theme.sub).padding(.top, 4)
                     }
                     let fitAge = store.fitnessAge()
                     let drift = store.lastDecoupling

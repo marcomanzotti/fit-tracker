@@ -422,7 +422,7 @@ struct InfoButton: View {
     @State private var show = false
     var body: some View {
         Button { show = true } label: {
-            Image(systemName: "info.circle").font(.system(size: 13)).foregroundColor(color)
+            Image(systemName: "info.circle").font(.ui(13)).foregroundColor(color)
                 .frame(width: size, height: size)
         }
         .buttonStyle(PressableStyle())
@@ -457,7 +457,7 @@ struct InfoSheet: View {
                     }
                     if let scale = store.infoScale(topic) { scaleCard(scale, value: store.infoValue(topic)) }
                     Text(L.t(topic.bodyKey, lang: lang))
-                        .font(.system(size: 14)).foregroundColor(Theme.txt).lineSpacing(5)
+                        .font(.ui(14)).foregroundColor(Theme.txt).lineSpacing(5)
                         .fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: 10)
                 }
@@ -481,7 +481,7 @@ struct InfoSheet: View {
                     Text(L.t("band." + scale.bands[current].key, lang: lang))
                         .font(.head(11, .semibold)).foregroundColor(scale.bands[current].tone.color)
                 } else {
-                    Text(L.t("info.no_value", lang: lang)).font(.system(size: 12)).foregroundColor(Theme.sub)
+                    Text(L.t("info.no_value", lang: lang)).font(.ui(12)).foregroundColor(Theme.sub)
                 }
             }
             RangeBar(scale: scale, value: value)
@@ -489,7 +489,7 @@ struct InfoSheet: View {
                 ForEach(Array(scale.bands.enumerated().reversed()), id: \.offset) { i, b in
                     HStack(spacing: 8) {
                         Circle().fill(b.tone.color).frame(width: 8, height: 8)
-                        Text(L.t("band." + b.key, lang: lang)).font(.system(size: 13, weight: current == i ? .bold : .regular))
+                        Text(L.t("band." + b.key, lang: lang)).font(.ui(13, weight: current == i ? .bold : .regular))
                             .foregroundColor(current == i ? Theme.txt : Theme.sub)
                         Spacer()
                         Text(rangeText(scale, i)).font(.num(12, .medium)).monospacedDigit()

@@ -58,7 +58,7 @@ struct BodyView: View {
         Card(accent: isToday ? Theme.acc : Theme.blue) {
             HStack(spacing: 10) {
                 Button { tap(); shiftDay(-1) } label: {
-                    Image(systemName: "chevron.left").accessibilityLabel(t("a11y.prev_day")).font(.system(size: 13, weight: .bold))
+                    Image(systemName: "chevron.left").accessibilityLabel(t("a11y.prev_day")).font(.ui(13, weight: .bold))
                         .foregroundColor(Theme.txt).frame(width: 34, height: 34)
                         .background(Theme.c2).clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
                 }.buttonStyle(PressableStyle()).hitArea((Theme.minTapTarget - 34) / 2)
@@ -67,13 +67,13 @@ struct BodyView: View {
                     Text(prettyDay(day)).font(.head(14, .bold)).tracking(0.5)
                         .foregroundColor(isToday ? Theme.acc : Theme.blue)
                     Text(isToday ? t("body.today") : t("body.past_day"))
-                        .font(.system(size: 10)).foregroundColor(Theme.sub)
+                        .font(.ui(10)).foregroundColor(Theme.sub)
                 }
                 Spacer()
 
                 // Forward is disabled on today: there is nothing to log in the future.
                 Button { tap(); shiftDay(1) } label: {
-                    Image(systemName: "chevron.right").accessibilityLabel(t("a11y.next_day")).font(.system(size: 13, weight: .bold))
+                    Image(systemName: "chevron.right").accessibilityLabel(t("a11y.next_day")).font(.ui(13, weight: .bold))
                         .foregroundColor(isToday ? Theme.brd2 : Theme.txt).frame(width: 34, height: 34)
                         .background(Theme.c2).clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
                 }
@@ -82,7 +82,7 @@ struct BodyView: View {
                 .disabled(isToday)
 
                 Button { tap(); showHealthHistory = true } label: {
-                    Image(systemName: "heart.text.square.fill").accessibilityLabel(t("hk.history")).font(.system(size: 15))
+                    Image(systemName: "heart.text.square.fill").accessibilityLabel(t("hk.history")).font(.ui(15))
                         .foregroundColor(Color(hex: Theme.appleGreen))
                         .frame(width: 34, height: 34)
                         .background(Theme.c2).clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
@@ -137,7 +137,7 @@ struct BodyView: View {
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: showManualSleep ? "chevron.up" : "pencil")
-                            .font(.system(size: 10, weight: .semibold))
+                            .font(.ui(10, weight: .semibold))
                         if !hasHealthData {
                             Text(t("body.sleep_manual").uppercased()).font(.head(10, .semibold)).tracking(1)
                         }
@@ -163,10 +163,10 @@ struct BodyView: View {
                     tap(); withAnimation(Theme.settle) { showSleepDetail.toggle() }
                 } label: {
                     HStack(spacing: 6) {
-                        Image(systemName: "moon.zzz.fill").font(.system(size: 12))
+                        Image(systemName: "moon.zzz.fill").font(.ui(12))
                         Text(t(showSleepDetail ? "sleep.hide_all" : "sleep.show_all")).font(.head(12, .semibold))
                         Spacer()
-                        Image(systemName: "chevron.down").font(.system(size: 11, weight: .bold))
+                        Image(systemName: "chevron.down").font(.ui(11, weight: .bold))
                             .rotationEffect(.degrees(showSleepDetail ? 180 : 0))
                     }
                     .foregroundColor(Theme.blue)
@@ -287,11 +287,11 @@ struct BodyView: View {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 4) {
                     Lbl(text: t("body.log"), color: Theme.acc2)
-                    Text(prettyDay(day)).font(.system(size: 12, weight: .medium)).foregroundColor(Theme.sub)
+                    Text(prettyDay(day)).font(.ui(12, weight: .medium)).foregroundColor(Theme.sub)
                 }
                 Spacer()
                 Image(systemName: "slider.horizontal.3")
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.ui(15, weight: .semibold))
                     .foregroundColor(Theme.acc2)
             }
             .padding(.bottom, 14)
@@ -310,7 +310,7 @@ struct BodyView: View {
                 HStack {
                     Text(t("body.measures").uppercased()).font(.head(10, .semibold)).tracking(1.5).foregroundColor(Theme.sub)
                     Spacer()
-                    Text(Units.lenLabel).font(.system(size: 10, weight: .semibold)).foregroundColor(Theme.sub)
+                    Text(Units.lenLabel).font(.ui(10, weight: .semibold)).foregroundColor(Theme.sub)
                 }
                 ForEach(measureFields) { measure in
                     bodyMeasureRow(measure, bl: bl)
@@ -333,7 +333,7 @@ struct BodyView: View {
                     .keyboardType(keyboard)
                     .font(.num(21)).foregroundColor(Theme.txt)
                     .lineLimit(1).minimumScaleFactor(0.65)
-                Text(unit).font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.sub)
+                Text(unit).font(.ui(11, weight: .semibold)).foregroundColor(Theme.sub)
             }
             .padding(.horizontal, 11).frame(height: 45)
             .chrome(9)
@@ -351,13 +351,13 @@ struct BodyView: View {
 
         return HStack(spacing: 10) {
             Circle().fill(Color(hex: measure.color)).frame(width: 8, height: 8)
-            Text(measLabel(measure.key)).font(.system(size: 14, weight: .medium)).foregroundColor(Theme.txt)
+            Text(measLabel(measure.key)).font(.ui(14, weight: .medium)).foregroundColor(Theme.txt)
             if let current {
                 VStack(alignment: .leading, spacing: 1) {
                     Text(dispLen(current)).font(.num(15)).foregroundColor(Theme.txt)
                     if let delta {
                         Text(delta == 0 ? t("body.stable") : "\(delta > 0 ? "+" : "")\(dispLen(delta))")
-                            .font(.system(size: 10, weight: .medium))
+                            .font(.ui(10, weight: .medium))
                             .foregroundColor(delta == 0 ? Theme.sub : (delta < 0 ? Theme.good : Theme.acc2))
                     }
                 }
@@ -367,7 +367,7 @@ struct BodyView: View {
             }
             TextField(current.map(dispLen) ?? "", text: binding(for: measure.key), prompt: Text(t("body.add_measure")))
                 .keyboardType(.decimalPad)
-                .font(.system(size: 15, weight: .medium)).foregroundColor(Theme.txt)
+                .font(.ui(15, weight: .medium)).foregroundColor(Theme.txt)
                 .multilineTextAlignment(.trailing)
                 .padding(.horizontal, 10).frame(height: 38)
                 .chrome(8)
@@ -433,7 +433,7 @@ struct BodyView: View {
                 Spacer()
                 Button { tap(); editingGoal = true } label: {
                     HStack(spacing: 5) {
-                        Image(systemName: "target").font(.system(size: 10, weight: .bold))
+                        Image(systemName: "target").font(.ui(10, weight: .bold))
                         Text(t("goal.change").uppercased()).font(.head(10, .semibold)).tracking(0.8)
                     }
                     .foregroundColor(Theme.acc)
@@ -447,14 +447,14 @@ struct BodyView: View {
             HStack(spacing: 16) {
                 VStack(spacing: 0) {
                     HStack {
-                        Text(t("home.weight")).font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.sub)
+                        Text(t("home.weight")).font(.ui(11, weight: .semibold)).foregroundColor(Theme.sub)
                         Spacer()
                         Text("\(dispW(lw)) → \(dispW(p.goalWeight)) \(Units.wLabel)").font(.num(13)).foregroundColor(Theme.acc)
                     }.padding(.bottom, 5)
                     Bar(value: wtPct).padding(.bottom, bf != nil ? 12 : 0)
                     if let bf, let bfPct {
                         HStack {
-                            Text(t("home.fat")).font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.sub)
+                            Text(t("home.fat")).font(.ui(11, weight: .semibold)).foregroundColor(Theme.sub)
                             Spacer()
                             Text("\(trimNum(bf))% → \(trimNum(p.goalBF))%").font(.num(13)).foregroundColor(Theme.red)
                         }.padding(.bottom, 5)
@@ -483,7 +483,7 @@ struct BodyView: View {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 4) {
                     Lbl(text: t("body.analysis"), color: Theme.acc2)
-                    Text(t("body.composition")).font(.system(size: 12, weight: .medium)).foregroundColor(Theme.sub)
+                    Text(t("body.composition")).font(.ui(12, weight: .medium)).foregroundColor(Theme.sub)
                 }
                 Spacer()
                 InfoButton(id: .bodyfat, color: Theme.acc2)
@@ -496,10 +496,10 @@ struct BodyView: View {
                     Text(t("body.composition").uppercased()).font(.head(10, .semibold)).tracking(1.2).foregroundColor(Theme.sub)
                     HStack(alignment: .firstTextBaseline, spacing: 4) {
                         Text(dispW(lw)).font(.num(28)).foregroundColor(Theme.txt)
-                        Text(Units.wLabel).font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.sub)
+                        Text(Units.wLabel).font(.ui(11, weight: .semibold)).foregroundColor(Theme.sub)
                     }
                     Text(bfCat.map { t($0.key) } ?? t("body.ffmi_need_bf"))
-                        .font(.system(size: 12, weight: .medium)).foregroundColor(bf == nil ? Theme.sub : Theme.fat)
+                        .font(.ui(12, weight: .medium)).foregroundColor(bf == nil ? Theme.sub : Theme.fat)
                     if let bf {
                         Bar(value: min(1, bf / 100), gradient: [Theme.fat, Theme.acc2], height: 8)
                     }
@@ -531,13 +531,13 @@ struct BodyView: View {
                 let hipPart = store.prefs.sex_ == "f" ? " · \(t("body.hips")) \(bl?.hips.map(dispLen) ?? "?")" : ""
                 HStack(spacing: 2) {
                     Text("Navy: \(trimNum(navy))% · \(t("body.neck")) \(bl?.neck.map(dispLen) ?? "?") · \(t("body.waist")) \(bl?.waist.map(dispLen) ?? "?")\(hipPart) \(Units.lenLabel)")
-                        .font(.system(size: 10)).foregroundColor(Theme.sub)
+                        .font(.ui(10)).foregroundColor(Theme.sub)
                     InfoButton(id: .navy, size: 18)
                 }
                 .padding(.top, 8)
             } else if store.prefs.sex_ == "f", bl?.waist != nil, bl?.neck != nil, bl?.hips == nil {
                 // Women's Navy estimate needs the hip measurement — tell the user.
-                Text(t("body.navy_need_hips")).font(.system(size: 10)).foregroundColor(Theme.acc2).padding(.top, 8)
+                Text(t("body.navy_need_hips")).font(.ui(10)).foregroundColor(Theme.acc2).padding(.top, 8)
             }
         }
     }
@@ -552,7 +552,7 @@ struct BodyView: View {
             }
             VStack(spacing: 0) {
                 Text(bodyFat.map(trimNum) ?? "—").font(.num(22)).foregroundColor(Theme.fat)
-                Text("% \(t("body.fat"))").font(.system(size: 10, weight: .semibold)).foregroundColor(Theme.sub)
+                Text("% \(t("body.fat"))").font(.ui(10, weight: .semibold)).foregroundColor(Theme.sub)
             }
         }
         .frame(width: 92, height: 92)
@@ -570,9 +570,9 @@ struct BodyView: View {
             }
             HStack(alignment: .firstTextBaseline, spacing: 3) {
                 Text(value).font(.num(23)).foregroundColor(color).lineLimit(1).minimumScaleFactor(0.55)
-                if let unit { Text(unit).font(.system(size: 10, weight: .semibold)).foregroundColor(Theme.sub) }
+                if let unit { Text(unit).font(.ui(10, weight: .semibold)).foregroundColor(Theme.sub) }
             }
-            Text(note).font(.system(size: 10, weight: .medium)).foregroundColor(Theme.sub)
+            Text(note).font(.ui(10, weight: .medium)).foregroundColor(Theme.sub)
                 .lineLimit(1).minimumScaleFactor(0.75)
         }
         .padding(.vertical, 11).padding(.horizontal, 11)

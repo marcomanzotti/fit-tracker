@@ -68,7 +68,7 @@ struct WorkoutView: View {
         VStack(spacing: 11) {
             // Helper text first, then the "Select day" label — the +New Day button
             // is gone; the trailing "+" card in the grid is the single way to add.
-            Text(t("wk.edit_hint")).font(.system(size: 11)).foregroundColor(Theme.sub).lineSpacing(2)
+            Text(t("wk.edit_hint")).font(.ui(11)).foregroundColor(Theme.sub).lineSpacing(2)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             HStack(spacing: 8) {
@@ -110,7 +110,7 @@ struct WorkoutView: View {
             Button { tap(); editCardio(ct) } label: {
                 VStack(alignment: .leading, spacing: 0) {
                     HStack(spacing: 8) {
-                        Image(systemName: ct.sportType.icon).font(.system(size: 15, weight: .bold))
+                        Image(systemName: ct.sportType.icon).font(.ui(15, weight: .bold))
                             .foregroundColor(Color(hex: ct.color))
                         Spacer()
                     }
@@ -120,7 +120,7 @@ struct WorkoutView: View {
                     // Optional editable subtitle (mirrors strength days); falls back
                     // to the underlying sport label when the user hasn't set one.
                     Text((ct.sub?.isEmpty == false ? ct.sub! : ct.sportType.label))
-                        .font(.system(size: 10)).foregroundColor(Theme.sub).lineLimit(1).padding(.top, 3)
+                        .font(.ui(10)).foregroundColor(Theme.sub).lineLimit(1).padding(.top, 3)
                     Spacer(minLength: 0)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
@@ -139,7 +139,7 @@ struct WorkoutView: View {
 
             Button { tap(); editCardio(ct) } label: {
                 HStack(spacing: 3) {
-                    Image(systemName: "pencil").font(.system(size: 10, weight: .bold))
+                    Image(systemName: "pencil").font(.ui(10, weight: .bold))
                     Text(t("wk.edit").uppercased()).font(.head(10, .semibold)).tracking(0.5)
                 }
                 .foregroundColor(Theme.bg)
@@ -176,7 +176,7 @@ struct WorkoutView: View {
     private var addCardioTile: some View {
         Button { tap(); newCardio() } label: {
             VStack(spacing: 8) {
-                Image(systemName: "plus.circle").font(.system(size: 24)).foregroundColor(Theme.sub)
+                Image(systemName: "plus.circle").font(.ui(24)).foregroundColor(Theme.sub)
                 Text(t("wk.new_cardio")).font(.head(11, .semibold)).tracking(1).foregroundColor(Theme.sub)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -208,7 +208,7 @@ struct WorkoutView: View {
                         .padding(.bottom, 5).padding(.trailing, 30)
                     Text(p.name.uppercased()).font(.head(18, .bold)).tracking(0.5)
                         .foregroundColor(Theme.txt).lineLimit(1).padding(.bottom, 3)
-                    Text(p.sub).font(.system(size: 11)).foregroundColor(Theme.sub).lineLimit(1)
+                    Text(p.sub).font(.ui(11)).foregroundColor(Theme.sub).lineLimit(1)
                     Divider().overlay(Theme.brd).padding(.top, 11).padding(.bottom, 8)
                     HStack(alignment: .bottom) {
                         Text("\(p.exercises.count) \(t("wk.exercises_n"))".uppercased())
@@ -239,7 +239,7 @@ struct WorkoutView: View {
             // Edit pill (top-right) — separate from the card tap.
             Button { tap(); editPlan(p) } label: {
                 Image(systemName: "pencil").accessibilityLabel(t("a11y.edit"))
-                    .font(.system(size: 11, weight: .bold)).foregroundColor(Theme.bg)
+                    .font(.ui(11, weight: .bold)).foregroundColor(Theme.bg)
                     .frame(width: 26, height: 22)
                     .background(Color(hex: p.color).opacity(0.85)).clipShape(Capsule())
             }
@@ -252,7 +252,7 @@ struct WorkoutView: View {
     private var addCard: some View {
         Button { tap(); newPlan() } label: {
             VStack(spacing: 8) {
-                Image(systemName: "plus.circle").font(.system(size: 26)).foregroundColor(Theme.sub)
+                Image(systemName: "plus.circle").font(.ui(26)).foregroundColor(Theme.sub)
                 Text(t("wk.create_day")).font(.head(11, .semibold)).tracking(1).foregroundColor(Theme.sub)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -281,13 +281,13 @@ struct WorkoutView: View {
                 Card {
                     Lbl(text: t("wk.recent")).padding(.bottom, 8)
                     HStack(spacing: 8) {
-                        Image(systemName: "magnifyingglass").font(.system(size: 12)).foregroundColor(Theme.sub)
+                        Image(systemName: "magnifyingglass").font(.ui(12)).foregroundColor(Theme.sub)
                         TextField("", text: $sessionQuery,
                                   prompt: Text(t("wk.search")).foregroundColor(Theme.sub))
-                            .font(.system(size: 13)).foregroundColor(Theme.txt)
+                            .font(.ui(13)).foregroundColor(Theme.txt)
                         if !sessionQuery.isEmpty {
                             Button { tap(); sessionQuery = "" } label: {
-                                Image(systemName: "xmark.circle.fill").font(.system(size: 13)).foregroundColor(Theme.sub)
+                                Image(systemName: "xmark.circle.fill").font(.ui(13)).foregroundColor(Theme.sub)
                             }.buttonStyle(PressableStyle())
                         }
                     }
@@ -296,7 +296,7 @@ struct WorkoutView: View {
                     .padding(.bottom, 4)
 
                     if recent.isEmpty {
-                        Text(t("wk.no_match")).font(.system(size: 12)).foregroundColor(Theme.sub)
+                        Text(t("wk.no_match")).font(.ui(12)).foregroundColor(Theme.sub)
                             .padding(.vertical, 12)
                     }
                     ForEach(Array(recent)) { s in
@@ -307,15 +307,15 @@ struct WorkoutView: View {
                                         Text("\(s.planName)".uppercased()).font(.head(14, .semibold)).tracking(0.5)
                                             .foregroundColor(Color(hex: s.planColor))
                                         if s.source != nil {
-                                            Image(systemName: "heart.fill").font(.system(size: 10))
+                                            Image(systemName: "heart.fill").font(.ui(10))
                                                 .foregroundColor(Theme.red)
                                         }
                                     }
                                     Text("\(fmtDM(s.date)) · \(s.sportType.isCardio ? cardioSummary(s) : "\(s.exercises.count) \(t("wk.exercises_n"))") · \(store.estimateCalories(s)) kcal")
-                                        .font(.system(size: 10)).foregroundColor(Theme.sub)
+                                        .font(.ui(10)).foregroundColor(Theme.sub)
                                 }
                                 Spacer()
-                                Image(systemName: "slider.horizontal.3").font(.system(size: 12)).foregroundColor(Theme.sub)
+                                Image(systemName: "slider.horizontal.3").font(.ui(12)).foregroundColor(Theme.sub)
                                 Badge(text: s.sportType.isCardio ? s.sportType.label : "\(s.totalSets) \(t("wk.sets_n"))")
                             }
                             .padding(.vertical, 11)
@@ -423,7 +423,7 @@ struct PlayCircle: View {
                     .frame(width: 38, height: 38)
                     .shadow(color: color.opacity(0.4), radius: 5, y: 2)
                 Image(systemName: "play.fill").accessibilityLabel(t("a11y.start"))
-                    .font(.system(size: 15, weight: .bold))
+                    .font(.ui(15, weight: .bold))
                     .foregroundColor(Theme.bg)
                     .offset(x: 1)   // optical centering of the triangle
             }

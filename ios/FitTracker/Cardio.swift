@@ -57,7 +57,7 @@ struct CardioTypeEditorView: View {
 
                     if !isNew {
                         Button { tap(); confirmDelete = true } label: {
-                            Text(t("delete")).font(.system(size: 13, weight: .semibold)).foregroundColor(Theme.red)
+                            Text(t("delete")).font(.ui(13, weight: .semibold)).foregroundColor(Theme.red)
                                 .frame(maxWidth: .infinity, minHeight: 46)
                                 .overlay(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous).stroke(Theme.red.opacity(0.4), lineWidth: 1))
                         }
@@ -152,14 +152,14 @@ struct LiveCardioView: View {
     private var header: some View {
         HStack(spacing: 12) {
             Image(systemName: type.sportType.icon)
-                .font(.system(size: 18, weight: .bold)).foregroundColor(Theme.bg)
+                .font(.ui(18, weight: .bold)).foregroundColor(Theme.bg)
                 .frame(width: 44, height: 44).background(accent)
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
                     Text(t("wk.live").uppercased()).font(.head(10, .semibold)).tracking(1.5).foregroundColor(Theme.sub)
                     if isWatchLive {
-                        Image(systemName: "applewatch").font(.system(size: 10)).foregroundColor(Theme.good)
+                        Image(systemName: "applewatch").font(.ui(10)).foregroundColor(Theme.good)
                     }
                 }
                 Text(type.name.uppercased()).font(.head(20, .bold)).tracking(0.5).foregroundColor(accent).lineLimit(1)
@@ -197,7 +197,7 @@ struct LiveCardioView: View {
                          unit: liveHR != nil ? "bpm" : nil, color: Theme.red)
             }
             if activeCardio.usesGPS && !activeCardio.gpsAuthorized {
-                Text(t("wk.gps_hint")).font(.system(size: 10)).foregroundColor(Theme.sub)
+                Text(t("wk.gps_hint")).font(.ui(10)).foregroundColor(Theme.sub)
                     .frame(maxWidth: .infinity, alignment: .leading).padding(.top, 10)
             }
         }
@@ -209,7 +209,7 @@ struct LiveCardioView: View {
                 .lineLimit(1).minimumScaleFactor(0.7)
             HStack(alignment: .firstTextBaseline, spacing: 3) {
                 Text(value).font(.num(22)).foregroundColor(color)
-                if let unit { Text(unit).font(.system(size: 10, weight: .semibold)).foregroundColor(Theme.sub) }
+                if let unit { Text(unit).font(.ui(10, weight: .semibold)).foregroundColor(Theme.sub) }
             }
         }
         .frame(maxWidth: .infinity)
@@ -226,7 +226,7 @@ struct LiveCardioView: View {
                 Spacer()
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
                     Text(liveKcal.map { "\($0)" } ?? "—").font(.num(28)).foregroundColor(Theme.acc)
-                    Text("kcal").font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.sub)
+                    Text("kcal").font(.ui(11, weight: .semibold)).foregroundColor(Theme.sub)
                 }
             }
         }
@@ -237,7 +237,7 @@ struct LiveCardioView: View {
             // Pause / resume
             Button { tap(); activeCardio.togglePause() } label: {
                 HStack(spacing: 8) {
-                    Image(systemName: activeCardio.paused ? "play.fill" : "pause.fill").font(.system(size: 15, weight: .bold))
+                    Image(systemName: activeCardio.paused ? "play.fill" : "pause.fill").font(.ui(15, weight: .bold))
                     Text((activeCardio.paused ? t("wk.resume") : t("wk.pause")).uppercased())
                         .font(.head(13, .semibold)).tracking(1)
                 }
@@ -251,7 +251,7 @@ struct LiveCardioView: View {
             // Finish → save the session.
             Button { tap(); finish() } label: {
                 HStack(spacing: 8) {
-                    Image(systemName: "checkmark").font(.system(size: 15, weight: .bold))
+                    Image(systemName: "checkmark").font(.ui(15, weight: .bold))
                     Text(t("wk.finish").uppercased()).font(.head(13, .semibold)).tracking(1)
                 }
                 .foregroundColor(Theme.bg)
@@ -264,7 +264,7 @@ struct LiveCardioView: View {
         .padding(.top, 4)
         .overlay(alignment: .bottom) {
             Button { tap(); confirmDiscard = true } label: {
-                Text(t("wk.discard_session")).font(.system(size: 12, weight: .semibold)).foregroundColor(Theme.red)
+                Text(t("wk.discard_session")).font(.ui(12, weight: .semibold)).foregroundColor(Theme.red)
             }
             .buttonStyle(PressableStyle())
             .offset(y: 40)

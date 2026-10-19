@@ -161,24 +161,24 @@ struct StatsView: View {
         return Card(accent: Theme.acc) {
             Lbl(text: t("st.pr_feed"), color: Theme.acc2).padding(.bottom, 4)
             if events.isEmpty {
-                Text(t("st.pr_none")).font(.system(size: 12)).foregroundColor(Theme.sub).padding(.vertical, 8)
+                Text(t("st.pr_none")).font(.ui(12)).foregroundColor(Theme.sub).padding(.vertical, 8)
             }
             ForEach(events) { e in
                 HStack(spacing: 10) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(e.exercise).font(.system(size: 13, weight: .semibold)).foregroundColor(Theme.txt)
+                        Text(e.exercise).font(.ui(13, weight: .semibold)).foregroundColor(Theme.txt)
                             .lineLimit(1)
                         Text("\(fmtDM(e.date)) · \(t(e.labelKey))")
-                            .font(.system(size: 10)).foregroundColor(Theme.sub)
+                            .font(.ui(10)).foregroundColor(Theme.sub)
                     }
                     Spacer()
                     VStack(alignment: .trailing, spacing: 2) {
                         Text("\(trimNum(e.value))\(e.unit)").font(.num(19)).foregroundColor(Theme.acc)
                         if let d = e.delta, d > 0 {
-                            Text("+\(trimNum(d))\(e.unit)").font(.system(size: 10, weight: .semibold))
+                            Text("+\(trimNum(d))\(e.unit)").font(.ui(10, weight: .semibold))
                                 .foregroundColor(Theme.good)
                         } else {
-                            Text(t("st.pr_first")).font(.system(size: 10)).foregroundColor(Theme.sub)
+                            Text(t("st.pr_first")).font(.ui(10)).foregroundColor(Theme.sub)
                         }
                     }
                 }
@@ -195,15 +195,15 @@ struct StatsView: View {
             Lbl(text: t("st.maxes")).padding(.bottom, 4)
             if names.isEmpty {
                 Text(t("st.maxes_hint"))
-                    .font(.system(size: 12)).foregroundColor(Theme.sub).padding(.vertical, 8)
+                    .font(.ui(12)).foregroundColor(Theme.sub).padding(.vertical, 8)
             }
             ForEach(names.indices, id: \.self) { idx in
                 let item = names[idx]
                 let pr = prs[item.name]
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(item.name).font(.system(size: 13, weight: .semibold)).foregroundColor(Theme.txt)
-                        if let d = pr?.date { Text(fmtDM(d)).font(.system(size: 10)).foregroundColor(Theme.sub) }
+                        Text(item.name).font(.ui(13, weight: .semibold)).foregroundColor(Theme.txt)
+                        if let d = pr?.date { Text(fmtDM(d)).font(.ui(10)).foregroundColor(Theme.sub) }
                     }
                     Spacer()
                     Text((pr?.weight ?? 0) > 0 ? "\(trimNum(pr!.weight)) kg" : "—")
@@ -244,7 +244,7 @@ struct StatsView: View {
                     Spacer()
                     Button { tap(); showManage = true } label: {
                         HStack(spacing: 5) {
-                            Image(systemName: "slider.horizontal.3").font(.system(size: 11, weight: .bold))
+                            Image(systemName: "slider.horizontal.3").font(.ui(11, weight: .bold))
                             Text(t("st.manage")).font(.head(10, .semibold)).tracking(0.5)
                         }
                         .foregroundColor(Theme.sub)
@@ -322,10 +322,10 @@ struct StatsView: View {
 
     private var selectedFamilyChip: some View {
         HStack(spacing: 8) {
-            Text(selEx).font(.system(size: 13, weight: .semibold)).foregroundColor(Theme.acc).lineLimit(1)
+            Text(selEx).font(.ui(13, weight: .semibold)).foregroundColor(Theme.acc).lineLimit(1)
             Spacer()
             Button { tap(); editingFam = FamilyEdit(base: selEx) } label: {
-                Image(systemName: "slider.horizontal.3").font(.system(size: 12)).foregroundColor(Theme.sub).frame(width: 28, height: 28)
+                Image(systemName: "slider.horizontal.3").font(.ui(12)).foregroundColor(Theme.sub).frame(width: 28, height: 28)
             }.buttonStyle(PressableStyle())
             Button { tap(); selEx = ""; selVariant = nil } label: {
                 Image(systemName: "xmark.circle.fill").foregroundColor(Theme.sub)
@@ -350,7 +350,7 @@ struct StatsView: View {
                     } label: {
                         HStack(spacing: 3) {
                             Text(key.label).font(.head(10, .semibold)).tracking(0.5)
-                            if active { Image(systemName: exSortAsc ? "arrow.up" : "arrow.down").font(.system(size: 10, weight: .bold)) }
+                            if active { Image(systemName: exSortAsc ? "arrow.up" : "arrow.down").font(.ui(10, weight: .bold)) }
                         }
                         .foregroundColor(active ? Theme.bg : Theme.sub)
                         .padding(.vertical, 5).padding(.horizontal, 9)
@@ -423,19 +423,19 @@ struct StatsView: View {
         let cats = MuscleGroup.allCases.filter { byCat[$0.rawValue]?.isEmpty == false }
         return VStack(spacing: 8) {
             if fams.isEmpty {
-                Text(t("st.maxes_hint")).font(.system(size: 12)).foregroundColor(Theme.sub).padding(.vertical, 8)
+                Text(t("st.maxes_hint")).font(.ui(12)).foregroundColor(Theme.sub).padding(.vertical, 8)
             }
             ForEach(cats) { mg in
                 let group = byCat[mg.rawValue] ?? []
                 VStack(spacing: 0) {
                     Button { tap(); browseCat = (browseCat == mg.rawValue) ? nil : mg.rawValue } label: {
                         HStack(spacing: 8) {
-                            Image(systemName: "circle.fill").font(.system(size: 10)).foregroundColor(Color(hex: mg.color))
+                            Image(systemName: "circle.fill").font(.ui(10)).foregroundColor(Color(hex: mg.color))
                             Text(t(mg.labelKey).uppercased()).font(.head(11, .semibold)).tracking(1).foregroundColor(Theme.txt)
-                            Text("\(group.count)").font(.system(size: 10)).foregroundColor(Theme.sub)
+                            Text("\(group.count)").font(.ui(10)).foregroundColor(Theme.sub)
                             Spacer()
                             Image(systemName: browseCat == mg.rawValue ? "chevron.up" : "chevron.down")
-                                .font(.system(size: 11)).foregroundColor(Theme.sub)
+                                .font(.ui(11)).foregroundColor(Theme.sub)
                         }
                         .padding(.vertical, 11).padding(.horizontal, 12)
                     }.buttonStyle(PressableStyle())
@@ -457,13 +457,13 @@ struct StatsView: View {
             HStack {
                 Circle().fill(Color(hex: mg.color)).frame(width: 8, height: 8)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(f.base).font(.system(size: 13, weight: .semibold)).foregroundColor(Theme.txt).lineLimit(1)
+                    Text(f.base).font(.ui(13, weight: .semibold)).foregroundColor(Theme.txt).lineLimit(1)
                     if f.names.count > 1 {
-                        Text("\(f.names.count) \(t("st.variants"))").font(.system(size: 10)).foregroundColor(Theme.sub)
+                        Text("\(f.names.count) \(t("st.variants"))").font(.ui(10)).foregroundColor(Theme.sub)
                     }
                 }
                 Spacer()
-                Image(systemName: "chevron.right").font(.system(size: 11)).foregroundColor(Theme.sub)
+                Image(systemName: "chevron.right").font(.ui(11)).foregroundColor(Theme.sub)
             }
             .padding(.vertical, 9).padding(.horizontal, 12)
         }.buttonStyle(PressableStyle())
@@ -499,11 +499,11 @@ struct ExerciseFamilyEditor: View {
                         }
                     }
                     .padding(.top, 18)
-                    Text(t("st.family_hint")).font(.system(size: 11)).foregroundColor(Theme.sub).lineSpacing(2)
+                    Text(t("st.family_hint")).font(.ui(11)).foregroundColor(Theme.sub).lineSpacing(2)
 
                     ForEach($rows) { $row in
                         Card {
-                            Text(row.name).font(.system(size: 14, weight: .semibold)).foregroundColor(Theme.txt)
+                            Text(row.name).font(.ui(14, weight: .semibold)).foregroundColor(Theme.txt)
                                 .padding(.bottom, 10)
                             FieldLabel(t("st.family"))
                             InputField(placeholder: base, text: $row.base, keyboard: .default).padding(.bottom, 10)
@@ -516,8 +516,8 @@ struct ExerciseFamilyEditor: View {
                                     }
                                 } label: {
                                     HStack(spacing: 5) {
-                                        Text(t("mg." + row.category)).font(.system(size: 12, weight: .semibold)).foregroundColor(Theme.txt)
-                                        Image(systemName: "chevron.down").font(.system(size: 10)).foregroundColor(Theme.sub)
+                                        Text(t("mg." + row.category)).font(.ui(12, weight: .semibold)).foregroundColor(Theme.txt)
+                                        Image(systemName: "chevron.down").font(.ui(10)).foregroundColor(Theme.sub)
                                     }
                                     .padding(.vertical, 6).padding(.horizontal, 10)
                                     .chrome(8)
@@ -581,13 +581,13 @@ struct ExerciseManagerView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
                     header
-                    Text(t("st.manage_hint")).font(.system(size: 11)).foregroundColor(Theme.sub).lineSpacing(2)
+                    Text(t("st.manage_hint")).font(.ui(11)).foregroundColor(Theme.sub).lineSpacing(2)
 
                     let dupes = store.similarExerciseGroups()
                     if !dupes.isEmpty && search.isEmpty {
                         Card(accent: Theme.acc2) {
                             HStack(spacing: 6) {
-                                Image(systemName: "wand.and.stars").font(.system(size: 12)).foregroundColor(Theme.acc2)
+                                Image(systemName: "wand.and.stars").font(.ui(12)).foregroundColor(Theme.acc2)
                                 Lbl(text: t("st.dupes"), color: Theme.acc2)
                             }
                             .padding(.bottom, 8)
@@ -602,7 +602,7 @@ struct ExerciseManagerView: View {
                         Lbl(text: t("st.all_exercises")).padding(.bottom, 8)
                         InputField(placeholder: t("st.search_ex"), text: $search, keyboard: .default).padding(.bottom, 8)
                         if allNames.isEmpty {
-                            Text(t("st.maxes_hint")).font(.system(size: 12)).foregroundColor(Theme.sub).padding(.vertical, 8)
+                            Text(t("st.maxes_hint")).font(.ui(12)).foregroundColor(Theme.sub).padding(.vertical, 8)
                         }
                         ForEach(allNames, id: \.self) { name in
                             exerciseRow(name)
@@ -665,9 +665,9 @@ struct ExerciseManagerView: View {
         Button { tap(); merging = MergeTarget(names: names) } label: {
             HStack {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(names.joined(separator: "  ·  ")).font(.system(size: 13, weight: .semibold))
+                    Text(names.joined(separator: "  ·  ")).font(.ui(13, weight: .semibold))
                         .foregroundColor(Theme.txt).lineLimit(2).multilineTextAlignment(.leading)
-                    Text("\(names.count) \(t("st.variants_similar"))").font(.system(size: 10)).foregroundColor(Theme.sub)
+                    Text("\(names.count) \(t("st.variants_similar"))").font(.ui(10)).foregroundColor(Theme.sub)
                 }
                 Spacer()
                 Text(t("st.merge")).font(.head(10, .bold)).tracking(0.5).foregroundColor(Theme.bg)
@@ -681,16 +681,16 @@ struct ExerciseManagerView: View {
         let n = store.sessionCount(forExercise: name)
         return HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(name).font(.system(size: 13, weight: .semibold)).foregroundColor(Theme.txt).lineLimit(1)
+                Text(name).font(.ui(13, weight: .semibold)).foregroundColor(Theme.txt).lineLimit(1)
                 Text(n == 1 ? "1 \(t("st.session_one"))" : "\(n) \(t("st.sessions_n"))")
-                    .font(.system(size: 10)).foregroundColor(Theme.sub)
+                    .font(.ui(10)).foregroundColor(Theme.sub)
             }
             Spacer()
             Button { tap(); renaming = ManageTarget(name: name) } label: {
-                Image(systemName: "pencil").font(.system(size: 13)).foregroundColor(Theme.blue).frame(width: 34, height: 34)
+                Image(systemName: "pencil").font(.ui(13)).foregroundColor(Theme.blue).frame(width: 34, height: 34)
             }.buttonStyle(PressableStyle())
             Button { tap(); confirmDelete = ManageTarget(name: name) } label: {
-                Image(systemName: "trash").font(.system(size: 13)).foregroundColor(Theme.red.opacity(0.7)).frame(width: 34, height: 34)
+                Image(systemName: "trash").font(.ui(13)).foregroundColor(Theme.red.opacity(0.7)).frame(width: 34, height: 34)
             }.buttonStyle(PressableStyle())
         }
         .padding(.vertical, 8)
@@ -724,12 +724,12 @@ struct RenameExerciseSheet: View {
                     Button { dismiss() } label: { Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: Theme.minTapTarget, height: Theme.minTapTarget) }
                 }
                 .padding(.top, 18)
-                Text("\(t("st.rename_from")) \"\(oldName)\"").font(.system(size: 12)).foregroundColor(Theme.sub)
+                Text("\(t("st.rename_from")) \"\(oldName)\"").font(.ui(12)).foregroundColor(Theme.sub)
                 InputField(placeholder: oldName, text: $text, keyboard: .default)
                 if willMerge {
                     HStack(spacing: 6) {
-                        Image(systemName: "arrow.triangle.merge").font(.system(size: 11)).foregroundColor(Theme.acc2)
-                        Text(t("st.merge_warn")).font(.system(size: 11)).foregroundColor(Theme.acc2)
+                        Image(systemName: "arrow.triangle.merge").font(.ui(11)).foregroundColor(Theme.acc2)
+                        Text(t("st.merge_warn")).font(.ui(11)).foregroundColor(Theme.acc2)
                     }
                 }
                 BigButton(title: willMerge ? t("st.merge") : t("st.rename"),
@@ -766,14 +766,14 @@ struct MergeExerciseSheet: View {
                     Button { dismiss() } label: { Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: Theme.minTapTarget, height: Theme.minTapTarget) }
                 }
                 .padding(.top, 18)
-                Text(t("st.merge_pick")).font(.system(size: 12)).foregroundColor(Theme.sub)
+                Text(t("st.merge_pick")).font(.ui(12)).foregroundColor(Theme.sub)
                 VStack(spacing: 0) {
                     ForEach(names, id: \.self) { n in
                         Button { tap(); keep = n } label: {
                             HStack {
                                 Image(systemName: keep == n ? "largecircle.fill.circle" : "circle")
                                     .foregroundColor(keep == n ? Theme.acc : Theme.sub)
-                                Text(n).font(.system(size: 14, weight: .semibold)).foregroundColor(Theme.txt)
+                                Text(n).font(.ui(14, weight: .semibold)).foregroundColor(Theme.txt)
                                 Spacer()
                             }
                             .padding(.vertical, 12).padding(.horizontal, 4)
@@ -818,7 +818,7 @@ struct StatsSection<Content: View>: View {
                 HStack {
                     Text(title.uppercased()).font(.head(12, .semibold)).tracking(1).foregroundColor(Theme.txt)
                     Spacer()
-                    Image(systemName: open ? "chevron.up" : "chevron.down").font(.system(size: 11, weight: .semibold))
+                    Image(systemName: open ? "chevron.up" : "chevron.down").font(.ui(11, weight: .semibold))
                         .foregroundColor(Theme.sub)
                 }
                 .frame(minHeight: Theme.minTapTarget)

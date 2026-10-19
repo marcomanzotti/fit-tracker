@@ -29,7 +29,7 @@ struct SleepNightDetail: View {
                             HStack(spacing: 4) {
                                 Circle().fill(s.color).frame(width: 7, height: 7)
                                 Text("\(t("sleep." + s.key)) \(fmtMinutes(s.minutes))")
-                                    .font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.sub)
+                                    .font(.ui(11, weight: .semibold)).foregroundColor(Theme.sub)
                             }
                         }
                     }
@@ -143,13 +143,13 @@ struct Hypnogram: View {
                 AxisGridLine().foregroundStyle(Theme.sub.opacity(0.15))
                 AxisValueLabel {
                     if let d = value.as(Date.self) {
-                        Text(cachedFormatter("HH:mm").string(from: d)).font(.system(size: 10)).foregroundStyle(Theme.sub)
+                        Text(cachedFormatter("HH:mm").string(from: d)).font(.ui(10)).foregroundStyle(Theme.sub)
                     }
                 }
             }
         }
         .chartYAxis {
-            AxisMarks(position: .leading) { _ in AxisValueLabel().font(.system(size: 10)).foregroundStyle(Theme.sub) }
+            AxisMarks(position: .leading) { _ in AxisValueLabel().font(.ui(10)).foregroundStyle(Theme.sub) }
         }
         .padding(.trailing, 14)   // room for the last hour label
         .frame(height: 140)
@@ -188,7 +188,7 @@ struct WeekSleepChart: View {
                 Spacer()
                 if !average.isEmpty {
                     Text(t("sleep.week_avg", fmtMinutes(Int((average.reduce(0, +) / Double(average.count) * 60).rounded()))))
-                        .font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.sub)
+                        .font(.ui(11, weight: .semibold)).foregroundColor(Theme.sub)
                 }
             }
             Chart {
@@ -206,7 +206,7 @@ struct WeekSleepChart: View {
                     AxisValueLabel {
                         if let d = value.as(Date.self) {
                             Text(cachedFormatter("EEEEE", locale: L.lang == "en" ? "en_US" : "it_IT").string(from: d))
-                                .font(.system(size: 10)).foregroundStyle(Theme.sub)
+                                .font(.ui(10)).foregroundStyle(Theme.sub)
                         }
                     }
                 }
@@ -214,7 +214,7 @@ struct WeekSleepChart: View {
             .chartYAxis {
                 AxisMarks(values: [0, 4, 7, 9]) { _ in
                     AxisGridLine().foregroundStyle(Theme.mut)
-                    AxisValueLabel().font(.system(size: 10)).foregroundStyle(Theme.sub)
+                    AxisValueLabel().font(.ui(10)).foregroundStyle(Theme.sub)
                 }
             }
             .frame(height: 110)
@@ -278,8 +278,8 @@ struct NightVitalsCard: View {
         let shown = v.field == .wristTemp ? v.value - (v.range?.mean ?? v.value) : v.value
         return VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 4) {
-                Image(systemName: spec.icon).font(.system(size: 11)).foregroundColor(Theme.sub).frame(width: 16)
-                Text(t(spec.name)).font(.system(size: 13, weight: .semibold)).foregroundColor(Theme.txt)
+                Image(systemName: spec.icon).font(.ui(11)).foregroundColor(Theme.sub).frame(width: 16)
+                Text(t(spec.name)).font(.ui(13, weight: .semibold)).foregroundColor(Theme.txt)
                 InfoButton(id: spec.topic, size: 18)
                 Spacer()
                 Text(valueText(shown, spec)).font(.num(15)).foregroundColor(Theme.txt).monospacedDigit()

@@ -95,19 +95,19 @@ struct FoodLogRow: View {
     var body: some View {
         HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(log.name).font(.system(size: 13, weight: .semibold)).foregroundColor(Theme.txt)
+                Text(log.name).font(.ui(13, weight: .semibold)).foregroundColor(Theme.txt)
                     .lineLimit(1)
                 // A portion-based recipe stores grams = portions × 100; show the
                 // portion count instead of the internal grams so it reads naturally.
                 let amount = log.portions.map { "\(trimNum($0)) \(t("recipe.serving"))" } ?? "\(trimNum(log.grams)) g"
                 Text("\(amount) · P \(trimNum(log.protein)) C \(trimNum(log.carbs)) F \(trimNum(log.fat))")
-                    .font(.system(size: 10)).foregroundColor(Theme.sub)
+                    .font(.ui(10)).foregroundColor(Theme.sub)
             }
             Spacer()
             Text("\(log.kcal)").font(.num(15)).foregroundColor(Theme.acc)
-            Text("kcal").font(.system(size: 10)).foregroundColor(Theme.sub)
+            Text("kcal").font(.ui(10)).foregroundColor(Theme.sub)
             Button { tap(); onDelete() } label: {
-                Image(systemName: "xmark.circle.fill").font(.system(size: 17)).foregroundColor(Theme.mut)
+                Image(systemName: "xmark.circle.fill").font(.ui(17)).foregroundColor(Theme.mut)
             }
         }
         .padding(.vertical, 8).padding(.horizontal, 11)
@@ -222,7 +222,7 @@ struct FoodPickerSheet: View {
                 ScrollView {
                     LazyVStack(spacing: 8, pinnedViews: [.sectionHeaders]) {
                         if filtered.isEmpty {
-                            Text(t("food.none")).font(.system(size: 12)).foregroundColor(Theme.sub)
+                            Text(t("food.none")).font(.ui(12)).foregroundColor(Theme.sub)
                                 .frame(maxWidth: .infinity).padding(.top, 24)
                         } else if sortKey == .alpha {
                             // Alphabetical mode: group under sticky letter headers so the
@@ -251,7 +251,7 @@ struct FoodPickerSheet: View {
                 Color.black.opacity(0.4).ignoresSafeArea()
                 VStack(spacing: 10) {
                     ProgressView().tint(Theme.acc)
-                    Text(t("food.looking")).font(.system(size: 12)).foregroundColor(Theme.txt)
+                    Text(t("food.looking")).font(.ui(12)).foregroundColor(Theme.txt)
                 }
                 .padding(22).background(Theme.c1).clipShape(RoundedRectangle(cornerRadius: 14))
             }
@@ -303,7 +303,7 @@ struct FoodPickerSheet: View {
                             Text(key.label).font(.head(10, .semibold)).tracking(0.5)
                             if active {
                                 Image(systemName: sortAsc ? "arrow.up" : "arrow.down")
-                                    .font(.system(size: 10, weight: .bold))
+                                    .font(.ui(10, weight: .bold))
                             }
                         }
                         .foregroundColor(active ? Theme.bg : Theme.sub)
@@ -323,19 +323,19 @@ struct FoodPickerSheet: View {
             Button { tap(); sheet = .qty(f) } label: {
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 4) {
-                        Text(f.name).font(.system(size: 14, weight: .semibold)).foregroundColor(Theme.txt).lineLimit(1)
+                        Text(f.name).font(.ui(14, weight: .semibold)).foregroundColor(Theme.txt).lineLimit(1)
                         if let brand = f.brand, !brand.isEmpty {
-                            Text(brand).font(.system(size: 11)).foregroundColor(Theme.sub).lineLimit(1)
+                            Text(brand).font(.ui(11)).foregroundColor(Theme.sub).lineLimit(1)
                         }
                     }
                     Text("\(trimNum(f.k100)) kcal · P \(trimNum(f.p100)) C \(trimNum(f.c100)) F \(trimNum(f.f100)) · /100\(f.unit)")
-                        .font(.system(size: 10)).foregroundColor(Theme.sub).lineLimit(1)
+                        .font(.ui(10)).foregroundColor(Theme.sub).lineLimit(1)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .buttonStyle(PressableStyle())
             Button { tap(); sheet = .form(f) } label: {
-                Image(systemName: "slider.horizontal.3").font(.system(size: 13)).foregroundColor(Theme.sub).frame(width: 30, height: 30)
+                Image(systemName: "slider.horizontal.3").font(.ui(13)).foregroundColor(Theme.sub).frame(width: 30, height: 30)
             }
         }
         .padding(.vertical, 9).padding(.horizontal, 12)
@@ -402,7 +402,7 @@ struct FoodFormSheet: View {
                     .padding(.top, 18)
 
                     if let notice {
-                        Text(notice).font(.system(size: 12, weight: .semibold)).foregroundColor(Theme.acc2)
+                        Text(notice).font(.ui(12, weight: .semibold)).foregroundColor(Theme.acc2)
                             .fixedSize(horizontal: false, vertical: true)
                     }
 
@@ -431,7 +431,7 @@ struct FoodFormSheet: View {
                                 num("\(t("nut.fat")) (g)", "1", $f)
                             }
                             Toggle(isOn: $liquid) {
-                                Text(t("food.liquid")).font(.system(size: 13)).foregroundColor(Theme.txt)
+                                Text(t("food.liquid")).font(.ui(13)).foregroundColor(Theme.txt)
                             }.tint(Theme.acc)
                         }
                     }
@@ -543,7 +543,7 @@ struct FoodQuantitySheet: View {
     private func macro(_ value: String, _ label: String, _ color: Color) -> some View {
         VStack(spacing: 2) {
             Text(value).font(.num(20)).foregroundColor(color)
-            Text(label).font(.system(size: 10, weight: .semibold)).foregroundColor(Theme.sub)
+            Text(label).font(.ui(10, weight: .semibold)).foregroundColor(Theme.sub)
         }
         .frame(maxWidth: .infinity)
     }

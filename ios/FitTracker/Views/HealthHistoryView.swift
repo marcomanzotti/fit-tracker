@@ -23,7 +23,7 @@ struct HealthHistoryView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
                     header
-                    Text(t("hk.history_hint")).font(.system(size: 12)).foregroundColor(Theme.sub).lineSpacing(3)
+                    Text(t("hk.history_hint")).font(.ui(12)).foregroundColor(Theme.sub).lineSpacing(3)
                     rangeCard
                     coverageCard
                     recentDaysCard
@@ -40,7 +40,7 @@ struct HealthHistoryView: View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
                 Text(t("hk.history").uppercased()).font(.head(16, .bold)).tracking(1).foregroundColor(Theme.txt)
-                Text(rangeLabel).font(.system(size: 11)).foregroundColor(Theme.sub)
+                Text(rangeLabel).font(.ui(11)).foregroundColor(Theme.sub)
             }
             Spacer()
             Button { dismiss() } label: {
@@ -90,7 +90,7 @@ struct HealthHistoryView: View {
             .disabled(busy)
             .padding(.top, 9)
 
-            Text(t("hk.reimport_hint")).font(.system(size: 10)).foregroundColor(Theme.sub).padding(.top, 8)
+            Text(t("hk.reimport_hint")).font(.ui(10)).foregroundColor(Theme.sub).padding(.top, 8)
         }
     }
 
@@ -114,21 +114,21 @@ struct HealthHistoryView: View {
             HStack(spacing: 6) {
                 Lbl(text: t("hk.coverage"), color: Theme.acc2)
                 Spacer()
-                Text("/ \(days)").font(.system(size: 11)).foregroundColor(Theme.sub)
+                Text("/ \(days)").font(.ui(11)).foregroundColor(Theme.sub)
             }
             .padding(.bottom, 10)
             ForEach(HealthCategory.allCases) { c in
                 let n = cov[c.rawValue] ?? 0
                 let on = selected.contains(c.rawValue)
                 HStack(spacing: 10) {
-                    Image(systemName: c.icon).font(.system(size: 13))
+                    Image(systemName: c.icon).font(.ui(13))
                         .foregroundColor(n > 0 ? Theme.good : (on ? Theme.red : Theme.sub))
                         .frame(width: 22)
-                    Text(t(c.labelKey)).font(.system(size: 13)).foregroundColor(on ? Theme.txt : Theme.sub)
+                    Text(t(c.labelKey)).font(.ui(13)).foregroundColor(on ? Theme.txt : Theme.sub)
                     InfoButton(id: c.info, size: 16)
                     Spacer()
                     if !on {
-                        Text("—").font(.system(size: 12)).foregroundColor(Theme.sub)
+                        Text("—").font(.ui(12)).foregroundColor(Theme.sub)
                     } else {
                         Text("\(n)").font(.num(15)).foregroundColor(n > 0 ? Theme.good : Theme.red)
                     }
@@ -170,7 +170,7 @@ struct HealthHistoryView: View {
             .padding(.bottom, 6)
             ForEach(recent) { e in
                 HStack(spacing: 6) {
-                    Text(fmtDM(e.date)).font(.system(size: 10, weight: .semibold))
+                    Text(fmtDM(e.date)).font(.ui(10, weight: .semibold))
                         .foregroundColor(e.date == today() ? Theme.acc : Theme.sub)
                         .frame(width: 42, alignment: .leading)
                     cell(e.steps.map { "\($0)" })
@@ -186,7 +186,7 @@ struct HealthHistoryView: View {
     }
 
     private func colHead(_ icon: String) -> some View {
-        Image(systemName: icon).font(.system(size: 10)).foregroundColor(Theme.sub)
+        Image(systemName: icon).font(.ui(10)).foregroundColor(Theme.sub)
             .frame(maxWidth: .infinity)
     }
 

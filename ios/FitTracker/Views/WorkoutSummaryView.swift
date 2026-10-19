@@ -116,7 +116,7 @@ struct WorkoutSummaryView: View {
             Lbl(text: t("sum.records"), color: Theme.acc2).padding(.bottom, 8)
             ForEach(summary.records) { record in
                 HStack {
-                    Text(record.name).font(.system(size: 14, weight: .semibold)).foregroundColor(Theme.txt)
+                    Text(record.name).font(.ui(14, weight: .semibold)).foregroundColor(Theme.txt)
                         .lineLimit(1)
                     Spacer()
                     Text("\(trimNum(record.previous)) → \(trimNum(record.weight)) kg")

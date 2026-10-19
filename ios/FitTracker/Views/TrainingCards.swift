@@ -21,6 +21,7 @@ struct BandLabel: View {
         let b = scale.bands[scale.bandIndex(of: value)]
         Text(t("band." + b.key).uppercased())
             .font(.head(10, .semibold)).tracking(0.5)
+            .lineLimit(1).minimumScaleFactor(0.7)
             .foregroundColor(b.tone.color)
             .padding(.vertical, 3).padding(.horizontal, 7)
             .background(b.tone.color.opacity(0.14)).clipShape(Capsule())
@@ -63,7 +64,7 @@ struct FormCard: View {
     private func metric(_ label: String, _ v: Double, _ color: Color) -> some View {
         HStack(spacing: 5) {
             Circle().fill(color).frame(width: 7, height: 7)
-            Text(label).font(.system(size: 11, weight: .medium)).foregroundColor(Theme.sub)
+            Text(label).font(.ui(11, weight: .medium)).foregroundColor(Theme.sub)
             Text("\(Int(v.rounded()))").font(.num(15)).foregroundColor(Theme.txt)
         }
     }
@@ -129,10 +130,10 @@ struct IntensityCard: View {
                     .padding(.bottom, 10)
                     HStack(alignment: .firstTextBaseline, spacing: 4) {
                         Text("\(Int(easy.rounded()))%").font(.num(28)).foregroundColor(Theme.txt)
-                        Text(t("intensity.easy")).font(.system(size: 12)).foregroundColor(Theme.sub)
+                        Text(t("intensity.easy")).font(.ui(12)).foregroundColor(Theme.sub)
                         Text("·").foregroundColor(Theme.sub)
                         Text("\(Int(hard.rounded()))%").font(.num(20)).foregroundColor(Theme.txt)
-                        Text(t("intensity.hard")).font(.system(size: 12)).foregroundColor(Theme.sub)
+                        Text(t("intensity.hard")).font(.ui(12)).foregroundColor(Theme.sub)
                         Spacer()
                     }
                     RangeBar(scale: scale, value: easy).padding(.vertical, 8)
@@ -178,8 +179,8 @@ struct StrengthCard: View {
         let scale = store.strengthScale(l.lift)
         return VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
-                Text(t("lift." + l.lift.rawValue)).font(.system(size: 13, weight: .semibold)).foregroundColor(Theme.txt)
-                Text("\(trimNum(l.e1RM)) kg").font(.system(size: 11)).foregroundColor(Theme.sub)
+                Text(t("lift." + l.lift.rawValue)).font(.ui(13, weight: .semibold)).foregroundColor(Theme.txt)
+                Text("\(trimNum(l.e1RM)) kg").font(.ui(11)).foregroundColor(Theme.sub)
                 Spacer()
                 Text("\(String(format: "%.2f", l.ratio))×").font(.num(15)).foregroundColor(Theme.txt)
                 BandLabel(scale: scale, value: l.ratio)
