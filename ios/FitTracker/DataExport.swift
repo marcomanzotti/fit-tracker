@@ -1,5 +1,8 @@
 import Foundation
 
+// Data leaving the app: a daily copy in a folder of the person's choice, and the
+// history as CSV for a spreadsheet.
+
 // MARK: - Backup outside the phone
 /// A daily copy of the data file in a folder the person picks once, usually in
 /// iCloud Drive: deleting the app no longer takes the whole history with it. The
@@ -83,5 +86,70 @@ enum ExternalBackup {
                 appLog.error("Could not remove old backup \(name, privacy: .public): \(String(describing: error), privacy: .public)")
             }
         }
+    }
+}
+
+// MARK: - Spreadsheet export (CSV)
+/// The history as two CSV files for a spreadsheet: every set of every session, and
+/// one row per day. Comma separated, dot decimals, kg, km and minutes.
+enum CSVExport {
+    static func sessions(_ store: Store) -> String {
+        var rows = ["date,session,sport,exercise,set,reps,weight_kg,seconds,effort,duration_min,avg_hr,distance_km,kcal"]
+        for s in store.sessions.sorted(by: { $0.date < $1.date }) {
+            let tail = [s.durationMinutesD.map { num($0) } ?? "", s.avgHR.map(String.init) ?? "",
+                        s.distanceKm.map { num($0) } ?? "", String(store.estimateCalories(s))]
+            let head = [s.date, field(s.planName), s.sportType.rawValue]
+            if s.exercises.isEmpty { rows.append((head + ["", "", "", "", "", ""] + tail).joined(separator: ",")) }
+            for e in s.exercises {
+                for (i, set) in e.sets.enumerated() where set.filled {
+                    let cells = [field(e.name), String(i + 1), plain(set.reps), plain(set.weight),
+                                 set.seconds.map { num($0) } ?? "", set.effortVal.map(String.init) ?? ""]
+                    rows.append((head + cells + tail).joined(separator: ","))
+                }
+            }
+        }
+        return rows.joined(separator: "\n") + "\n"
+    }
+
+    static func daily(_ store: Store) -> String {
+        var rows = ["date,weight_kg,body_fat_pct,sleep_hours,sleep_score,hrv_ms,resting_hr,steps,active_kcal,kcal_eaten,protein_g,carbs_g,fat_g"]
+        for e in store.sortedDaily {
+            let eaten = e.hasNutrition
+            let cells: [String] = [
+                e.date, e.weight.map { num($0) } ?? "", e.bodyFat.map { num($0) } ?? "", e.sleepHours.map { num($0) } ?? "",
+                e.sleep.map(String.init) ?? "", e.hrvSleep.map { num($0) } ?? "", e.restHR.map(String.init) ?? "",
+                e.steps.map(String.init) ?? "", e.activeKcal.map(String.init) ?? "",
+                eaten ? String(e.totalKcal) : "", eaten ? num(e.totalProtein) : "", eaten ? num(e.totalCarbs) : "",
+                eaten ? num(e.totalFat) : ""
+            ]
+            rows.append(cells.joined(separator: ","))
+        }
+        return rows.joined(separator: "\n") + "\n"
+    }
+
+    /// Both files in a temporary folder, ready to share; nil when they could not be written.
+    static func files(_ store: Store) -> [URL]? {
+        let folder = FileManager.default.temporaryDirectory
+        let pairs = [("fittracker-sessions-\(today()).csv", sessions(store)), ("fittracker-daily-\(today()).csv", daily(store))]
+        do {
+            return try pairs.map { name, text in
+                let url = folder.appendingPathComponent(name)
+                try text.write(to: url, atomically: true, encoding: .utf8)
+                return url
+            }
+        } catch {
+            appLog.error("CSV export failed: \(String(describing: error), privacy: .public)")
+            return nil
+        }
+    }
+
+    private static func num(_ v: Double) -> String { trimNum((v * 100).rounded() / 100) }
+    /// A typed number ("2,5") in dot form; empty when there is none.
+    private static func plain(_ typed: String) -> String { pf(typed) > 0 ? num(pf(typed)) : "" }
+
+    /// Quoted when it holds a comma, a quote or a line break; quotes doubled.
+    private static func field(_ s: String) -> String {
+        guard s.contains(where: { $0 == "," || $0 == "\"" || $0 == "\n" }) else { return s }
+        return "\"" + s.replacingOccurrences(of: "\"", with: "\"\"") + "\""
     }
 }

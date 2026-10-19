@@ -399,6 +399,8 @@ enum L {
         "nut.protein_short": ("P", "P"),
         "nut.carbs_short":   ("C", "C"),
         "nut.fat_short":     ("G", "F"),
+        "bk.csv":            ("Esporta per un foglio di calcolo (CSV)", "Export for a spreadsheet (CSV)"),
+        "bk.csv_hint":       ("Due file: ogni serie di ogni seduta, e una riga per giorno (peso, sonno, passi, cibo).", "Two files: every set of every session, and one row per day (weight, sleep, steps, food)."),
         "bk.title":          ("Copia fuori dal telefono", "Copy outside the phone"),
         "bk.hint":           ("Scegli una cartella, per esempio in iCloud Drive: ogni giorno FitTracker ci copia i tuoi dati e tiene le ultime due settimane. Se cancelli l'app per sbaglio, la storia resta lì.", "Pick a folder, for example in iCloud Drive: every day FitTracker copies your data there and keeps the last two weeks. If you delete the app by mistake, your history stays there."),
         "bk.choose":         ("Scegli una cartella", "Choose a folder"),

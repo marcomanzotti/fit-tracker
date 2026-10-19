@@ -335,4 +335,27 @@ final class DataSafetyTests: XCTestCase {
         XCTAssertTrue(copies.contains("FitTracker-2026-11-20.json"))
         XCTAssertEqual(ExternalBackup.lastCopyDay(defaults: defaults), "2026-11-20")
     }
+
+    // MARK: Spreadsheet export
+
+    func testTheSessionsCSVHasOneRowPerSetAndQuotesCommas() {
+        let store = Store(directory: dir)
+        var bench = strengthSession("Bench, paused")
+        bench.exercises[0].sets.append(SetEntry(reps: "6", weight: "105"))
+        store.sessions = [bench]
+
+        let lines = CSVExport.sessions(store).split(separator: "\n").map(String.init)
+
+        XCTAssertEqual(lines.count, 3, "header + one row per set")
+        XCTAssertTrue(lines[1].contains("\"Bench, paused\""))
+        XCTAssertTrue(lines[2].hasPrefix("2026-10-01,Push,strength,\"Bench, paused\",2,6,105"))
+    }
+
+    func testTheDailyCSVHasOneRowPerDay() {
+        let store = Store(directory: dir)
+        store.daily = [DailyEntry(date: "2026-10-01", weight: 80.5), DailyEntry(date: "2026-10-02", steps: 9000)]
+        let lines = CSVExport.daily(store).split(separator: "\n").map(String.init)
+        XCTAssertEqual(lines.count, 3)
+        XCTAssertTrue(lines[1].hasPrefix("2026-10-01,80.5"))
+    }
 }

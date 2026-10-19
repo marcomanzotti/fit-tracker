@@ -339,11 +339,17 @@ struct HealthStatusRow: View {
     }
 }
 
+private struct CSVFiles: Identifiable {
+    let id = UUID()
+    let urls: [URL]
+}
+
 // MARK: - Backup: export and import the data file (Settings › Data)
 struct BackupCard: View {
     @EnvironmentObject var store: Store
     @EnvironmentObject var toast: ToastCenter
     @State private var shareURL: IdentURL?
+    @State private var csv: CSVFiles?
     @State private var importing = false
     @State private var pendingImport: IdentURL?
 
@@ -358,8 +364,14 @@ struct BackupCard: View {
                 }
                 GhostButton(title: t("home.import")) { importing = true }
             }
+            GhostButton(title: t("bk.csv"), color: Theme.blue) {
+                if let urls = CSVExport.files(store) { csv = CSVFiles(urls: urls) } else { toast.show(t("home.export_failed")) }
+            }
+            .padding(.top, 8)
+            Text(t("bk.csv_hint")).font(.ui(10)).foregroundColor(Theme.sub).padding(.top, 4)
         }
         .sheet(item: $shareURL) { item in ShareSheet(items: [item.url]) }
+        .sheet(item: $csv) { files in ShareSheet(items: files.urls) }
         .fileImporter(isPresented: $importing, allowedContentTypes: [.json]) { result in
             switch result {
             case .success(let url): pendingImport = IdentURL(url: url)
