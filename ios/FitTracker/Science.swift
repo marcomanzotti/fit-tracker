@@ -9,11 +9,85 @@ extension Store {
     /// Banister TRIMP for a session, needs avg HR + duration. Uses resting/max HR
     /// from the profile (max estimated from age if not measured).
     func trimp(_ s: WorkoutSession) -> Double? {
-        guard let dur = s.durationMinutesD, dur > 0, let hrr = hrReserve(s.avgHR, session: s) else { return nil }
-        // Banister/Morton: 0.64·e^(1.92x) for men, 0.86·e^(1.67x) for women.
-        let female = prefs.sex_ == "f"
-        return dur * hrr * (female ? 0.86 : 0.64) * exp((female ? 1.67 : 1.92) * hrr)
+        guard let dur = s.durationMinutesD, dur > 0 else { return nil }
+        // The exponential weights hard minutes more than easy ones, so intervals are
+        // integrated over the heart-rate samples when Health has them for most of
+        // the workout; the average is the fallback.
+        if let histogram = s.hrHistogram, let integrated = integratedTrimp(histogram, minutes: dur, session: s) {
+            return integrated
+        }
+        guard let hrr = hrReserve(s.avgHR, session: s) else { return nil }
+        return dur * Store.banister(hrr, female: prefs.sex_ == "f")
     }
+
+    /// Banister/Morton weight of one minute at a reserve fraction: 0.64·x·e^(1.92x)
+    /// for men, 0.86·x·e^(1.67x) for women.
+    private static func banister(_ hrr: Double, female: Bool) -> Double {
+        hrr * (female ? 0.86 : 0.64) * exp((female ? 1.67 : 1.92) * hrr)
+    }
+
+    private static let minSampleCoverage = 0.5
+
+    private func integratedTrimp(_ histogram: [Int: Int], minutes: Double, session s: WorkoutSession) -> Double? {
+        let rest = restingHR(on: s.date), mx = Double(prefs.estMaxHR)
+        let seconds = Double(histogram.values.reduce(0, +))
+        let coverage = seconds / (minutes * 60)
+        guard mx > rest, coverage >= Store.minSampleCoverage else { return nil }
+        let female = prefs.sex_ == "f"
+        let total = histogram.reduce(0.0) { sum, bin in
+            let hrr = max(0, min(1, (Double(bin.key) - rest) / (mx - rest)))
+            return sum + Double(bin.value) / 60 * Store.banister(hrr, female: female)
+        }
+        // Samples with gaps stand for the whole workout.
+        return total / min(1, coverage)
+    }
+
+    private static let restingWindowDays = 7
+    private static let restingMinReadings = 3
+
+    /// Resting heart rate that counted on a day: the median of Health's readings in
+    /// the week before, the profile value without at least three. Using the day's
+    /// own figure keeps old sessions from moving when today's changes (a flu).
+    func restingHR(on date: String) -> Double {
+        memo("restingHR|\(date)") {
+            guard let end = isoFormatter.date(from: date),
+                  let start = Calendar.current.date(byAdding: .day, value: -Store.restingWindowDays, to: end) else {
+                return Double(prefs.restHRorDefault)
+            }
+            let from = isoFormatter.string(from: start)
+            let readings = sortedDaily.compactMap { e -> Double? in
+                guard e.date >= from, e.date < date, let hr = e.restHR, hr > 0 else { return nil }
+                return Double(hr)
+            }.sorted()
+            guard readings.count >= Store.restingMinReadings else { return Double(prefs.restHRorDefault) }
+            let mid = readings.count / 2
+            return readings.count % 2 == 1 ? readings[mid] : (readings[mid - 1] + readings[mid]) / 2
+        }
+    }
+
+    /// The resting heart rate for zones and anything that is about now.
+    func currentRestingHR() -> Double {
+        restingHR(on: isoFormatter.string(from: Calendar.current.date(byAdding: .day, value: 1, to: Date()) ?? Date()))
+    }
+
+    private static let maxHRHistoryDays = 365
+
+    /// A maximum heart rate learned from the workouts: the second highest peak of
+    /// the last year when it is above the estimate. The second one, so a single
+    /// strap glitch does not set it. Suggested in Settings, never applied alone.
+    var suggestedMaxHR: Int? {
+        memo("suggestedMaxHR") { () -> Int? in
+            let cutoff = Calendar.current.date(byAdding: .day, value: -Store.maxHRHistoryDays, to: Date())
+                .map { isoFormatter.string(from: $0) } ?? ""
+            let peaks = sessions.compactMap { s -> Int? in
+                guard s.date >= cutoff else { return nil }
+                return [s.maxHRSes, s.hrHistogram?.keys.max()].compactMap { $0 }.max()
+            }.filter { $0 < Store.plausibleMaxHR }.sorted(by: >)
+            guard peaks.count >= 2, peaks[1] > prefs.estMaxHR else { return nil }
+            return peaks[1]
+        }
+    }
+    static let plausibleMaxHR = 230
 
     /// TRIMP of every stored session that has one, computed once per change.
     var sessionTrimps: [UUID: Double] {
@@ -52,7 +126,7 @@ extension Store {
     var hasAnyTrimp: Bool { !sessionTrimps.isEmpty }
 }
 
-// MARK: - Daily load series + ACWR (EWMA method)
+// MARK: - Daily load series
 struct LoadPoint: Identifiable {
     var date: String
     var load: Double
@@ -81,15 +155,6 @@ extension Store {
             d = cal.date(byAdding: .day, value: -1, to: d)!
         }
         return Array(stack.reversed())
-    }
-
-    /// Exponentially weighted moving average over a daily series.
-    private func ewma(_ values: [Double], days: Int) -> Double {
-        guard !values.isEmpty else { return 0 }
-        let lambda = 2.0 / (Double(days) + 1.0)
-        var e = values[0]
-        for v in values.dropFirst() { e = v * lambda + e * (1 - lambda) }
-        return e
     }
 
     /// Whether there is enough load history for ACWR/monotony/strain to be
@@ -122,18 +187,13 @@ extension Store {
                               needSessions: needSessions, needDays: needDays)
     }
 
-    /// ACWR with the EWMA method (acute = 7d, chronic = 28d).
+    /// Acute:chronic ratio from the same two averages as the form: fatigue ÷ fitness.
+    /// One load model, so this and the form can never disagree.
     func acwr() -> ACWRResult { memo("acwr") { computeACWR() } }
 
     private func computeACWR() -> ACWRResult {
-        let series = dailyLoadSeries(days: 42).map { $0.load }
-        guard series.contains(where: { $0 > 0 }) else {
-            return ACWRResult(ratio: nil, zone: "none")
-        }
-        let acute = ewma(series, days: 7)
-        let chronic = ewma(series, days: 28)
-        guard chronic > 0 else { return ACWRResult(ratio: nil, zone: "none") }
-        let r = acute / chronic
+        guard let today = formSeries(days: 1).last, today.fitness > 0 else { return ACWRResult(ratio: nil, zone: "none") }
+        let r = today.fatigue / today.fitness
         let zone: String
         switch r {
         case ..<0.8:        zone = "low"
@@ -142,6 +202,17 @@ extension Store {
         }
         return ACWRResult(ratio: (r * 100).rounded() / 100, zone: zone)
     }
+
+    /// Form as a share of fitness, %: below −30 the load runs ahead of what the body
+    /// is used to (as in intervals.icu), from −30 to −10 it is productive. A share
+    /// keeps the bands the same whatever the unit of the load.
+    func formPercent() -> Double? {
+        memo("formPercent") { () -> Double? in
+            guard let today = formSeries(days: 1).last, today.fitness > 0 else { return nil }
+            return today.form / today.fitness * 100
+        }
+    }
+    static let overreachingBelowFormPercent = -30.0
 }
 
 // MARK: - Weekly monotony & strain (Foster)
@@ -378,18 +449,17 @@ extension Store {
 
 // MARK: - Sleep debt, social jet lag, HRV stability
 extension Store {
-    /// The nightly need the debt is counted against: the middle of the 7–9 h
-    /// adults are advised to sleep.
-    static let sleepNeedHours = 8.0
     private static let sleepDebtNights = 14
 
     /// Hours of sleep owed over the last two weeks: each night short of the need
-    /// adds, each long night pays back; never below zero. Nights without data
+    /// adds, each long night pays back; never below zero. Counted against the
+    /// person's own need (7–9 h for adults, 8 by default). Nights without data
     /// are skipped, not counted as zero. nil under 7 nights.
     func sleepDebt() -> Double? {
         let nights = recentNights(Store.sleepDebtNights).compactMap(\.sleepHours)
         guard nights.count >= Store.sleepDebtNights / 2 else { return nil }
-        return max(0, nights.reduce(0) { $0 + Store.sleepNeedHours - $1 })
+        let need = prefs.sleepNeedHours
+        return max(0, nights.reduce(0) { $0 + need - $1 })
     }
 
     /// Social jet lag (Wittmann, Roenneberg): how far the middle of the night
@@ -537,23 +607,22 @@ extension Store {
     /// Double-progression for an exercise, enhanced with health and load context.
     /// Priority order:
     ///   1. Deload: HRV score < 30 (very low readiness) → always deload
-    ///   2. Hold:   ACWR > 1.3 (load spike) → hold to reduce injury risk
+    ///   2. Hold:   form below −30 % of fitness (load spike) → hold to reduce injury risk
     ///   3. Rep / load suggestion from last session vs target range
     ///   4. Consistency check: if the exercise was hit at the top of the range
     ///      in the two most recent sessions, confirm addLoad; a single session
     ///      at the top with a prior fall-short stays at addReps (not yet confirmed).
     /// What recovery data says about pushing today, or nil when it has nothing
-    /// trustworthy to say. The ACWR counts only once there is enough load history
+    /// trustworthy to say. The form counts only once there is enough load history
     /// for the ratio to mean something — the same test the dashboard applies before
     /// showing it (one logged ride alone gives a ratio above 3).
     private func recoveryGate() -> ProgKind? {
         memo("recoveryGate") { () -> ProgKind? in
             if let score = readiness().score, score < Store.readinessRestBelow { return .deload }
-            if loadDataStatus().reliable, let ratio = acwr().ratio, ratio > Store.holdAboveACWR { return .hold }
+            if loadDataStatus().reliable, let form = formPercent(), form < Store.overreachingBelowFormPercent { return .hold }
             return nil
         }
     }
-    private static let holdAboveACWR = 1.3
 
     func progression(planId: String, exercise: String) -> ProgKind? {
         memo("progression|\(planId)|\(exercise)") { computeProgression(planId: planId, exercise: exercise) }

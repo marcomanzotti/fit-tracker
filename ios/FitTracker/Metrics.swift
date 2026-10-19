@@ -154,29 +154,39 @@ extension Store {
                           lean: (lean * 10).rounded() / 10)
     }
 
-    /// Band for a normalized FFMI, sex-adjusted (women's bands sit ~3 points lower).
-    /// Above the top band is very rare without drugs, so it's labelled as the
-    /// natural limit rather than as another rung to climb.
-    func ffmiCategory(_ v: Double, sex: String) -> (key: String, color: Color) {
-        let shift: Double = sex == "f" ? -3 : 0
-        switch v {
-        case ..<(18 + shift):  return ("ffmi.below", Theme.sub)
-        case ..<(20 + shift):  return ("ffmi.average", Theme.blue)
-        case ..<(22 + shift):  return ("ffmi.good", Theme.good)
-        case ..<(23 + shift):  return ("ffmi.great", Theme.acc2)
-        case ..<(26 + shift):  return ("ffmi.excellent", Theme.acc)
-        default:               return ("ffmi.elite", Theme.fat)
+    /// Body-fat measurements, oldest first: body records (typed or Navy) and the
+    /// smart-scale readings Health brings.
+    private var bodyFatPoints: [(date: String, value: Double)] {
+        memo("bodyFatPoints") {
+            var byDate: [String: Double] = [:]
+            for e in daily { if let v = e.bodyFat, v > 0, v < 60 { byDate[e.date] = v } }
+            for b in body {
+                if let v = b.bfManual ?? bfNavy(waist: b.waist, neck: b.neck, hip: b.hips), v > 0, v < 60 { byDate[b.date] = v }
+            }
+            return byDate.sorted { $0.key < $1.key }.map { (date: $0.key, value: $0.value) }
         }
     }
 
-    /// FFMI for a past day, for the trend chart: that day's weight against the
-    /// current body-fat reading (Health gives weight daily, body fat rarely — so the
-    /// line tracks how lean mass moved with weight, holding composition constant).
-    func ffmiFor(weight: Double) -> Double? {
-        let h = prefs.height
-        guard h > 1.0, h < 2.5, let bf = currentBF, bf > 0, bf < 60, weight > 0 else { return nil }
-        let lean = weight * (1 - bf / 100)
-        return ((lean / (h * h)) * 10).rounded() / 10
+    /// Body fat on a day: the measurement of that day, or a line between the two
+    /// around it. nil outside the measured period — the lean mass of a day with no
+    /// measurement near it would only be the weight chart again.
+    func bodyFat(on date: String) -> Double? {
+        let points = bodyFatPoints
+        guard let next = points.firstIndex(where: { $0.date >= date }) else { return nil }
+        if points[next].date == date { return points[next].value }
+        guard next > 0 else { return nil }
+        let a = points[next - 1], b = points[next]
+        let span = chartDay(b.date).timeIntervalSince(chartDay(a.date))
+        guard span > 0 else { return nil }
+        let t = chartDay(date).timeIntervalSince(chartDay(a.date)) / span
+        return a.value + (b.value - a.value) * t
+    }
+
+    /// Normalised FFMI for a past day, for the trend chart: that day's weight with
+    /// that day's body fat. Same scale as the card and the "i" sheet.
+    func ffmiTrend(on date: String, weight: Double) -> Double? {
+        guard weight > 0, let bf = bodyFat(on: date) else { return nil }
+        return ffmi(weight: weight, bodyFat: bf)?.normalized
     }
 }
 
@@ -241,7 +251,7 @@ extension Store {
 extension Store {
     struct MuscleVolume: Identifiable {
         var group: MuscleGroup
-        var sets: Int            // working sets this week
+        var sets: Double         // working sets this week; secondary muscles count half
         var target: Int          // weekly working-set target for this group
         var id: String { group.rawValue }
 
@@ -249,10 +259,8 @@ extension Store {
         /// "ok" inside it, "high" above. The range is target ± half, i.e. the usual
         /// 10-20 sets/week band around a target of ~15.
         var status: String {
-            let lower = Int((Double(target) * 0.67).rounded())
-            let upper = Int((Double(target) * 1.33).rounded())
-            if sets < lower { return "low" }
-            if sets > upper { return "high" }
+            if sets < Double(range.low) { return "low" }
+            if sets > Double(range.high) { return "high" }
             return "ok"
         }
         var range: (low: Int, high: Int) {
@@ -285,14 +293,20 @@ extension Store {
     private func computeMuscleVolume(offset: Int) -> [MuscleVolume] {
         let from = isoFormatter.string(from: weekStart(offset: offset))
         let to = isoFormatter.string(from: weekStart(offset: offset - 1))
-        var counts: [String: Int] = [:]
+        var counts: [String: Double] = [:]
         for s in sessions {
             guard s.date >= from, s.date < to else { continue }
             for e in s.exercises {
-                let working = e.sets.filter { $0.filled }.count
+                let working = Double(e.sets.filter { $0.filled }.count)
                 guard working > 0 else { continue }
                 let g = exerciseCategory(e.name)
                 counts[g, default: 0] += working
+                // A press also works the arms and shoulders: half a set each.
+                if let primary = MuscleGroup(rawValue: g) {
+                    for other in Store.secondaryGroups(of: e.name, primary: primary) {
+                        counts[other.rawValue, default: 0] += working * Store.secondaryWeight
+                    }
+                }
             }
         }
         return MuscleGroup.allCases.compactMap { g in
@@ -302,17 +316,15 @@ extension Store {
     }
 
     /// Whether the week's numbers say to back off. Deloading is warranted when the
-    /// acute load has run away from the chronic baseline (ACWR high) AND training has
+    /// form has dropped into overreaching (below −30 % of fitness) AND training has
     /// been monotonous — the classic Foster combination that precedes overreaching.
     /// False unless the load data is trustworthy: a deload suggestion off two
     /// logged sessions would be noise. The single source for the deload warning.
     func deloadAdvice() -> Bool {
-        guard loadDataStatus().reliable else { return false }
-        let a = acwr()
-        guard let ratio = a.ratio else { return false }
-        let w = weekLoad(offset: 0)
-        guard let mono = w.monotony else { return false }
-        return ratio > 1.5 && mono > 2.0
+        guard loadDataStatus().reliable, let form = formPercent(),
+              form < Store.overreachingBelowFormPercent,
+              let mono = weekLoad(offset: 0).monotony else { return false }
+        return mono > 2.0
     }
 }
 
@@ -428,7 +440,7 @@ extension Store {
     func hrZones() -> [HRZone] { memo("hrZones") { computeHRZones() } }
 
     private func computeHRZones() -> [HRZone] {
-        let rest = Double(prefs.restHRorDefault)
+        let rest = currentRestingHR()
         let mx = Double(prefs.estMaxHR)
         guard mx > rest else { return [] }
         let bounds = [0.50, 0.60, 0.70, 0.80, 0.90, 1.00]

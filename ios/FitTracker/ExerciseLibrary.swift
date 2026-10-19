@@ -204,3 +204,31 @@ extension Store {
         prefs.seededExercises = true
     }
 }
+
+// MARK: - Secondary muscles
+extension Store {
+    /// A secondary muscle counts half a set in the weekly volume.
+    static let secondaryWeight = 0.5
+
+    /// The other groups a movement works hard enough to count: a press loads the
+    /// arms and shoulders, a row or pulldown the arms, a deadlift the legs. Flys,
+    /// raises and curls are isolation work and add nothing. Read from the name and
+    /// the primary group, so the user's own exercises follow without extra data.
+    static func secondaryGroups(of name: String, primary: MuscleGroup) -> [MuscleGroup] {
+        let n = name.lowercased()
+        func has(_ words: String...) -> Bool { words.contains { n.contains($0) } }
+        switch primary {
+        case .chest:
+            return has("fly", "pec deck", "crossover") ? [] : [.arms, .shoulders]
+        case .back:
+            if has("deadlift", "rack pull") { return [.legs, .arms] }
+            return has("pulldown", "pull-up", "chin-up", "row") ? [.arms] : []
+        case .shoulders:
+            return has("press") ? [.arms] : []
+        case .legs:
+            return has("deadlift") ? [.back] : []
+        case .arms, .core, .fullbody, .cardio, .other:
+            return []
+        }
+    }
+}

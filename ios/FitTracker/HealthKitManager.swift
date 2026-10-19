@@ -243,7 +243,7 @@ final class HealthKitManager {
 
         var read = Set<HKObjectType>([HKObjectType.workoutType()]).union(Self.workoutReadTypes)
         let quantities = Self.dailyStats.map(\.id) + Self.nightVitals.map(\.id)
-            + [.distanceWalkingRunning, .distanceCycling, .distanceSwimming]
+            + [.distanceWalkingRunning, .distanceCycling, .distanceSwimming, .cyclingPower]
         for id in quantities {
             if let t = HKObjectType.quantityType(forIdentifier: id) { read.insert(t) }
         }

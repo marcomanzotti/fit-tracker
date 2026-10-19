@@ -279,7 +279,7 @@ struct MuscleVolumeCard: View {
         // Scale bars against the highest of "most sets done" and "highest target", so
         // an under-trained group reads as short against its own goal rather than
         // filling the row just because nothing else was trained.
-        let maxSets = max(1, vols.map { max($0.sets, $0.target) }.max() ?? 1)
+        let maxSets = max(1, vols.map { max($0.sets, Double($0.target)) }.max() ?? 1)
         return Group {
             if !vols.isEmpty {
                 Card {
@@ -306,11 +306,11 @@ struct MuscleVolumeCard: View {
                                                 .offset(x: geo.size.width * CGFloat(v.target) / CGFloat(maxSets))
                                         }
                                         Capsule().fill(Color(hex: v.group.color))
-                                            .frame(width: max(7, geo.size.width * CGFloat(v.sets) / CGFloat(maxSets)), height: 7)
+                                            .frame(width: max(7, geo.size.width * CGFloat(v.sets / maxSets)), height: 7)
                                     }
                                 }
                                 .frame(height: 13)
-                                Text("\(v.sets)").font(.num(14)).foregroundColor(Theme.txt).frame(width: 24, alignment: .trailing)
+                                Text(trimNum(v.sets)).font(.num(14)).foregroundColor(Theme.txt).frame(width: 24, alignment: .trailing)
                                 if v.target > 0 {
                                     Text(t("st.vol_" + v.status).uppercased())
                                         .font(.head(10, .semibold)).tracking(0.5)

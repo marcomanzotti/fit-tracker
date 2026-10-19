@@ -93,6 +93,7 @@ struct ProfileFields {
     var trainDays: String
     var restHR: String
     var maxHR: String
+    var sleepNeed: String
 
     init(_ p: Prefs, currentWeight: Double) {
         lang = p.langCode
@@ -109,6 +110,7 @@ struct ProfileFields {
         trainDays = p.trainingDays.map(String.init) ?? ""
         restHR = p.restingHR.map(String.init) ?? ""
         maxHR = p.maxHR.map(String.init) ?? ""
+        sleepNeed = p.sleepNeed.map(trimNum) ?? ""
     }
 
     func apply(to p: inout Prefs) {
@@ -123,6 +125,7 @@ struct ProfileFields {
         p.trainingDays = Int(trainDays)
         p.restingHR = Int(restHR)
         p.maxHR = Int(maxHR)
+        p.sleepNeed = pf(sleepNeed) > 0 ? pf(sleepNeed) : nil
     }
 }
 
@@ -164,6 +167,7 @@ private func goalTitle(_ v: String) -> String {
 
 // MARK: - The profile form body (fields only)
 struct ProfileFormBody: View {
+    @EnvironmentObject var store: Store
     @Binding var f: ProfileFields
     var showLanguage: Bool = true
 
@@ -218,6 +222,14 @@ struct ProfileFormBody: View {
                 FieldRow(label: t("ob.rest_hr")) { InputField(placeholder: "60", text: $f.restHR, keyboard: .numberPad) }
             }
             FieldRow(label: t("ob.max_hr")) { InputField(placeholder: "—", text: $f.maxHR, keyboard: .numberPad) }
+            // Learned from the workouts, offered and never applied alone.
+            if let suggested = store.suggestedMaxHR, f.maxHR != String(suggested) {
+                Button { f.maxHR = String(suggested) } label: {
+                    Text(t("ob.max_hr_suggest", suggested)).font(.system(size: 12, weight: .semibold)).foregroundColor(Theme.acc2)
+                }
+                .buttonStyle(.plain)
+            }
+            FieldRow(label: t("ob.sleep_need")) { InputField(placeholder: "8", text: $f.sleepNeed, keyboard: .decimalPad) }
         }
     }
 }

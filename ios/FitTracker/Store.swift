@@ -648,54 +648,10 @@ extension Store {
 
     func bmi(_ w: Double) -> Double { ((w / (prefs.height * prefs.height)) * 10).rounded() / 10 }
 
-    func bmiCategory(_ b: Double) -> (String, Color) {
-        if b < 18.5 { return (L.t("bmi.under"), Theme.blue) }
-        if b < 25   { return (L.t("bmi.normal"), Theme.good) }
-        if b < 30   { return (L.t("bmi.over"), Theme.acc2) }
-        return (L.t("bmi.obese"), Theme.red)
-    }
-
-    // MARK: - Body-fat categories (sex-specific, ACE/ACSM ranges)
-    // BMI stays the primary number, but because it can't tell muscle from fat,
-    // whenever a body-fat % is known we classify by body fat instead. The key
-    // rule: a man under 18% or a woman under 25% body fat is NOT clinically
-    // overweight even if BMI ≥ 25 (they're simply muscular).
-    enum BFCategory: String {
-        case essential, athlete, fitness, average, overweight, obese
-        var key: String { "bf." + rawValue }
-        var color: Color {
-            switch self {
-            case .essential:  return Theme.blue       // very low — caution
-            case .athlete:    return Theme.good
-            case .fitness:    return Theme.good
-            case .average:    return Theme.acc2
-            case .overweight: return Theme.acc2
-            case .obese:      return Theme.red
-            }
-        }
-    }
-
-    func bfCategory(_ bf: Double, sex: String) -> BFCategory {
-        if sex == "f" {
-            switch bf {
-            case ..<14:  return .essential   // 10–13
-            case ..<21:  return .athlete     // 14–20
-            case ..<25:  return .fitness     // 21–24
-            case ..<32:  return .average     // 25–31
-            case ..<37:  return .overweight  // 32–36
-            default:     return .obese       // 37+
-            }
-        } else {
-            switch bf {
-            case ..<6:   return .essential   // 2–5
-            case ..<14:  return .athlete     // 6–13
-            case ..<18:  return .fitness     // 14–17
-            case ..<25:  return .average     // 18–24
-            case ..<30:  return .overweight  // 25–29
-            default:     return .obese       // 30+
-            }
-        }
-    }
+    // BMI, body fat and FFMI are labelled from the reference scales of their "i"
+    // sheets (`scaleBand`): one set of bands for the card and the sheet. BMI cannot
+    // tell muscle from fat, so with a body-fat % known the comment goes by body fat:
+    // a man under 18 % or a woman under 25 % is not overweight, only muscular.
 
     /// Threshold below which a high BMI is muscle, not fat: men <18%, women <25%.
     private func notOverweightByFat(_ bf: Double) -> Bool {
@@ -707,16 +663,15 @@ extension Store {
     /// key rule prevents a lean, muscular person reading as "overweight".
     func bmiComment(weight: Double) -> (text: String, color: Color) {
         let b = bmi(weight)
-        if let bf = currentBF {
-            let cat = bfCategory(bf, sex: prefs.sex_)
+        if let bf = currentBF, let fat = scaleBand(.bodyfat, bf) {
             // High BMI but low fat → surface that it's muscle, not excess fat.
             if b >= 25 && notOverweightByFat(bf) {
                 return ("BMI \(trimNum(b)) · \(L.t("bf.muscular"))", Theme.good)
             }
-            return ("BMI \(trimNum(b)) · \(L.t(cat.key))", cat.color)
+            return ("BMI \(trimNum(b)) · \(L.t(fat.key))", fat.color)
         }
-        let std = bmiCategory(b)
-        return ("BMI \(trimNum(b)) · \(std.0)", std.1)
+        let std = scaleBand(.bmi, b)
+        return ("BMI \(trimNum(b)) · \(std.map { L.t($0.key) } ?? "")", std?.color ?? Theme.sub)
     }
 
     /// US-Navy body-fat estimate (cm). The men's and women's equations are
@@ -931,13 +886,13 @@ extension Store {
         return max(1, Int(kcal.rounded()))
     }
 
-    /// Heart-rate reserve fraction (0...1) from profile resting/max HR, or nil
-    /// when no avg HR was entered. The session's own peak only raises the max: a
-    /// strength session peaking at 125 bpm is not a near-maximal effort.
+    /// Heart-rate reserve fraction (0...1) from the resting HR of the session's day
+    /// and the profile max, or nil when no avg HR was entered. Zones use the same
+    /// max, so a workout lands in the same place in both.
     func hrReserve(_ hr: Int?, session s: WorkoutSession) -> Double? {
         guard let hr, hr > 0 else { return nil }
-        let rest = Double(prefs.restHRorDefault)
-        let mx = Double(max(prefs.estMaxHR, s.maxHRSes ?? 0))
+        let rest = restingHR(on: s.date)
+        let mx = Double(prefs.estMaxHR)
         guard mx > rest else { return nil }
         return max(0, min(1, (Double(hr) - rest) / (mx - rest)))
     }

@@ -758,6 +758,8 @@ struct Prefs: Codable, Equatable {
     /// Per-muscle weekly working-set targets (MuscleGroup raw value → sets). Missing
     /// entries use the default hypertrophy range.
     var volumeTargets: [String: Int]?
+    /// Hours of sleep the person needs a night, 7-9 for adults. nil => 8.
+    var sleepNeed: Double?
     var units: String?         // "metric" | "imperial"; nil => metric
     /// Days explicitly marked as rest (yyyy-MM-dd). A rest day is not a session,
     /// just a marker shown with a dedicated icon/color on the week strip and
@@ -824,6 +826,8 @@ struct Prefs: Codable, Equatable {
     var holdPrep: Int { min(30, max(0, holdPrepSec ?? 7)) }
     var autoRest: Bool { autoRestTimer != false }
     var bar: Double { (barWeight ?? 0) > 0 ? barWeight! : 20 }
+    static let sleepNeedRange = 6.0...10.0
+    var sleepNeedHours: Double { min(max(sleepNeed ?? 8, Prefs.sleepNeedRange.lowerBound), Prefs.sleepNeedRange.upperBound) }
     var plateSet: [Double] {
         let p = (plates ?? []).filter { $0 >= Prefs.smallestPlateKg }
         return p.isEmpty ? [25, 20, 15, 10, 5, 2.5, 1.25] : p.sorted(by: >)

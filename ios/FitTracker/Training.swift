@@ -21,13 +21,13 @@ extension Store {
     static let fitnessDays = 42.0
     static let fatigueDays = 7.0
 
-    /// One point per day for the last `days`. The averages start three fitness
+    /// One point per day for the last `days`. The averages start five fitness
     /// constants earlier so the first day shown is not a cold start from zero.
     /// Form uses the day before: a session done today has not made you fresher.
     func formSeries(days: Int = 90) -> [FormPoint] { memo("form|\(days)") { computeFormSeries(days: days) } }
 
     private func computeFormSeries(days: Int) -> [FormPoint] {
-        let warmUp = Int(Store.fitnessDays) * 3
+        let warmUp = Int(Store.fitnessDays) * 5
         var fitness = 0.0, fatigue = 0.0
         var out: [FormPoint] = []
         for (i, p) in dailyLoadSeries(days: days + warmUp).enumerated() {
@@ -193,6 +193,33 @@ extension Store {
     }
 }
 
+/// What the work in an efficiency ratio is: metres covered (a run) or watts (a ride).
+enum DecouplingWork { case distance, power }
+
+/// Friel's aerobic decoupling: how much the efficiency (work per heartbeat) of the
+/// second half of the steady part falls below the first. The first ten minutes are
+/// left out, the heart rate is still climbing there. Under 5 % the aerobic base held.
+/// `work` is metres per sample for a run and instantaneous watts for a ride.
+func aerobicDecoupling(heartRate: [(Date, Double)], work: [(Date, Double)], kind: DecouplingWork,
+                       start: Date, end: Date, warmUp: TimeInterval = 600) -> Double? {
+    let from = start.addingTimeInterval(warmUp)
+    let span = end.timeIntervalSince(from)
+    guard span >= 600 else { return nil }
+    let mid = from.addingTimeInterval(span / 2)
+    func half(_ samples: [(Date, Double)], first: Bool) -> [Double] {
+        samples.filter { $0.0 >= from && $0.0 < end && ($0.0 < mid) == first }.map(\.1)
+    }
+    func mean(_ v: [Double]) -> Double? { v.isEmpty ? nil : v.reduce(0, +) / Double(v.count) }
+    func efficiency(first: Bool) -> Double? {
+        guard let hr = mean(half(heartRate, first: first)), hr > 0 else { return nil }
+        let values = half(work, first: first)
+        guard let w = kind == .distance ? (values.isEmpty ? nil : values.reduce(0, +)) : mean(values), w > 0 else { return nil }
+        return w / hr
+    }
+    guard let ef1 = efficiency(first: true), let ef2 = efficiency(first: false) else { return nil }
+    return (ef1 - ef2) / ef1 * 100
+}
+
 /// What one workout's heart rate tells, read from Health once.
 struct WorkoutHeartRate {
     var histogram: [Int: Int]   // empty when the workout has no heart rate
@@ -227,36 +254,35 @@ extension HealthKitManager {
             let hr = (own.count >= 2 ? own : all).map { ($0.startDate, $0.quantity.doubleValue(for: bpm)) }
             guard hr.count >= 2 else { return WorkoutHeartRate(histogram: [:]) }
             let histogram = heartRateHistogram(hr, end: w.endDate, longestGap: Self.longestSampleGap)
-            guard w.workoutActivityType == .running, w.duration >= Self.decouplingMinSeconds else {
+            guard w.duration >= Self.decouplingMinSeconds, let kind = Self.decouplingWork(of: w.workoutActivityType) else {
                 return WorkoutHeartRate(histogram: histogram)
             }
-            return WorkoutHeartRate(histogram: histogram, decoupling: try await decoupling(of: w, heartRate: hr))
+            return WorkoutHeartRate(histogram: histogram, decoupling: try await decoupling(of: w, kind: kind, heartRate: hr))
         } catch {
             appLog.error("Workout heart rate unreadable: \(String(describing: error), privacy: .public)")
             return nil
         }
     }
 
-    /// Friel's aerobic decoupling: efficiency (distance per heartbeat) of the
-    /// second half against the first. Under 5 % the aerobic base held for the
-    /// whole run.
-    private func decoupling(of w: HKWorkout, heartRate: [(Date, Double)]) async throws -> Double? {
-        guard let type = HKObjectType.quantityType(forIdentifier: .distanceWalkingRunning) else { return nil }
+    /// Runs are judged on distance per heartbeat, rides on power per heartbeat.
+    private static func decouplingWork(of type: HKWorkoutActivityType) -> DecouplingWork? {
+        switch type {
+        case .running: return .distance
+        case .cycling: return .power
+        default:       return nil
+        }
+    }
+
+    private func decoupling(of w: HKWorkout, kind: DecouplingWork, heartRate: [(Date, Double)]) async throws -> Double? {
+        let id: HKQuantityTypeIdentifier = kind == .distance ? .distanceWalkingRunning : .cyclingPower
+        guard let type = HKObjectType.quantityType(forIdentifier: id) else { return nil }
         let window = HKQuery.predicateForSamples(withStart: w.startDate, end: w.endDate, options: .strictStartDate)
         let samples = try await HKSampleQueryDescriptor(
             predicates: [.quantitySample(type: type, predicate: window)], sortDescriptors: []
         ).result(for: store)
-        let mid = w.startDate.addingTimeInterval(w.duration / 2)
-        var meters = [0.0, 0.0]
-        for s in samples { meters[s.startDate < mid ? 0 : 1] += s.quantity.doubleValue(for: .meter()) }
-        func meanHR(firstHalf: Bool) -> Double? {
-            let v = heartRate.filter { ($0.0 < mid) == firstHalf }.map(\.1)
-            return v.isEmpty ? nil : v.reduce(0, +) / Double(v.count)
-        }
-        guard meters[0] > 0, meters[1] > 0,
-              let hr1 = meanHR(firstHalf: true), let hr2 = meanHR(firstHalf: false) else { return nil }
-        let ef1 = meters[0] / hr1, ef2 = meters[1] / hr2   // equal halves: time cancels out
-        return (ef1 - ef2) / ef1 * 100
+        let unit: HKUnit = kind == .distance ? .meter() : .watt()
+        let work = samples.map { ($0.startDate, $0.quantity.doubleValue(for: unit)) }
+        return aerobicDecoupling(heartRate: heartRate, work: work, kind: kind, start: w.startDate, end: w.endDate)
     }
 }
 #endif

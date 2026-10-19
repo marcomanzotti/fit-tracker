@@ -96,6 +96,14 @@ extension Store {
     /// the user's own last 60 days). nil for metrics with no meaningful scale.
     func infoScale(_ topic: InfoTopic) -> InfoScale? { memo("infoScale|\(topic.rawValue)") { computeInfoScale(topic) } }
 
+    /// Label key and colour of a value on a metric's scale: the one place cards
+    /// take their wording from, so a card and its "i" sheet never disagree.
+    func scaleBand(_ topic: InfoTopic, _ value: Double) -> (key: String, color: Color)? {
+        guard let scale = infoScale(topic) else { return nil }
+        let b = scale.bands[scale.bandIndex(of: value)]
+        return ("band." + b.key, b.tone.color)
+    }
+
     private func computeInfoScale(_ topic: InfoTopic) -> InfoScale? {
         let female = prefs.sex_ == "f"
         switch topic {
@@ -198,9 +206,10 @@ extension Store {
             return InfoScale(from: 0, bands: [band(50, "low", .bad), band(80, "fair", .fair),
                                               band(100, "good", .great)], unit: "%")
         case .form:
-            return InfoScale(from: -45, bands: [band(-30, "overreaching", .bad), band(-10, "productive", .great),
+            // A share of fitness (intervals.icu bands), so it does not depend on the TRIMP unit.
+            return InfoScale(from: -50, bands: [band(-30, "overreaching", .bad), band(-10, "productive", .great),
                                                 band(5, "maintaining", .good), band(25, "fresh", .great),
-                                                band(40, "detraining", .fair)])
+                                                band(50, "detraining", .fair)], unit: "%")
         case .intensity:
             return InfoScale(from: 0, bands: [band(60, "too_hard", .bad), band(75, "mixed", .fair),
                                               band(90, "polarized", .great), band(100, "mostly_easy", .good)], unit: "%")
@@ -274,7 +283,7 @@ extension Store {
             guard !days.isEmpty, target > 0 else { return nil }
             return Double(days.reduce(0) { $0 + $1.totalKcal }) / Double(days.count) / target * 100
         case .adherence:   return adherence().loggingPct * 100
-        case .form:        return formSeries(days: 1).last?.form
+        case .form:        return formPercent()
         case .intensity:
             let recent = intensityWeeks().suffix(4)
             let total = recent.reduce(0) { $0 + $1.total }

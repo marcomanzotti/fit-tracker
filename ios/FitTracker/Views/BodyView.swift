@@ -418,13 +418,13 @@ struct BodyView: View {
                               bl: BodyEntry?, navy: Double?, bf: Double?,
                               lean: Double?, fat: Double?) -> some View {
         // Body-fat category (sex-specific) drives the BMI comment and the fat tile.
-        let bfCat = bf.map { store.bfCategory($0, sex: store.prefs.sex_) }
+        let bfCat = bf.flatMap { store.scaleBand(.bodyfat, $0) }
         // FFMI is BMI's lean-mass counterpart: it needs the fat split, so it only
         // appears once a body-fat figure exists (manual or Navy-estimated). Built
         // from the SAME weight and body fat as the tiles above, so stepping to a
         // past day never shows two contradictory lean-mass numbers in one card.
         let ffmi = store.ffmi(weight: lw, bodyFat: bf)
-        let ffmiCat = ffmi.map { store.ffmiCategory($0.normalized, sex: store.prefs.sex_) }
+        let ffmiCat = ffmi.flatMap { store.scaleBand(.ffmi, $0.normalized) }
         return Card {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 4) {

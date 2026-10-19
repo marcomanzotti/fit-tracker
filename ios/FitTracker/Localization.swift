@@ -148,10 +148,6 @@ enum L {
         "load.easy":         ("Vai leggero oggi", "Go easy today"),
         "load.rest":         ("Meglio recuperare", "Better to rest"),
         "load.need_data":    ("Inserisci l'RMSSD per qualche giorno", "Log RMSSD for a few days"),
-        "load.acwr":         ("Carico acuto/cronico (ACWR)", "Acute:chronic load (ACWR)"),
-        "load.acwr_low":     ("Carico basso: rischio detraining", "Low load: detraining risk"),
-        "load.acwr_ok":      ("Zona ottimale", "Sweet spot"),
-        "load.acwr_high":    ("Carico alto: rischio infortunio", "High load: injury risk"),
         "load.monotony":     ("Monotonia", "Monotony"),
         "load.strain":       ("Strain", "Strain"),
         "load.weekly":       ("Carico settimanale", "Weekly load"),
@@ -159,8 +155,8 @@ enum L {
         "load.title":        ("Carico interno", "Internal load"),
         "load.building":     ("Baseline in costruzione", "Building baseline"),
         "load.building_body": (
-            "ACWR, monotonia e strain confrontano il carico recente (7 giorni) con quello abituale (28 giorni): con poche sessioni il valore è completamente fuori scala e non affidabile.\n\nServono almeno %d sessioni con durata + FC media, distribuite su almeno %d giorni. L'ideale sono circa 4 settimane di dati costanti.",
-            "ACWR, monotony and strain compare your recent load (7 days) with your habitual load (28 days): with only a few sessions the value is completely out of scale and unreliable.\n\nYou need at least %d sessions with duration + average HR, spread over at least %d days. About 4 weeks of consistent data is ideal."),
+            "Forma, monotonia e strain confrontano il carico recente (7 giorni) con quello abituale (42 giorni): con poche sessioni il valore è completamente fuori scala e non affidabile.\n\nServono almeno %d sessioni con durata + FC media, distribuite su almeno %d giorni. L'ideale sono circa 4 settimane di dati costanti.",
+            "Form, monotony and strain compare your recent load (7 days) with your habitual load (42 days): with only a few sessions the value is completely out of scale and unreliable.\n\nYou need at least %d sessions with duration + average HR, spread over at least %d days. About 4 weeks of consistent data is ideal."),
         "load.sessions_logged": ("Sessioni con carico", "Load sessions"),
         "load.history_days":    ("Giorni di storico", "Days of history"),
 
@@ -292,6 +288,8 @@ enum L {
         "ob.act_athlete_d":  ("6-7 + lavoro fisico o doppie sedute (×1.9)", "6-7 + physical job or 2x/day (×1.9)"),
         "ob.rest_hr":        ("FC a riposo", "Resting HR"),
         "ob.max_hr":         ("FC max (opzionale)", "Max HR (optional)"),
+        "ob.max_hr_suggest": ("Dai tuoi allenamenti risultano %d bpm: usala", "Your workouts show %d bpm: use it"),
+        "ob.sleep_need":     ("Ore di sonno di cui hai bisogno (7–9)", "Hours of sleep you need (7–9)"),
         "ob.finish":         ("Inizia ad allenarti", "Start training"),
 
         // --- Settings / profile --------------------------------------------
@@ -446,18 +444,8 @@ enum L {
         "pc.saved":          ("Profilo salvato", "Profile saved"),
 
         // --- BMI categories -------------------------------------------------
-        "bmi.under":         ("Sottopeso", "Underweight"),
-        "bmi.normal":        ("Normopeso", "Normal"),
-        "bmi.over":          ("Sovrappeso", "Overweight"),
-        "bmi.obese":         ("Obeso", "Obese"),
 
         // --- Body-fat categories (sex-specific) -----------------------------
-        "bf.essential":      ("Essenziale", "Essential"),
-        "bf.athlete":        ("Atleta", "Athlete"),
-        "bf.fitness":        ("Fitness", "Fitness"),
-        "bf.average":        ("Nella media", "Average"),
-        "bf.overweight":     ("Sovrappeso", "Overweight"),
-        "bf.obese":          ("Obeso", "Obese"),
         "bf.muscular":       ("Muscoloso (BMI alto, grasso basso)", "Muscular (high BMI, low fat)"),
         "bf.category":       ("Categoria grasso", "Body-fat category"),
 
@@ -852,8 +840,8 @@ enum L {
         "band.elite": ("Élite", "Elite"),
         "info.form.title": ("Forma, fitness e fatica", "Form, fitness and fatigue"),
         "info.form.body": (
-            "Il modello di Banister, lo stesso del Performance Management Chart di TrainingPeaks, separa due effetti di ogni allenamento:\n• Fitness: la media del carico (TRIMP) degli ultimi ~42 giorni. Sale lentamente e misura quanto sei allenato\n• Fatica: la media degli ultimi ~7 giorni. Sale e scende in fretta\n• Forma = fitness di ieri − fatica di ieri\n\nCome leggere la forma:\n• Sotto −30: rischio di sovraccarico, serve recupero\n• Da −30 a −10: zona produttiva, stai costruendo forma\n• Da −10 a +5: mantenimento\n• Da +5 a +25: fresco, il momento per una gara o un test\n• Sopra +25: stai perdendo allenamento\n\nConta solo il carico delle sedute con il battito medio.",
-            "Banister's model, the same as TrainingPeaks' Performance Management Chart, splits every workout into two effects:\n• Fitness: the average load (TRIMP) of the last ~42 days. It rises slowly and measures how trained you are\n• Fatigue: the average of the last ~7 days. It rises and falls quickly\n• Form = yesterday's fitness − yesterday's fatigue\n\nHow to read form:\n• Below −30: overreaching risk, you need recovery\n• −30 to −10: productive zone, you are building fitness\n• −10 to +5: maintaining\n• +5 to +25: fresh, the time for a race or a test\n• Above +25: you are losing fitness\n\nOnly sessions with average heart rate carry load."
+            "Il modello di Banister, lo stesso del Performance Management Chart di TrainingPeaks, separa due effetti di ogni allenamento:\n• Fitness: la media del carico (TRIMP) degli ultimi ~42 giorni. Sale lentamente e misura quanto sei allenato\n• Fatica: la media degli ultimi ~7 giorni. Sale e scende in fretta\n• Forma = (fitness di ieri − fatica di ieri) ÷ fitness, in percentuale\n\nCome leggere la forma:\n• Sotto −30 %: rischio di sovraccarico, serve recupero\n• Da −30 % a −10 %: zona produttiva, stai costruendo forma\n• Da −10 % a +5 %: mantenimento\n• Da +5 % a +25 %: fresco, il momento per una gara o un test\n• Sopra +25 %: stai perdendo allenamento\n\nÈ una percentuale della tua fitness, quindi non dipende dall'unità del carico. Il rapporto fatica ÷ fitness (la scheda ACWR) viene dalle stesse due medie.\n\nConta solo il carico delle sedute con il battito medio.",
+            "Banister's model, the same as TrainingPeaks' Performance Management Chart, splits every workout into two effects:\n• Fitness: the average load (TRIMP) of the last ~42 days. It rises slowly and measures how trained you are\n• Fatigue: the average of the last ~7 days. It rises and falls quickly\n• Form = (yesterday's fitness − yesterday's fatigue) ÷ fitness, as a percentage\n\nHow to read form:\n• Below −30%: overreaching risk, you need recovery\n• −30% to −10%: productive zone, you are building fitness\n• −10% to +5%: maintaining\n• +5% to +25%: fresh, the time for a race or a test\n• Above +25%: you are losing fitness\n\nIt is a share of your fitness, so it does not depend on the unit of the load. The fatigue ÷ fitness ratio (the ACWR sheet) comes from the same two averages.\n\nOnly sessions with average heart rate carry load."
         ),
         "info.recovery.title": ("Recupero stimato", "Estimated recovery"),
         "info.recovery.body": (
@@ -867,13 +855,13 @@ enum L {
         ),
         "info.decoupling.title": ("Deriva cardiaca", "Aerobic decoupling"),
         "info.decoupling.body": (
-            "Nelle corse di almeno 30 minuti confrontiamo la seconda metà con la prima: quanta strada fai per ogni battito. Se a parità di passo il battito sale, la seconda metà è meno efficiente: il cuore \"deriva\".\n\nSotto il 5% la tua base aerobica regge tutta la durata (Joe Friel): è il segnale che sei pronto ad allungare le uscite. Sopra il 10% la corsa era troppo lunga o veloce per la forma attuale, oppure faceva caldo o eri disidratato. Funziona con passo costante: una corsa con ripetute non è confrontabile.",
-            "On runs of at least 30 minutes we compare the second half with the first: how much ground you cover per heartbeat. If heart rate climbs at the same pace, the second half is less efficient: the heart \"drifts\".\n\nUnder 5% your aerobic base holds for the whole run (Joe Friel): a sign you are ready to go longer. Above 10% the run was too long or fast for your current fitness, or it was hot or you were dehydrated. It needs a steady pace: a run with intervals is not comparable."
+            "Nelle corse e nelle uscite in bici di almeno 30 minuti confrontiamo la seconda metà con la prima, saltando i primi 10 minuti di riscaldamento: quanta strada (in bici, quanti watt) fai per ogni battito. Se a parità di sforzo il battito sale, la seconda metà è meno efficiente: il cuore \"deriva\".\n\nSotto il 5% la tua base aerobica regge tutta la durata (Joe Friel): è il segnale che sei pronto ad allungare le uscite. Sopra il 10% la corsa era troppo lunga o veloce per la forma attuale, oppure faceva caldo o eri disidratato. Funziona con sforzo costante: una corsa con ripetute non è confrontabile.",
+            "On runs and rides of at least 30 minutes we compare the second half with the first, skipping the first 10 minutes of warm-up: how much ground (on the bike, how many watts) you cover per heartbeat. If heart rate climbs at the same effort, the second half is less efficient: the heart \"drifts\".\n\nUnder 5% your aerobic base holds for the whole run (Joe Friel): a sign you are ready to go longer. Above 10% the run was too long or fast for your current fitness, or it was hot or you were dehydrated. It needs a steady effort: a run with intervals is not comparable."
         ),
         "info.sleep_debt.title": ("Debito di sonno", "Sleep debt"),
         "info.sleep_debt.body": (
-            "Le ore di sonno che ti mancano nelle ultime due settimane, contro un bisogno di 8 ore a notte (il centro delle 7–9 raccomandate). Ogni notte corta aggiunge debito, ogni notte lunga lo ripaga; le notti senza dati non contano.\n\nUn debito di poche ore è normale. Sopra le 7 ore in due settimane calano attenzione, recupero muscolare e controllo dell'appetito, anche se ti senti abituato. Si recupera con qualche notte più lunga e orari regolari, non con un'unica dormita.",
-            "The hours of sleep you are short over the last two weeks, against a need of 8 hours a night (the middle of the recommended 7–9). Each short night adds debt, each long night pays it back; nights without data don't count.\n\nA debt of a few hours is normal. Above 7 hours in two weeks attention, muscle recovery and appetite control decline, even if you feel used to it. It is paid back with a few longer nights and regular hours, not with one long sleep."
+            "Le ore di sonno che ti mancano nelle ultime due settimane, contro il tuo bisogno di sonno a notte (8 ore se non l'hai cambiato, il centro delle 7–9 raccomandate). Ogni notte corta aggiunge debito, ogni notte lunga lo ripaga; le notti senza dati non contano.\n\nUn debito di poche ore è normale. Sopra le 7 ore in due settimane calano attenzione, recupero muscolare e controllo dell'appetito, anche se ti senti abituato. Si recupera con qualche notte più lunga e orari regolari, non con un'unica dormita.",
+            "The hours of sleep you are short over the last two weeks, against your nightly need (8 hours unless you changed it, the middle of the recommended 7–9). Each short night adds debt, each long night pays it back; nights without data don't count.\n\nA debt of a few hours is normal. Above 7 hours in two weeks attention, muscle recovery and appetite control decline, even if you feel used to it. It is paid back with a few longer nights and regular hours, not with one long sleep."
         ),
         "info.jet_lag.title": ("Jet lag sociale", "Social jet lag"),
         "info.jet_lag.body": (
@@ -926,8 +914,8 @@ enum L {
 
         "info.acwr.title": ("Carico acuto:cronico (ACWR)", "Acute:Chronic load (ACWR)"),
         "info.acwr.body": (
-            "Il rapporto Acuto:Cronico (ACWR) misura il tuo equilibrio tra allenamento recente e capacità di recupero abituale. Confronta quanto hai fatto nell'ultima settimana rispetto a ciò che il tuo corpo è abituato a gestire nelle ultime quattro settimane, usando una media mobile che dà più peso ai giorni recenti.\n\nPerché è utile: è uno degli indicatori più studiati per prevenire gli infortuni da sovraccarico. Aumentare troppo il volume in poco tempo — senza aver costruito la base — è la causa più comune di infortuni da overuse nello sport.\n\nRange:\n• Sotto 0,8 — stai allenandoti meno del solito (detraining)\n• 0,8–1,3 — zona ottimale: stress sufficiente senza eccessivo rischio\n• 1,3–1,5 — attenzione, rischio infortuni in aumento\n• Sopra 1,5 — zona di rischio elevato\n\nCosa influenza il valore: il carico TRIMP di ogni sessione nelle ultime sette e ventotto settimane. Più sessioni registri con durata e frequenza cardiaca, più l'indicatore è preciso.",
-            "The Acute:Chronic Workload Ratio (ACWR) measures the balance between your recent training and your habitual recovery capacity. It compares what you have done in the last week against what your body is used to handling over the last four weeks, using a rolling average that weights recent days more heavily.\n\nWhy it matters: it is one of the most researched indicators for preventing overuse injuries. Increasing volume too quickly — without having built the necessary base — is the most common cause of overuse injuries in sport.\n\nRanges:\n• Below 0.8 — you are training less than usual (detraining)\n• 0.8–1.3 — optimal zone: enough stress without excessive risk\n• 1.3–1.5 — caution, injury risk rising\n• Above 1.5 — high-risk zone\n\nWhat influences the value: the TRIMP load from each session over the last seven and twenty-eight days. The more sessions you log with duration and heart rate, the more accurate this indicator becomes."),
+            "Il rapporto Acuto:Cronico (ACWR) misura il tuo equilibrio tra allenamento recente e capacità di recupero abituale. È la fatica (media degli ultimi ~7 giorni) divisa per la fitness (media degli ultimi ~42 giorni): le stesse due medie della forma. Confronta quanto hai fatto di recente con ciò che il tuo corpo è abituato a gestire.\n\nPerché è utile: è uno degli indicatori più studiati per prevenire gli infortuni da sovraccarico. Aumentare troppo il volume in poco tempo — senza aver costruito la base — è la causa più comune di infortuni da overuse nello sport.\n\nRange:\n• Sotto 0,8 — stai allenandoti meno del solito (detraining)\n• 0,8–1,3 — zona ottimale: stress sufficiente senza eccessivo rischio\n• 1,3–1,5 — attenzione, rischio infortuni in aumento\n• Sopra 1,5 — zona di rischio elevato\n\nCosa influenza il valore: il carico TRIMP di ogni sessione negli ultimi sette e quarantadue giorni. Più sessioni registri con durata e frequenza cardiaca, più l'indicatore è preciso.",
+            "The Acute:Chronic Workload Ratio (ACWR) measures the balance between your recent training and your habitual recovery capacity. It is fatigue (the average of the last ~7 days) divided by fitness (the average of the last ~42 days): the same two averages as the form. It compares what you have done lately with what your body is used to handling.\n\nWhy it matters: it is one of the most researched indicators for preventing overuse injuries. Increasing volume too quickly — without having built the necessary base — is the most common cause of overuse injuries in sport.\n\nRanges:\n• Below 0.8 — you are training less than usual (detraining)\n• 0.8–1.3 — optimal zone: enough stress without excessive risk\n• 1.3–1.5 — caution, injury risk rising\n• Above 1.5 — high-risk zone\n\nWhat influences the value: the TRIMP load from each session over the last seven and forty-two days. The more sessions you log with duration and heart rate, the more accurate this indicator becomes."),
 
         // --- Phase 3 metrics: labels, trend words, and "i" explanations --------
         "metric.muscle_vol":      ("Volume per muscolo", "Volume per muscle"),
@@ -1295,12 +1283,6 @@ enum L {
         "body.ffmi_norm":     ("FFMI norm.", "FFMI norm."),
         "body.ffmi_need_bf":  ("Serve la % di grasso", "Needs body fat %"),
         "st.ffmi_time":       ("FFMI nel tempo", "FFMI over time"),
-        "ffmi.below":         ("Sotto la media", "Below average"),
-        "ffmi.average":       ("Nella media", "Average"),
-        "ffmi.good":          ("Buona", "Good"),
-        "ffmi.great":         ("Ottima", "Great"),
-        "ffmi.excellent":     ("Eccellente", "Excellent"),
-        "ffmi.elite":         ("Al limite naturale", "At the natural limit"),
         "info.ffmi.title":    ("FFMI — indice di massa magra", "FFMI — fat-free mass index"),
         "info.ffmi.body":     ("Il FFMI è il BMI della sola massa magra: massa magra (kg) ÷ altezza² (m). A differenza del BMI non ti penalizza se sei muscoloso — un atleta con poco grasso ha BMI \"sovrappeso\" ma FFMI ottimo.\n\nIl FFMI normalizzato aggiunge 6,1 × (1,80 − altezza) per confrontare persone di statura diversa.\n\nRiferimenti (uomini): sotto 18 poca massa, 18-20 media, 20-22 buona, 22-23 ottima, 23-26 eccellente. Oltre 26 è molto raro senza farmaci. Per le donne sposta i valori di circa 3 punti verso il basso.\n\nServe una percentuale di grasso: inseriscila a mano o lascia che la stimi la formula Navy da collo e vita.",
                                "FFMI is the BMI of your lean mass alone: fat-free mass (kg) ÷ height² (m). Unlike BMI it doesn't punish you for being muscular — a lean athlete reads \"overweight\" on BMI but excellent on FFMI.\n\nNormalized FFMI adds 6.1 × (1.80 − height) so people of different heights can be compared.\n\nReference (men): below 18 low mass, 18-20 average, 20-22 good, 22-23 great, 23-26 excellent. Above 26 is very rare drug-free. For women shift the bands down about 3 points.\n\nIt needs a body-fat percentage: enter one by hand or let the Navy formula estimate it from neck and waist."),

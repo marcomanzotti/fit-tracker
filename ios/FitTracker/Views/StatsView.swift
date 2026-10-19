@@ -68,10 +68,10 @@ struct StatsView: View {
             MetricChartCard(title: t("st.bmi_time"), info: .bmi, color: Color(hex: "b08fff")) {
                 e in e.weight.map { store.bmi($0) }
             }
-            // FFMI alongside BMI: same weight series, but read as lean mass. Only
-            // plots once a body-fat figure exists (ffmiFor returns nil otherwise).
+            // FFMI alongside BMI, normalised like the card and the "i" sheet, and only on
+            // days between two body-fat measurements (the weight line again otherwise).
             MetricChartCard(title: t("st.ffmi_time"), info: .ffmi, color: Theme.blue) {
-                e in e.weight.flatMap { store.ffmiFor(weight: $0) }
+                e in e.weight.flatMap { store.ffmiTrend(on: e.date, weight: $0) }
             }
             // Recovery and activity from the watch or band: each card only appears
             // once Health has delivered that value in two different weeks.

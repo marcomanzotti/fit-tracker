@@ -119,11 +119,10 @@ struct LoadCard: View {
     @EnvironmentObject var store: Store
     var body: some View {
         let ds = store.loadDataStatus()
-        let acwr = store.acwr()
         let wk = store.weekLoad(offset: 0)
         Group {
             if ds.reliable {
-                fullCard(acwr: acwr, wk: wk)
+                fullCard(wk: wk)
             } else if ds.sessions > 0 {
                 buildingCard(ds)
             }
@@ -155,7 +154,7 @@ struct LoadCard: View {
         }
     }
 
-    private func fullCard(acwr: ACWRResult, wk: WeekLoad) -> some View {
+    private func fullCard(wk: WeekLoad) -> some View {
         Group {
                 Card {
                     InfoLbl(text: t("load.title"), info: .load, color: Theme.acc2).padding(.bottom, 12)
@@ -177,18 +176,6 @@ struct LoadCard: View {
                         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                         .padding(.bottom, 12)
                     }
-                    if let ratio = acwr.ratio {
-                        HStack(spacing: 2) {
-                            Text(t("load.acwr")).font(.system(size: 12, weight: .medium)).foregroundColor(Theme.sub)
-                            InfoButton(id: .acwr)
-                            Spacer()
-                            Text(trimNum(ratio)).font(.num(20)).foregroundColor(zoneColor(acwr.zone))
-                        }
-                        .padding(.bottom, 5)
-                        if let scale = store.infoScale(.acwr) { RangeBar(scale: scale, value: ratio) }
-                        Text(t(acwrKey(acwr.zone))).font(.system(size: 10)).foregroundColor(zoneColor(acwr.zone))
-                            .padding(.top, 5).padding(.bottom, 12)
-                    }
                     HStack(spacing: 9) {
                         StatTile(label: t("load.weekly"), value: "\(Int(wk.total))", valueColor: Theme.txt, info: .trimp)
                         StatTile(label: t("load.monotony"), value: wk.monotony.map { trimNum(($0 * 10).rounded() / 10) } ?? "—",
@@ -199,9 +186,6 @@ struct LoadCard: View {
                 }
         }
     }
-    private func acwrKey(_ z: String) -> String {
-        switch z { case "low": return "load.acwr_low"; case "high": return "load.acwr_high"; default: return "load.acwr_ok" }
-    }
 }
 
 // MARK: - Internal-load trend (visual bar chart of daily sRPE/TRIMP)
@@ -209,12 +193,8 @@ struct LoadTrendCard: View {
     @EnvironmentObject var store: Store
     var body: some View {
         let series = store.dailyLoadSeries(days: 14)
-        let acwr = store.acwr()
-        let reliable = store.loadDataStatus().reliable
         let hasLoad = series.contains { $0.load > 0 }
-        // Until ACWR is trustworthy, bars use a neutral accent so the chart never
-        // implies a danger zone off a single session.
-        let barColor = reliable ? zoneColor(acwr.zone) : Theme.acc2
+        let barColor = Theme.acc2
         Group {
             if hasLoad {
                 Card {
@@ -222,13 +202,6 @@ struct LoadTrendCard: View {
                         Lbl(text: t("load.trend_title"), color: Theme.acc2)
                         InfoButton(id: .load, color: Theme.acc2)
                         Spacer()
-                        // Only surface ACWR here once it's reliable; otherwise it
-                        // lives in the "building baseline" card above and a number
-                        // here would just repeat a meaningless value.
-                        if reliable, let r = acwr.ratio {
-                            Text("ACWR \(trimNum(r))").font(.head(11, .semibold)).tracking(0.3)
-                                .foregroundColor(zoneColor(acwr.zone))
-                        }
                     }
                     .padding(.bottom, 12)
                     // Plot against real dates so the x-axis can thin its labels

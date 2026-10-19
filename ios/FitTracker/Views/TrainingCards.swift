@@ -34,21 +34,21 @@ struct FormCard: View {
     var body: some View {
         let series = store.loadDataStatus().reliable ? store.formSeries() : []
         Group {
-            if let today = series.last, let scale = store.infoScale(.form) {
+            if let today = series.last, let percent = store.formPercent(), let scale = store.infoScale(.form) {
                 Card {
                     HStack(spacing: 4) {
                         InfoLbl(text: t("form.title"), info: .form, color: Theme.acc2)
                         Spacer()
-                        BandLabel(scale: scale, value: today.form)
+                        BandLabel(scale: scale, value: percent)
                     }
                     .padding(.bottom, 10)
                     HStack(alignment: .firstTextBaseline, spacing: 14) {
-                        Text(signed(today.form)).font(.num(34)).foregroundColor(Theme.txt)
+                        Text(signed(percent) + "%").font(.num(34)).foregroundColor(Theme.txt)
                         metric(t("form.fitness"), today.fitness, TrainingColors.fitness)
                         metric(t("form.fatigue"), today.fatigue, TrainingColors.fatigue)
                         Spacer(minLength: 0)
                     }
-                    RangeBar(scale: scale, value: today.form).padding(.vertical, 8)
+                    RangeBar(scale: scale, value: percent).padding(.vertical, 8)
                     Text(t("form.chart_fitness").uppercased()).font(.head(10, .semibold)).tracking(1)
                         .foregroundColor(Theme.sub).padding(.top, 6)
                     fitnessChart(series)
