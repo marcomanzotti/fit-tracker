@@ -2,8 +2,8 @@ import SwiftUI
 import Charts
 
 struct HomeView: View {
-    @EnvironmentObject var store: Store
-    @EnvironmentObject var toast: ToastCenter
+    @Environment(Store.self) var store
+    @Environment(ToastCenter.self) var toast
     @Binding var tab: Tab
 
     @State private var weightInput = ""

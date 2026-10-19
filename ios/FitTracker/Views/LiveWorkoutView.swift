@@ -10,9 +10,9 @@ struct LiveWorkoutView: View {
     /// Called after a Finish with what the saved session amounted to.
     var onFinished: (WorkoutSummary) -> Void
 
-    @EnvironmentObject var store: Store
-    @EnvironmentObject var timer: RestTimer
-    @EnvironmentObject var toast: ToastCenter
+    @Environment(Store.self) var store
+    @Environment(RestTimer.self) var timer
+    @Environment(ToastCenter.self) var toast
     @EnvironmentObject var activeWorkout: ActiveWorkout
     @ObservedObject private var watch = WatchSync.shared
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -619,7 +619,7 @@ struct FinishSessionSheet: View {
     let log: [LoggedExercise]
     var onSave: () -> Void
 
-    @EnvironmentObject var store: Store
+    @Environment(Store.self) var store
     @EnvironmentObject var activeWorkout: ActiveWorkout
     @Environment(\.dismiss) private var dismiss
 

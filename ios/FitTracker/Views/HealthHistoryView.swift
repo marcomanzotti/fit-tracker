@@ -8,8 +8,8 @@ import SwiftUI
 // last two weeks day by day. A category stuck at "0 / 90" points straight at a
 // permission that's off in Settings › Privacy › Health.
 struct HealthHistoryView: View {
-    @EnvironmentObject var store: Store
-    @EnvironmentObject var toast: ToastCenter
+    @Environment(Store.self) var store
+    @Environment(ToastCenter.self) var toast
     @Environment(\.dismiss) private var dismiss
 
     @State private var days = 365

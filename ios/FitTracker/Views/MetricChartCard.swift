@@ -5,7 +5,7 @@ import Charts
 /// months and expands into a larger view with a day/week/month/year toggle. Tap
 /// a point/bar to see the exact value.
 struct MetricChartCard: View {
-    @EnvironmentObject var store: Store
+    @Environment(Store.self) var store
 
     let title: String
     var info: InfoTopic? = nil
@@ -210,7 +210,7 @@ struct ChartWindowPicker: View {
 /// Full-screen expanded chart: day/week/month/year toggle and the whole period
 /// on screen, with its own tap selection. Opened from a MetricChartCard.
 struct ExpandedChartSheet: View {
-    @EnvironmentObject var store: Store
+    @Environment(Store.self) var store
     @Environment(\.dismiss) private var dismiss
 
     let title: String
@@ -273,7 +273,7 @@ struct ExpandedChartSheet: View {
 
 // MARK: Weekly sets per muscle group
 struct MuscleVolumeCard: View {
-    @EnvironmentObject var store: Store
+    @Environment(Store.self) var store
     var body: some View {
         let vols = store.weeklyMuscleVolume()
         // Scale bars against the highest of "most sets done" and "highest target", so
@@ -337,7 +337,7 @@ struct MuscleVolumeCard: View {
 
 // MARK: Resting HR & HRV trend
 struct VitalsTrendCard: View {
-    @EnvironmentObject var store: Store
+    @Environment(Store.self) var store
     var body: some View {
         let rhr = store.restingHRTrend()
         let hrv = store.hrvTrend()
@@ -401,7 +401,7 @@ struct VitalsTrendCard: View {
 
 // MARK: VO2max estimate + HR zones
 struct FitnessCard: View {
-    @EnvironmentObject var store: Store
+    @Environment(Store.self) var store
     var body: some View {
         let vo2 = store.vo2maxEstimate()
         let zones = store.hrZones()

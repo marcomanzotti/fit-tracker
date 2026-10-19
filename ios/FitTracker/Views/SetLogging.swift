@@ -152,7 +152,7 @@ struct PlateTarget: Identifiable {
 /// from the exercise card during a workout, where the alternative is doing the
 /// arithmetic on chalky hands between sets.
 struct PlateSheet: View {
-    @EnvironmentObject var store: Store
+    @Environment(Store.self) var store
     @Environment(\.dismiss) private var dismiss
     let exercise: String
     /// Working weight to load. 0 when no set carries one yet.

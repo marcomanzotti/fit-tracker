@@ -222,8 +222,8 @@ private struct RouteMap: View {
 
 // MARK: - Session editor (a saved or a new session)
 struct SessionEditorView: View {
-    @EnvironmentObject var store: Store
-    @EnvironmentObject var toast: ToastCenter
+    @Environment(Store.self) var store
+    @Environment(ToastCenter.self) var toast
     @Environment(\.dismiss) private var dismiss
     @State var session: WorkoutSession
     @State private var confirmDelete = false

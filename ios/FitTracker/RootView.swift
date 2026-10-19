@@ -30,9 +30,9 @@ enum Tab: String, CaseIterable {
 }
 
 struct RootView: View {
-    @EnvironmentObject var store: Store
-    @EnvironmentObject var timer: RestTimer
-    @EnvironmentObject var toast: ToastCenter
+    @Environment(Store.self) var store
+    @Environment(RestTimer.self) var timer
+    @Environment(ToastCenter.self) var toast
     @EnvironmentObject var activeWorkout: ActiveWorkout
     @EnvironmentObject var activeCardio: ActiveCardio
     @State private var tab: Tab = .home
@@ -211,7 +211,7 @@ struct RootView: View {
 
 // MARK: - Header
 struct HeaderBar: View {
-    @EnvironmentObject var store: Store
+    @Environment(Store.self) var store
     let tab: Tab
     var onSettings: () -> Void = {}
     var body: some View {
@@ -305,7 +305,7 @@ struct LiveWorkoutBar: View {
 // MARK: - Active workout strip (shown when a workout is running on another tab)
 struct ActiveWorkoutStrip: View {
     @EnvironmentObject var activeWorkout: ActiveWorkout
-    @EnvironmentObject var store: Store
+    @Environment(Store.self) var store
     let onTap: () -> Void
 
     private var planColor: Color { activeWorkout.plan.map { Color(hex: $0.color) } ?? Theme.acc }
@@ -343,7 +343,7 @@ struct ActiveWorkoutStrip: View {
 // MARK: - Active cardio strip (shown when a cardio session runs on another tab)
 struct ActiveCardioStrip: View {
     @EnvironmentObject var activeCardio: ActiveCardio
-    @EnvironmentObject var store: Store
+    @Environment(Store.self) var store
     let onTap: () -> Void
 
     private var ct: CardioType? { activeCardio.type }
@@ -394,7 +394,7 @@ struct ElapsedClock: View {
 
 // MARK: - Rest timer strip
 struct TimerStrip: View {
-    @EnvironmentObject var timer: RestTimer
+    @Environment(RestTimer.self) var timer
     var body: some View {
         HStack(spacing: 15) {
             VStack(alignment: .leading, spacing: 2) {

@@ -2,7 +2,7 @@ import SwiftUI
 import Charts
 
 struct StatsView: View {
-    @EnvironmentObject var store: Store
+    @Environment(Store.self) var store
 
     @State private var statsTab = "overview"
     @State private var selEx = ""          // selected movement family (base)
@@ -480,7 +480,7 @@ struct FamilyEdit: Identifiable { let id = UUID(); let base: String }
 /// its family so it merges with another movement (or splits into its own). This is
 /// the manual control behind the "explicit base + variant" model.
 struct ExerciseFamilyEditor: View {
-    @EnvironmentObject var store: Store
+    @Environment(Store.self) var store
     @Environment(\.dismiss) private var dismiss
     let base: String
 
@@ -558,8 +558,8 @@ struct ExerciseFamilyEditor: View {
 /// history, or delete one entirely. Every action rewrites past sessions, plans
 /// and the library through the Store, so PRs and progress recompute on close.
 struct ExerciseManagerView: View {
-    @EnvironmentObject var store: Store
-    @EnvironmentObject var toast: ToastCenter
+    @Environment(Store.self) var store
+    @Environment(ToastCenter.self) var toast
     @Environment(\.dismiss) private var dismiss
 
     @State private var search = ""
@@ -703,7 +703,7 @@ struct ExerciseManagerView: View {
 /// Rename an exercise. If the typed name already exists, the Store merges the two
 /// histories — the sheet surfaces that with a live hint so it's never a surprise.
 struct RenameExerciseSheet: View {
-    @EnvironmentObject var store: Store
+    @Environment(Store.self) var store
     @Environment(\.dismiss) private var dismiss
     let oldName: String
     var onConfirm: (String) -> Void

@@ -5,7 +5,7 @@ import SwiftUI
 // library that contain the typed text are shown in a dropdown below the field;
 // tapping one fills the field exactly to avoid duplicate-name fragmentation.
 private struct ExerciseNameField: View {
-    @EnvironmentObject var store: Store
+    @Environment(Store.self) var store
     @Binding var name: String
     var placeholder: String
 
@@ -66,7 +66,7 @@ private struct ExerciseNameField: View {
 }
 
 struct PlanEditorView: View {
-    @EnvironmentObject var store: Store
+    @Environment(Store.self) var store
     @Binding var plan: WorkoutPlan
     var isNew: Bool
     var onSave: () -> Void
@@ -452,7 +452,7 @@ struct PlanEditorView: View {
 // query is typed is the natural "create a variant" path — the new name rolls up to
 // the same movement family via Store.normalizedBase.
 struct ExercisePickerSheet: View {
-    @EnvironmentObject var store: Store
+    @Environment(Store.self) var store
     @Environment(\.dismiss) private var dismiss
     var onPick: (PlanExercise) -> Void
 

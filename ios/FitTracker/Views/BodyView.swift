@@ -3,8 +3,8 @@ import Charts
 import UniformTypeIdentifiers
 
 struct BodyView: View {
-    @EnvironmentObject var store: Store
-    @EnvironmentObject var toast: ToastCenter
+    @Environment(Store.self) var store
+    @Environment(ToastCenter.self) var toast
 
     @State private var weightInput = ""
     @State private var bfInput = ""
@@ -258,7 +258,7 @@ struct BodyView: View {
             }
         }
         .onAppear { prefillSteps() }
-        .onReceive(store.$daily) { _ in prefillSteps() }
+        .onChange(of: store.dailyEntry(day)?.steps) { prefillSteps() }
     }
 
     /// Keep the field showing the selected day's Health steps. For today they refresh

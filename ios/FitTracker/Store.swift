@@ -3,23 +3,24 @@ import CoreLocation
 import SwiftUI
 import WidgetKit
 
-final class Store: ObservableObject {
-    @Published var daily: [DailyEntry] = [] { didSet { dataChanged() } }
-    @Published var sessions: [WorkoutSession] = [] { didSet { dataChanged() } }
-    @Published var body: [BodyEntry] = [] { didSet { dataChanged() } }
-    @Published var plans: [WorkoutPlan] = [] { didSet { dataChanged() } }
-    @Published var cardioTypes: [CardioType] = [] { didSet { dataChanged() } }
-    @Published var foods: [FoodItem] = [] { didSet { dataChanged() } }
-    @Published var exerciseItems: [ExerciseItem] = [] { didSet { dataChanged() } }
-    @Published var recipes: [Recipe] = [] { didSet { dataChanged() } }
-    @Published var prefs: Prefs = Prefs() { didSet { dataChanged() } }
+@Observable
+final class Store {
+    var daily: [DailyEntry] = [] { didSet { dataChanged() } }
+    var sessions: [WorkoutSession] = [] { didSet { dataChanged() } }
+    var body: [BodyEntry] = [] { didSet { dataChanged() } }
+    var plans: [WorkoutPlan] = [] { didSet { dataChanged() } }
+    var cardioTypes: [CardioType] = [] { didSet { dataChanged() } }
+    var foods: [FoodItem] = [] { didSet { dataChanged() } }
+    var exerciseItems: [ExerciseItem] = [] { didSet { dataChanged() } }
+    var recipes: [Recipe] = [] { didSet { dataChanged() } }
+    var prefs: Prefs = Prefs() { didSet { dataChanged() } }
 
     /// Values derived from the data (readiness, load, form, streak, targets, PRs,
     /// progressions…), each computed once per change: a single render of the
     /// dashboard or of the live workout asks for the same numbers many times.
-    private var derived: [String: Any] = [:]
+    @ObservationIgnored private var derived: [String: Any] = [:]
     /// Something to save that is not on disk yet.
-    private var unsaved = false
+    @ObservationIgnored private var unsaved = false
 
     /// Something went wrong reading or writing the saved file. The UI shows it; it
     /// is never swallowed into "no data".
@@ -32,21 +33,35 @@ final class Store: ObservableObject {
         /// The last write failed, with the system's reason.
         case saveFailed(String)
     }
-    @Published private(set) var storageProblem: StorageProblem?
+    private(set) var storageProblem: StorageProblem?
     /// Numbers a save found not finite and wrote as 0, counted for the UI to say so.
-    @Published private(set) var repairedNumbers = 0
+    private(set) var repairedNumbers = 0
     /// A plan id or cardio-activity id the Home "Start" button asked for; the Train
     /// tab starts it and clears this. Not saved.
-    @Published var startRequest: String?
+    var startRequest: String?
     /// The Stats section a Home card asked for ("load"); Stats opens it and clears this.
-    @Published var statsRequest: String?
+    var statsRequest: String?
     /// The calendar day the app is showing. It moves at midnight and when the app
     /// comes back on a new day, so nothing stays on yesterday.
-    @Published private(set) var currentDay = today()
+    private(set) var currentDay = today()
     /// Every change empties the derived values and marks the data to save.
     private func dataChanged() {
         derived.removeAll(keepingCapacity: true)
-        if loaded { unsaved = true }
+        guard loaded else { return }
+        unsaved = true
+        scheduleSave()
+        NotificationCenter.default.post(name: Store.dataDidChange, object: self)
+    }
+    /// Posted after any change to the saved data (the watch catalog follows it).
+    static let dataDidChange = Notification.Name("fittracker.store.changed")
+
+    /// Autosave: a change persists after a short pause, so a burst of edits is one write.
+    @ObservationIgnored private var pendingSave: DispatchWorkItem?
+    private func scheduleSave() {
+        pendingSave?.cancel()
+        let work = DispatchWorkItem { [weak self] in self?.save() }
+        pendingSave = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + Store.autosaveDebounceSeconds, execute: work)
     }
 
     /// The value for `key`, computed by `compute` once per data change.
@@ -69,31 +84,31 @@ final class Store: ObservableObject {
     private static let preImportSnapshotsKept = 3
     private static let autosaveDebounceSeconds = 0.5
 
-    private var loaded = false
+    @ObservationIgnored private var loaded = false
     /// A Health read (sync or history import) is running; others wait for it.
-    private var healthBusy = false
+    @ObservationIgnored private var healthBusy = false
     /// The running read is a sync, whose answer a second sync request can share.
-    private var syncInProgress = false { didSet { if syncInProgress != oldValue { healthSyncing = syncInProgress } } }
+    @ObservationIgnored private var syncInProgress = false { didSet { if syncInProgress != oldValue { healthSyncing = syncInProgress } } }
     /// What the Health link is doing, for the status line in Settings and Body.
-    @Published private(set) var healthSyncing = false
+    private(set) var healthSyncing = false
     /// The last sync could not read Health (permission refused or Health unavailable).
-    @Published private(set) var healthFailed = false
+    private(set) var healthFailed = false
     /// Band data that landed in Health while a sync was running: read it once that
     /// sync ends instead of dropping the request.
-    private var healthResyncRequested = false
+    @ObservationIgnored private var healthResyncRequested = false
     /// Callers that asked for a sync while one was running get its answer.
-    private var waitingForSync: [(Bool, Int, [String]) -> Void] = []
+    @ObservationIgnored private var waitingForSync: [(Bool, Int, [String]) -> Void] = []
     /// Work queued behind the running Health read.
-    private var afterHealthRead: [() -> Void] = []
+    @ObservationIgnored private var afterHealthRead: [() -> Void] = []
     /// When the last automatic sync started: the app coming back to the
     /// foreground every few minutes does not read Health every time.
-    private var lastAutomaticSync: Date?
+    @ObservationIgnored private var lastAutomaticSync: Date?
     /// Workout heart rate is being read; a second read waits for the next sync.
-    var readingWorkoutHeartRate = false
+    @ObservationIgnored var readingWorkoutHeartRate = false
     /// False only when an unreadable file could not be moved out of the way: saving
     /// would then overwrite the one copy of the user's history.
-    private var canSave = true
-    private var bag = Set<AnyCancellable>()
+    @ObservationIgnored private var canSave = true
+    @ObservationIgnored private var bag = Set<AnyCancellable>()
     private let directory: URL
     /// Serial, so writes land in the order the changes happened.
     private let writeQueue = DispatchQueue(label: "fittracker.store.write", qos: .utility)
@@ -106,24 +121,6 @@ final class Store: ObservableObject {
     init(directory: URL = Store.documentsDirectory) {
         self.directory = directory
         load()
-        // Autosave: any change to the published collections persists after a short
-        // debounce. dropFirst: subscribing replays the values just loaded, and
-        // writing those back at every launch is pure work.
-        let pubs: [AnyPublisher<Void, Never>] = [
-            $daily.dropFirst().map { _ in () }.eraseToAnyPublisher(),
-            $sessions.dropFirst().map { _ in () }.eraseToAnyPublisher(),
-            $body.dropFirst().map { _ in () }.eraseToAnyPublisher(),
-            $plans.dropFirst().map { _ in () }.eraseToAnyPublisher(),
-            $cardioTypes.dropFirst().map { _ in () }.eraseToAnyPublisher(),
-            $foods.dropFirst().map { _ in () }.eraseToAnyPublisher(),
-            $exerciseItems.dropFirst().map { _ in () }.eraseToAnyPublisher(),
-            $recipes.dropFirst().map { _ in () }.eraseToAnyPublisher(),
-            $prefs.dropFirst().map { _ in () }.eraseToAnyPublisher()
-        ]
-        Publishers.MergeMany(pubs)
-            .debounce(for: .seconds(Store.autosaveDebounceSeconds), scheduler: RunLoop.main)
-            .sink { [weak self] in self?.save() }
-            .store(in: &bag)
         NotificationCenter.default.publisher(for: .NSCalendarDayChanged)
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.refreshDay() }
@@ -399,7 +396,7 @@ final class Store: ObservableObject {
                               kcalToday: dailyEntry(today())?.totalKcal ?? 0,
                               kcalTarget: Int(energyTargets().target), date: today(), lang: prefs.langCode)
     }
-    private var publishedWidget: WidgetSnapshot?
+    @ObservationIgnored private var publishedWidget: WidgetSnapshot?
 
     /// Hand the snapshot to the widget, only when it changed (reloads are budgeted
     /// by the system) and only from the real store, never from a test instance.

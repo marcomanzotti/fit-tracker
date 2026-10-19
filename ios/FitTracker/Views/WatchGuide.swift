@@ -53,8 +53,8 @@ private let healthBrands: [Brand] = [
 ]
 
 struct WatchSetupGuide: View {
-    @EnvironmentObject var store: Store
-    @EnvironmentObject var toast: ToastCenter
+    @Environment(Store.self) var store
+    @Environment(ToastCenter.self) var toast
     @Environment(\.dismiss) private var dismiss
     @State private var importing = false
     @State private var showingBand = false

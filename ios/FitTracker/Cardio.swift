@@ -3,8 +3,8 @@ import SwiftUI
 
 // MARK: - Cardio type editor (create / edit / delete a saved activity)
 struct CardioTypeEditorView: View {
-    @EnvironmentObject var store: Store
-    @EnvironmentObject var toast: ToastCenter
+    @Environment(Store.self) var store
+    @Environment(ToastCenter.self) var toast
     @Environment(\.dismiss) private var dismiss
 
     @State var type: CardioType
@@ -90,8 +90,8 @@ struct CardioTypeEditorView: View {
 // WorkoutSession with everything tracked — cardio is a first-class session, not
 // a manual after-the-fact form.
 struct LiveCardioView: View {
-    @EnvironmentObject var store: Store
-    @EnvironmentObject var toast: ToastCenter
+    @Environment(Store.self) var store
+    @Environment(ToastCenter.self) var toast
     @EnvironmentObject var activeCardio: ActiveCardio
     @ObservedObject private var watch = WatchSync.shared
 

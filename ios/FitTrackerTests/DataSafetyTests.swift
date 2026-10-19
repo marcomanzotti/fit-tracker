@@ -383,4 +383,19 @@ final class DataSafetyTests: XCTestCase {
         XCTAssertEqual(OpenFoodFacts.outcome(status: 404, data: Data(), barcode: "8001"), .notFound)
         XCTAssertEqual(OpenFoodFacts.outcome(status: 503, data: Data(), barcode: "8001"), .unreachable)
     }
+
+    // MARK: Autosave
+
+    func testAChangeIsWrittenToDiskShortlyAfterwardsWithoutAnExplicitSave() throws {
+        let store = Store(directory: dir)
+        store.daily = [DailyEntry(date: "2026-10-01", weight: 77.7)]
+        let written = expectation(description: "autosave")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+            store.waitForWrites()
+            written.fulfill()
+        }
+        wait(for: [written], timeout: 5)
+        let saved = try JSONDecoder().decode(AppData.self, from: Data(contentsOf: dataFile))
+        XCTAssertEqual(saved.daily.first?.weight, 77.7)
+    }
 }

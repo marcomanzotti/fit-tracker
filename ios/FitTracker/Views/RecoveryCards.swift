@@ -9,7 +9,7 @@ import Charts
 /// efficiency, regularity, bed and wake times, HRV when the device measures it,
 /// and the last seven nights. Shown when the sleep card is expanded.
 struct SleepNightDetail: View {
-    @EnvironmentObject var store: Store
+    @Environment(Store.self) var store
     let entry: DailyEntry
 
     var body: some View {
@@ -172,7 +172,7 @@ struct Hypnogram: View {
 
 /// Hours asleep over the seven nights up to a day, against the 7–9 h band.
 struct WeekSleepChart: View {
-    @EnvironmentObject var store: Store
+    @Environment(Store.self) var store
     let endingOn: String
 
     var body: some View {
@@ -248,7 +248,7 @@ func fmtMinutes(_ m: Int) -> String { m >= 60 ? "\(m / 60)h\(String(format: "%02
 /// HRV, sleeping HR, breathing, SpO₂ and wrist temperature of one night, each on
 /// a bar of the user's usual range (60 days, ± 2 SD).
 struct NightVitalsCard: View {
-    @EnvironmentObject var store: Store
+    @Environment(Store.self) var store
     let day: String
 
     var body: some View {

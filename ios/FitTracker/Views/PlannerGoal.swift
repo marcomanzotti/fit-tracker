@@ -5,8 +5,8 @@ import SwiftUI
 // must not drift with daily check-ins. Start weight is the baseline progress is
 // measured from, so it's editable too.
 struct GoalEditorView: View {
-    @EnvironmentObject var store: Store
-    @EnvironmentObject var toast: ToastCenter
+    @Environment(Store.self) var store
+    @Environment(ToastCenter.self) var toast
     @Environment(\.dismiss) private var dismiss
 
     @State private var goalWeight = ""
@@ -89,8 +89,8 @@ struct GoalEditorView: View {
 
 // MARK: - Weekly planner (assign each weekday a plan / cardio / rest)
 struct WeeklyPlanView: View {
-    @EnvironmentObject var store: Store
-    @EnvironmentObject var toast: ToastCenter
+    @Environment(Store.self) var store
+    @Environment(ToastCenter.self) var toast
     @Environment(\.dismiss) private var dismiss
 
     // Monday-first labels independent of locale weekday order.
@@ -204,7 +204,7 @@ struct WeeklyPlanView: View {
 
 // MARK: - Compact weekly-plan card for Home
 struct WeeklyPlanCard: View {
-    @EnvironmentObject var store: Store
+    @Environment(Store.self) var store
     @State private var editing = false
 
     var body: some View {

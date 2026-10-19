@@ -30,7 +30,7 @@ struct BandLabel: View {
 
 // MARK: Form
 struct FormCard: View {
-    @EnvironmentObject var store: Store
+    @Environment(Store.self) var store
 
     var body: some View {
         let series = store.loadDataStatus().reliable ? store.formSeries() : []
@@ -105,7 +105,7 @@ struct FormCard: View {
 
 // MARK: Weekly intensity (time in zones)
 struct IntensityCard: View {
-    @EnvironmentObject var store: Store
+    @Environment(Store.self) var store
 
     private struct Slice: Identifiable {
         let week: Date
@@ -159,7 +159,7 @@ struct IntensityCard: View {
 
 // MARK: Relative strength
 struct StrengthCard: View {
-    @EnvironmentObject var store: Store
+    @Environment(Store.self) var store
 
     var body: some View {
         let lifts = store.relativeStrength()

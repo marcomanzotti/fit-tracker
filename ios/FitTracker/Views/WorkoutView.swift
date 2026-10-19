@@ -2,8 +2,8 @@ import SwiftUI
 import UIKit
 
 struct WorkoutView: View {
-    @EnvironmentObject var store: Store
-    @EnvironmentObject var toast: ToastCenter
+    @Environment(Store.self) var store
+    @Environment(ToastCenter.self) var toast
     @EnvironmentObject var activeWorkout: ActiveWorkout
     @EnvironmentObject var activeCardio: ActiveCardio
 

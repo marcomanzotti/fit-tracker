@@ -262,7 +262,7 @@ final class ScienceTests: XCTestCase {
         measure {
             store.sessions = store.sessions          // a data change: every derived value is stale
             let home = ScrollView { VStack(spacing: 14) { HomeView(tab: .constant(.home)) } }
-                .environmentObject(store).environmentObject(ToastCenter()).environmentObject(RestTimer())
+                .environment(store).environment(ToastCenter()).environment(RestTimer())
                 .environmentObject(ActiveWorkout()).environmentObject(ActiveCardio())
             window.rootViewController = UIHostingController(rootView: home)
             window.makeKeyAndVisible()

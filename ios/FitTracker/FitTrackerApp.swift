@@ -16,9 +16,9 @@ extension BandSyncEngine {
 
 @main
 struct FitTrackerApp: App {
-    @StateObject private var store: Store
-    @StateObject private var timer: RestTimer
-    @StateObject private var toast: ToastCenter
+    @State private var store: Store
+    @State private var timer: RestTimer
+    @State private var toast: ToastCenter
     @StateObject private var activeWorkout: ActiveWorkout
     @StateObject private var activeCardio: ActiveCardio
     /// Restores a workout left in progress and keeps it on disk from here on.
@@ -27,9 +27,9 @@ struct FitTrackerApp: App {
     init() {
         let store = Store(), timer = RestTimer(), toast = ToastCenter()
         let workout = ActiveWorkout(), cardio = ActiveCardio()
-        _store = StateObject(wrappedValue: store)
-        _timer = StateObject(wrappedValue: timer)
-        _toast = StateObject(wrappedValue: toast)
+        _store = State(initialValue: store)
+        _timer = State(initialValue: timer)
+        _toast = State(initialValue: toast)
         _activeWorkout = StateObject(wrappedValue: workout)
         _activeCardio = StateObject(wrappedValue: cardio)
         keeper = SessionKeeper(store: store, workout: workout, cardio: cardio, timer: timer, toast: toast)
@@ -47,9 +47,9 @@ struct FitTrackerApp: App {
     var body: some Scene {
         WindowGroup {
             AppRootView()
-                .environmentObject(store)
-                .environmentObject(timer)
-                .environmentObject(toast)
+                .environment(store)
+                .environment(timer)
+                .environment(toast)
                 .environmentObject(activeWorkout)
                 .environmentObject(activeCardio)
                 .preferredColorScheme(.dark)

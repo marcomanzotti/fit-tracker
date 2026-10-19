@@ -27,7 +27,7 @@ private enum RecipeSortKey: String, CaseIterable {
 }
 
 struct RecipePickerSheet: View {
-    @EnvironmentObject var store: Store
+    @Environment(Store.self) var store
     @Environment(\.dismiss) private var dismiss
     var onPick: (FoodLog) -> Void
 
@@ -223,8 +223,8 @@ struct RecipeQuantitySheet: View {
 //   1. From scratch: enter per-100g values OR total+servings values manually.
 //   2. From ingredients: add saved FoodItems with amounts; macros are computed.
 struct RecipeFormSheet: View {
-    @EnvironmentObject var store: Store
-    @EnvironmentObject var toast: ToastCenter
+    @Environment(Store.self) var store
+    @Environment(ToastCenter.self) var toast
     @Environment(\.dismiss) private var dismiss
     let recipe: Recipe
     var onSave: (Recipe) -> Void

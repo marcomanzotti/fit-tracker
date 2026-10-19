@@ -433,7 +433,7 @@ struct InfoButton: View {
 
 struct InfoSheet: View {
     let topic: InfoTopic
-    @EnvironmentObject var store: Store
+    @Environment(Store.self) var store
     @Environment(\.dismiss) private var dismiss
     @State private var lang = L.lang
 

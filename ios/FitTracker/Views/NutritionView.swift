@@ -4,7 +4,7 @@ import SwiftUI
 // Consolidates everything food-related: daily targets, today's intake, a
 // month-view calendar (tap any day to log), charts, and the food database.
 struct NutritionView: View {
-    @EnvironmentObject var store: Store
+    @Environment(Store.self) var store
 
     @State private var editingToday = false
 
@@ -68,7 +68,7 @@ private enum DBSheet: Identifiable {
 }
 
 struct FoodDatabaseCard: View {
-    @EnvironmentObject var store: Store
+    @Environment(Store.self) var store
     @State private var sheet: DBSheet?
     @State private var looking = false
     /// Why a scanned product came back empty; shown at the top of the form.

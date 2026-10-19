@@ -50,18 +50,13 @@ final class WatchSync: NSObject, ObservableObject {
         }
         #endif
 
-        // Re-push the catalog whenever the plans, cardio activities or language
-        // change, and after every new session (the wrist's gray placeholders are
-        // last time's numbers), debounced so a burst of edits sends a single update.
-        let triggers: [AnyPublisher<Void, Never>] = [
-            store.$sessions.map { _ in () }.eraseToAnyPublisher(),
-            store.$plans.map { _ in () }.eraseToAnyPublisher(),
-            store.$cardioTypes.map { _ in () }.eraseToAnyPublisher(),
-            store.$prefs.map { _ in () }.eraseToAnyPublisher()
-        ]
-        Publishers.MergeMany(triggers)
+        // Re-push the catalog whenever the data changes (plans, cardio activities,
+        // language, a new session: the wrist's gray placeholders are last time's
+        // numbers), debounced so a burst of edits sends a single update; an
+        // unchanged catalog is not sent again (see lastSentCatalog).
+        NotificationCenter.default.publisher(for: Store.dataDidChange, object: store)
             .debounce(for: .seconds(0.6), scheduler: RunLoop.main)
-            .sink { [weak self] in self?.pushContext() }
+            .sink { [weak self] _ in self?.pushContext() }
             .store(in: &bag)
 
         pushContext()

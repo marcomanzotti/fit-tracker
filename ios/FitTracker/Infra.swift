@@ -5,16 +5,19 @@ import Combine
 import UserNotifications
 
 // MARK: - Rest timer
-final class RestTimer: ObservableObject {
-    @Published private(set) var remaining = 0
-    @Published private(set) var total = 60
-    @Published private(set) var active = false
-    @Published private(set) var done = false
+@Observable
+final class RestTimer {
+    private(set) var remaining = 0
+    private(set) var total = 60
+    private(set) var active = false
+    private(set) var done = false
     /// When the current rest ends. The countdown is derived from this, never from
     /// counting ticks, so time spent with the phone locked or the app closed is
     /// still time rested.
-    @Published private(set) var endsAt: Date?
-    private var cancellable: AnyCancellable?
+    private(set) var endsAt: Date? { didSet { if endsAt != oldValue { onEndsAtChange?() } } }
+    /// Told when a rest starts, moves or ends (the draft on disk keeps it).
+    @ObservationIgnored var onEndsAtChange: (() -> Void)?
+    @ObservationIgnored private var cancellable: AnyCancellable?
 
     /// A rest found already over on returning to the app ended while it was away;
     /// the notification covered that, so no late haptic.
@@ -575,8 +578,8 @@ final class SessionKeeper {
         // means the handlers below always read the new state.
         let main = DispatchQueue.main
 
-        Publishers.Merge3(workout.objectWillChange, cardio.objectWillChange,
-                          timer.$endsAt.map { _ in () })
+        timer.onEndsAtChange = { [weak self] in self?.saveNow() }
+        Publishers.Merge(workout.objectWillChange, cardio.objectWillChange)
             .throttle(for: .seconds(Self.saveIntervalSeconds), scheduler: main, latest: true)
             .sink { [weak self] in self?.saveNow() }
             .store(in: &bag)
@@ -670,22 +673,23 @@ final class SessionKeeper {
 }
 
 // MARK: - Toast
-final class ToastCenter: ObservableObject {
+@Observable
+final class ToastCenter {
     struct Action {
         let title: String
         let run: () -> Void
     }
 
-    @Published var message: String?
-    @Published private(set) var action: Action?
-    private var work: DispatchWorkItem?
+    var message: String?
+    private(set) var action: Action?
+    @ObservationIgnored private var work: DispatchWorkItem?
 
     static let defaultDuration = 1.8
     /// For messages the user needs time to read or act on (errors, Undo).
     static let longDuration = 4.0
 
     /// A plain message that arrived while an Undo was on screen: shown after it.
-    private var waiting: (message: String, duration: Double)?
+    @ObservationIgnored private var waiting: (message: String, duration: Double)?
 
     func show(_ msg: String, duration: Double = ToastCenter.defaultDuration, action: Action? = nil) {
         // A second message must not take away a deletion's Undo before it times out.

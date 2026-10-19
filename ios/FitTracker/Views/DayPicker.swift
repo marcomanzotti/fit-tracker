@@ -17,8 +17,8 @@ struct RestChip: View {
 // activity, or rest. Picking a workout pre-fills it from the last time and hands
 // back the created session so the caller can open the editor to fine-tune it.
 struct DayPickerSheet: View {
-    @EnvironmentObject var store: Store
-    @EnvironmentObject var toast: ToastCenter
+    @Environment(Store.self) var store
+    @Environment(ToastCenter.self) var toast
     @Environment(\.dismiss) private var dismiss
     let date: String
     /// Called with the created session (to edit) or nil for rest / clear.

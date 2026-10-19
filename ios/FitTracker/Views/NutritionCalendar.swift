@@ -7,7 +7,7 @@ import Charts
 // day — past or today — opens the editor so that day's nutrition can be added
 // or changed. Future days are disabled.
 struct NutritionCalendarCard: View {
-    @EnvironmentObject var store: Store
+    @Environment(Store.self) var store
     @State private var monthOffset = 0
     @State private var editDate: IdentDate?
 
@@ -70,8 +70,8 @@ struct NutritionCalendarCard: View {
 // breakdown (breakfast/lunch/dinner/snacks) that sums automatically to the day
 // total. Opens for any date and always allows editing what's already there.
 struct NutritionDayEditor: View {
-    @EnvironmentObject var store: Store
-    @EnvironmentObject var toast: ToastCenter
+    @Environment(Store.self) var store
+    @Environment(ToastCenter.self) var toast
     @Environment(\.dismiss) private var dismiss
     let date: String
 
@@ -308,7 +308,7 @@ struct NutritionDayEditor: View {
 
 // MARK: - Nutrition charts (calories + macros, same style as other metrics)
 struct NutritionChartsSection: View {
-    @EnvironmentObject var store: Store
+    @Environment(Store.self) var store
     var body: some View {
         // Weekly averages (like every other overview chart) instead of noisy
         // day-by-day points.

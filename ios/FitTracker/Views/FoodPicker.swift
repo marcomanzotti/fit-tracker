@@ -144,7 +144,7 @@ private enum FoodSortKey: String, CaseIterable {
 }
 
 struct FoodPickerSheet: View {
-    @EnvironmentObject var store: Store
+    @Environment(Store.self) var store
     @Environment(\.dismiss) private var dismiss
     var standaloneMode: Bool = true   // false when embedded inside FoodAndRecipePickerSheet
     var onPick: (FoodLog) -> Void
@@ -416,8 +416,8 @@ struct FoodPickerSheet: View {
 
 // MARK: - Create / edit a saved food (per-100 macros)
 struct FoodFormSheet: View {
-    @EnvironmentObject var store: Store
-    @EnvironmentObject var toast: ToastCenter
+    @Environment(Store.self) var store
+    @Environment(ToastCenter.self) var toast
     @Environment(\.dismiss) private var dismiss
     let food: FoodItem
     /// A line shown above the fields, e.g. why a scanned product came back empty.

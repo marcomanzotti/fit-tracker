@@ -17,8 +17,8 @@ private struct SettingsDraft: Equatable {
 }
 
 struct SettingsView: View {
-    @EnvironmentObject var store: Store
-    @EnvironmentObject var toast: ToastCenter
+    @Environment(Store.self) var store
+    @Environment(ToastCenter.self) var toast
     @Environment(\.dismiss) private var dismiss
     @State private var draft: SettingsDraft
     private let opened: SettingsDraft
@@ -335,7 +335,7 @@ struct SettingsView: View {
 /// A refused permission looks like an empty read, so the failure line sends the
 /// person to the system settings.
 struct HealthStatusRow: View {
-    @EnvironmentObject var store: Store
+    @Environment(Store.self) var store
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
@@ -372,8 +372,8 @@ private struct CSVFiles: Identifiable {
 
 // MARK: - Backup: export and import the data file (Settings › Data)
 struct BackupCard: View {
-    @EnvironmentObject var store: Store
-    @EnvironmentObject var toast: ToastCenter
+    @Environment(Store.self) var store
+    @Environment(ToastCenter.self) var toast
     @State private var shareURL: IdentURL?
     @State private var csv: CSVFiles?
     @State private var importing = false
@@ -425,8 +425,8 @@ struct BackupCard: View {
 
 // MARK: - Daily copy outside the phone (Settings › Data)
 struct ExternalBackupCard: View {
-    @EnvironmentObject var store: Store
-    @EnvironmentObject var toast: ToastCenter
+    @Environment(Store.self) var store
+    @Environment(ToastCenter.self) var toast
     @State private var picking = false
     /// Bumped after a change so the folder name and last copy are read again.
     @State private var refresh = 0

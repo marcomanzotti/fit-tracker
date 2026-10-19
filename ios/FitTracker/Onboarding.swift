@@ -2,7 +2,7 @@ import SwiftUI
 
 // MARK: - App gate: onboarding on first launch, otherwise the main app
 struct AppRootView: View {
-    @EnvironmentObject var store: Store
+    @Environment(Store.self) var store
     var body: some View {
         Group {
             if store.prefs.didOnboard { RootView() }
@@ -170,7 +170,7 @@ private func goalTitle(_ v: String) -> String {
 
 // MARK: - The profile form body (fields only)
 struct ProfileFormBody: View {
-    @EnvironmentObject var store: Store
+    @Environment(Store.self) var store
     @Binding var f: ProfileFields
     var showLanguage: Bool = true
     /// Settings edits goals in the goal editor only; the first launch asks for them here.
@@ -245,7 +245,7 @@ struct ProfileFormBody: View {
 /// Four short steps with empty fields: who you are, your body, your goal, Apple
 /// Health. Nothing is prefilled, so no made-up 80 kg ends up as a real check-in.
 struct OnboardingView: View {
-    @EnvironmentObject var store: Store
+    @Environment(Store.self) var store
     @State private var f: ProfileFields
     @State private var step = 0
     @State private var showGuide = false

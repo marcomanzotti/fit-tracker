@@ -19,7 +19,7 @@ func paceStr(_ minPerUnit: Double) -> String {
 
 // MARK: - Today: readiness and recovery in one card
 struct TodayCard: View {
-    @EnvironmentObject var store: Store
+    @Environment(Store.self) var store
     var body: some View {
         let r = store.readiness()
         let recovery = store.recoveryEstimate()
@@ -93,7 +93,7 @@ struct TodayCard: View {
 // session carries an average HR, since that's what TRIMP is computed from. The
 // tap opens Stats › Load, where the form, the trend and the intensity live.
 struct WeekLoadCard: View {
-    @EnvironmentObject var store: Store
+    @Environment(Store.self) var store
     var open: () -> Void
 
     var body: some View {
@@ -139,7 +139,7 @@ struct WeekLoadCard: View {
 
 // MARK: - Internal-load card (ACWR + monotony/strain)
 struct LoadCard: View {
-    @EnvironmentObject var store: Store
+    @Environment(Store.self) var store
     var body: some View {
         let ds = store.loadDataStatus()
         let wk = store.weekLoad(offset: 0)
@@ -213,7 +213,7 @@ struct LoadCard: View {
 
 // MARK: - Internal-load trend (visual bar chart of daily sRPE/TRIMP)
 struct LoadTrendCard: View {
-    @EnvironmentObject var store: Store
+    @Environment(Store.self) var store
     var body: some View {
         let series = store.dailyLoadSeries(days: 14)
         let hasLoad = series.contains { $0.load > 0 }
@@ -267,7 +267,7 @@ struct LoadTrendCard: View {
 
 // MARK: - Nutrition targets card
 struct NutritionCard: View {
-    @EnvironmentObject var store: Store
+    @Environment(Store.self) var store
     var body: some View {
         let e = store.energyTargets()
         let trend = store.weightTrend()
@@ -376,7 +376,7 @@ struct NutritionCard: View {
 
 // MARK: - Calendar (sessions colored by workout type)
 struct CalendarCard: View {
-    @EnvironmentObject var store: Store
+    @Environment(Store.self) var store
     @State private var monthOffset = 0
     @State private var editing: WorkoutSession?
     @State private var pickerDate: IdentDate?
@@ -439,7 +439,7 @@ struct CalendarCard: View {
 
 // MARK: - Last week in numbers (Stats)
 struct WeeklySummaryCard: View {
-    @EnvironmentObject var store: Store
+    @Environment(Store.self) var store
 
     var body: some View {
         let w = store.weeklySummary(offset: 1)
