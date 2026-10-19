@@ -269,8 +269,8 @@ struct OnboardingView: View {
         }
         .preferredColorScheme(.dark)
         .sheet(isPresented: $showGuide) { WatchSetupGuide() }
-        .onChange(of: f.lang) { _ in store.prefs.language = f.lang; store.syncLang() }
-        .onChange(of: f.sex) { newSex in
+        .onChange(of: f.lang) { store.prefs.language = f.lang; store.syncLang() }
+        .onChange(of: f.sex) { _, newSex in
             // Swap in the selected sex's clean defaults, but only if the user
             // hasn't already typed their own numbers (i.e. the fields still hold
             // the other sex's defaults).
@@ -408,7 +408,8 @@ struct SettingsView: View {
                     healthCard
 
                     BigButton(title: t("save")) { save() }
-                        .padding(.bottom, 30)
+                    Text(appVersionLabel).font(.system(size: 12)).foregroundColor(Theme.sub)
+                        .frame(maxWidth: .infinity).padding(.bottom, 30)
                 }
                 .padding(.horizontal, 18)
             }

@@ -1,3 +1,4 @@
+import Combine
 import SwiftUI
 
 // MARK: - Cardio logger (logs a session for a saved, customizable activity type)
@@ -137,7 +138,7 @@ struct CardioTypeEditorView: View {
                     Card {
                         Lbl(text: t("wk.activity_name")).padding(.bottom, 8)
                         InputField(placeholder: t("wk.activity_name_ph"), text: $type.name, keyboard: .default)
-                            .onChange(of: type.name) { v in
+                            .onChange(of: type.name) { _, v in
                                 let tc = titleCased(v)
                                 if tc != v { type.name = tc }
                             }

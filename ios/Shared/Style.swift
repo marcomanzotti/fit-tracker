@@ -1,7 +1,16 @@
 import SwiftUI
 
-// Colour and font helpers shared by the phone app, the watch app and the widgets,
-// so the three look the same and the definitions exist once.
+// Colour, font and formatting helpers shared by the phone app, the watch app and
+// the widgets, so the three look the same and the definitions exist once.
+
+/// "1.0 · 412 · 9d1b60e": version, build number (commit count) and commit, set by
+/// build_and_run.py. A build from the Xcode IDE shows only version and build.
+var appVersionLabel: String {
+    let info = Bundle.main.infoDictionary ?? [:]
+    let parts = [info["CFBundleShortVersionString"], info["CFBundleVersion"], info["FTGitHash"]]
+        .compactMap { $0 as? String }.filter { !$0.isEmpty && !$0.hasPrefix("$(") }
+    return parts.joined(separator: " · ")
+}
 extension Color {
     init(hex: String) {
         let h = hex.trimmingCharacters(in: CharacterSet(charactersIn: "#")).uppercased()

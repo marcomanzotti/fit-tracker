@@ -295,9 +295,9 @@ struct HMSField: View {
             }
         }
         .onAppear { if !synced { sync(); synced = true } }
-        .onChange(of: h) { _ in recompute() }
-        .onChange(of: m) { _ in recompute() }
-        .onChange(of: s) { _ in recompute() }
+        .onChange(of: h) { recompute() }
+        .onChange(of: m) { recompute() }
+        .onChange(of: s) { recompute() }
     }
 
     private func box(_ b: Binding<String>, _ unitKey: String, _ ph: String) -> some View {
@@ -360,7 +360,7 @@ struct PaceField: View {
             }
         }
         .onAppear { if !synced { if let m = manual { text = dec(m) }; synced = true } }
-        .onChange(of: text) { _ in
+        .onChange(of: text) {
             let v = pf(text)
             manual = (text.isEmpty || v <= 0) ? nil : v
         }
@@ -623,7 +623,7 @@ struct CardGrid<E: Identifiable, Card: View, Add: View>: View {
                     }
                 }
             }
-            .onChange(of: items.count) { _ in
+            .onChange(of: items.count) {
                 if page >= pageCount { page = max(0, pageCount - 1) }
             }
         }

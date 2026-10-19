@@ -78,9 +78,9 @@ final class WorkoutManager: NSObject, ObservableObject {
         if let t = HKObjectType.quantityType(forIdentifier: .distanceSwimming) { read.insert(t) }
         // What the live data source can add on its own for each sport: running
         // power and dynamics, steps, strokes, cycling power and cadence.
-        var extra: [HKQuantityTypeIdentifier] = [.stepCount, .runningPower, .runningSpeed, .runningStrideLength,
-                                                 .runningGroundContactTime, .runningVerticalOscillation, .swimmingStrokeCount]
-        if #available(watchOS 10.0, *) { extra += [.cyclingPower, .cyclingCadence, .cyclingSpeed] }
+        let extra: [HKQuantityTypeIdentifier] = [.stepCount, .runningPower, .runningSpeed, .runningStrideLength,
+                                                 .runningGroundContactTime, .runningVerticalOscillation, .swimmingStrokeCount,
+                                                 .cyclingPower, .cyclingCadence, .cyclingSpeed]
         for id in extra { if let t = HKObjectType.quantityType(forIdentifier: id) { read.insert(t) } }
         do {
             try await store.requestAuthorization(toShare: share, read: read)

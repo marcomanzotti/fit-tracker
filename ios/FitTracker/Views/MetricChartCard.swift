@@ -139,7 +139,7 @@ struct InteractiveMetricPlot: View {
                 // instead of being captured the instant a finger touches it.
                 Rectangle().fill(Color.clear).contentShape(Rectangle())
                     .onTapGesture { loc in
-                        let pt = closestPoint(atX: loc.x - geo[proxy.plotAreaFrame].origin.x, proxy)
+                        let pt = closestPoint(atX: loc.x - plotOriginX(geo, proxy), proxy)
                         selected = selected?.id == pt?.id ? nil : pt
                     }
                     .gesture(
@@ -147,12 +147,16 @@ struct InteractiveMetricPlot: View {
                             .sequenced(before: DragGesture(minimumDistance: 0))
                             .onChanged { value in
                                 if case .second(true, let drag?) = value {
-                                    selected = closestPoint(atX: drag.location.x - geo[proxy.plotAreaFrame].origin.x, proxy)
+                                    selected = closestPoint(atX: drag.location.x - plotOriginX(geo, proxy), proxy)
                                 }
                             }
                     )
             }
         }
+    }
+
+    private func plotOriginX(_ geo: GeometryProxy, _ proxy: ChartProxy) -> CGFloat {
+        proxy.plotFrame.map { geo[$0].origin.x } ?? 0
     }
 
     private func closestPoint(atX x: CGFloat, _ proxy: ChartProxy) -> Store.WeekPoint? {
@@ -241,7 +245,7 @@ struct ExpandedChartSheet: View {
                 .padding(.top, 18)
 
                 ChipPicker(options: Store.ChartGranularity.allCases, selection: $gran) { t("chart.gran." + $0.rawValue) }
-                    .onChange(of: gran) { _ in selected = nil }
+                    .onChange(of: gran) { selected = nil }
 
                 let data = store.metricSeries(value, granularity: gran)
                 if data.count > 1 {

@@ -1,19 +1,28 @@
-name: Build unsigned IPA
+name: Test and build unsigned IPA
 
-# Builds the app on a free Apple cloud Mac and uploads an UNSIGNED .ipa.
-# SideStore re-signs it on your iPhone, so we deliberately disable signing here.
+# Runs the unit tests, then builds the app on a free Apple cloud Mac and uploads
+# an UNSIGNED .ipa. Signing is disabled: the IPA is only a compile check and a
+# backup, the phone is installed with ios/build_and_run.py.
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, 'feature/**' ]
     paths:
       - 'ios/**'
       - '.github/workflows/build.yml'
+  pull_request:
+    branches: [ main ]
   workflow_dispatch:        # lets you trigger a build by hand from the Actions tab
 
+env:
+  # Band10Kit is a local Swift package at ../../band10-health/ios/Band10Kit seen
+  # from ios/, so it has to sit next to this repo's checkout.
+  BAND10_REPO: https://github.com/marcomanzotti/xiaomi-band10-apple-health.git
+  BAND10_REF: feature/direct-ble
+
 jobs:
-  build:
-    runs-on: macos-15        # this image ships Xcode 16 (needed for the project format)
+  test:
+    runs-on: macos-26        # Xcode 26 or later: iOS 18 target, project format 70
     defaults:
       run:
         working-directory: ios
@@ -21,6 +30,55 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Localization has no duplicate keys
+        # A duplicate key in the dictionary literal traps at launch.
+        run: |
+          python3 - <<'PY'
+          import re, sys
+          from collections import Counter
+          keys = re.findall(r'^\s*"([a-zA-Z0-9._]+)":\s*\(', open('FitTracker/Localization.swift').read(), re.M)
+          dupes = {k: n for k, n in Counter(keys).items() if n > 1}
+          print(f"{len(keys)} keys")
+          sys.exit(f"Duplicate keys: {dupes}" if dupes else 0)
+          PY
+
+      - name: Clone Band10Kit next to the repo
+        run: git clone --depth 1 --branch "$BAND10_REF" "$BAND10_REPO" "$GITHUB_WORKSPACE/../band10-health"
+
+      - name: Select latest stable Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Unit tests
+        run: |
+          set -o pipefail
+          SIM=$(xcrun simctl list devices available -j | python3 -c "
+          import json, sys
+          runtimes = json.load(sys.stdin)['devices']
+          print(next(d['udid'] for k in sorted(runtimes, reverse=True) if '.iOS-' in k
+                     for d in runtimes[k] if d['name'].startswith('iPhone')))")
+          echo "Simulator $SIM"
+          xcodebuild test \
+            -project FitTracker.xcodeproj \
+            -scheme FitTracker \
+            -destination "id=$SIM" \
+            -derivedDataPath build-test \
+            CODE_SIGNING_ALLOWED=NO
+
+  build:
+    runs-on: macos-26
+    defaults:
+      run:
+        working-directory: ios
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Clone Band10Kit next to the repo
+        run: git clone --depth 1 --branch "$BAND10_REF" "$BAND10_REPO" "$GITHUB_WORKSPACE/../band10-health"
 
       - name: Select latest stable Xcode
         uses: maxim-lobanov/setup-xcode@v1

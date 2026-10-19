@@ -91,7 +91,7 @@ struct BodyView: View {
             }
         }
         .sheet(isPresented: $showHealthHistory) { HealthHistoryView() }
-        .onChange(of: day) { _ in
+        .onChange(of: day) {
             // Every card prefills from the store, so clear typed-but-unsaved text
             // when the day changes — otherwise yesterday's draft leaks into today.
             weightInput = ""; bfInput = ""; measInputs = [:]

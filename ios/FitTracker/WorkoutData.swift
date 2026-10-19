@@ -168,9 +168,9 @@ extension HealthKitManager {
 
     /// Extra types a workout can carry, read on top of the daily ones.
     static var workoutReadTypes: [HKObjectType] {
-        var ids: [HKQuantityTypeIdentifier] = [.heartRate, .stepCount, .runningPower, .runningSpeed, .runningStrideLength,
-                                               .runningGroundContactTime, .runningVerticalOscillation, .swimmingStrokeCount]
-        if #available(iOS 17.0, *) { ids += [.cyclingPower, .cyclingCadence, .cyclingSpeed, .physicalEffort] }
+        let ids: [HKQuantityTypeIdentifier] = [.heartRate, .stepCount, .runningPower, .runningSpeed, .runningStrideLength,
+                                               .runningGroundContactTime, .runningVerticalOscillation, .swimmingStrokeCount,
+                                               .cyclingPower, .cyclingCadence, .cyclingSpeed, .physicalEffort]
         return ids.compactMap { HKObjectType.quantityType(forIdentifier: $0) } + [HKSeriesType.workoutRoute()]
     }
 
@@ -198,8 +198,7 @@ extension HealthKitManager {
         out.durationSec = Int(seconds.rounded())
         out.avgHR = (avg(.heartRate, bpm) ?? band("averageHeartRate")).map { Int($0.rounded()) }
         out.maxHR = (most(.heartRate, bpm) ?? band("maximumHeartRate")).map { Int($0.rounded()) }
-        out.kcal = (sum(.activeEnergyBurned, .kilocalorie()) ?? positive(w.totalEnergyBurned?.doubleValue(for: .kilocalorie()))
-                    ?? band("activeCalories")).map { Int($0.rounded()) }
+        out.kcal = (sum(.activeEnergyBurned, .kilocalorie()) ?? band("activeCalories")).map { Int($0.rounded()) }
         let metres = positive(w.totalDistance?.doubleValue(for: .meter()))
             ?? sum(.distanceWalkingRunning, .meter()) ?? sum(.distanceCycling, .meter()) ?? sum(.distanceSwimming, .meter())
             ?? band("distance")
@@ -213,15 +212,12 @@ extension HealthKitManager {
         let steps = sum(.stepCount, .count()) ?? band("steps")
         put(.minHR, least(.heartRate, bpm), band("minimumHeartRate"))
         put(.steps, steps)
-        var cyclingCadence: Double?, cyclingPower: Double?, cyclingMaxPower: Double?, cyclingSpeed: Double?, cyclingMaxSpeed: Double?, effort: Double?
-        if #available(iOS 17.0, *) {
-            cyclingCadence = avg(.cyclingCadence, bpm)
-            cyclingPower = avg(.cyclingPower, .watt())
-            cyclingMaxPower = most(.cyclingPower, .watt())
-            cyclingSpeed = avg(.cyclingSpeed, metresPerSecond)
-            cyclingMaxSpeed = most(.cyclingSpeed, metresPerSecond)
-            effort = avg(.physicalEffort, metUnit)
-        }
+        let cyclingCadence = avg(.cyclingCadence, bpm)
+        let cyclingPower = avg(.cyclingPower, .watt())
+        let cyclingMaxPower = most(.cyclingPower, .watt())
+        let cyclingSpeed = avg(.cyclingSpeed, metresPerSecond)
+        let cyclingMaxSpeed = most(.cyclingSpeed, metresPerSecond)
+        let effort = avg(.physicalEffort, metUnit)
         let onFoot: Set<HKWorkoutActivityType> = [.running, .walking, .hiking]
         let stepCadence = steps.flatMap { s in seconds > 0 && onFoot.contains(w.workoutActivityType) ? s / (seconds / 60) : nil }
         put(.cadence, cyclingCadence, band("averageCadence"), stepCadence)

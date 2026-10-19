@@ -214,13 +214,8 @@ private struct NextWorkoutView: View {
 }
 
 private extension View {
-    /// iOS 17 requires a container background for widgets; earlier systems take a plain one.
-    @ViewBuilder func widgetBackground(_ color: Color) -> some View {
-        if #available(iOSApplicationExtension 17.0, *) {
-            containerBackground(for: .widget) { color }
-        } else {
-            padding(14).background(color)
-        }
+    func widgetBackground(_ color: Color) -> some View {
+        containerBackground(for: .widget) { color }
     }
 }
 

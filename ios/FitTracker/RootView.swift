@@ -133,7 +133,7 @@ struct RootView: View {
         // Re-sync Health (daily metrics + workouts from any paired watch) every
         // time the app returns to the foreground, so a session recorded on a
         // Garmin/Fitbit/etc. shows up without a manual refresh.
-        .onChange(of: scenePhase) { phase in
+        .onChange(of: scenePhase) { _, phase in
             if phase == .active, store.prefs.healthKitEnabled { store.syncHealth(completion: healthToast) }
             // The autosave is debounced: write now, before the app can be suspended.
             if phase != .active { store.flushNow() }

@@ -77,8 +77,8 @@ struct LiveWorkoutView: View {
         }
         // Rest starts when the set's row is left (Next, Done, or a tap elsewhere),
         // i.e. when both numbers are in — not at the first digit typed.
-        .onChange(of: focus) { [focus] next in
-            if let left = focus?.setId, left != next?.setId { setCompleted(left) }
+        .onChange(of: focus) { old, next in
+            if let left = old?.setId, left != next?.setId { setCompleted(left) }
         }
         .toolbar {
             ToolbarItemGroup(placement: .keyboard) {
@@ -526,7 +526,7 @@ struct LiveWorkoutView: View {
         // A record is rare and earned: the one place with a little bounce.
         .animation(.spring(response: 0.35, dampingFraction: 0.7), value: isPR)
         // Celebrate the moment a typed weight first crosses the exercise's PR.
-        .onChange(of: set.wrappedValue.weight) { newVal in
+        .onChange(of: set.wrappedValue.weight) { _, newVal in
             let w = pf(newVal)
             if !bw && pr > 0 && w > pr { prHaptic() }
         }

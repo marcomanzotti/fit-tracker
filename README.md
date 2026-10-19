@@ -1,132 +1,131 @@
 # Fit Tracker
 
-Fit Tracker e' un'app personale per allenamento, peso e composizione corporea che
-trasforma dati inseriti a mano (o importati da Apple Salute) in metriche di
-sport-science utilizzabili ogni giorno. L'obiettivo e' uno solo: darti carico,
-recupero, nutrizione e progressi calcolati con formule validate, senza abbonamenti,
-senza cloud e senza account, tenendo **tutti i dati in locale sul tuo dispositivo**.
-
-E' un'app **iOS nativa**, con un'app companion per **Apple Watch** e una
-**Live Activity** che tiene l'allenamento in corso sulla schermata di blocco.
+App personale per allenamento, corpo, sonno e nutrizione. Trasforma quello che
+registri a mano e quello che arriva da Apple Salute (Apple Watch, Xiaomi Smart Band 10,
+Garmin, Polar e altri) in metriche di scienze dello sport, con la formula più precisa
+che i dati permettono. Niente account, niente abbonamenti, niente server: **tutti i dati
+restano sul telefono**.
 
 | Componente | Cartella | Tecnologia |
 |---|---|---|
-| App iPhone | [`ios/FitTracker/`](ios/FitTracker/) | SwiftUI |
-| App Apple Watch | [`ios/FitTrackerWatch/`](ios/FitTrackerWatch/) | SwiftUI + HealthKit |
-| Live Activity | [`ios/FitTrackerWidgets/`](ios/FitTrackerWidgets/) | WidgetKit + ActivityKit |
+| App iPhone (iOS 18+) | [`ios/FitTracker/`](ios/FitTracker/) | SwiftUI, Swift Charts, HealthKit |
+| App Apple Watch (watchOS 11+) | [`ios/FitTrackerWatch/`](ios/FitTrackerWatch/) | SwiftUI, HealthKit, WatchConnectivity |
+| Widget e Live Activity | [`ios/FitTrackerWidgets/`](ios/FitTrackerWidgets/) | WidgetKit, ActivityKit |
+| Codice comune ai tre | [`ios/Shared/`](ios/Shared/) | tipi del collegamento col Watch, stile |
+| Test | [`ios/FitTrackerTests/`](ios/FitTrackerTests/) | XCTest |
 
-Build e installazione: [ios/README.md](ios/README.md), oppure `python3 ios/build_and_run.py`
-per compilare e installare sull'iPhone collegato.
+La sincronizzazione diretta con la Xiaomi Smart Band 10 viene dal pacchetto `Band10Kit`
+del repository [xiaomi-band10-apple-health](https://github.com/marcomanzotti/xiaomi-band10-apple-health),
+che va clonato accanto a questo (`../band10-health`).
 
-Un port Android in Kotlin/Compose e' esistito fino ad agosto 2026; e' stato rimosso
-perche' non veniva piu' mantenuto in pari con le funzioni iOS. Resta nella storia git
-se dovesse servire.
+## Principi
 
-## Obiettivi del progetto
+- **Solo metriche ricavabili dai tuoi dati.** Se manca un dato la metrica resta vuota,
+  non viene inventata.
+- **La formula più precisa disponibile**, scelta in automatico in base a quello che c'è.
+- **Locale e privato.** Salvataggio automatico, backup datati, export e import JSON.
+- **Italiano e inglese**, cambiabili al volo; ogni metrica ha una scheda "i" che spiega
+  cos'è, come si calcola e i range di riferimento.
+- Nessuna emoji, nell'interfaccia come nel codice.
 
-- **Tutto calcolato dai tuoi dati.** Mostriamo solo metriche derivabili da cio' che
-  inserisci: peso, sesso, eta', altezza, ripetizioni, durata e frequenza cardiaca
-  media. Niente numeri inventati: se manca un dato, la metrica resta vuota.
-- **Formula piu' precisa disponibile.** Per ogni calcolo l'app sceglie automaticamente
-  la formula migliore consentita dai dati presenti (es. le calorie usano la frequenza
-  cardiaca se c'e', altrimenti i MET specifici dello sport).
-- **Local-first e privato.** Salvataggio automatico locale + backup datati. Export/import
-  JSON per spostare i dati. Nessun server.
-- **Bilingue runtime (IT / EN).** Tutta l'interfaccia e **ogni spiegazione "i"** sono
-  nella tua lingua di riferimento e cambiano all'istante quando cambi lingua.
-- **Niente emoji**, ovunque: UI, codice e documentazione.
+## Le schede
 
-## Le quattro schede
+- **Home**: prontezza e recupero, prossimo allenamento, check-in del peso, settimana,
+  carico, nutrizione di oggi.
+- **Allena**: giorni di forza personalizzabili (metodi, serie a tempo, intervalli, tenute
+  isometriche con conto alla rovescia), attività cardio salvate, seduta live con recupero
+  automatico, PR, peso suggerito, calcolatore dei dischi e riscaldamento, piano settimanale,
+  calendario, import di allenamenti da Salute e da file GPX, TCX e FIT.
+- **Corpo**: peso, massa grassa (manuale o metodo Navy), FFMI, misure, sonno con fasi e
+  ipnogramma, parametri notturni (HRV, FC, SpO2, respiro, temperatura), storico di Salute.
+- **Nutrizione**: calendario mensile, pasti, alimenti con codice a barre (Open Food Facts),
+  ricette, obiettivi di calorie e macro.
+- **Stats**: grafici di tutte le metriche, PR, progressione per esercizio, carico e forma.
 
-### Home — dashboard
-- Check-in giornaliero (peso + punteggio sonno), streak con giorno di grazia, BMI con
-  categoria OMS, anelli obiettivo (peso + grasso), prossimo allenamento.
-- **Questa settimana**: striscia di 7 giorni; ogni giorno e' toccabile per registrare
-  un allenamento (dati precompilati dall'ultima volta, sempre modificabili) o un
-  **giorno di riposo**. Riposo e allenamento condividono colore e icona con il piano
-  settimanale.
-- **Dashboard scientifica** con pulsanti informativi ovunque: carico cardio (TRIMP),
-  carico interno (ACWR / monotonia / strain), andamento carico 14 giorni, nutrizione,
-  prontezza (HRV).
+## Motori di calcolo
 
-### Allena — log allenamento
-- Giorni completamente personalizzabili: crea / modifica / riordina esercizi, metodi
-  (superset, drop set, rest-pause, giant set), serie x peso, PR live, "ultima volta",
-  peso suggerito, timer di recupero, note, aggiunta esercizio al volo.
-- Attivita' cardio salvabili (corsa, nuoto, bici, camminata + personalizzate) con
-  durata, distanza, FC media e RMSSD opzionale.
-- **Calorie bruciate a fine di ogni sessione**, con possibilita' di sovrascriverle a mano.
+- **Carico**: TRIMP di Banister dalla FC della seduta, con la FC a riposo e la FC max del
+  profilo. Fitness, fatica e forma con le medie esponenziali di Banister (42 e 7 giorni),
+  monotonia e strain di Foster, zone FC e decoupling per gli allenamenti aerobici.
+- **Prontezza**: HRV notturna, FC a riposo e punteggio del sonno contro una baseline
+  personale di 60 giorni; i parametri notturni fuori norma la limitano a "leggero".
+- **Calorie bruciate**: valore del dispositivo o manuale, altrimenti MET specifico per sport
+  affinato da velocità e FC.
+- **Nutrizione**: metabolismo basale Mifflin-St Jeor, TDEE dal livello di attività, TDEE
+  adattivo dall'andamento reale del peso, macro su range ISSN, disponibilità energetica.
+- **Progressione**: doppia progressione per esercizio, e1RM, volume per gruppo muscolare.
+- **Sonno**: notti ricostruite per fonte (una notte contata una volta sola anche con due
+  dispositivi), punteggio, debito di sonno, regolarità e jet lag sociale.
 
-### Corpo — misurazioni
-- BMI, body-fat (manuale o stima US-Navy da collo + vita), massa magra/grassa,
-  misurazioni settimanali con delta e grafici, export/import JSON.
-- **Sonno**: se Apple Salute non rileva dati per la notte corrente, compare un form
-  di inserimento manuale per ore di sonno, punteggio 0-100, HRV SDNN e FC notturna.
+## I tuoi dati
 
-### Nutrizione — alimentazione
-- **Calendario mensile** come vista principale: ogni giorno e' colorato per intake vs
-  target (verde/ambra/rosso), toccabile per inserire o modificare.
-- Apertura su **"Per pasto"** di default per il giorno corrente (colazione /
-  pranzo / cena / spuntini); modalita' Totale rapido e Alimenti per uso avanzato.
-- **Alimenti con marca opzionale**: distingui prodotti con lo stesso nome di brand diversi.
-- **Ricette**: crea ricette da zero (valori per 100 g, oppure totale + porzioni) o
-  assemblale aggiungendo alimenti gia' salvati. Nel picker alimenti / ricette, scorri
-  verso destra per aprire le ricette, verso sinistra per gli alimenti.
+- Un unico file JSON in `Documents`, salvato in automatico a ogni modifica, con una copia
+  datata al giorno (`backup-AAAA-MM-GG.json`, ne restano 30).
+- Un file illeggibile non viene mai sovrascritto: viene rinominato, si carica il backup
+  più recente e l'app lo dice. Un salvataggio fallito mostra un avviso.
+- Export e import JSON da Corpo e Impostazioni; l'import tiene una copia di ciò che sostituisce.
+- **Una seduta in corso sopravvive alla chiusura dell'app**: serie, durata, FC, recupero,
+  tempo e distanza del cardio vengono scritti man mano e ripristinati al riavvio.
+- Ogni campo aggiunto dopo lo schema iniziale è facoltativo, quindi un backup vecchio si
+  carica sempre.
 
-### Stats — statistiche
-- Grafici peso / sonno / BMI / composizione, lista PR, progressione per esercizio,
-  storico sessioni, obiettivi e profilo.
+## Build e installazione
 
-## Motori di sport-science
+Serve Xcode 26 o successivo e il repository `band10-health` accanto a questo.
 
-Tutte le metriche sono calcolate da dati inseribili a mano. Ogni voce ha un pulsante
-"i" che spiega cos'e', come si calcola e come leggerla, nella tua lingua.
+```bash
+python3 ios/build_and_run.py           # compila in Release e installa sull'iPhone collegato
+python3 ios/build_and_run.py --watch   # in più compila e installa l'app del Watch
+```
 
-- **Calorie bruciate** — sempre con la formula piu' precisa disponibile: 1) valore
-  manuale se lo inserisci; 2) equazione di Keytel basata sulla FC media; 3) MET
-  **specifico per sport** affinato dalla velocita' reale quando c'e' la distanza —
-  bici, corsa, camminata e nuoto hanno formule diverse; 4) MET fisso per sport con la
-  sola durata; 5) per la forza un MET di resistenza sulla durata, o una stima da volume.
-- **TRIMP (Banister)** — carico cardio della sessione da durata + FC media, pesato sulla
-  FC di riserva e con fattore esponenziale per sesso. E' la **fonte unica del carico
-  interno**: senza FC media non c'e' carico (cosi' nessuna metrica si gonfia da sola).
-- **ACWR via EWMA** — rapporto carico acuto (7 gg) / cronico (28 gg) con media mobile
-  esponenziale. Zona 0.8-1.3 ottimale.
-- **Monotonia & strain (Foster)** — uniformita' del carico settimanale e stress
-  complessivo; segnalano quando valutare una settimana di scarico.
-- **Prontezza (HRV)** — z-score di ln(RMSSD) su baseline personale; compare solo se
-  registri l'HRV (sensore opzionale).
-- **Nutrizione** — BMR (Mifflin-St Jeor) -> TDEE -> calorie obiettivo, macro su range
-  ISSN, ciclizzazione carboidrati, cap sale OMS, **TDEE adattivo** appreso dai dati
-  reali, **trend del peso** (regressione) con aggiustamento calorico, **disponibilita'
-  energetica (LEA/RED-S)**.
-- **Sovraccarico progressivo** — doppia progressione (aumenta carico / ripetizioni /
-  mantieni) per il prossimo allenamento.
+Lo script trova da solo l'iPhone (e il Watch) raggiungibili; con più dispositivi si
+sceglie con `FIT_TRACKER_DEVICE` e `FIT_TRACKER_WATCH`. `FIT_TRACKER_CONFIGURATION=Debug`
+compila una build di debug, molto più lenta. In fondo alle Impostazioni e alla lista del
+Watch compaiono versione, numero di build (numero di commit) e commit installati: un `+`
+dopo l'hash vuol dire modifiche non ancora committate.
 
-## Livelli di attivita'
+Con il team gratuito il profilo scade dopo 7 giorni: si reinstalla con lo stesso comando.
+Al primo avvio dopo una reinstallazione l'iPhone chiede di autorizzare lo sviluppatore in
+Impostazioni › Generali › VPN e gestione dispositivi.
 
-Il livello di attivita' moltiplica il metabolismo basale (BMR) per stimare il dispendio
-totale giornaliero (TDEE), base per calorie e macro. Scegli in base ai **giorni reali
-di allenamento**:
+`ios/build-ipa.sh` produce un `.ipa` non firmato, utile solo come archivio.
 
-| Livello | Moltiplicatore | Giorni di allenamento |
-|---|---|---|
-| Sedentario | x1.2 | lavoro d'ufficio, nessun allenamento |
-| Leggero | x1.375 | 1-2 a settimana |
-| Moderato | x1.55 | 3-4 a settimana |
-| Alto | x1.725 | 5-6 a settimana |
-| Atleta | x1.9 | 6-7 + lavoro fisico o doppie sedute |
+## Test
 
-## Note di input
+```bash
+cd ios
+xcodebuild test -project FitTracker.xcodeproj -scheme FitTracker \
+  -destination 'platform=iOS Simulator,name=iPhone 17'
+```
 
-- I campi decimali accettano sia la virgola che il punto: vengono trattati entrambi
-  come separatore decimale (es. `25,5` e `25.5` sono equivalenti).
-- I dati Apple Salute (passi, FC a riposo, HRV) sono opzionali e riempiono solo i campi
-  mancanti, senza sovrascrivere cio' che inserisci a mano.
+Coprono file dati (anche corrotti), seduta in corso e suoi orologi, import da Salute e da
+file, notti di sonno e le formule di carico, prontezza, nutrizione e progressione.
 
-## Compatibilita' dei dati
+La CI ([`.github/workflows/`](.github/workflows/)) gira sui push a `main` e ai branch
+`feature/**`: controlla che `Localization.swift` non abbia chiavi duplicate (farebbero
+chiudere l'app all'avvio), esegue i test e compila l'app con e senza Watch.
 
-Tutto e' salvato in un unico documento JSON locale, con backup datati. **Ogni campo
-aggiunto dopo lo schema iniziale e' opzionale**, quindi un backup vecchio continua a
-caricarsi dopo qualsiasi aggiornamento: e' la regola che rende sicuro aggiungere
-funzioni senza mai perdere lo storico.
+## Apple Watch
+
+L'app del Watch mostra gli stessi piani di forza e le stesse attività cardio del telefono.
+Durante la seduta registra FC, calorie e distanza con `HKWorkoutSession`; per la forza si
+segnano le serie dal polso con la Digital Crown. A fine seduta il risultato arriva al
+telefono via WatchConnectivity e l'allenamento viene salvato in Salute una volta sola.
+
+```
+ios/
+├── Shared/WatchBridge.swift        tipi scambiati tra telefono e Watch
+├── FitTracker/WatchSync.swift      lato telefono: catalogo verso il Watch, risultati in arrivo
+└── FitTrackerWatch/                l'app del Watch
+    ├── WorkoutManager.swift         allenamento live con HealthKit
+    ├── WatchLink.swift              WatchConnectivity lato Watch
+    └── WatchViews.swift             lista, seduta live, riepilogo
+```
+
+| Target | Contenuto |
+|---|---|
+| `FitTracker` | app iPhone senza Watch |
+| `FitTrackerWatch` | app del Watch |
+| `FitTrackerWatchHost` | app iPhone con il Watch incorporato (quella installata dallo script) |
+| `FitTrackerWidgets` | widget e Live Activity, incorporati in entrambe le app iPhone |
+| `FitTrackerTests` | test, ospitati nell'app |

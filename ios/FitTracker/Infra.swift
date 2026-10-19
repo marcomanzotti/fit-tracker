@@ -648,7 +648,7 @@ enum LiveActivityController {
 
     static func start(planName: String, planColor: String, startDate: Date, enabled: Bool) {
         #if canImport(ActivityKit)
-        guard enabled, #available(iOS 16.2, *) else { return }
+        guard enabled else { return }
         guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
         // A stale activity from a crashed session would otherwise sit there forever.
         endAll()
@@ -671,7 +671,7 @@ enum LiveActivityController {
     /// Lock Screen when the app was relaunched mid-workout, otherwise start one.
     static func resume(planName: String, planColor: String, startDate: Date, enabled: Bool) {
         #if canImport(ActivityKit)
-        guard enabled, #available(iOS 16.2, *) else { return }
+        guard enabled else { return }
         if activeId != nil { return }
         if let existing = ActivityKit.Activity<WorkoutActivityAttributes>.activities
             .first(where: { $0.attributes.planName == planName
@@ -685,7 +685,7 @@ enum LiveActivityController {
 
     static func update(exercise: String, setsDone: Int, restEndsAt: Date?) {
         #if canImport(ActivityKit)
-        guard #available(iOS 16.2, *), let id = activeId,
+        guard let id = activeId,
               let activity = ActivityKit.Activity<WorkoutActivityAttributes>.activities
                   .first(where: { $0.id == id }) else { return }
         var state = activity.content.state
@@ -698,13 +698,11 @@ enum LiveActivityController {
 
     static func end() {
         #if canImport(ActivityKit)
-        guard #available(iOS 16.2, *) else { return }
         endAll()
         #endif
     }
 
     #if canImport(ActivityKit)
-    @available(iOS 16.2, *)
     private static func endAll() {
         activeId = nil
         for a in ActivityKit.Activity<WorkoutActivityAttributes>.activities {

@@ -87,7 +87,7 @@ private struct MetricRow: View {
             initial = shown
             text = shown
         }
-        .onChange(of: text) { new in
+        .onChange(of: text) { _, new in
             guard new != initial else { return }
             initial = nil
             if new.isEmpty { session.setTyped(metric, nil); return }
@@ -138,7 +138,7 @@ struct WorkoutSeriesCard: View {
             heartRateChart(s)
             zoneBars(s).padding(.top, 12)
         }
-        if s.route.count > 1, #available(iOS 17.0, *) {
+        if s.route.count > 1 {
             RouteMap(route: s.route).padding(.top, 14)
         }
         if !s.splits.isEmpty { splitList(s.splits).padding(.top, 14) }
@@ -206,7 +206,6 @@ struct WorkoutSeriesCard: View {
     }
 }
 
-@available(iOS 17.0, *)
 private struct RouteMap: View {
     let route: [(lat: Double, lon: Double)]
 

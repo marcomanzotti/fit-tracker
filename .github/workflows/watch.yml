@@ -11,15 +11,23 @@ name: Build unsigned IPA (with Apple Watch)
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, 'feature/**' ]
     paths:
       - 'ios/**'
       - '.github/workflows/watch.yml'
+  pull_request:
+    branches: [ main ]
   workflow_dispatch:
+
+env:
+  # Band10Kit is a local Swift package at ../../band10-health/ios/Band10Kit seen
+  # from ios/, so it has to sit next to this repo's checkout.
+  BAND10_REPO: https://github.com/marcomanzotti/xiaomi-band10-apple-health.git
+  BAND10_REF: feature/direct-ble
 
 jobs:
   build:
-    runs-on: macos-15        # ships Xcode 16 (iOS 18 + watchOS 11 SDKs)
+    runs-on: macos-26        # Xcode 26 or later: iOS 18 + watchOS 11 targets
     defaults:
       run:
         working-directory: ios
@@ -27,6 +35,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Clone Band10Kit next to the repo
+        run: git clone --depth 1 --branch "$BAND10_REF" "$BAND10_REPO" "$GITHUB_WORKSPACE/../band10-health"
 
       - name: Select latest stable Xcode
         uses: maxim-lobanov/setup-xcode@v1

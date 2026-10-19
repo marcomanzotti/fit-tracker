@@ -26,7 +26,7 @@ private struct ExerciseNameField: View {
                       prompt: Text(placeholder).foregroundColor(Theme.sub))
                 .font(.system(size: 14, weight: .medium)).foregroundColor(Theme.txt)
                 .autocorrectionDisabled()
-                .onChange(of: name) { newVal in
+                .onChange(of: name) { _, newVal in
                     let titled = titleCased(newVal)
                     if titled != newVal { name = titled }
                     showSuggestions = !suggestions.isEmpty
@@ -109,7 +109,7 @@ struct PlanEditorView: View {
             Card {
                 Lbl(text: t("pe.day_name")).padding(.bottom, 8)
                 InputField(placeholder: t("pe.day_name_ph"), text: $plan.name, keyboard: .default)
-                    .onChange(of: plan.name) { v in let tc = titleCased(v); if tc != v { plan.name = tc } }
+                    .onChange(of: plan.name) { _, v in let tc = titleCased(v); if tc != v { plan.name = tc } }
                     .padding(.bottom, 10)
                 Lbl(text: t("pe.subtitle")).padding(.bottom, 8)
                 InputField(placeholder: t("pe.subtitle_ph"), text: $plan.sub, keyboard: .default)

@@ -516,7 +516,7 @@ final class HealthKitManager {
     private static let bpm = HKUnit.count().unitDivided(by: .minute())
     private static var dailyStats: [DailyStat] {
         let vo2Unit = HKUnit.literUnit(with: .milli).unitDivided(by: HKUnit.gramUnit(with: .kilo).unitMultiplied(by: .minute()))
-        var stats = [
+        return [
             DailyStat(field: .steps, category: .steps, id: .stepCount, unit: .count(), sum: true),
             DailyStat(field: .restHR, category: .restHR, id: .restingHeartRate, unit: bpm),
             DailyStat(field: .activeKcal, category: .activeKcal, id: .activeEnergyBurned, unit: .kilocalorie(), sum: true),
@@ -527,12 +527,9 @@ final class HealthKitManager {
             DailyStat(field: .hrRecovery, category: .hrRecovery, id: .heartRateRecoveryOneMinute, unit: bpm),
             DailyStat(field: .flights, category: .flights, id: .flightsClimbed, unit: .count(), sum: true),
             DailyStat(field: .weight, category: .weight, id: .bodyMass, unit: .gramUnit(with: .kilo)),
-            DailyStat(field: .bodyFat, category: .bodyFat, id: .bodyFatPercentage, unit: .percent(), scale: 100)
+            DailyStat(field: .bodyFat, category: .bodyFat, id: .bodyFatPercentage, unit: .percent(), scale: 100),
+            DailyStat(field: .daylightMin, category: .daylight, id: .timeInDaylight, unit: .minute(), sum: true)
         ]
-        if #available(iOS 17.0, *) {
-            stats.append(DailyStat(field: .daylightMin, category: .daylight, id: .timeInDaylight, unit: .minute(), sum: true))
-        }
-        return stats
     }
 
     /// A quantity averaged over the night it was measured in. Heart rate, HRV,

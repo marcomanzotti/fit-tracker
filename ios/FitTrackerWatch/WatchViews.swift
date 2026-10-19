@@ -1,3 +1,4 @@
+import Combine
 import SwiftUI
 
 // MARK: - Activity picker (strength plans + cardio activities synced from phone)
@@ -25,6 +26,8 @@ struct ActivityPickerView: View {
                         ForEach(cardio) { row($0) }
                     }
                 }
+                Text(appVersionLabel).font(.system(size: 11)).foregroundColor(T.sub)
+                    .frame(maxWidth: .infinity).padding(.top, 6)
             }
             .padding(.horizontal, 4)
             .padding(.bottom, 8)

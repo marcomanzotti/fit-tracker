@@ -305,7 +305,7 @@ struct RecipeFormSheet: View {
             VStack(alignment: .leading, spacing: 7) {
                 FieldLabel(t("food.name"))
                 InputField(placeholder: t("recipe.name_placeholder"), text: $name, keyboard: .default)
-                    .onChange(of: name) { v in
+                    .onChange(of: name) { _, v in
                         let tc = titleCased(v)
                         if tc != v { name = tc }
                     }
