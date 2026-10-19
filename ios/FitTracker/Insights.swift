@@ -436,3 +436,36 @@ struct CalendarCard: View {
         .disabled(future && daySessions.isEmpty)
     }
 }
+
+// MARK: - Last week in numbers (Stats)
+struct WeeklySummaryCard: View {
+    @EnvironmentObject var store: Store
+
+    var body: some View {
+        let w = store.weeklySummary(offset: 1)
+        if !w.isEmpty {
+            Card(accent: Theme.acc) {
+                HStack {
+                    Lbl(text: t("sum.week_title"), color: Theme.acc2)
+                    Spacer()
+                    Text(fmtDM(isoFormatter.string(from: w.start))).font(.ui(11)).foregroundColor(Theme.sub)
+                }
+                .padding(.bottom, 10)
+                HStack(spacing: 9) {
+                    StatTile(label: t("sum.week_sessions"), value: "\(w.sessions)", valueColor: Theme.txt)
+                    StatTile(label: t("wk.vol"), value: "\(Int(w.volume))", unit: "kg", valueColor: Theme.txt)
+                    StatTile(label: "TRIMP", value: "\(Int(w.trimp.rounded()))", valueColor: Theme.acc2, info: .trimp)
+                }
+                HStack(spacing: 9) {
+                    StatTile(label: t("sum.week_sleep"), value: w.sleepHours.map { trimNum(($0 * 10).rounded() / 10) } ?? "—",
+                             unit: "h", valueColor: Theme.blue)
+                    StatTile(label: t("sum.week_weight"),
+                             value: w.weightChange.map { ($0 > 0 ? "+" : "") + dispW($0) } ?? "—",
+                             unit: Units.wLabel, valueColor: Theme.txt)
+                    StatTile(label: t("sum.records"), value: "\(w.records)", valueColor: Theme.acc)
+                }
+                .padding(.top, 9)
+            }
+        }
+    }
+}

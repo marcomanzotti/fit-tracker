@@ -783,7 +783,7 @@ extension Store {
     }
 
     /// Resolve a schedule slot id to a concrete item (plan or cardio), if any.
-    private func scheduleItem(_ id: String) -> NextItem? {
+    func scheduleItem(_ id: String) -> NextItem? {
         if id.isEmpty || id == "rest" { return nil }
         if let p = plans.first(where: { $0.id == id }) { return .plan(p) }
         if let c = cardioTypes.first(where: { $0.id == id }) { return .cardio(c) }

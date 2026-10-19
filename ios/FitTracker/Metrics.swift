@@ -328,6 +328,50 @@ extension Store {
     }
 }
 
+// MARK: - The week in numbers
+/// One Monday–Sunday week: what was trained, how much, how the nights went, where
+/// the weight moved and which records fell. Shown in Stats and announced on Monday.
+struct WeeklySummary {
+    let start: Date
+    let sessions: Int
+    let volume: Double
+    let trimp: Double
+    let sleepHours: Double?
+    /// Average weight of the week against the week before; nil without both.
+    let weightChange: Double?
+    let records: Int
+    var isEmpty: Bool { sessions == 0 && sleepHours == nil && weightChange == nil }
+}
+
+extension Store {
+    func weeklySummary(offset: Int = 1) -> WeeklySummary { memo("weeklySummary|\(offset)") { computeWeeklySummary(offset) } }
+
+    private func computeWeeklySummary(_ offset: Int) -> WeeklySummary {
+        let start = weekStart(offset: offset)
+        func range(_ o: Int) -> ClosedRange<String> {
+            isoFormatter.string(from: weekStart(offset: o))...isoFormatter.string(from: weekStart(offset: o - 1).addingTimeInterval(-1))
+        }
+        let week = range(offset), before = range(offset + 1)
+        let done = sessions.filter { week.contains($0.date) }
+        let trimps = sessionTrimps
+        let days = sortedDaily.filter { week.contains($0.date) }
+        let weightNow = average(days.compactMap(\.weight))
+        let weightBefore = average(sortedDaily.filter { before.contains($0.date) }.compactMap(\.weight))
+        return WeeklySummary(
+            start: start, sessions: done.count,
+            volume: done.reduce(0) { $0 + $1.volume },
+            trimp: done.reduce(0) { $0 + (trimps[$1.id] ?? 0) },
+            sleepHours: average(days.compactMap(\.sleepHours).filter { $0 > 0 }),
+            weightChange: zip2(weightNow, weightBefore).map { (($0 - $1) * 10).rounded() / 10 },
+            records: prTimeline(limit: 500).filter { week.contains($0.date) && $0.delta != nil }.count)
+    }
+
+    private func zip2(_ a: Double?, _ b: Double?) -> (Double, Double)? {
+        guard let a, let b else { return nil }
+        return (a, b)
+    }
+}
+
 // MARK: - Personal-record timeline
 extension Store {
     /// One moment a record was set. `delta` is the improvement over the previous

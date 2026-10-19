@@ -149,6 +149,7 @@ struct RootView: View {
             if phase == .active, store.prefs.healthKitEnabled { store.syncHealth(automatic: true, completion: healthToast) }
             // The autosave is debounced: write now, before the app can be suspended.
             if phase == .background { store.flushNow() }
+            if phase != .inactive { Reminders.reschedule(store) }
         }
         .onChange(of: store.repairedNumbers) { announceRepairedNumbers() }
         // The Lock Screen activity opens the session that is running.

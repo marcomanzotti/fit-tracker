@@ -113,6 +113,84 @@ enum RestNotifier {
     }
 }
 
+// MARK: - Reminders (optional, local)
+/// The morning weigh-in when there is no check-in yet, the day's planned workout
+/// in the evening, and Monday's weekly summary. Recomputed whenever the app comes
+/// back or goes away, so a reminder never asks for something already done.
+enum Reminders {
+    private static let weighInId = "fittracker.weighin"
+    private static let workoutId = "fittracker.workout"
+    private static let weeklyId = "fittracker.weekly"
+    private static let weighInHour = 8
+    private static let workoutHour = 18
+    private static let weeklyHour = 9
+
+    /// Ask for permission the first time a reminder is switched on.
+    static func requestPermission(_ done: @escaping (Bool) -> Void) {
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, _ in
+            DispatchQueue.main.async { done(granted) }
+        }
+    }
+
+    /// Called on the main thread: the texts use the app's language.
+    static func reschedule(_ store: Store, now: Date = Date()) {
+        let center = UNUserNotificationCenter.current()
+        center.removePendingNotificationRequests(withIdentifiers: [weighInId, workoutId, weeklyId])
+        let p = store.prefs
+        let cal = Calendar.current
+        if p.remindWeighIn == true {
+            let checkedIn = store.hasCheckedIn()
+            let at = nextTime(hour: weighInHour, skippingToday: checkedIn, now: now, calendar: cal)
+            add(weighInId, title: L.t("rem.weigh_title"), body: L.t("rem.weigh_body"), at: at, calendar: cal)
+        }
+        if p.remindWorkout == true, let (item, at) = nextPlannedWorkout(store, now: now, calendar: cal) {
+            add(workoutId, title: t("rem.workout_title", item.name), body: L.t("rem.workout_body"), at: at, calendar: cal)
+        }
+        if p.remindWeekly == true {
+            let content = UNMutableNotificationContent()
+            content.title = L.t("rem.weekly_title")
+            content.body = L.t("rem.weekly_body")
+            content.sound = .default
+            let trigger = UNCalendarNotificationTrigger(dateMatching: DateComponents(hour: weeklyHour, weekday: 2), repeats: true)
+            center.add(UNNotificationRequest(identifier: weeklyId, content: content, trigger: trigger))
+        }
+    }
+
+    /// Today at `hour` while it is still ahead (and today is not done), else tomorrow.
+    private static func nextTime(hour: Int, skippingToday: Bool, now: Date, calendar cal: Calendar) -> Date {
+        let todayAt = cal.date(bySettingHour: hour, minute: 0, second: 0, of: now) ?? now
+        if !skippingToday, todayAt > now { return todayAt }
+        return cal.date(byAdding: .day, value: 1, to: todayAt) ?? todayAt
+    }
+
+    /// The next weekday of the schedule with something on it, from today unless
+    /// today's workout is done or its evening reminder time has passed.
+    private static func nextPlannedWorkout(_ store: Store, now: Date, calendar cal: Calendar) -> (Store.NextItem, Date)? {
+        let schedule = store.prefs.weekSchedule
+        let trainedToday = store.sessions.contains { $0.date == today() }
+        let todayIndex = mondayIndex(now, calendar: cal)
+        for offset in 0..<7 {
+            guard let day = cal.date(byAdding: .day, value: offset, to: now),
+                  let at = cal.date(bySettingHour: workoutHour, minute: 0, second: 0, of: day),
+                  at > now, !(offset == 0 && trainedToday),
+                  let item = store.scheduleItem(schedule[(todayIndex + offset) % 7]) else { continue }
+            return (item, at)
+        }
+        return nil
+    }
+
+    private static func add(_ id: String, title: String, body: String, at date: Date, calendar cal: Calendar) {
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        content.sound = .default
+        let parts = cal.dateComponents([.year, .month, .day, .hour, .minute], from: date)
+        let request = UNNotificationRequest(identifier: id, content: content,
+                                            trigger: UNCalendarNotificationTrigger(dateMatching: parts, repeats: false))
+        UNUserNotificationCenter.current().add(request)
+    }
+}
+
 // MARK: - Active workout session
 // Holds the running strength workout: the log, the session fields typed in the
 // live view and the plan it started from. Nothing about a workout in progress

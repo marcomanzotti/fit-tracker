@@ -152,8 +152,34 @@ struct SettingsView: View {
                 FieldRow(label: t("set.plates")) { InputField(placeholder: "25 20 15 10 5 2.5 1.25", text: $draft.plates) }
             }
             volumeTargetsCard
+            remindersCard
             GhostButton(title: t("set.manage_ex"), color: Theme.blue) { showManager = true }
         }
+    }
+
+    private var remindersCard: some View {
+        Card {
+            Lbl(text: t("rem.title"), color: Theme.acc2).padding(.bottom, 10)
+            toggleRow(t("rem.weigh"), t("rem.weigh_hint"), reminder({ $0.remindWeighIn }, { $0.remindWeighIn = $1 }))
+            Spacer().frame(height: 12)
+            toggleRow(t("rem.workout"), t("rem.workout_hint"), reminder({ $0.remindWorkout }, { $0.remindWorkout = $1 }))
+            Spacer().frame(height: 12)
+            toggleRow(t("rem.weekly"), t("rem.weekly_hint"), reminder({ $0.remindWeekly }, { $0.remindWeekly = $1 }))
+        }
+    }
+
+    /// A reminder switch: turning one on asks for notifications first.
+    private func reminder(_ get: @escaping (Prefs) -> Bool?, _ set: @escaping (inout Prefs, Bool?) -> Void) -> Binding<Bool> {
+        Binding(get: { get(store.prefs) == true }, set: { on in
+            let apply = { (value: Bool) in
+                var p = store.prefs; set(&p, value ? true : nil); store.prefs = p
+                Reminders.reschedule(store)
+            }
+            guard on else { apply(false); return }
+            Reminders.requestPermission { granted in
+                if granted { apply(true) } else { toast.show(t("rem.denied"), duration: ToastCenter.longDuration) }
+            }
+        })
     }
 
     private static let volumeGroups: [MuscleGroup] = [.chest, .back, .legs, .shoulders, .arms, .core]

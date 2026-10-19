@@ -770,6 +770,10 @@ struct Prefs: Codable, Equatable {
     var volumeTargets: [String: Int]?
     /// Hours of sleep the person needs a night, 7-9 for adults. nil => 8.
     var sleepNeed: Double?
+    /// Optional reminders; nil => off.
+    var remindWeighIn: Bool?
+    var remindWorkout: Bool?
+    var remindWeekly: Bool?
     /// When Health was last read successfully (seconds since 1970).
     var lastHealthSync: Double?
     var units: String?         // "metric" | "imperial"; nil => metric

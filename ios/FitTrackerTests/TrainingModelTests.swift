@@ -189,4 +189,28 @@ final class TrainingModelTests: XCTestCase {
         XCTAssertEqual(store.ffmiTrend(on: day(10), weight: 80) ?? 0, 80 * 0.8 / 3.24, accuracy: 0.1)
         XCTAssertEqual(store.ffmiTrend(on: day(5), weight: 80) ?? 0, 80 * 0.85 / 3.24, accuracy: 0.1)
     }
+
+    // MARK: Weekly summary
+
+    func testLastWeeksSummaryCountsItsSessionsAndTheWeightChange() {
+        let lastMonday = weekStart(offset: 1)
+        func lastWeek(_ day: Int) -> String {
+            isoFormatter.string(from: Calendar.current.date(byAdding: .day, value: day, to: lastMonday)!)
+        }
+        func weekBefore(_ day: Int) -> String {
+            isoFormatter.string(from: Calendar.current.date(byAdding: .day, value: day - 7, to: lastMonday)!)
+        }
+        var a = bench(daysAgo: 0); a.date = lastWeek(0)
+        var b = ride(daysAgo: 0); b.date = lastWeek(3)
+        var c = bench(daysAgo: 0); c.date = weekBefore(2)
+        store.sessions = [a, b, c, bench(daysAgo: 0)]
+        store.daily = [DailyEntry(date: weekBefore(1), weight: 81), DailyEntry(date: lastWeek(1), weight: 80.2),
+                       DailyEntry(date: lastWeek(5), weight: 79.8)]
+
+        let week = store.weeklySummary(offset: 1)
+
+        XCTAssertEqual(week.sessions, 2)
+        XCTAssertEqual(week.volume, 4 * 8 * 80, accuracy: 0.1)
+        XCTAssertEqual(week.weightChange ?? 0, -1, accuracy: 0.001)
+    }
 }

@@ -61,6 +61,7 @@ struct StatsView: View {
         let withW = ws.filter { $0.weight != nil }
         let bf = store.currentBF
         return Group {
+            WeeklySummaryCard()
             StatsSection(id: "body", title: t("st.sec_body")) {
             MetricChartCard(title: t("home.weight"), info: .weight, color: Theme.acc) {
                 $0.weight.map { Units.wOut($0) }
