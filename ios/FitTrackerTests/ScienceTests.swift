@@ -1,3 +1,4 @@
+import SwiftUI
 import XCTest
 @testable import FitTracker
 
@@ -217,6 +218,83 @@ final class ScienceTests: XCTestCase {
         XCTAssertNil(store.dailyEntry(day(1))?.restHR)
         XCTAssertEqual(store.dailyEntry(day(1))?.vo2max, 45, "a category that was not read stays")
         XCTAssertEqual(store.dailyEntry(day(2))?.restHR, 58, "typed by the user")
+    }
+
+    // MARK: Speed
+    // Not pass/fail: the timings v14's speed work is measured against. Run on the
+    // "iPhone 17" simulator with nothing else building.
+
+    /// A year of a committed user's data: daily weight, nights, HRV, resting HR,
+    /// steps and food, and four sessions a week, every other one with heart rate.
+    private func fillWithAYear() {
+        var daily: [DailyEntry] = []
+        var sessions: [WorkoutSession] = []
+        for back in 0..<365 {
+            var e = DailyEntry(date: day(back))
+            e.weight = 80 + sin(Double(back) / 20)
+            e.sleepHours = 7 + Double(back % 3) / 2
+            e.sleep = 70 + back % 20
+            e.hrvSleep = 55 + Double(back % 15)
+            e.restHR = 52 + back % 6
+            e.sleepHR = 50
+            e.steps = 8_000 + back * 7 % 4_000
+            e.kcal = 2_200 + back % 300
+            e.protein = 150
+            daily.append(e)
+            guard back % 7 < 4 else { continue }
+            let plan = store.plans[back % store.plans.count]
+            let exercises = plan.exercises.map { pe in
+                LoggedExercise(name: pe.name, sets: (0..<4).map { _ in SetEntry(reps: "8", weight: "\(60 + back % 20)") })
+            }
+            var s = WorkoutSession(date: day(back), planId: plan.id, planName: plan.name, planColor: plan.color,
+                                   exercises: exercises)
+            s.durationSec = 3_600
+            if back % 2 == 0 { s.avgHR = 125 + back % 20 }
+            sessions.append(s)
+        }
+        store.daily = daily
+        store.sessions = sessions
+    }
+
+    func testSpeedHomeRender() {
+        fillWithAYear()
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+        measure {
+            store.sessions = store.sessions          // a data change: every derived value is stale
+            let home = ScrollView { VStack(spacing: 14) { HomeView(tab: .constant(.home)) } }
+                .environmentObject(store).environmentObject(ToastCenter()).environmentObject(RestTimer())
+                .environmentObject(ActiveWorkout()).environmentObject(ActiveCardio())
+            window.rootViewController = UIHostingController(rootView: home)
+            window.makeKeyAndVisible()
+            window.rootViewController?.view.layoutIfNeeded()
+        }
+    }
+
+    func testSpeedDashboardNumbers() {
+        fillWithAYear()
+        measure {
+            store.sessions = store.sessions
+            _ = store.readiness(); _ = store.loadDataStatus(); _ = store.formSeries()
+            _ = store.recoveryEstimate(); _ = store.weeklyTrimp(); _ = store.weeklyTrimp(offset: 1)
+            _ = store.energyTargets(); _ = store.weightTrend(); _ = store.energyAvailability()
+            _ = store.adherence(); _ = store.streak; _ = store.nextUp()
+        }
+    }
+
+    /// What the live workout recomputes for its exercise cards on every redraw,
+    /// one of which comes with each second of a running rest timer.
+    func testSpeedLiveWorkoutCardValues() {
+        fillWithAYear()
+        let plan = store.plans[0]
+        measure {
+            for ex in plan.exercises {
+                _ = store.exercisePR(ex.name)
+                _ = store.lastSession(forPlan: plan.id)
+                _ = store.suggested(planId: plan.id, exercise: ex.name)
+                _ = store.progression(planId: plan.id, exercise: ex.name)
+                _ = store.bestE1RM(ex.name)
+            }
+        }
     }
 
     // MARK: Heart rate, VO2max
@@ -440,11 +518,37 @@ final class ScienceTests: XCTestCase {
     }
 
     func testZoneWeeksReportTheEasyShare() {
-        store.workoutIntensity = [
-            WorkoutIntensity(date: day(1), end: Date(), sport: "running", zoneSeconds: [1_800, 1_800, 0, 600, 300], decoupling: 3)
-        ]
+        // Zones for the default profile (rest 60, max 187): Z1 124-135, Z2 136-148, Z4 162-173, Z5 174+.
+        var run = WorkoutSession(date: day(1), planId: "c-run", planName: "Run", planColor: "ff5a52")
+        run.sport = "running"
+        run.hrHistogram = [130: 1_800, 140: 1_800, 165: 600, 180: 300]
+        run.decoupling = 3
+        store.sessions = [run]
+
         let week = store.intensityWeeks().last!
         XCTAssertEqual(week.easyShare, 3_600.0 / 4_500 * 100, accuracy: 0.001)
         XCTAssertEqual(store.lastDecoupling?.value, 3)
+    }
+
+    func testChangingTheHeartRateProfileRezonesWorkoutsWithoutReadingHealthAgain() {
+        var run = WorkoutSession(date: day(1), planId: "c-run", planName: "Run", planColor: "ff5a52")
+        run.hrHistogram = [150: 3_000]
+        store.sessions = [run]
+        let before = store.intensityWeeks().last!.zoneSeconds
+
+        store.prefs.maxHR = 160            // the same 150 bpm is now a much harder effort
+
+        XCTAssertNotEqual(store.intensityWeeks().last!.zoneSeconds, before)
+    }
+
+    func testDerivedValuesFollowTheDataAndReturnTheSameAnswerWhenNothingChanged() {
+        store.sessions = [benchSession(daysAgo: 2, reps: ["8", "8"])]
+        XCTAssertEqual(store.exercisePR("Barbell bench press"), 80)
+        XCTAssertEqual(store.sessionCount(forExercise: "Barbell bench press"), 1)
+
+        store.sessions.append(benchSession(daysAgo: 1, reps: ["8"], weight: "90"))
+
+        XCTAssertEqual(store.exercisePR("Barbell bench press"), 90)
+        XCTAssertEqual(store.sessionCount(forExercise: "Barbell bench press"), 2)
     }
 }

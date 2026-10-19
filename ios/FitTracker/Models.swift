@@ -481,6 +481,12 @@ struct WorkoutSession: Codable, Identifiable, Equatable {
     /// a file, the live session). A session logged after the fact has neither.
     var startTime: Date?
     var endTime: Date?
+    /// Seconds at each bpm during the workout, read from Health once (empty: it
+    /// had no heart rate; nil: not read yet). Zones and TRIMP follow from it for
+    /// any resting and maximum heart rate.
+    var hrHistogram: [Int: Int]?
+    /// Aerobic decoupling of a long run, %, read with the heart rate.
+    var decoupling: Double?
 
     /// Every Health UUID this session accounts for — its own plus any it absorbed.
     var allHealthUUIDs: [String] { (healthUUID.map { [$0] } ?? []) + (mergedHealthUUIDs ?? []) }
@@ -766,6 +772,9 @@ struct Prefs: Codable, Equatable {
     /// Health workouts whose session the user deleted: the sync does not bring
     /// them back. Importing one by hand from its day takes it off the list.
     var dismissedHealthUUIDs: [String]?
+    /// Day (yyyy-MM-dd) of the last complete 90-day Health read: once a day is
+    /// enough, the other foreground syncs read the last week.
+    var healthFullReadDay: String?
 
     // Convenience accessors -----------------------------------------------
     var langCode: String {

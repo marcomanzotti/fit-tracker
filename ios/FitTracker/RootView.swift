@@ -58,7 +58,7 @@ struct RootView: View {
                 // this works on the 16.0 deployment target.)
                 GeometryReader { geo in
                     ScrollView(.vertical) {
-                        VStack(spacing: 11) {
+                        LazyVStack(spacing: 11) {
                             switch tab {
                             case .home:   HomeView(tab: $tab)
                             case .allena: WorkoutView()
@@ -115,7 +115,6 @@ struct RootView: View {
         .animation(.spring(response: 0.4, dampingFraction: 0.75), value: toast.message)
         .sheet(isPresented: $showSettings) { SettingsView(store: store) }
         .onAppear {
-            if store.prefs.healthKitEnabled { store.syncHealth(completion: healthToast) }
             announceRestoredSession()
         }
         // A workout that sat untouched for hours is not silently resumed: it may be
@@ -133,11 +132,11 @@ struct RootView: View {
         // Re-sync Health (daily metrics + workouts from any paired watch) every
         // time the app returns to the foreground, so a session recorded on a
         // Garmin/Fitbit/etc. shows up without a manual refresh.
-        .onChange(of: scenePhase) { _, phase in
+        .onChange(of: scenePhase, initial: true) { _, phase in
             if phase == .active { store.refreshDay() }
-            if phase == .active, store.prefs.healthKitEnabled { store.syncHealth(completion: healthToast) }
+            if phase == .active, store.prefs.healthKitEnabled { store.syncHealth(automatic: true, completion: healthToast) }
             // The autosave is debounced: write now, before the app can be suspended.
-            if phase != .active { store.flushNow() }
+            if phase == .background { store.flushNow() }
         }
         .onChange(of: store.repairedNumbers) { announceRepairedNumbers() }
     }

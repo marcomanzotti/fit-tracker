@@ -4,22 +4,22 @@ import SwiftUI
 import WidgetKit
 
 final class Store: ObservableObject {
-    @Published var daily: [DailyEntry] = [] { didSet { sortedDailyCache = nil; recoveryGateCache = nil } }
-    /// `daily` in date order, computed once per change: the dashboard reads it
-    /// (through lastWeight and friends) many times in a single render.
-    private var sortedDailyCache: [DailyEntry]?
-    @Published var sessions: [WorkoutSession] = [] { didSet { recoveryGateCache = nil } }
-    /// The recovery gate for exercise suggestions (readiness + ACWR), computed once
-    /// per data change: the live workout asks for it on every exercise card, every
-    /// second the rest timer ticks.
-    var recoveryGateCache: ProgKind??
-    @Published var body: [BodyEntry] = []
-    @Published var plans: [WorkoutPlan] = []
-    @Published var cardioTypes: [CardioType] = []
-    @Published var foods: [FoodItem] = []
-    @Published var exerciseItems: [ExerciseItem] = []
-    @Published var recipes: [Recipe] = []
-    @Published var prefs: Prefs = Prefs() { didSet { recoveryGateCache = nil } }
+    @Published var daily: [DailyEntry] = [] { didSet { dataChanged() } }
+    @Published var sessions: [WorkoutSession] = [] { didSet { dataChanged() } }
+    @Published var body: [BodyEntry] = [] { didSet { dataChanged() } }
+    @Published var plans: [WorkoutPlan] = [] { didSet { dataChanged() } }
+    @Published var cardioTypes: [CardioType] = [] { didSet { dataChanged() } }
+    @Published var foods: [FoodItem] = [] { didSet { dataChanged() } }
+    @Published var exerciseItems: [ExerciseItem] = [] { didSet { dataChanged() } }
+    @Published var recipes: [Recipe] = [] { didSet { dataChanged() } }
+    @Published var prefs: Prefs = Prefs() { didSet { dataChanged() } }
+
+    /// Values derived from the data (readiness, load, form, streak, targets, PRs,
+    /// progressions…), each computed once per change: a single render of the
+    /// dashboard or of the live workout asks for the same numbers many times.
+    private var derived: [String: Any] = [:]
+    /// Something to save that is not on disk yet.
+    private var unsaved = false
 
     /// Something went wrong reading or writing the saved file. The UI shows it; it
     /// is never swallowed into "no data".
@@ -33,16 +33,26 @@ final class Store: ObservableObject {
         case saveFailed(String)
     }
     @Published private(set) var storageProblem: StorageProblem?
-    /// Heart-rate zones and drift of the recent workouts, read from Health at each
-    /// sync (any watch, Apple Watch included). Not saved: Health keeps the source.
-    @Published var workoutIntensity: [WorkoutIntensity] = []
     /// Numbers a save found not finite and wrote as 0, counted for the UI to say so.
     @Published private(set) var repairedNumbers = 0
     /// The calendar day the app is showing. It moves at midnight and when the app
     /// comes back on a new day, so nothing stays on yesterday.
     @Published private(set) var currentDay = today()
-    /// Latest zone request: an older answer arriving after it is dropped.
-    var intensityRequest = 0
+    /// Every change empties the derived values and marks the data to save.
+    private func dataChanged() {
+        derived.removeAll(keepingCapacity: true)
+        if loaded { unsaved = true }
+    }
+
+    /// The value for `key`, computed by `compute` once per data change.
+    func memo<T>(_ key: String, _ compute: () -> T) -> T {
+        // The key is tested first: for an Optional T, casting an absent entry (nil)
+        // succeeds with nil, and a miss would be mistaken for a cached nil.
+        if let boxed = derived[key], let hit = boxed as? T { return hit }
+        let value = compute()
+        derived[key] = value
+        return value
+    }
 
     enum ImportOutcome: Equatable { case imported, invalidFile, snapshotFailed }
 
@@ -66,6 +76,11 @@ final class Store: ObservableObject {
     private var waitingForSync: [(Bool, Int, [String]) -> Void] = []
     /// Work queued behind the running Health read.
     private var afterHealthRead: [() -> Void] = []
+    /// When the last automatic sync started: the app coming back to the
+    /// foreground every few minutes does not read Health every time.
+    private var lastAutomaticSync: Date?
+    /// Workout heart rate is being read; a second read waits for the next sync.
+    var readingWorkoutHeartRate = false
     /// False only when an unreadable file could not be moved out of the way: saving
     /// would then overwrite the one copy of the user's history.
     private var canSave = true
@@ -82,17 +97,19 @@ final class Store: ObservableObject {
     init(directory: URL = Store.documentsDirectory) {
         self.directory = directory
         load()
-        // Autosave: any change to the published collections persists after a short debounce.
+        // Autosave: any change to the published collections persists after a short
+        // debounce. dropFirst: subscribing replays the values just loaded, and
+        // writing those back at every launch is pure work.
         let pubs: [AnyPublisher<Void, Never>] = [
-            $daily.map { _ in () }.eraseToAnyPublisher(),
-            $sessions.map { _ in () }.eraseToAnyPublisher(),
-            $body.map { _ in () }.eraseToAnyPublisher(),
-            $plans.map { _ in () }.eraseToAnyPublisher(),
-            $cardioTypes.map { _ in () }.eraseToAnyPublisher(),
-            $foods.map { _ in () }.eraseToAnyPublisher(),
-            $exerciseItems.map { _ in () }.eraseToAnyPublisher(),
-            $recipes.map { _ in () }.eraseToAnyPublisher(),
-            $prefs.map { _ in () }.eraseToAnyPublisher()
+            $daily.dropFirst().map { _ in () }.eraseToAnyPublisher(),
+            $sessions.dropFirst().map { _ in () }.eraseToAnyPublisher(),
+            $body.dropFirst().map { _ in () }.eraseToAnyPublisher(),
+            $plans.dropFirst().map { _ in () }.eraseToAnyPublisher(),
+            $cardioTypes.dropFirst().map { _ in () }.eraseToAnyPublisher(),
+            $foods.dropFirst().map { _ in () }.eraseToAnyPublisher(),
+            $exerciseItems.dropFirst().map { _ in () }.eraseToAnyPublisher(),
+            $recipes.dropFirst().map { _ in () }.eraseToAnyPublisher(),
+            $prefs.dropFirst().map { _ in () }.eraseToAnyPublisher()
         ]
         Publishers.MergeMany(pubs)
             .debounce(for: .seconds(Store.autosaveDebounceSeconds), scheduler: RunLoop.main)
@@ -110,7 +127,7 @@ final class Store: ObservableObject {
         let day = today()
         guard day != currentDay else { return }
         currentDay = day
-        recoveryGateCache = nil
+        derived.removeAll()
         let widget = widgetSnapshot
         writeQueue.async { [weak self] in self?.publish(widget) }
     }
@@ -283,6 +300,7 @@ final class Store: ObservableObject {
     /// write happen off the main thread.
     func save() {
         guard loaded, canSave else { return }
+        unsaved = false
         let document = currentDocument
         let widget = widgetSnapshot
         writeQueue.async { [weak self] in
@@ -291,11 +309,13 @@ final class Store: ObservableObject {
         }
     }
 
-    /// Write the current state before returning. Called when the app leaves the
-    /// foreground, so an edit made inside the autosave debounce is not lost if the
-    /// system then suspends or kills the app.
+    /// Write what is not on disk yet before returning. Called when the app goes
+    /// to the background, so an edit made inside the autosave debounce is not lost
+    /// if the system then suspends or kills the app; with nothing pending it costs
+    /// nothing (encoding the whole file on the main thread is not free).
     func flushNow() {
-        guard loaded, canSave else { return }
+        guard loaded, canSave, unsaved else { return }
+        unsaved = false
         let document = currentDocument
         writeQueue.sync { write(document) }
     }
@@ -304,9 +324,10 @@ final class Store: ObservableObject {
         do {
             let encoded = try Store.encode(document)
             if encoded.repaired > 0 { reportRepaired(encoded.repaired) }
-            try keepDatedBackup()
+            // A new day's backup is the only time the folder needs trimming.
+            let newBackup = try keepDatedBackup()
             try encoded.data.write(to: dataURL, options: .atomic)
-            prune(prefix: Store.backupPrefix, keep: Store.backupsKept)
+            if newBackup { prune(prefix: Store.backupPrefix, keep: Store.backupsKept) }
             reportSave(failure: nil)
         } catch {
             appLog.error("Save failed: \(String(describing: error), privacy: .public)")
@@ -382,11 +403,13 @@ final class Store: ObservableObject {
     /// One snapshot per day in Documents (visible in the Files app), taken from the
     /// file as it stood before the day's first save. It is the previous state, so a
     /// bad change made today can still be undone from it.
-    private func keepDatedBackup() throws {
+    /// Returns true when it made today's backup.
+    private func keepDatedBackup() throws -> Bool {
         let fm = FileManager.default
         let backup = directory.appendingPathComponent("\(Store.backupPrefix)\(today()).json")
-        guard fm.fileExists(atPath: dataURL.path), !fm.fileExists(atPath: backup.path) else { return }
+        guard fm.fileExists(atPath: dataURL.path), !fm.fileExists(atPath: backup.path) else { return false }
         try fm.copyItem(at: dataURL, to: backup)
+        return true
     }
 
     /// Delete the oldest files with this prefix, keeping the `keep` most recent. The
@@ -520,12 +543,7 @@ extension Store {
 
 // MARK: - Derived data / domain logic (ports of the web app helpers)
 extension Store {
-    var sortedDaily: [DailyEntry] {
-        if let cached = sortedDailyCache { return cached }
-        let sorted = daily.sorted { $0.date < $1.date }
-        sortedDailyCache = sorted
-        return sorted
-    }
+    var sortedDaily: [DailyEntry] { memo("sortedDaily") { daily.sorted { $0.date < $1.date } } }
 
     /// One time-bucketed average point (day/week/month/year) for an overview chart;
     /// `day` is the start of its bucket.
@@ -592,25 +610,30 @@ extension Store {
 
     /// Most recent lastUsed date across a family's variants (for "recent" sorting).
     func familyLastUsed(_ f: ExFamily) -> String {
-        f.names.compactMap { n in exerciseItems.first { $0.name == n }?.lastUsed }.max() ?? ""
+        f.names.compactMap { libraryItem($0)?.lastUsed }.max() ?? ""
+    }
+
+    /// The library entry of an exercise, from a lookup table built once per change.
+    func libraryItem(_ name: String) -> ExerciseItem? {
+        memo("library") { Dictionary(exerciseItems.map { ($0.name, $0) }, uniquingKeysWith: { first, _ in first }) }[name]
     }
 
     /// Number of logged sessions that include any variant of a family.
     func familySessionCount(_ f: ExFamily) -> Int {
-        let names = Set(f.names)
-        return sessions.filter { s in s.exercises.contains { names.contains($0.name) } }.count
+        memo("familySessions|\(f.base)") {
+            let names = Set(f.names)
+            return sessions.filter { s in s.exercises.contains { names.contains($0.name) } }.count
+        }
     }
 
     /// Number of past sessions that logged this exact exercise name.
-    func sessionCount(forExercise name: String) -> Int {
-        sessions.filter { s in s.exercises.contains { $0.name == name } }.count
-    }
+    func sessionCount(forExercise name: String) -> Int { exerciseRecords[name]?.sessions ?? 0 }
 
     /// Latest known VO2 max (carried forward — Apple records it sparsely).
     var latestVO2: Double? { sortedDaily.last(where: { ($0.vo2max ?? 0) > 0 })?.vo2max }
 
     var lastWeight: Double {
-        sortedDaily.last(where: { $0.weight != nil })?.weight ?? prefs.startWeight
+        memo("lastWeight") { sortedDaily.last(where: { $0.weight != nil })?.weight ?? prefs.startWeight }
     }
 
     func plan(_ id: String) -> WorkoutPlan? { plans.first { $0.id == id } }
@@ -712,7 +735,7 @@ extension Store {
         return (v * 10).rounded() / 10
     }
 
-    func hasCheckedIn() -> Bool { daily.contains { $0.date == today() && $0.weight != nil } }
+    func hasCheckedIn() -> Bool { dailyEntry(currentDay)?.weight != nil }
 
     /// Consecutive days with a check-in or workout. The current day is a grace
     /// period: the streak stays alive all day even before today's check-in, and
@@ -722,7 +745,9 @@ extension Store {
     /// typed step count, a session or a marked rest day. A day that only holds
     /// numbers imported from Apple Health does not count — otherwise the streak is
     /// just how many days the phone was carried.
-    var streak: Int {
+    var streak: Int { memo("streak") { computeStreak() } }
+
+    private func computeStreak() -> Int {
         var dates = prefs.restDaySet
         for e in daily where e.weight != nil || e.hasNutrition || e.stepsManual == true { dates.insert(e.date) }
         sessions.forEach { dates.insert($0.date) }
@@ -774,12 +799,15 @@ extension Store {
     /// (Mon..Sun, looping to next week) to the next assigned, non-rest weekday,
     /// skipping today if it's already been trained. Without a schedule, rotates
     /// through the plan list after the most recent session.
-    func nextUp() -> NextItem? {
+    func nextUp() -> NextItem? { memo("nextUp") { computeNextUp() } }
+
+    private func computeNextUp() -> NextItem? {
         let cal = Calendar.current
         if prefs.hasSchedule {
             let sched = prefs.weekSchedule
             let todayMon = (cal.component(.weekday, from: Date()) + 5) % 7   // Monday = 0
-            let trainedToday = sessions.contains { $0.date == today() }
+            let day = today()
+            let trainedToday = sessions.contains { $0.date == day }
             for off in 0..<8 {
                 if off == 0 && trainedToday { continue }
                 if let item = scheduleItem(sched[(todayMon + off) % 7]) { return item }
@@ -811,43 +839,50 @@ extension Store {
     /// Maximum additional weight ever logged for an exercise. For bodyweight exercises
     /// the PR is the highest added weight (positive = weighted vest/belt, 0 = pure BW).
     /// Returns 0 when no sets have been logged with a positive weight.
-    func exercisePR(_ name: String) -> Double {
-        var mx = 0.0
-        for s in sessions {
-            for e in s.exercises where e.name == name {
-                mx = max(mx, e.maxWeight)
-            }
-        }
-        return mx
-    }
+    func exercisePR(_ name: String) -> Double { exerciseRecords[name]?.weight ?? 0 }
 
     /// Longest hold ever logged for a timed (isometric) exercise, in seconds — the
     /// timed analogue of `exercisePR`. 0 when never held.
-    func exerciseMaxSeconds(_ name: String) -> Double {
-        var mx = 0.0
-        for s in sessions {
-            for e in s.exercises where e.name == name {
-                mx = max(mx, e.maxSeconds)
+    func exerciseMaxSeconds(_ name: String) -> Double { exerciseRecords[name]?.seconds ?? 0 }
+
+    /// Every exercise's top weight, longest hold and number of sessions, in one
+    /// pass over the history per change.
+    struct ExerciseRecord { var weight = 0.0; var seconds = 0.0; var sessions = 0 }
+    var exerciseRecords: [String: ExerciseRecord] {
+        memo("exerciseRecords") {
+            var out: [String: ExerciseRecord] = [:]
+            for s in sessions {
+                for name in Set(s.exercises.map(\.name)) { out[name, default: ExerciseRecord()].sessions += 1 }
+                for e in s.exercises {
+                    out[e.name, default: ExerciseRecord()].weight = max(out[e.name]?.weight ?? 0, e.maxWeight)
+                    out[e.name, default: ExerciseRecord()].seconds = max(out[e.name]?.seconds ?? 0, e.maxSeconds)
+                }
             }
+            return out
         }
-        return mx
     }
 
     /// True when the exercise is marked as bodyweight in any plan or in the library.
     func isBodyweightExercise(_ name: String) -> Bool {
-        if let item = exerciseItems.first(where: { $0.name == name }) { return item.isBodyweight }
+        if let item = libraryItem(name) { return item.isBodyweight }
         for p in plans { if let ex = p.exercises.first(where: { $0.name == name }) { return ex.bodyweight } }
         return false
     }
 
     func lastSession(forPlan id: String) -> WorkoutSession? {
-        sessions.filter { $0.planId == id && $0.date != today() }
-            .sorted { $0.date > $1.date }.first
+        memo("lastSession|\(id)") {
+            let day = today()
+            return sessions.filter { $0.planId == id && $0.date != day }.max { $0.date < $1.date }
+        }
     }
 
     /// Suggested next weight: previous session's max + 2.5 kg when ready to progress.
     /// Suppresses the suggestion when readiness or ACWR indicate recovery stress.
     func suggested(planId: String, exercise: String) -> Double? {
+        memo("suggested|\(planId)|\(exercise)") { computeSuggested(planId: planId, exercise: exercise) }
+    }
+
+    private func computeSuggested(planId: String, exercise: String) -> Double? {
         guard let prog = progression(planId: planId, exercise: exercise),
               prog == .addLoad else { return nil }
         guard let last = lastSession(forPlan: planId),
@@ -970,15 +1005,24 @@ extension Store {
     }
 
     // MARK: Nutrition (quick total OR per-meal, for any date)
-    /// Look up a day's entry (nil if never logged).
-    func dailyEntry(_ date: String) -> DailyEntry? { daily.first { $0.date == date } }
+    /// Look up a day's entry (nil if never logged). A calendar asks for thirty of
+    /// them per render: one lookup table per change instead of a scan each.
+    func dailyEntry(_ date: String) -> DailyEntry? {
+        memo("dailyByDate") { Dictionary(daily.map { ($0.date, $0) }, uniquingKeysWith: { first, _ in first }) }[date]
+    }
 
-    /// Upsert a day's entry by mutation, for an arbitrary (past) date.
+    /// Upsert a day's entry by mutation, for an arbitrary (past) date: one change,
+    /// and a new day lands in date order.
     func upsertDaily(_ date: String, _ mutate: (inout DailyEntry) -> Void) {
-        var e = daily.first(where: { $0.date == date }) ?? DailyEntry(date: date)
-        mutate(&e)
-        daily.removeAll { $0.date == date }
-        daily.append(e)
+        var list = daily
+        if let i = list.firstIndex(where: { $0.date == date }) {
+            mutate(&list[i])
+        } else {
+            var e = DailyEntry(date: date)
+            mutate(&e)
+            list.insert(e, at: list.firstIndex { $0.date > date } ?? list.count)
+        }
+        daily = list
     }
 
     /// Quick one-tap mode: a single daily total (clears any per-meal breakdown so
@@ -1452,6 +1496,9 @@ extension Store {
     private static let healthRoutineDays = 90
     /// What the band's "data written" signal re-reads: the last nights and today.
     static let healthResyncDays = 3
+    /// An automatic sync reads this week; the 90 days are re-read once a day.
+    private static let healthForegroundDays = 7
+    private static let automaticSyncIntervalSec: TimeInterval = 15 * 60
 
     private var isHealthBackfilled: Bool {
         prefs.healthBackfilled == true && prefs.sleepHRVBackfilled == true && prefs.healthV12Backfilled == true
@@ -1462,12 +1509,19 @@ extension Store {
         prefs.healthV12Backfilled = true
     }
     /// Request authorization (if needed) and pull the last `days` days from Health.
-    /// The completion reports success plus how many workouts were newly imported
-    /// and from which source apps, so the UI can confirm to the user that their
-    /// watch is feeding the app.
-    func syncHealth(days: Int? = nil, completion: ((_ ok: Bool, _ imported: Int, _ sources: [String]) -> Void)? = nil) {
+    /// `automatic` is the app coming to the foreground: at most every 15 minutes,
+    /// and only this week unless today's full read has not happened yet. The Sync
+    /// button and the band's signal always run. The completion reports success
+    /// plus how many workouts were newly imported and from which source apps, so
+    /// the UI can confirm to the user that their watch is feeding the app.
+    func syncHealth(days: Int? = nil, automatic: Bool = false,
+                    completion: ((_ ok: Bool, _ imported: Int, _ sources: [String]) -> Void)? = nil) {
         let hk = HealthKitManager.shared
         guard hk.isAvailable else { completion?(false, 0, []); return }
+        if automatic {
+            if let last = lastAutomaticSync, Date().timeIntervalSince(last) < Store.automaticSyncIntervalSec { return }
+            lastAutomaticSync = Date()
+        }
         // First sync after connecting Health backfills a full year, so the charts
         // open with real history instead of building up over three months. Later
         // syncs only need the recent window.
@@ -1481,7 +1535,7 @@ extension Store {
                 if days != nil { healthResyncRequested = true }
             } else {
                 // A history import is reading: this sync runs right after it.
-                afterHealthRead.append { [weak self] in self?.syncHealth(days: days, completion: completion) }
+                afterHealthRead.append { [weak self] in self?.syncHealth(days: days, automatic: automatic, completion: completion) }
             }
             return
         }
@@ -1503,7 +1557,9 @@ extension Store {
         // The year is read again whenever the reader learns something new about
         // past days: sleep HRV, then (v12) nights on the right day, stages and the
         // new metrics.
-        let window = days ?? (isHealthBackfilled ? Store.healthRoutineDays : Store.healthBackfillDays)
+        let full = isHealthBackfilled ? Store.healthRoutineDays : Store.healthBackfillDays
+        let fullReadDone = prefs.healthFullReadDay == today()
+        let window = days ?? (automatic && fullReadDone ? Store.healthForegroundDays : full)
         hk.requestAuthorization { granted in
             guard granted else { finish(false, 0, []); return }
             let categories = self.prefs.healthCategories
@@ -1515,7 +1571,7 @@ extension Store {
                 self.applyHealthSamples(samples, clearing: complete ? covered.map { ($0, categories) } : nil)
                 // An incomplete answer leaves the backfill to run again next time.
                 if complete, window >= Store.healthBackfillDays { self.markHealthBackfilled() }
-                self.refreshWorkoutIntensity()
+                if complete, window >= Store.healthRoutineDays { self.prefs.healthFullReadDay = today() }
                 // Workouts stay on the 90-day window even during the daily-metric
                 // backfill: a year of imported sessions from another watch would
                 // bury the user's own log. Sessions already linked to Health are
@@ -1524,6 +1580,7 @@ extension Store {
                 hk.fetchWorkouts(days: min(window, Store.healthRoutineDays)) { workouts in
                     let r = self.applyHealthWorkouts(workouts, importNew: self.prefs.importWorkoutsEnabled)
                     finish(true, r.count, r.sources)
+                    self.readWorkoutHeartRate()
                 }
             }
         }
@@ -1795,19 +1852,27 @@ extension Store {
     /// On first save it also gets a suggested movement family (base) and a guessed
     /// muscle-group category, both of which the user can later override. `used`
     /// is true only when the exercise was logged: being in a plan is not using it.
-    @discardableResult
-    func touchExerciseInLibrary(_ name: String, isBodyweight: Bool = false, used: Bool = true) -> ExerciseItem {
-        if let i = exerciseItems.firstIndex(where: { $0.name == name }) {
-            if used { exerciseItems[i].lastUsed = today() }
-            if isBodyweight { exerciseItems[i].isBodyweight = true }
-            if exerciseItems[i].base == nil { exerciseItems[i].base = Store.normalizedBase(name) }
-            if exerciseItems[i].category == nil { exerciseItems[i].category = Store.guessCategory(name).rawValue }
-            return exerciseItems[i]
+    func touchExerciseInLibrary(_ name: String, isBodyweight: Bool = false, used: Bool = true) {
+        touchExercisesInLibrary([(name, isBodyweight)], used: used)
+    }
+
+    /// The same for several exercises at once (a finished session), changing the
+    /// library once.
+    func touchExercisesInLibrary(_ entries: [(name: String, isBodyweight: Bool)], used: Bool = true) {
+        var items = exerciseItems
+        let day = today()
+        for (name, isBodyweight) in entries {
+            if let i = items.firstIndex(where: { $0.name == name }) {
+                if used { items[i].lastUsed = day }
+                if isBodyweight { items[i].isBodyweight = true }
+                if items[i].base == nil { items[i].base = Store.normalizedBase(name) }
+                if items[i].category == nil { items[i].category = Store.guessCategory(name).rawValue }
+            } else {
+                items.append(ExerciseItem(name: name, isBodyweight: isBodyweight, lastUsed: used ? day : nil,
+                                          base: Store.normalizedBase(name), category: Store.guessCategory(name).rawValue))
+            }
         }
-        let item = ExerciseItem(name: name, isBodyweight: isBodyweight, lastUsed: used ? today() : nil,
-                                base: Store.normalizedBase(name), category: Store.guessCategory(name).rawValue)
-        exerciseItems.append(item)
-        return item
+        if items != exerciseItems { exerciseItems = items }
     }
 
     /// Rebuild a Train-page plan from a past session (used when the original plan
@@ -1842,15 +1907,16 @@ extension Store {
     /// Called on plan save so the library is always populated and recoverable, even
     /// after the plan itself is later deleted.
     func registerPlanExercises(_ plan: WorkoutPlan) {
-        for ex in plan.exercises {
+        let named = plan.exercises.compactMap { ex -> (PlanExercise, String)? in
             let name = ex.name.trimmingCharacters(in: .whitespaces)
-            guard !name.isEmpty else { continue }
-            touchExerciseInLibrary(name, isBodyweight: ex.bodyweight, used: false)
-            if let m = ex.muscle, !m.isEmpty,
-               let i = exerciseItems.firstIndex(where: { $0.name == name }) {
-                exerciseItems[i].category = m
-            }
+            return name.isEmpty ? nil : (ex, name)
         }
+        touchExercisesInLibrary(named.map { ($0.1, $0.0.bodyweight) }, used: false)
+        var items = exerciseItems
+        for (ex, name) in named {
+            if let m = ex.muscle, !m.isEmpty, let i = items.firstIndex(where: { $0.name == name }) { items[i].category = m }
+        }
+        if items != exerciseItems { exerciseItems = items }
     }
 
     /// Set the movement family + muscle-group for an exercise (creates the library
@@ -1884,18 +1950,22 @@ extension Store {
             || plans.contains { $0.exercises.contains { $0.name == newName } }
             || sessions.contains { $0.exercises.contains { $0.name == newName } }
 
-        // 1) Rewrite every logged exercise in past sessions.
-        for si in sessions.indices {
-            for ei in sessions[si].exercises.indices where sessions[si].exercises[ei].name == oldName {
-                sessions[si].exercises[ei].name = newName
+        // 1) Rewrite every logged exercise in past sessions, 2) the plan templates:
+        // on copies, so each collection changes (and saves, and redraws) once.
+        var newSessions = sessions
+        for si in newSessions.indices {
+            for ei in newSessions[si].exercises.indices where newSessions[si].exercises[ei].name == oldName {
+                newSessions[si].exercises[ei].name = newName
             }
         }
-        // 2) Rewrite plan templates.
-        for pi in plans.indices {
-            for ei in plans[pi].exercises.indices where plans[pi].exercises[ei].name == oldName {
-                plans[pi].exercises[ei].name = newName
+        sessions = newSessions
+        var newPlans = plans
+        for pi in newPlans.indices {
+            for ei in newPlans[pi].exercises.indices where newPlans[pi].exercises[ei].name == oldName {
+                newPlans[pi].exercises[ei].name = newName
             }
         }
+        plans = newPlans
         // 3) Library: on merge drop the old entry (keep the destination's metadata);
         //    on a plain rename, carry the old entry's metadata over to the new name.
         if let oi = exerciseItems.firstIndex(where: { $0.name == oldName }) {
@@ -1964,13 +2034,13 @@ extension Store {
     /// The movement family an exercise rolls up to (its saved base, else a
     /// normalized form of the name).
     func exerciseBase(_ name: String) -> String {
-        if let item = exerciseItems.first(where: { $0.name == name }), let b = item.base, !b.isEmpty { return b }
+        if let b = libraryItem(name)?.base, !b.isEmpty { return b }
         return Store.normalizedBase(name)
     }
 
     /// The muscle-group key for an exercise (saved category, else a guess).
     func exerciseCategory(_ name: String) -> String {
-        if let item = exerciseItems.first(where: { $0.name == name }), let c = item.category, !c.isEmpty { return c }
+        if let c = libraryItem(name)?.category, !c.isEmpty { return c }
         return Store.guessCategory(name).rawValue
     }
 
@@ -2014,7 +2084,9 @@ extension Store {
 
     /// Every known exercise (plans + library) grouped into movement families,
     /// each tagged with a muscle-group, sorted by most-recently-used name.
-    func exerciseFamilies() -> [ExFamily] {
+    func exerciseFamilies() -> [ExFamily] { memo("families") { computeFamilies() } }
+
+    private func computeFamilies() -> [ExFamily] {
         var byBase: [String: (cat: String, names: [String])] = [:]
         for (_, name) in allExerciseNames() where !name.isEmpty {
             let base = exerciseBase(name)
@@ -2055,7 +2127,7 @@ extension Store {
         }
     }
 
-    var bodyLatest: BodyEntry? { body.max { $0.date < $1.date } }
+    var bodyLatest: BodyEntry? { memo("bodyLatest") { body.max { $0.date < $1.date } } }
     /// The newest body record on or before `date`: what was true on that day.
     func bodyEntry(onOrBefore date: String) -> BodyEntry? {
         body.filter { $0.date <= date }.max { $0.date < $1.date }
@@ -2067,8 +2139,10 @@ extension Store {
 
     /// Effective body-fat %: manual override wins, otherwise Navy estimate.
     var currentBF: Double? {
-        guard let bl = bodyLatest else { return nil }
-        return bl.bfManual ?? bfNavy(waist: bl.waist, neck: bl.neck, hip: bl.hips)
+        memo("currentBF") {
+            guard let bl = bodyLatest else { return nil }
+            return bl.bfManual ?? bfNavy(waist: bl.waist, neck: bl.neck, hip: bl.hips)
+        }
     }
 
     // MARK: Mutations

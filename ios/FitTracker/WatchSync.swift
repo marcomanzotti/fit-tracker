@@ -32,6 +32,8 @@ final class WatchSync: NSObject, ObservableObject {
     private weak var store: Store?
     private var bag = Set<AnyCancellable>()
     private var activated = false
+    /// The catalog last sent: the same one is not sent again after every edit.
+    private var lastSentCatalog: Data?
 
     /// Wire the sync to the live Store and start the WC session. Safe to call
     /// more than once (e.g. on every AppRootView.onAppear) — it only sets up once.
@@ -109,8 +111,11 @@ final class WatchSync: NSObject, ObservableObject {
         }
         // applicationContext always carries the latest catalog (newer replaces
         // older), so a watch that was off still gets a fresh list when it wakes.
+        let bytes = payload[WatchWire.contextKey] as? Data
+        guard bytes != lastSentCatalog else { return }
         do {
             try session.updateApplicationContext(payload)
+            lastSentCatalog = bytes
         } catch {
             appLog.error("Watch catalog not sent: \(String(describing: error), privacy: .public)")
         }

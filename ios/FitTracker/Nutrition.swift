@@ -70,7 +70,9 @@ extension Store {
     /// the gold-standard adjustment: it learns your true expenditure from your
     /// own data instead of trusting the activity multiplier. Returns nil until
     /// there's enough adherence to be trustworthy.
-    func adaptiveTDEE(days: Int = 21) -> Double? {
+    func adaptiveTDEE(days: Int = 21) -> Double? { memo("adaptiveTDEE|\(days)") { computeAdaptiveTDEE(days: days) } }
+
+    private func computeAdaptiveTDEE(days: Int) -> Double? {
         let tr = weightTrend(days: days)
         guard let rate = tr.ratePerWeek, tr.points >= 8 else { return nil }
         let intakes = recentIntakes(days: days)
@@ -88,19 +90,20 @@ extension Store {
     /// breakfast logged at 9 am is not what the day will add up to.
     private func recentIntakes(days: Int) -> [Int] {
         guard let cutoff = Calendar.current.date(byAdding: .day, value: -days, to: Date()) else { return [] }
-        let todayKey = today()
+        let from = isoFormatter.string(from: cutoff), todayKey = today()
         return daily.compactMap { e in
-            guard e.totalKcal > 0, e.date != todayKey,
-                  let d = isoFormatter.date(from: e.date), d >= cutoff else { return nil }
+            guard e.date >= from, e.date != todayKey, e.totalKcal > 0 else { return nil }
             return e.totalKcal
         }
     }
 
     /// Adherence over a 2-3 week window: logging consistency, steps, volume.
-    func adherence(days: Int = 14) -> AdherenceResult {
+    func adherence(days: Int = 14) -> AdherenceResult { memo("adherence|\(days)") { computeAdherence(days: days) } }
+
+    private func computeAdherence(days: Int) -> AdherenceResult {
         let cal = Calendar.current
-        let cutoff = cal.date(byAdding: .day, value: -days, to: Date())!
-        func recent(_ ds: String) -> Bool { (isoFormatter.date(from: ds) ?? .distantPast) >= cutoff }
+        let cutoff = isoFormatter.string(from: cal.date(byAdding: .day, value: -days, to: Date())!)
+        func recent(_ ds: String) -> Bool { ds >= cutoff }
         let logged = recentIntakes(days: days)
         let stepVals = daily.compactMap { e -> Int? in recent(e.date) ? (e.steps.flatMap { $0 > 0 ? $0 : nil }) : nil }
         let sess = sessions.filter { recent($0.date) }.count
@@ -130,7 +133,9 @@ extension Store {
         return lastWeight * (1 - bf / 100)
     }
 
-    func energyTargets() -> EnergyTargets {
+    func energyTargets() -> EnergyTargets { memo("energyTargets") { computeEnergyTargets() } }
+
+    private func computeEnergyTargets() -> EnergyTargets {
         let w = lastWeight
         // Prefer the data-driven maintenance once enough has been logged; this is
         // the adherence-driven part: the target follows your real expenditure.
@@ -170,7 +175,9 @@ extension Store {
     // --- Body-weight trend engine -------------------------------------------
     /// Linear regression over the last `days` of weigh-ins to estimate the real
     /// rate of change (kg/week), independent of daily noise.
-    func weightTrend(days: Int = 21) -> TrendResult {
+    func weightTrend(days: Int = 21) -> TrendResult { memo("weightTrend|\(days)") { computeWeightTrend(days: days) } }
+
+    private func computeWeightTrend(days: Int) -> TrendResult {
         let cal = Calendar.current
         let cutoff = cal.date(byAdding: .day, value: -days, to: Date())!
         let pts = sortedDaily.compactMap { e -> (Double, Double)? in
@@ -223,7 +230,9 @@ extension Store {
     // --- Low energy availability --------------------------------------------
     /// EA = (intake - exercise energy) / FFM, averaged over the last 7 days.
     /// <30 kcal/kg FFM/day = clinical LEA risk; 30-45 a caution under heavy load.
-    func energyAvailability() -> LEAResult {
+    func energyAvailability() -> LEAResult { memo("lea") { computeEnergyAvailability() } }
+
+    private func computeEnergyAvailability() -> LEAResult {
         guard let ffm = fatFreeMass(), ffm > 0 else { return LEAResult(ea: nil, risk: "none") }
         let window = 7
         let intakes = recentIntakes(days: window)
@@ -231,7 +240,8 @@ extension Store {
               let cutoff = Calendar.current.date(byAdding: .day, value: -window, to: Date())
         else { return LEAResult(ea: nil, risk: "none") }
         let avgIntake = Double(intakes.reduce(0, +)) / Double(intakes.count)
-        let exDays = sessions.filter { (isoFormatter.date(from: $0.date) ?? .distantPast) >= cutoff }
+        let from = isoFormatter.string(from: cutoff)
+        let exDays = sessions.filter { $0.date >= from }
         let exEnergy = exDays.reduce(0.0) { $0 + Double($1.caloriesManual ?? estimateCalories($1)) }
         let ea = (avgIntake - exEnergy / 7) / ffm
         let risk: String

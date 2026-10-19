@@ -21,7 +21,9 @@ extension Store {
     /// Best estimated 1RM ever logged for an exercise, across every set of every
     /// session (so a heavy triple can out-rank a max single). Bodyweight exercises
     /// return nil — there's no barbell load to model.
-    func bestE1RM(_ name: String) -> Double? {
+    func bestE1RM(_ name: String) -> Double? { memo("e1RM|\(name)") { computeBestE1RM(name) } }
+
+    private func computeBestE1RM(_ name: String) -> Double? {
         if isBodyweightExercise(name) { return nil }
         var best: Double? = nil
         for s in sessions {
@@ -277,11 +279,15 @@ extension Store {
     /// muscle group comes from the library/plan classification. This is the
     /// standard hypertrophy dashboard ("am I hitting ~10-20 sets/muscle/week?").
     func weeklyMuscleVolume(offset: Int = 0) -> [MuscleVolume] {
-        let mon = weekStart(offset: offset)
-        let sun = weekStart(offset: offset - 1)
+        memo("muscleVolume|\(offset)") { computeMuscleVolume(offset: offset) }
+    }
+
+    private func computeMuscleVolume(offset: Int) -> [MuscleVolume] {
+        let from = isoFormatter.string(from: weekStart(offset: offset))
+        let to = isoFormatter.string(from: weekStart(offset: offset - 1))
         var counts: [String: Int] = [:]
         for s in sessions {
-            guard let d = isoFormatter.date(from: s.date), d >= mon, d < sun else { continue }
+            guard s.date >= from, s.date < to else { continue }
             for e in s.exercises {
                 let working = e.sets.filter { $0.filled }.count
                 guard working > 0 else { continue }
@@ -385,7 +391,9 @@ extension Store {
     /// Latest VO2max: Apple Health's value wins (it's measured); otherwise estimate
     /// from the best recent run using the Daniels/Gilbert velocity model via a
     /// HR-fraction proxy. Returns (value, estimated) so the UI can badge an estimate.
-    func vo2maxEstimate() -> (value: Double, estimated: Bool)? {
+    func vo2maxEstimate() -> (value: Double, estimated: Bool)? { memo("vo2max") { computeVO2max() } }
+
+    private func computeVO2max() -> (value: Double, estimated: Bool)? {
         if let v = latestVO2, v > 0 { return (v, false) }
         // Estimate from the most intense recent run with both distance and avg HR.
         let runs = sessions
@@ -417,7 +425,9 @@ extension Store {
     /// Five heart-rate training zones (% of HR reserve, Karvonen) with their bpm
     /// bounds for the user's profile. Zone 1 easy … Zone 5 max.
     struct HRZone: Identifiable { var index: Int; var lower: Int; var upper: Int; var id: Int { index } }
-    func hrZones() -> [HRZone] {
+    func hrZones() -> [HRZone] { memo("hrZones") { computeHRZones() } }
+
+    private func computeHRZones() -> [HRZone] {
         let rest = Double(prefs.restHRorDefault)
         let mx = Double(prefs.estMaxHR)
         guard mx > rest else { return [] }

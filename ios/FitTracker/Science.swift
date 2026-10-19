@@ -14,28 +14,41 @@ extension Store {
         return dur * hrr * 0.64 * exp(y * hrr)
     }
 
+    /// TRIMP of every stored session that has one, computed once per change.
+    var sessionTrimps: [UUID: Double] {
+        memo("sessionTrimps") {
+            var out: [UUID: Double] = [:]
+            for s in sessions { if let v = trimp(s) { out[s.id] = v } }
+            return out
+        }
+    }
+
+    /// Summed TRIMP per day (yyyy-MM-dd).
+    var loadByDay: [String: Double] {
+        memo("loadByDay") {
+            let trimps = sessionTrimps
+            var out: [String: Double] = [:]
+            for s in sessions { if let v = trimps[s.id] { out[s.date, default: 0] += v } }
+            return out
+        }
+    }
+
     /// Sum of session TRIMP in a Monday-based week (offset 0 = current week).
     func weeklyTrimp(offset: Int = 0) -> Double {
-        let mon = weekStart(offset: offset)
-        let sun = weekStart(offset: offset - 1)
-        var total = 0.0
-        for s in sessions {
-            guard let v = trimp(s), let d = isoFormatter.date(from: s.date) else { continue }
-            if d >= mon && d < sun { total += v }
-        }
-        return total
+        // ISO dates sort as text: no date parsing per session.
+        let from = isoFormatter.string(from: weekStart(offset: offset))
+        let to = isoFormatter.string(from: weekStart(offset: offset - 1))
+        return loadByDay.reduce(0) { $1.key >= from && $1.key < to ? $0 + $1.value : $0 }
     }
 
     /// TRIMP of the most recent session that has one (nil if no HR logged yet).
     func lastSessionTrimp() -> (value: Double, date: String)? {
-        for s in sessions.sorted(by: { $0.date > $1.date }) {
-            if let v = trimp(s) { return (v, s.date) }
-        }
-        return nil
+        let trimps = sessionTrimps
+        return sessions.filter { trimps[$0.id] != nil }.max { $0.date < $1.date }.flatMap { s in trimps[s.id].map { ($0, s.date) } }
     }
 
     /// True once any session carries the avg-HR needed to compute TRIMP.
-    var hasAnyTrimp: Bool { sessions.contains { trimp($0) != nil } }
+    var hasAnyTrimp: Bool { !sessionTrimps.isEmpty }
 }
 
 // MARK: - Daily load series + ACWR (EWMA method)
@@ -54,10 +67,11 @@ struct ACWRResult {
 
 extension Store {
     /// Daily summed load for the last `days` days, oldest -> newest, zero-filled.
-    func dailyLoadSeries(days: Int) -> [LoadPoint] {
+    func dailyLoadSeries(days: Int) -> [LoadPoint] { memo("dailyLoad|\(days)") { computeDailyLoad(days: days) } }
+
+    private func computeDailyLoad(days: Int) -> [LoadPoint] {
         let cal = Calendar.current
-        var map: [String: Double] = [:]
-        for s in sessions { if let l = trimp(s) { map[s.date, default: 0] += l } }
+        let map = loadByDay
         var d = cal.startOfDay(for: Date())
         var stack: [LoadPoint] = []
         for _ in 0..<days {
@@ -89,9 +103,12 @@ extension Store {
         var needSessions: Int      // minimum sessions required
         var needDays: Int          // minimum span (days) required
     }
-    func loadDataStatus() -> LoadDataStatus {
+    func loadDataStatus() -> LoadDataStatus { memo("loadDataStatus") { computeLoadDataStatus() } }
+
+    private func computeLoadDataStatus() -> LoadDataStatus {
         let needSessions = 6, needDays = 21
-        let loaded = sessions.filter { trimp($0) != nil }
+        let trimps = sessionTrimps
+        let loaded = sessions.filter { trimps[$0.id] != nil }
         let cal = Calendar.current
         let today = cal.startOfDay(for: Date())
         let dates = loaded.compactMap { isoFormatter.date(from: $0.date) }.map { cal.startOfDay(for: $0) }
@@ -105,7 +122,9 @@ extension Store {
     }
 
     /// ACWR with the EWMA method (acute = 7d, chronic = 28d).
-    func acwr() -> ACWRResult {
+    func acwr() -> ACWRResult { memo("acwr") { computeACWR() } }
+
+    private func computeACWR() -> ACWRResult {
         let series = dailyLoadSeries(days: 42).map { $0.load }
         guard series.contains(where: { $0 > 0 }) else {
             return ACWRResult(ratio: nil, zone: "none")
@@ -148,26 +167,27 @@ extension Store {
     /// rest day still counts as a legitimate zero (which is what monotony should
     /// reward). Past weeks (offset > 0) fall back to 7 when nothing is known, since
     /// we can't retroactively distinguish rest from a gap.
-    func weekLoad(offset: Int) -> WeekLoad {
+    func weekLoad(offset: Int) -> WeekLoad { memo("weekLoad|\(offset)") { computeWeekLoad(offset: offset) } }
+
+    private func computeWeekLoad(offset: Int) -> WeekLoad {
         let cal = Calendar.current
         let mon = weekStart(offset: offset)
+        // The week's seven dates as text, so sessions are placed without parsing.
+        let dayKeys = (0..<7).map { cal.date(byAdding: .day, value: $0, to: mon).map { isoFormatter.string(from: $0) } ?? "" }
+        let index = Dictionary(uniqueKeysWithValues: dayKeys.enumerated().map { ($1, $0) })
+        let trimps = sessionTrimps
         var daily = [Double](repeating: 0, count: 7)
         var count = 0
         var trainingDays = Set<Int>()
         var knownDays = Set<Int>()                 // days we have real information about
         for s in sessions {
-            guard let l = trimp(s), let d = isoFormatter.date(from: s.date) else { continue }
-            let day = cal.startOfDay(for: d)
-            let diff = cal.dateComponents([.day], from: mon, to: day).day ?? -1
-            if diff >= 0 && diff < 7 { daily[diff] += l; count += 1; trainingDays.insert(diff); knownDays.insert(diff) }
+            guard let l = trimps[s.id], let diff = index[s.date] else { continue }
+            daily[diff] += l; count += 1; trainingDays.insert(diff); knownDays.insert(diff)
         }
         // Explicit rest days are real zeros (they keep monotony honest); future days
         // of the current week aren't known yet, so they don't dilute the mean.
         let restSet = prefs.restDaySet
-        for diff in 0..<7 {
-            guard let day = cal.date(byAdding: .day, value: diff, to: mon) else { continue }
-            if restSet.contains(isoFormatter.string(from: day)) { knownDays.insert(diff) }
-        }
+        for (diff, key) in dayKeys.enumerated() where restSet.contains(key) { knownDays.insert(diff) }
         // Denominator: known days for the current week; classic 7 for past weeks
         // where a gap can't be told apart from rest.
         let denom = Double(offset == 0 ? max(1, knownDays.count) : 7)
@@ -250,6 +270,10 @@ extension Store {
     /// low whatever the baseline.
     /// The night of `date`, or the latest recent one when nil.
     func nightVitals(on date: String? = nil) -> [VitalReading] {
+        memo("nightVitals|\(date ?? "latest")") { computeNightVitals(on: date) }
+    }
+
+    private func computeNightVitals(on date: String?) -> [VitalReading] {
         let specs: [(HealthField, floor: Double)] = [
             (.hrvSleep, 6), (.sleepHR, 3), (.respRate, 1), (.spo2, 2), (.wristTemp, 0.5)
         ]
@@ -416,7 +440,9 @@ extension Store {
     ///   • the sleep score — 0.30, against an absolute anchor (75 = neutral)
     /// The composite maps to 0-100 as 50 + 20·z. An overnight vital out of range
     /// (fast breathing, warm wrist, low SpO2) caps the day at "easy".
-    func readiness() -> ReadinessResult {
+    func readiness() -> ReadinessResult { memo("readiness") { computeReadiness() } }
+
+    private func computeReadiness() -> ReadinessResult {
         var factors: [(name: String, z: Double, w: Double)] = []
         var hrvSamples = 0
 
@@ -512,16 +538,19 @@ extension Store {
     /// for the ratio to mean something — the same test the dashboard applies before
     /// showing it (one logged ride alone gives a ratio above 3).
     private func recoveryGate() -> ProgKind? {
-        if let cached = recoveryGateCache { return cached }
-        var gate: ProgKind?
-        if let score = readiness().score, score < Store.readinessRestBelow { gate = .deload }
-        else if loadDataStatus().reliable, let ratio = acwr().ratio, ratio > Store.holdAboveACWR { gate = .hold }
-        recoveryGateCache = .some(gate)
-        return gate
+        memo("recoveryGate") { () -> ProgKind? in
+            if let score = readiness().score, score < Store.readinessRestBelow { return .deload }
+            if loadDataStatus().reliable, let ratio = acwr().ratio, ratio > Store.holdAboveACWR { return .hold }
+            return nil
+        }
     }
     private static let holdAboveACWR = 1.3
 
     func progression(planId: String, exercise: String) -> ProgKind? {
+        memo("progression|\(planId)|\(exercise)") { computeProgression(planId: planId, exercise: exercise) }
+    }
+
+    private func computeProgression(planId: String, exercise: String) -> ProgKind? {
         guard let plan = plan(planId),
               let pe = plan.exercises.first(where: { $0.name == exercise }) else { return nil }
 
@@ -540,8 +569,9 @@ extension Store {
         guard let (lo, hi) = repRange(pe.reps) else { return nil }
 
         // Collect the last two sessions for this plan.
+        let day = today()
         let planSessions = sessions
-            .filter { $0.planId == planId && $0.date != today() }
+            .filter { $0.planId == planId && $0.date != day }
             .sorted { $0.date > $1.date }
         guard let last = planSessions.first,
               let ex = last.exercises.first(where: { $0.name == exercise }) else { return nil }
@@ -594,8 +624,9 @@ extension Store {
         guard let plan = plan(planId),
               let pe = plan.exercises.first(where: { $0.name == exercise }) else { return nil }
         let target: Double? = pe.effectiveTargetSec > 0 ? Double(pe.effectiveTargetSec) : nil
+        let day = today()
         let planSessions = sessions
-            .filter { $0.planId == planId && $0.date != today() }
+            .filter { $0.planId == planId && $0.date != day }
             .sorted { $0.date > $1.date }
         guard let last = planSessions.first,
               let ex = last.exercises.first(where: { $0.name == exercise }) else { return nil }
@@ -618,8 +649,9 @@ extension Store {
     private func intervalProgression(_ pe: PlanExercise) -> ProgKind? {
         guard let target = pe.rounds, target > 0 else { return nil }
         // Most recent logged rounds for this exercise across any prior session.
+        let day = today()
         let recent = sessions
-            .filter { $0.date != today() }
+            .filter { $0.date != day }
             .sorted { $0.date > $1.date }
             .compactMap { s in s.exercises.first { $0.name == pe.name }?.rounds }
         guard let lastRounds = recent.first else { return nil }

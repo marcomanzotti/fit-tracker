@@ -94,7 +94,9 @@ extension Store {
     /// The reference ranges of a metric, built from the user's profile where they
     /// depend on it (VO₂max, body fat and FFMI by sex and age; vitals and HRV from
     /// the user's own last 60 days). nil for metrics with no meaningful scale.
-    func infoScale(_ topic: InfoTopic) -> InfoScale? {
+    func infoScale(_ topic: InfoTopic) -> InfoScale? { memo("infoScale|\(topic.rawValue)") { computeInfoScale(topic) } }
+
+    private func computeInfoScale(_ topic: InfoTopic) -> InfoScale? {
         let female = prefs.sex_ == "f"
         switch topic {
         case .readiness:
@@ -227,7 +229,9 @@ extension Store {
     /// The user's value for a topic's scale: the latest reading for nightly
     /// values, a 7-day average (today excluded, it is not over yet) for daily
     /// totals.
-    func infoValue(_ topic: InfoTopic) -> Double? {
+    func infoValue(_ topic: InfoTopic) -> Double? { memo("infoValue|\(topic.rawValue)") { computeInfoValue(topic) } }
+
+    private func computeInfoValue(_ topic: InfoTopic) -> Double? {
         func latest(_ f: HealthField) -> Double? { sortedDaily.last { ($0[f] ?? 0) > 0 }?[f] }
         switch topic {
         case .readiness:   return readiness().score.map(Double.init)

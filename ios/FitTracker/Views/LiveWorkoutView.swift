@@ -624,10 +624,8 @@ struct LiveWorkoutView: View {
                                           recordBefore: store.exercisePR,
                                           kcal: store.estimateCalories(sess), trimp: store.trimp(sess))
 
-        // Auto-save every exercise to the library and update their bodyweight flag.
-        for ex in sess.exercises {
-            store.touchExerciseInLibrary(ex.name, isBodyweight: ex.bodyweight)
-        }
+        // Every exercise into the library as used today, with its bodyweight flag.
+        store.touchExercisesInLibrary(sess.exercises.map { ($0.name, $0.bodyweight) })
         store.sessions.append(sess)
         // On disk now, before the draft is removed: the autosave is debounced, and
         // for that half second the session would otherwise exist nowhere.
