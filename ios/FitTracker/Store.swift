@@ -341,6 +341,7 @@ final class Store: ObservableObject {
             let newBackup = try keepDatedBackup()
             try encoded.data.write(to: dataURL, options: .atomic)
             if newBackup { prune(prefix: Store.backupPrefix, keep: Store.backupsKept) }
+            ExternalBackup.copyIfDue(dataURL, day: today())
             reportSave(failure: nil)
         } catch {
             appLog.error("Save failed: \(String(describing: error), privacy: .public)")

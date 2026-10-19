@@ -313,4 +313,26 @@ final class DataSafetyTests: XCTestCase {
         XCTAssertTrue(undone)
         XCTAssertEqual(toasts.message, "Saved", "the waiting message comes next")
     }
+
+    // MARK: Copy outside the phone
+
+    func testTheDataFileIsCopiedToThePickedFolderOnceADayAndOldCopiesAreTrimmed() throws {
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: "backup-\(UUID().uuidString)"))
+        let folder = dir.appendingPathComponent("iCloud", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try Data("v1".utf8).write(to: dataFile)
+        try ExternalBackup.choose(folder, defaults: defaults)
+
+        XCTAssertNil(ExternalBackup.copyIfDue(dataFile, day: "2026-10-19", defaults: defaults))
+        try Data("v2".utf8).write(to: dataFile)
+        ExternalBackup.copyIfDue(dataFile, day: "2026-10-19", defaults: defaults)
+        let copy = folder.appendingPathComponent("FitTracker-2026-10-19.json")
+        XCTAssertEqual(try String(contentsOf: copy, encoding: .utf8), "v1", "one copy a day")
+
+        for day in 1...20 { ExternalBackup.copyIfDue(dataFile, day: String(format: "2026-11-%02d", day), defaults: defaults) }
+        let copies = try FileManager.default.contentsOfDirectory(atPath: folder.path).filter { $0.hasPrefix("FitTracker-") }
+        XCTAssertEqual(copies.count, ExternalBackup.kept)
+        XCTAssertTrue(copies.contains("FitTracker-2026-11-20.json"))
+        XCTAssertEqual(ExternalBackup.lastCopyDay(defaults: defaults), "2026-11-20")
+    }
 }

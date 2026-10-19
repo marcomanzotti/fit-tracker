@@ -263,7 +263,12 @@ struct SettingsView: View {
     }
 
     // MARK: Data
-    private var dataSection: some View { BackupCard() }
+    private var dataSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            BackupCard()
+            ExternalBackupCard()
+        }
+    }
 
     /// Build the post-sync toast: a count + the source apps when workouts were
     /// imported, otherwise the plain "synced" confirmation.
@@ -377,5 +382,55 @@ struct BackupCard: View {
         case .invalidFile:    haptic(.error); toast.show(t("body.invalid_file"))
         case .snapshotFailed: haptic(.error); toast.show(t("body.import_snapshot_failed"))
         }
+    }
+}
+
+// MARK: - Daily copy outside the phone (Settings › Data)
+struct ExternalBackupCard: View {
+    @EnvironmentObject var store: Store
+    @EnvironmentObject var toast: ToastCenter
+    @State private var picking = false
+    /// Bumped after a change so the folder name and last copy are read again.
+    @State private var refresh = 0
+
+    var body: some View {
+        let folder = ExternalBackup.folderName()
+        Card {
+            Lbl(text: t("bk.title"), color: Theme.acc2).padding(.bottom, 4)
+            Text(t("bk.hint")).font(.ui(11)).foregroundColor(Theme.sub).lineSpacing(3).padding(.bottom, 10)
+            if let folder {
+                Text(t("bk.folder", folder)).font(.ui(13, weight: .semibold)).foregroundColor(Theme.txt)
+                Text(ExternalBackup.lastAttemptFailed() ? t("bk.failed")
+                     : (ExternalBackup.lastCopyDay().map { t("bk.last", fmtDM($0)) } ?? t("bk.pending")))
+                    .font(.ui(11)).foregroundColor(ExternalBackup.lastAttemptFailed() ? Theme.red : Theme.sub)
+                    .padding(.top, 2).padding(.bottom, 10)
+                HStack(spacing: 10) {
+                    GhostButton(title: t("bk.copy_now"), color: Theme.acc) { copyNow() }
+                    GhostButton(title: t("bk.change"), color: Theme.blue) { picking = true }
+                }
+                GhostButton(title: t("bk.stop"), color: Theme.sub) { ExternalBackup.forget(); refresh += 1 }
+                    .padding(.top, 8)
+            } else {
+                FilledButton(title: t("bk.choose")) { picking = true }
+            }
+        }
+        .id(refresh)
+        .fileImporter(isPresented: $picking, allowedContentTypes: [.folder]) { result in
+            guard case .success(let url) = result else { return }
+            do {
+                try ExternalBackup.choose(url)
+                copyNow()
+            } catch {
+                appLog.error("Backup folder not usable: \(String(describing: error), privacy: .public)")
+                toast.show(t("bk.folder_failed"), duration: ToastCenter.longDuration)
+            }
+        }
+    }
+
+    private func copyNow() {
+        store.flushNow()
+        let failed = ExternalBackup.copyIfDue(store.dataURL, day: today(), force: true) != nil
+        toast.show(t(failed ? "bk.failed" : "bk.copied"), duration: failed ? ToastCenter.longDuration : ToastCenter.defaultDuration)
+        refresh += 1
     }
 }
