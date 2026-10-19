@@ -133,7 +133,8 @@ enum SleepWindows {
         let asleep = merge(slices.filter { asleepStages.contains($0.stage) }.map { ($0.start, $0.end) })
         guard !asleep.isEmpty,
               let start = cluster.map(\.start).min(), let end = cluster.map(\.end).max() else { return nil }
-        var night = SleepNight(day: isoFormatter.string(from: cal.startOfDay(for: end)),
+        let wake = cal.dateComponents([.year, .month, .day], from: end)
+        var night = SleepNight(day: String(format: "%04d-%02d-%02d", wake.year ?? 0, wake.month ?? 0, wake.day ?? 0),
                                start: start, end: end, asleep: asleep, slices: slices)
         for s in slices {
             let minutes = s.end.timeIntervalSince(s.start) / 60
