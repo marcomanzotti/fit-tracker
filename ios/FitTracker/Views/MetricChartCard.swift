@@ -21,7 +21,9 @@ struct MetricChartCard: View {
     @State private var selected: Store.WeekPoint? = nil
 
     var body: some View {
-        let data = store.metricSeries(value, granularity: .week, months: 2)
+        // Cached per chart until the data changes: dragging across the chart redraws
+        // the card for every point touched, and the series must not be rebuilt each time.
+        let data = store.memo("metricSeries|\(title)|week") { store.metricSeries(value, granularity: .week, months: 2) }
         return Group {
             if data.count > 1 {
                 Card {
@@ -247,7 +249,7 @@ struct ExpandedChartSheet: View {
                 ChipPicker(options: Store.ChartGranularity.allCases, selection: $gran) { t("chart.gran." + $0.rawValue) }
                     .onChange(of: gran) { selected = nil }
 
-                let data = store.metricSeries(value, granularity: gran)
+                let data = store.memo("metricSeries|\(title)|\(gran)") { store.metricSeries(value, granularity: gran) }
                 if data.count > 1 {
                     InteractiveMetricPlot(data: data, color: color, kind: kind, granularity: gran, yDomain: yDomain,
                                           showPoints: kind == .area && data.count <= 40, selected: $selected)

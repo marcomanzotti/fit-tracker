@@ -10,7 +10,9 @@ struct AppRootView: View {
         }
         // Start the Apple Watch link (no-op without a paired watch) and keep the
         // wrist's workout catalog in sync with the saved plans / cardio types.
-        .onAppear { WatchSync.shared.attach(store) }
+        // After the first frame: the catalog build and the WatchConnectivity
+        // activation are not worth delaying the first screen for.
+        .task { await Task.yield(); WatchSync.shared.attach(store) }
         .alert(t("store.unreadable_title"), isPresented: Binding(
             get: { loadProblemText != nil }, set: { if !$0 { store.acknowledgeStorageProblem() } })) {
             Button(t("ok")) { store.acknowledgeStorageProblem() }

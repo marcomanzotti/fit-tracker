@@ -146,7 +146,10 @@ struct RootView: View {
         // Garmin/Fitbit/etc. shows up without a manual refresh.
         .onChange(of: scenePhase, initial: true) { _, phase in
             if phase == .active { store.refreshDay() }
-            if phase == .active, store.prefs.healthKitEnabled { store.syncHealth(automatic: true, completion: healthToast) }
+            // The Health read starts once the screen is up, not before the first frame.
+            if phase == .active, store.prefs.healthKitEnabled {
+                DispatchQueue.main.async { store.syncHealth(automatic: true, completion: healthToast) }
+            }
             // The autosave is debounced: write now, before the app can be suspended.
             if phase == .background { store.flushNow() }
             if phase != .inactive { Reminders.reschedule(store) }
