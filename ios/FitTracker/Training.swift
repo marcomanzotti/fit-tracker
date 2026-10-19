@@ -43,7 +43,6 @@ extension Store {
 // MARK: Recovery after a session
 struct RecoveryEstimate {
     let sessionDate: String
-    let load: Double
     let hours: Int          // total estimated recovery
     let remaining: Int?     // hours left, when the session's end is known
 }
@@ -72,7 +71,7 @@ extension Store {
         // A session from a device knows when it ended; one logged by hand only has a date.
         let end = last.0.endTime
         let remaining = end.map { max(0, Int((hours - Date().timeIntervalSince($0) / 3600).rounded())) }
-        return RecoveryEstimate(sessionDate: last.0.date, load: last.1, hours: Int(hours.rounded()), remaining: remaining)
+        return RecoveryEstimate(sessionDate: last.0.date, hours: Int(hours.rounded()), remaining: remaining)
     }
 }
 
@@ -83,7 +82,6 @@ extension Store {
 struct WorkoutIntensity {
     let date: String
     let end: Date
-    let sport: String
     let zoneSeconds: [Double]   // Z1…Z5 (below Z1 counts as Z1)
     let decoupling: Double?     // %, runs of 30 min or more with distance
 }
@@ -135,7 +133,7 @@ extension Store {
             return sessions.compactMap { s -> WorkoutIntensity? in
                 guard s.date >= from, let h = s.hrHistogram, !h.isEmpty else { return nil }
                 let end = s.endTime ?? isoFormatter.date(from: s.date) ?? Date()
-                return WorkoutIntensity(date: s.date, end: end, sport: s.sportType.rawValue,
+                return WorkoutIntensity(date: s.date, end: end,
                                         zoneSeconds: zoneSeconds(h, bounds: bounds), decoupling: s.decoupling)
             }.sorted { $0.end < $1.end }
         }
@@ -209,11 +207,10 @@ func aerobicDecoupling(heartRate: [(Date, Double)], work: [(Date, Double)], kind
     func half(_ samples: [(Date, Double)], first: Bool) -> [Double] {
         samples.filter { $0.0 >= from && $0.0 < end && ($0.0 < mid) == first }.map(\.1)
     }
-    func mean(_ v: [Double]) -> Double? { v.isEmpty ? nil : v.reduce(0, +) / Double(v.count) }
     func efficiency(first: Bool) -> Double? {
-        guard let hr = mean(half(heartRate, first: first)), hr > 0 else { return nil }
+        guard let hr = average(half(heartRate, first: first)), hr > 0 else { return nil }
         let values = half(work, first: first)
-        guard let w = kind == .distance ? (values.isEmpty ? nil : values.reduce(0, +)) : mean(values), w > 0 else { return nil }
+        guard let w = kind == .distance ? (values.isEmpty ? nil : values.reduce(0, +)) : average(values), w > 0 else { return nil }
         return w / hr
     }
     guard let ef1 = efficiency(first: true), let ef2 = efficiency(first: false) else { return nil }

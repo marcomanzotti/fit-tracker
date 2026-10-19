@@ -12,34 +12,12 @@ struct NutritionCalendarCard: View {
     @State private var editDate: IdentDate?
 
     var body: some View {
-        let cal = Calendar.current
-        let base = cal.date(byAdding: .month, value: monthOffset, to: Date())!
-        let comps = cal.dateComponents([.year, .month], from: base)
-        let firstOfMonth = cal.date(from: comps)!
-        let daysInMonth = cal.range(of: .day, in: .month, for: firstOfMonth)!.count
-        let firstWeekday = (cal.component(.weekday, from: firstOfMonth) + 5) % 7   // Monday=0
+        let page = MonthPage(offset: monthOffset)
         let target = store.energyTargets().target
 
         return Card {
-            MonthHeader(monthOffset: $monthOffset, month: comps.month!, year: comps.year!)
-
-            let cells = firstWeekday + daysInMonth
-            let rows = Int(ceil(Double(cells) / 7.0))
-            VStack(spacing: 4) {
-                ForEach(0..<rows, id: \.self) { row in
-                    HStack(spacing: 4) {
-                        ForEach(0..<7, id: \.self) { col in
-                            let idx = row * 7 + col
-                            let day = idx - firstWeekday + 1
-                            if day >= 1 && day <= daysInMonth {
-                                dayCell(day: day, firstOfMonth: firstOfMonth, target: target)
-                            } else {
-                                Color.clear.frame(maxWidth: .infinity).frame(height: 40)
-                            }
-                        }
-                    }
-                }
-            }
+            MonthHeader(monthOffset: $monthOffset, month: page.month, year: page.year)
+            MonthGrid(page: page, cellHeight: 40) { day in dayCell(ds: page.date(day), day: day, target: target) }
             HStack(spacing: 2) {
                 Text(t("nut.cal_hint_tap")).font(.ui(11)).foregroundColor(Theme.sub)
                 InfoButton(id: .nutCalendar, size: 18)
@@ -58,10 +36,7 @@ struct NutritionCalendarCard: View {
         return Theme.good
     }
 
-    private func dayCell(day: Int, firstOfMonth: Date, target: Double) -> some View {
-        let cal = Calendar.current
-        let date = cal.date(byAdding: .day, value: day - 1, to: firstOfMonth)!
-        let ds = isoFormatter.string(from: date)
+    private func dayCell(ds: String, day: Int, target: Double) -> some View {
         let entry = store.dailyEntry(ds)
         let kcal = entry?.totalKcal ?? 0
         let logged = (entry?.hasNutrition ?? false) && kcal > 0
@@ -391,6 +366,55 @@ struct SectionHeader: View {
 
 /// Month title with previous / next arrows and the Monday-first weekday row, shared
 /// by the training and nutrition calendars. The future is not browsable.
+/// The month `offset` months from this one: its first day, its length and the
+/// year and month the header shows.
+struct MonthPage {
+    let first: Date
+    let days: Int
+    let year: Int
+    let month: Int
+
+    init(offset: Int, calendar cal: Calendar = .current) {
+        let base = cal.date(byAdding: .month, value: offset, to: Date()) ?? Date()
+        let comps = cal.dateComponents([.year, .month], from: base)
+        first = cal.date(from: comps) ?? base
+        days = cal.range(of: .day, in: .month, for: first)?.count ?? 30
+        year = comps.year ?? 0
+        month = comps.month ?? 1
+    }
+
+    /// yyyy-MM-dd of a day of this month.
+    func date(_ day: Int) -> String {
+        isoFormatter.string(from: Calendar.current.date(byAdding: .day, value: day - 1, to: first) ?? first)
+    }
+}
+
+/// The days of a month in Monday-first rows; blank cells pad the first and last week.
+struct MonthGrid<Cell: View>: View {
+    let page: MonthPage
+    let cellHeight: CGFloat
+    @ViewBuilder let cell: (Int) -> Cell
+
+    var body: some View {
+        let lead = mondayIndex(page.first)
+        let rows = (lead + page.days + 6) / 7
+        VStack(spacing: 4) {
+            ForEach(0..<rows, id: \.self) { row in
+                HStack(spacing: 4) {
+                    ForEach(0..<7, id: \.self) { col in
+                        let day = row * 7 + col - lead + 1
+                        if (1...page.days).contains(day) {
+                            cell(day)
+                        } else {
+                            Color.clear.frame(maxWidth: .infinity).frame(height: cellHeight)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 struct MonthHeader: View {
     @Binding var monthOffset: Int
     let month: Int

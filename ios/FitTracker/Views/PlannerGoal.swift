@@ -101,7 +101,7 @@ struct WeeklyPlanView: View {
     }
 
     var body: some View {
-        let todayMon = (Calendar.current.component(.weekday, from: Date()) + 5) % 7
+        let todayMon = mondayIndex()
         ZStack {
             Theme.bg.ignoresSafeArea()
             ScrollView {
@@ -209,7 +209,7 @@ struct WeeklyPlanCard: View {
 
     var body: some View {
         let sched = store.prefs.weekSchedule
-        let todayMon = (Calendar.current.component(.weekday, from: Date()) + 5) % 7
+        let todayMon = mondayIndex()
         let heads = L.weekHeaders   // Monday-first, two letters
         Button { tap(); editing = true } label: {
             Card {

@@ -410,16 +410,7 @@ struct LoggedExercise: Codable, Identifiable, Equatable {
 enum Sport: String, Codable, CaseIterable {
     case strength, running, swimming, cycling, walking, other
     var label: String { L.t("sport." + rawValue) }
-    var icon: String {
-        switch self {
-        case .strength: return "dumbbell.fill"
-        case .running:  return "figure.run"
-        case .swimming: return "figure.pool.swim"
-        case .cycling:  return "figure.outdoor.cycle"
-        case .walking:  return "figure.walk"
-        case .other:    return "bolt.heart.fill"
-        }
-    }
+    var icon: String { sportSymbol(rawValue) }
     var color: String {
         switch self {
         case .strength: return "ffe000"
@@ -461,7 +452,6 @@ struct WorkoutSession: Codable, Identifiable, Equatable {
     var rpe: Int?              // session global RPE 1-10 (Borg CR10) for sRPE
     var avgHR: Int?            // average heart rate (manual) for TRIMP
     var maxHRSes: Int?         // max heart rate during session (manual)
-    var rmssd: Double?         // legacy per-session HRV value (no longer user-editable; kept for old backups)
     var distanceKm: Double?    // running / cycling / walking
     var paceManual: Double?    // user pace/speed override in the sport's native unit
     var elevationM: Double?    // optional climb
@@ -599,18 +589,17 @@ struct BodyEntry: Codable, Identifiable, Equatable {
 
 struct MeasureField: Identifiable {
     let key: String
-    let label: String
     let color: String
     var id: String { key }
 }
 
 let measureFields: [MeasureField] = [
-    MeasureField(key: "waist", label: "Vita",    color: "ff5a52"),
-    MeasureField(key: "chest", label: "Petto",   color: "4fb8c4"),
-    MeasureField(key: "arms",  label: "Braccia", color: "ffb000"),
-    MeasureField(key: "legs",  label: "Gambe",   color: "7fc950"),
-    MeasureField(key: "neck",  label: "Collo",   color: "b08fff"),
-    MeasureField(key: "hips",  label: "Fianchi", color: "ffe000")
+    MeasureField(key: "waist", color: "ff5a52"),
+    MeasureField(key: "chest", color: "4fb8c4"),
+    MeasureField(key: "arms", color: "ffb000"),
+    MeasureField(key: "legs", color: "7fc950"),
+    MeasureField(key: "neck", color: "b08fff"),
+    MeasureField(key: "hips", color: "ffe000")
 ]
 
 // MARK: - Custom workout plans (fully editable)

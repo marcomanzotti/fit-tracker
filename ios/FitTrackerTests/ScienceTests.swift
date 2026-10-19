@@ -332,8 +332,10 @@ final class ScienceTests: XCTestCase {
 
         // Monday, Tuesday (nothing) and Wednesday: three days, not two.
         let load = store.loadByDay.values.sorted()
-        let mean = (load[0] + load[1]) / 3
-        XCTAssertEqual(week.mean, mean, accuracy: 0.001)
+        let days = [load[1], 0, load[0]]
+        let mean = days.reduce(0, +) / 3
+        let sd = (days.reduce(0) { $0 + ($1 - mean) * ($1 - mean) } / 3).squareRoot()
+        XCTAssertEqual(try XCTUnwrap(week.monotony), mean / sd, accuracy: 0.001)
         XCTAssertLessThan(try XCTUnwrap(week.monotony), 2, "two sessions and a rest day is not a monotonous week")
         _ = monday
     }

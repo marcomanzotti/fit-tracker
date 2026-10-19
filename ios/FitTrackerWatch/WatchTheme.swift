@@ -23,20 +23,9 @@ enum T {
     static let radius: CGFloat = 14
 }
 
-// MARK: - SF Symbol per sport (mirrors the phone's Sport.icon)
-func sportIcon(_ sport: String?) -> String {
-    switch sport {
-    case "running":  return "figure.run"
-    case "swimming": return "figure.pool.swim"
-    case "cycling":  return "figure.outdoor.cycle"
-    case "walking":  return "figure.walk"
-    case "other":    return "bolt.heart.fill"
-    default:         return "dumbbell.fill"   // strength / unknown
-    }
-}
 
 func watchIcon(for a: WatchActivity) -> String {
-    a.kindValue == .strength ? "dumbbell.fill" : sportIcon(a.sport)
+    a.kindValue == .strength ? "dumbbell.fill" : sportSymbol(a.sport)
 }
 
 // MARK: - Haptics
@@ -51,19 +40,6 @@ func wkSuccess() {
     #endif
 }
 
-// MARK: - Small date helper (yyyy-MM-dd, matches the phone)
-let wkISO: DateFormatter = {
-    let f = DateFormatter()
-    f.locale = Locale(identifier: "en_US_POSIX")
-    f.dateFormat = "yyyy-MM-dd"
-    return f
-}()
-func wkToday() -> String { wkISO.string(from: Date()) }
-
-func wkClock(_ seconds: Int) -> String {
-    let h = seconds / 3600, m = (seconds % 3600) / 60, s = seconds % 60
-    return h > 0 ? String(format: "%d:%02d:%02d", h, m, s) : String(format: "%d:%02d", m, s)
-}
 
 // MARK: - Number parsing / formatting (for strength logging)
 /// First number in a string like "8-10" or "12" -> 8 / 12.

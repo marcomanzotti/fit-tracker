@@ -159,13 +159,6 @@ struct WorkoutLiveActivity: Widget {
 // MARK: - Next workout widget (Home Screen + Lock Screen)
 // Next workout, streak and today's calories at a glance. It reads the snapshot the
 // app writes into the shared App Group container; it never touches the data file.
-/// Today as yyyy-MM-dd, the format of `WidgetSnapshot.date`.
-private let snapshotDay: DateFormatter = {
-    let f = DateFormatter()
-    f.locale = Locale(identifier: "en_US_POSIX")
-    f.dateFormat = "yyyy-MM-dd"
-    return f
-}()
 
 private struct NextWorkoutEntry: TimelineEntry {
     let date: Date
@@ -202,7 +195,7 @@ private struct NextWorkoutView: View {
     /// A snapshot from an earlier day: its calories are not today's.
     private func kcalToday(_ s: WidgetSnapshot) -> Int {
         guard let day = s.date else { return s.kcalToday }
-        return day == snapshotDay.string(from: Date()) ? s.kcalToday : 0
+        return day == today() ? s.kcalToday : 0
     }
 
     var body: some View {

@@ -11,7 +11,7 @@ import SwiftUI
 enum InfoTopic: String, CaseIterable {
     // Load and training
     case trimp, acwr, load, monotony, strain, overload, volume, muscleVol = "muscle_vol"
-    case calories, pace, activity, weekplan, sessions, streak, goal
+    case calories, pace, activity, weekplan, streak, goal
     case form, recovery, intensity, decoupling, strength, e1rm
     // Recovery and sleep
     case readiness, hrv, vitals, nightVitals = "night_vitals", sleep, sleepStages = "sleep_stages"
@@ -305,8 +305,7 @@ extension Store {
     }
 
     private func weekAverage(_ f: HealthField) -> Double? {
-        let vals = pastWeek.compactMap { $0[f] }.filter { $0 > 0 }
-        return vals.isEmpty ? nil : vals.reduce(0, +) / Double(vals.count)
+        average(pastWeek.compactMap { $0[f] }.filter { $0 > 0 })
     }
 
     private func lastNight(_ value: KeyPath<DailyEntry, Double?>) -> Double? {

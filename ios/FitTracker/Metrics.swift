@@ -471,16 +471,12 @@ extension Store {
             return (d.timeIntervalSince(cutoff) / 86400, v)
         }
         guard pts.count >= 4 else { return VitalTrend(current: pts.last?.1, deltaPerWeek: nil, points: pts.count, status: "none") }
-        let n = Double(pts.count)
-        let sx = pts.reduce(0) { $0 + $1.0 }, sy = pts.reduce(0) { $0 + $1.1 }
-        let sxx = pts.reduce(0) { $0 + $1.0 * $1.0 }, sxy = pts.reduce(0) { $0 + $1.0 * $1.1 }
-        let denom = n * sxx - sx * sx
-        guard denom != 0 else { return VitalTrend(current: sy / n, deltaPerWeek: nil, points: pts.count, status: "none") }
-        let slope = (n * sxy - sx * sy) / denom        // units/day
-        let intercept = (sy - slope * sx) / n
+        guard let fit = linearFit(pts) else {
+            return VitalTrend(current: meanAndSD(pts.map(\.1))?.mean, deltaPerWeek: nil, points: pts.count, status: "none")
+        }
         let lastX = pts.map { $0.0 }.max() ?? 0
-        let current = intercept + slope * lastX
-        let perWeek = slope * 7
+        let current = fit.intercept + fit.slope * lastX
+        let perWeek = fit.slope * 7                    // units/day → week
         let threshold = 0.02 * max(1, current)         // ~2% of the value/week = meaningful
         let status: String
         if abs(perWeek) < threshold { status = "stable" }

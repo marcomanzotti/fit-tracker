@@ -2,6 +2,9 @@ import SwiftUI
 #if canImport(UIKit)
 import UIKit
 #endif
+#if canImport(HealthKit)
+import HealthKit
+#endif
 
 // Colour, font and formatting helpers shared by the phone app, the watch app and
 // the widgets, so the three look the same and the definitions exist once.
@@ -43,6 +46,60 @@ var appVersionLabel: String {
         .compactMap { $0 as? String }.filter { !$0.isEmpty && !$0.hasPrefix("$(") }
     return parts.joined(separator: " · ")
 }
+// MARK: - Dates and clocks
+/// yyyy-MM-dd, the day format of every stored date (phone, watch, widget).
+let isoFormatter: DateFormatter = {
+    let f = DateFormatter()
+    f.locale = Locale(identifier: "en_US_POSIX")
+    f.dateFormat = "yyyy-MM-dd"
+    return f
+}()
+
+func today() -> String { isoFormatter.string(from: Date()) }
+
+/// Seconds as a running clock: "4:05", or "1:04:05" past the hour.
+func fmtClock(_ seconds: Int) -> String {
+    let h = seconds / 3600, m = (seconds % 3600) / 60, s = seconds % 60
+    return h > 0 ? String(format: "%d:%02d:%02d", h, m, s) : String(format: "%d:%02d", m, s)
+}
+
+// MARK: - Sports
+/// SF Symbol of a sport (the Sport raw value); strength when unknown.
+func sportSymbol(_ sport: String?) -> String {
+    switch sport {
+    case "running":  return "figure.run"
+    case "swimming": return "figure.pool.swim"
+    case "cycling":  return "figure.outdoor.cycle"
+    case "walking":  return "figure.walk"
+    case "other":    return "bolt.heart.fill"
+    default:         return "dumbbell.fill"
+    }
+}
+
+#if canImport(HealthKit)
+/// The HealthKit activity a sport is written as.
+func hkActivityType(sport: String?) -> HKWorkoutActivityType {
+    switch sport {
+    case "strength": return .traditionalStrengthTraining
+    case "running":  return .running
+    case "cycling":  return .cycling
+    case "swimming": return .swimming
+    case "walking":  return .walking
+    default:         return .other
+    }
+}
+
+/// Which distance a sport records (nil when distance means nothing for it).
+func hkDistanceIdentifier(sport: String?) -> HKQuantityTypeIdentifier? {
+    switch sport {
+    case "running", "walking": return .distanceWalkingRunning
+    case "cycling":            return .distanceCycling
+    case "swimming":           return .distanceSwimming
+    default:                   return nil
+    }
+}
+#endif
+
 // MARK: - Palette (phone, watch and widgets)
 /// The one place the app's colours are defined; the phone's Theme, the watch's T
 /// and the widgets read from here.

@@ -218,11 +218,8 @@ extension Store {
 // MARK: - Weekly monotony & strain (Foster)
 struct WeekLoad {
     var total: Double
-    var mean: Double
-    var sd: Double
     var monotony: Double?      // mean / sd (high = too flat / monotonous)
     var strain: Double?        // total × monotony
-    var sessions: Int
 }
 
 extension Store {
@@ -281,7 +278,7 @@ extension Store {
         // them nil rather than showing a misleading number.
         let monotony = (sd > 0 && trainingDays.count >= 2) ? mean / sd : nil
         let strain = monotony.map { total * $0 }
-        return WeekLoad(total: total, mean: mean, sd: sd, monotony: monotony, strain: strain, sessions: count)
+        return WeekLoad(total: total, monotony: monotony, strain: strain)
     }
 }
 
@@ -330,10 +327,8 @@ extension Store {
             guard e.date >= from, e.date < day, let v = value(e), v.isFinite, v != 0 else { return nil }
             return transform(v)
         }
-        guard vals.count >= Store.baselineMinReadings else { return nil }
-        let mean = vals.reduce(0, +) / Double(vals.count)
-        let sd = (vals.reduce(0) { $0 + ($1 - mean) * ($1 - mean) } / Double(vals.count)).squareRoot()
-        return PersonalRange(mean: mean, sd: sd, n: vals.count)
+        guard vals.count >= Store.baselineMinReadings, let stats = meanAndSD(vals) else { return nil }
+        return PersonalRange(mean: stats.mean, sd: stats.sd, n: vals.count)
     }
 
     private func isRecent(_ date: String) -> Bool {
@@ -440,8 +435,7 @@ extension Store {
             return Double(s + w) / 2
         }
         guard mids.count >= Store.regularityMinNights else { return nil }
-        let mean = mids.reduce(0, +) / Double(mids.count)
-        return (mids.reduce(0) { $0 + ($1 - mean) * ($1 - mean) } / Double(mids.count)).squareRoot()
+        return meanAndSD(mids)?.sd
     }
     private static let regularityNights = 7
     private static let regularityMinNights = 4
@@ -481,10 +475,8 @@ extension Store {
     /// sign the body is not coping with the load. nil under 5 readings.
     func hrvStability() -> Double? {
         let values = recentNights(7).compactMap(\.hrvSleep).filter { $0 > 0 }.map { log($0) }
-        guard values.count >= 5 else { return nil }
-        let mean = values.reduce(0, +) / Double(values.count)
-        let sd = (values.reduce(0) { $0 + ($1 - mean) * ($1 - mean) } / Double(values.count)).squareRoot()
-        return mean > 0 ? sd / mean * 100 : nil
+        guard values.count >= 5, let stats = meanAndSD(values) else { return nil }
+        return stats.mean > 0 ? stats.sd / stats.mean * 100 : nil
     }
 
     /// The entries of the last `n` days, today included.

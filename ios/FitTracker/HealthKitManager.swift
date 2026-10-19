@@ -398,26 +398,10 @@ final class HealthKitManager {
 
     #if canImport(HealthKit)
     /// The app's Sport mapped to the HealthKit activity type we write.
-    static func activityType(for s: Sport) -> HKWorkoutActivityType {
-        switch s {
-        case .strength: return .traditionalStrengthTraining
-        case .running:  return .running
-        case .cycling:  return .cycling
-        case .swimming: return .swimming
-        case .walking:  return .walking
-        case .other:    return .other
-        }
-    }
+    static func activityType(for s: Sport) -> HKWorkoutActivityType { hkActivityType(sport: s.rawValue) }
 
     /// Which distance quantity applies to a sport (nil when distance is meaningless).
-    static func distanceIdentifier(for s: Sport) -> HKQuantityTypeIdentifier? {
-        switch s {
-        case .running, .walking: return .distanceWalkingRunning
-        case .cycling:           return .distanceCycling
-        case .swimming:          return .distanceSwimming
-        default:                 return nil
-        }
-    }
+    static func distanceIdentifier(for s: Sport) -> HKQuantityTypeIdentifier? { hkDistanceIdentifier(sport: s.rawValue) }
 
     /// Reduce one HKWorkout to what the app keeps: core fields and every extra
     /// metric the device wrote (see `measures(of:)`). A workout from the band is

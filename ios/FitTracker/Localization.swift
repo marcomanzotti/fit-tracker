@@ -135,7 +135,6 @@ enum L {
         "home.weight":       ("Peso", "Weight"),
         "home.sleep":        ("Sonno", "Sleep"),
         "home.save_checkin": ("Salva check-in", "Save check-in"),
-        "home.streak":       ("Streak", "Streak"),
         "home.days":         ("giorni", "days"),
         "home.next_workout": ("Prossimo allenamento", "Next workout"),
         "home.week_activity": ("Attività settimana", "This week"),
@@ -166,7 +165,6 @@ enum L {
         "nut.cut":           ("Definizione", "Cut"),
         "nut.maintain":      ("Mantenimento", "Maintenance"),
         "nut.bulk":          ("Massa", "Bulk"),
-        "nut.target":        ("Calorie obiettivo", "Calorie target"),
         "nut.protein":       ("Proteine", "Protein"),
         "nut.carbs":         ("Carboidrati", "Carbs"),
         "nut.fat":           ("Grassi", "Fat"),
@@ -227,8 +225,6 @@ enum L {
         "nut.charts_hint":   ("Registra le calorie per 2+ giorni per vedere i grafici.", "Log calories for 2+ days to see charts."),
         "nut.saved":         ("Nutrizione salvata", "Nutrition saved"),
         "nut.cleared":       ("Dati nutrizionali rimossi", "Nutrition cleared"),
-        "st.section_workout":("Allenamento", "Workout"),
-        "st.section_nutrition":("Nutrizione", "Nutrition"),
 
         // --- Workout / methods / sports ------------------------------------
         "wk.live":           ("Allenamento live", "Live workout"),
@@ -259,7 +255,6 @@ enum L {
         "st.overview":       ("Panoramica", "Overview"),
         "st.records":        ("Record", "Records"),
         "st.progress":       ("Progressi", "Progress"),
-        "st.history":        ("Storico", "History"),
 
         // --- Onboarding -----------------------------------------------------
         "ob.welcome":        ("Benvenuto", "Welcome"),
@@ -342,12 +337,9 @@ enum L {
 
         // --- Home (legacy) --------------------------------------------------
         "home.day":          ("giorno", "day"),
-        "home.sessions":     ("Sessioni", "Sessions"),
-        "home.total":        ("totali", "total"),
         "home.goals":        ("Obiettivi", "Goals"),
         "home.fat":          ("Grasso", "Body fat"),
         "home.backup_auto":  ("Salvataggio automatico locale", "Automatic local save"),
-        "home.export_data":  ("Esporta dati", "Export data"),
         "home.checkin_done": ("Check-in completato", "Check-in done"),
         "home.checkin_saved":("Check-in salvato", "Check-in saved"),
 
@@ -488,14 +480,7 @@ enum L {
         "st.charts_hint":    ("Registra peso e sleep per 2+ giorni per vedere i grafici.", "Log weight and sleep for 2+ days to see charts."),
 
         // --- Profile card (legacy) ------------------------------------------
-        "pc.title":          ("Obiettivi & profilo", "Goals & profile"),
-        "pc.goal_weight":    ("Peso obiettivo", "Goal weight"),
         "pc.goal_bf":        ("Grasso obiettivo %", "Goal body fat %"),
-        "pc.start_weight":   ("Peso iniziale", "Start weight"),
-        "pc.height":         ("Altezza", "Height"),
-        "pc.timer":          ("Recupero timer (s)", "Rest timer (s)"),
-        "pc.save":           ("Salva profilo", "Save profile"),
-        "pc.saved":          ("Profilo salvato", "Profile saved"),
 
         // --- BMI categories -------------------------------------------------
 
@@ -533,10 +518,7 @@ enum L {
         "wk.cardio_saved":   ("Attività salvata", "Activity saved"),
         "wk.cardio_deleted": ("Attività eliminata", "Activity deleted"),
         "wk.delete_cardio_q":("Eliminare questa attività?", "Delete this activity?"),
-        "wk.log_cardio":     ("Registra cardio", "Log cardio"),
         "wk.est_calories":   ("Calorie stimate", "Estimated calories"),
-        "wk.est_cal_hint":   ("Calcolate dai tuoi dati (peso, età, sesso, FC).",
-                              "Computed from your profile (weight, age, sex, HR)."),
         "wk.calories":       ("Calorie bruciate", "Calories burned"),
         "wk.cal_override":   ("Modifica manuale", "Manual override"),
         "wk.cal_hint":       ("Stima dai tuoi dati: con FC più precisa, altrimenti da durata e tipo di attività. Puoi sovrascriverla.",
@@ -1122,11 +1104,6 @@ enum L {
             "La streak conta il numero di giorni consecutivi in cui hai registrato almeno un check-in del peso o una sessione di allenamento. È un indicatore della tua consistenza nel tempo, che è il fattore più importante per i progressi a lungo termine indipendentemente dall'obiettivo.\n\nPerché è utile: la consistenza batte quasi sempre l'intensità sporadica. Una persona che si allena 3 volte a settimana ogni settimana per un anno ottiene risultati nettamente superiori a chi si allena intensamente per 2 mesi e poi si ferma. La streak rende questa consistenza visibile e misurabile.\n\nCome funziona:\n• Si incrementa ogni giorno in cui registri almeno un check-in o una sessione\n• Rimane attiva per tutto il giorno corrente — non si azzera finché la giornata non è finita\n• Si interrompe solo quando un giorno intero passa senza nessuna registrazione\n\nNon esiste un numero magico di giorni da raggiungere: l'obiettivo è che il valore cresca nel tempo. Se si interrompe, l'importante è ricominciare subito — anche una sessione breve o un semplice check-in del peso conta.",
             "The streak counts the number of consecutive days in which you logged at least one weight check-in or a training session. It is an indicator of your consistency over time, which is the single most important factor for long-term progress regardless of goal.\n\nWhy it matters: consistency almost always beats sporadic intensity. A person who trains three times a week every week for a year achieves far better results than someone who trains intensely for two months and then stops. The streak makes this consistency visible and measurable.\n\nHow it works:\n• It increments every day you log at least one check-in or session\n• It stays alive for the entire current day — it does not reset before the day is over\n• It breaks only when a full day passes with nothing logged\n\nThere is no magic number of days to reach: the goal is for the value to grow over time. If it breaks, the important thing is to restart immediately — even a short session or a simple weight check-in counts."),
 
-        "info.sessions.title": ("Sessioni totali", "Total sessions"),
-        "info.sessions.body": (
-            "Il contatore delle sessioni totali registra tutte le sessioni di forza e di cardio salvate dall'inizio dell'utilizzo dell'app. Ogni sessione completata e salvata contribuisce al totale, indipendentemente dalla durata o dall'intensità.\n\nPerché è utile: è una misura diretta del volume di lavoro accumulato nel tempo. Un numero in crescita costante è la conferma più semplice e inequivocabile che ti stai allenando con regolarità.\n\nNon esiste un numero ottimale: dipende dalla frequenza di allenamento settimanale e da quanto tempo usi l'app. Ciò che conta è la tendenza nel tempo — un plateau prolungato nel contatore può indicare un periodo di pausa non intenzionale.\n\nTutte le sessioni rimangono accessibili dalla sezione storico e dal calendario. Puoi modificarle o completarle in qualsiasi momento dopo averle salvate.",
-            "The total sessions counter records all strength and cardio sessions saved since you started using the app. Every completed and saved session contributes to the total, regardless of duration or intensity.\n\nWhy it matters: it is a direct measure of the work volume accumulated over time. A steadily growing number is the simplest and most unambiguous confirmation that you are training regularly.\n\nThere is no optimal number: it depends on your weekly training frequency and how long you have been using the app. What matters is the trend over time — a prolonged plateau in the counter may indicate an unintentional rest period.\n\nAll sessions remain accessible from the history section and the calendar. You can edit or complete them at any time after saving."),
-
         // --- Day logging / rest / recommended fields ------------------------
         "home.tap_to_log":   ("Tocca un giorno per registrare", "Tap a day to log"),
         "day.title":         ("Registra giornata", "Log day"),
@@ -1148,9 +1125,6 @@ enum L {
         "trimp.title":       ("Carico cardio (TRIMP)", "Cardio load (TRIMP)"),
         "trimp.this_week":   ("Questa settimana", "This week"),
         "trimp.last_week":   ("Settimana scorsa", "Last week"),
-        "trimp.last":        ("Ultima:", "Last:"),
-        "trimp.note":        ("Somma del TRIMP delle sessioni con FC media. Più alto = più stress cardiovascolare.",
-                              "Sum of session TRIMP from average HR. Higher = more cardiovascular stress."),
 
         // --- Exercise library -----------------------------------------------
         "ex.library":         ("Libreria esercizi", "Exercise library"),
@@ -1183,7 +1157,6 @@ enum L {
         "st.steps_time":      ("Passi", "Steps"),
 
         // --- v8.1: readiness factor chips -----------------------------------
-        "load.from":          ("Da", "From"),
         "load.sig.hrv":       ("HRV", "HRV"),
         "load.sig.hr":        ("FC", "HR"),
         "load.sig.sleep":     ("Sonno", "Sleep"),

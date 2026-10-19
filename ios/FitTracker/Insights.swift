@@ -383,34 +383,13 @@ struct CalendarCard: View {
     @State private var pendingEdit: WorkoutSession?
 
     var body: some View {
-        let cal = Calendar.current
-        let base = cal.date(byAdding: .month, value: monthOffset, to: Date())!
-        let comps = cal.dateComponents([.year, .month], from: base)
-        let firstOfMonth = cal.date(from: comps)!
-        let daysInMonth = cal.range(of: .day, in: .month, for: firstOfMonth)!.count
-        let firstWeekday = (cal.component(.weekday, from: firstOfMonth) + 5) % 7   // Monday=0
-        let monthSessions = store.sessions.filter { $0.date.hasPrefix(monthPrefix(firstOfMonth)) }
+        let page = MonthPage(offset: monthOffset)
+        let prefix = String(page.date(1).prefix(7))
+        let monthSessions = store.sessions.filter { $0.date.hasPrefix(prefix) }
 
         return Card {
-            MonthHeader(monthOffset: $monthOffset, month: comps.month!, year: comps.year!)
-
-            let cells = firstWeekday + daysInMonth
-            let rows = Int(ceil(Double(cells) / 7.0))
-            VStack(spacing: 4) {
-                ForEach(0..<rows, id: \.self) { row in
-                    HStack(spacing: 4) {
-                        ForEach(0..<7, id: \.self) { col in
-                            let idx = row * 7 + col
-                            let day = idx - firstWeekday + 1
-                            if day >= 1 && day <= daysInMonth {
-                                dayCell(day: day, firstOfMonth: firstOfMonth, sessions: monthSessions)
-                            } else {
-                                Color.clear.frame(maxWidth: .infinity).frame(height: 38)
-                            }
-                        }
-                    }
-                }
-            }
+            MonthHeader(monthOffset: $monthOffset, month: page.month, year: page.year)
+            MonthGrid(page: page, cellHeight: 38) { day in dayCell(ds: page.date(day), day: day, sessions: monthSessions) }
             if monthSessions.isEmpty {
                 Text(t("cal.tap_hint")).font(.ui(11)).foregroundColor(Theme.sub)
                     .frame(maxWidth: .infinity).padding(.top, 10)
@@ -422,14 +401,7 @@ struct CalendarCard: View {
         }
     }
 
-    private func monthPrefix(_ d: Date) -> String {
-        cachedFormatter("yyyy-MM").string(from: d)
-    }
-
-    private func dayCell(day: Int, firstOfMonth: Date, sessions: [WorkoutSession]) -> some View {
-        let cal = Calendar.current
-        let date = cal.date(byAdding: .day, value: day - 1, to: firstOfMonth)!
-        let ds = isoFormatter.string(from: date)
+    private func dayCell(ds: String, day: Int, sessions: [WorkoutSession]) -> some View {
         let daySessions = sessions.filter { $0.date == ds }
         let color = daySessions.first.map { Color(hex: $0.planColor) }
         let rest = daySessions.isEmpty && store.isRestDay(ds)

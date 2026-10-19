@@ -1,15 +1,7 @@
 import SwiftUI
 import UIKit
 
-// MARK: - Dates
-let isoFormatter: DateFormatter = {
-    let f = DateFormatter()
-    f.locale = Locale(identifier: "en_US_POSIX")
-    f.dateFormat = "yyyy-MM-dd"
-    return f
-}()
-
-func today() -> String { isoFormatter.string(from: Date()) }
+// MARK: - Dates (isoFormatter, today and fmtClock live in Shared/Style.swift)
 
 /// A day as VoiceOver should say it ("Monday 19 October 2026"), in the app's language.
 func spokenDay(_ date: String) -> String {
@@ -85,10 +77,36 @@ func headerDate() -> (full: String, day: String) {
     return ("\(d) \(L.months[max(0, min(11, m))]) \(y)", L.days[max(0, min(6, wd))])
 }
 
-/// Monday 00:00 of the week `offset` weeks before the one containing `now`. Weeks
-/// in this app always run Monday to Sunday, whatever the device's first weekday.
+// MARK: - Small statistics
+/// Arithmetic mean; nil for no values.
+func average(_ values: [Double]) -> Double? { values.isEmpty ? nil : values.reduce(0, +) / Double(values.count) }
+
+/// Mean and population standard deviation; nil for no values.
+func meanAndSD(_ values: [Double]) -> (mean: Double, sd: Double)? {
+    guard let mean = average(values) else { return nil }
+    return (mean, (values.reduce(0) { $0 + ($1 - mean) * ($1 - mean) } / Double(values.count)).squareRoot())
+}
+
+/// Least-squares line through (x, y) points: slope and intercept, nil when x does not vary.
+func linearFit(_ points: [(Double, Double)]) -> (slope: Double, intercept: Double)? {
+    let n = Double(points.count)
+    let sx = points.reduce(0) { $0 + $1.0 }, sy = points.reduce(0) { $0 + $1.1 }
+    let sxx = points.reduce(0) { $0 + $1.0 * $1.0 }, sxy = points.reduce(0) { $0 + $1.0 * $1.1 }
+    let denom = n * sxx - sx * sx
+    guard n > 0, denom != 0 else { return nil }
+    let slope = (n * sxy - sx * sy) / denom
+    return (slope, (sy - slope * sx) / n)
+}
+
+/// Position of a day in a Monday-first week: Monday 0 … Sunday 6. Weeks in this
+/// app always run Monday to Sunday, whatever the device's first weekday.
+func mondayIndex(_ date: Date = Date(), calendar: Calendar = .current) -> Int {
+    (calendar.component(.weekday, from: date) + 5) % 7
+}
+
+/// Monday 00:00 of the week `offset` weeks before the one containing `now`.
 func weekStart(offset: Int = 0, now: Date = Date(), calendar: Calendar = .current) -> Date {
-    let daysSinceMonday = (calendar.component(.weekday, from: now) + 5) % 7
+    let daysSinceMonday = mondayIndex(now, calendar: calendar)
     let today = calendar.startOfDay(for: now)
     return calendar.date(byAdding: .day, value: -daysSinceMonday - offset * 7, to: today) ?? today
 }
@@ -107,12 +125,6 @@ func fmtDuration(_ seconds: Int) -> String {
     if h > 0 { return String(format: "%dh %02dm", h, m) }
     if m > 0 { return s > 0 ? String(format: "%dm %02ds", m, s) : "\(m)m" }
     return "\(s)s"
-}
-
-/// Seconds as a running clock: "4:05", or "1:04:05" past the hour.
-func fmtClock(_ seconds: Int) -> String {
-    let h = seconds / 3600, m = (seconds % 3600) / 60, s = seconds % 60
-    return h > 0 ? String(format: "%d:%02d:%02d", h, m, s) : String(format: "%d:%02d", m, s)
 }
 
 // MARK: - Units (metric / imperial)

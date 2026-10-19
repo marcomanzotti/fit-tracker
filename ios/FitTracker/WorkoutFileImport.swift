@@ -68,7 +68,7 @@ enum WorkoutFile {
         m.distanceKm = metres.map { ($0 / 1000 * 100).rounded() / 100 }
         m.kcal = whole(t.kcal)
         let hrs = points.compactMap(\.hr).filter { $0 > 0 }
-        m.avgHR = whole(t.avgHR ?? mean(hrs))
+        m.avgHR = whole(t.avgHR ?? average(hrs))
         m.maxHR = whole(t.maxHR ?? hrs.max())
         let (gain, loss) = climb(points.compactMap(\.ele))
         m.elevationM = positive(t.ascent ?? gain)
@@ -79,13 +79,13 @@ enum WorkoutFile {
         }
         fill(.minHR, t.minHR ?? hrs.min())
         fill(.elevationLoss, t.descent ?? positive(loss))
-        fill(.cadence, mean(points.compactMap(\.cadence).filter { $0 > 0 }))
+        fill(.cadence, average(points.compactMap(\.cadence).filter { $0 > 0 }))
         if let below = strideCadenceBelow[sport], let c = x[.cadence], c < below { x[.cadence] = c * 2 }
         let watts = points.compactMap(\.power)
-        fill(.avgPower, mean(watts))
+        fill(.avgPower, average(watts))
         fill(.maxPower, watts.max())
         fill(.maxSpeed, points.compactMap(\.speed).max().map { $0 * 3.6 })
-        if x[.temperature] == nil, let temp = mean(points.compactMap(\.temp)) { x[.temperature] = temp }
+        if x[.temperature] == nil, let temp = average(points.compactMap(\.temp)) { x[.temperature] = temp }
         m.metrics = x
         return ParsedWorkout(sport: sport, start: start, measures: m, points: points)
     }
@@ -95,7 +95,6 @@ enum WorkoutFile {
     private static let largestValue = 1e9
     static func positive(_ v: Double?) -> Double? { v.flatMap { $0 > 0 && $0 < largestValue ? $0 : nil } }
     static func whole(_ v: Double?) -> Int? { positive(v).map { Int($0.rounded()) } }
-    static func mean(_ v: [Double]) -> Double? { v.isEmpty ? nil : v.reduce(0, +) / Double(v.count) }
 
     static func climb(_ elevations: [Double]) -> (gain: Double, loss: Double) {
         guard var reference = elevations.first else { return (0, 0) }

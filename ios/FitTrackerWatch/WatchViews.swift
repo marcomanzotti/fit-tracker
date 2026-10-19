@@ -188,7 +188,7 @@ struct WorkoutClock: View {
     var body: some View {
         TimelineView(.periodic(from: .now, by: dimmed ? 60 : 1)) { _ in
             let seconds = Int(workout.currentElapsed())
-            Text(dimmed ? "\(seconds / 60) min" : wkClock(seconds))
+            Text(dimmed ? "\(seconds / 60) min" : fmtClock(seconds))
                 .font(.num(size)).foregroundColor(workout.paused || dimmed ? T.sub : T.acc)
                 .accessibilityLabel("\(wt("time")) \(seconds / 60) min")
         }
@@ -571,7 +571,7 @@ struct SummaryView: View {
                     Text(r.name).font(.head(16, .bold)).foregroundColor(Color(hex: r.color))
                         .frame(maxWidth: .infinity)
 
-                    stat(wt("time"), wkClock(r.durationSec), T.acc)
+                    stat(wt("time"), fmtClock(r.durationSec), T.acc)
                     if let hr = r.avgHR { stat("\(wt("hr")) \(wt("avg"))", "\(hr) \(wt("bpm"))", T.red) }
                     if let mx = r.maxHR { stat("\(wt("hr")) \(wt("max"))", "\(mx) \(wt("bpm"))", T.red) }
                     if let k = r.activeKcal { stat(wt("cal"), "\(k) \(wt("kcal"))", T.acc2) }

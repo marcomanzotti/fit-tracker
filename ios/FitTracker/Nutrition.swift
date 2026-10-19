@@ -20,9 +20,7 @@ struct EnergyTargets {
 }
 
 struct TrendResult {
-    var avgWeight: Double?       // smoothed current weight
     var ratePerWeek: Double?     // kg/week from regression
-    var spanDays: Int
     var points: Int
     /// "ok" | "fast" | "slow" | "wrong" | "drift" (maintenance) | "none"
     var status: String
@@ -199,23 +197,13 @@ extension Store {
             return (x, w)
         }
         guard pts.count >= 4 else {
-            return TrendResult(avgWeight: lastWeight, ratePerWeek: nil, spanDays: days, points: pts.count, status: "none", kcalAdjust: 0)
+            return TrendResult(ratePerWeek: nil, points: pts.count, status: "none", kcalAdjust: 0)
         }
         // least-squares slope (kg/day)
-        let n = Double(pts.count)
-        let sx = pts.reduce(0) { $0 + $1.0 }
-        let sy = pts.reduce(0) { $0 + $1.1 }
-        let sxx = pts.reduce(0) { $0 + $1.0 * $1.0 }
-        let sxy = pts.reduce(0) { $0 + $1.0 * $1.1 }
-        let denom = n * sxx - sx * sx
-        guard denom != 0 else {
-            return TrendResult(avgWeight: lastWeight, ratePerWeek: nil, spanDays: days, points: pts.count, status: "none", kcalAdjust: 0)
+        guard let fit = linearFit(pts) else {
+            return TrendResult(ratePerWeek: nil, points: pts.count, status: "none", kcalAdjust: 0)
         }
-        let slope = (n * sxy - sx * sy) / denom              // kg/day
-        let intercept = (sy - slope * sx) / n
-        let lastX = pts.map { $0.0 }.max() ?? 0
-        let avg = intercept + slope * lastX                  // fitted current weight
-        let rate = slope * 7                                 // kg/week
+        let rate = fit.slope * 7                             // kg/week
 
         let target = targetRate()
         let status: String
@@ -235,9 +223,8 @@ extension Store {
             if abs(rate) > band { status = "drift"; adjust = rate > 0 ? -150 : 150 }
             else { status = "ok" }
         }
-        return TrendResult(avgWeight: (avg * 10).rounded() / 10,
-                           ratePerWeek: (rate * 100).rounded() / 100,
-                           spanDays: days, points: pts.count, status: status, kcalAdjust: adjust)
+        return TrendResult(ratePerWeek: (rate * 100).rounded() / 100,
+                           points: pts.count, status: status, kcalAdjust: adjust)
     }
 
     // --- Low energy availability --------------------------------------------
@@ -262,5 +249,160 @@ extension Store {
         else if ea < 45 { risk = "warn" }
         else { risk = "ok" }
         return LEAResult(ea: (ea * 10).rounded() / 10, risk: risk)
+    }
+}
+
+// MARK: - Logging food (moved from Store.swift)
+extension Store {
+    // MARK: Nutrition (quick total OR per-meal, for any date)
+    /// Look up a day's entry (nil if never logged). A calendar asks for thirty of
+    /// them per render: one lookup table per change instead of a scan each.
+    func dailyEntry(_ date: String) -> DailyEntry? {
+        memo("dailyByDate") { Dictionary(daily.map { ($0.date, $0) }, uniquingKeysWith: { first, _ in first }) }[date]
+    }
+
+    /// Upsert a day's entry by mutation, for an arbitrary (past) date: one change,
+    /// and a new day lands in date order.
+    func upsertDaily(_ date: String, _ mutate: (inout DailyEntry) -> Void) {
+        var list = daily
+        if let i = list.firstIndex(where: { $0.date == date }) {
+            mutate(&list[i])
+        } else {
+            var e = DailyEntry(date: date)
+            mutate(&e)
+            list.insert(e, at: list.firstIndex { $0.date > date } ?? list.count)
+        }
+        daily = list
+    }
+
+    /// Quick one-tap mode: a single daily total (clears any per-meal breakdown so
+    /// the total is unambiguous).
+    func saveNutritionTotal(date: String, kcal: Int?, protein: Double?, carbs: Double?, fat: Double?) {
+        upsertDaily(date) { e in
+            e.kcal = kcal; e.protein = protein; e.carbs = carbs; e.fat = fat
+            e.meals = nil
+        }
+    }
+
+    /// Empties what was eaten on a day and returns the day as it was, for Undo.
+    func clearNutrition(date: String) -> DailyEntry? {
+        let before = dailyEntry(date)
+        upsertDaily(date) { e in
+            e.kcal = nil; e.protein = nil; e.carbs = nil; e.fat = nil; e.salt = nil
+            e.meals = nil; e.foods = nil
+        }
+        return before
+    }
+    /// Undo of `clearNutrition`: only the food comes back, the rest of the day stays as it is now.
+    func restoreNutrition(_ before: DailyEntry) {
+        upsertDaily(before.date) { e in
+            e.kcal = before.kcal; e.protein = before.protein; e.carbs = before.carbs; e.fat = before.fat
+            e.salt = before.salt; e.meals = before.meals; e.foods = before.foods
+        }
+    }
+
+    /// Per-meal mode: individual meals that auto-sum to the day total. Empty meals
+    /// are dropped; the quick-total fields are cleared so `totalKcal` uses the sum.
+    func saveNutritionMeals(date: String, meals: [String: MealEntry]) {
+        let clean = meals.filter { !$0.value.isEmpty }
+        upsertDaily(date) { e in
+            e.meals = clean.isEmpty ? nil : clean
+            e.kcal = nil; e.protein = nil; e.carbs = nil; e.fat = nil
+        }
+        // Float any foods used in a meal to the top of the picker.
+        for m in clean.values { for l in (m.foods ?? []) { if let fid = l.foodId { touchFood(fid) } } }
+    }
+
+    // MARK: Saved food list (local, per-100 macros)
+    /// Saved foods, most-recently-used first (then alphabetical) for the picker.
+    func recentFoods() -> [FoodItem] {
+        foods.sorted {
+            ($0.lastUsed ?? "") != ($1.lastUsed ?? "")
+                ? ($0.lastUsed ?? "") > ($1.lastUsed ?? "")
+                : $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+        }
+    }
+    func food(barcode: String) -> FoodItem? { foods.first { $0.barcode == barcode } }
+
+    /// Insert or update a saved food (matched by id).
+    @discardableResult
+    func saveFood(_ f: FoodItem) -> FoodItem {
+        if let i = foods.firstIndex(where: { $0.id == f.id }) { foods[i] = f }
+        else { foods.append(f) }
+        return f
+    }
+    func deleteFood(_ id: String) { foods.removeAll { $0.id == id } }
+    /// Undo of a delete: back at its old position (or the end, if the list shrank).
+    func restoreFood(_ food: FoodItem, at index: Int) {
+        guard !foods.contains(where: { $0.id == food.id }) else { return }
+        foods.insert(food, at: min(max(0, index), foods.count))
+    }
+    /// Mark a food as used today so it floats to the top of the picker.
+    func touchFood(_ id: String) {
+        guard let i = foods.firstIndex(where: { $0.id == id }) else { return }
+        foods[i].lastUsed = today()
+    }
+
+    /// Replace the day-level individual foods for a date (food-by-food logging
+    /// without a meal). Empty list clears them.
+    func saveDayFoods(date: String, foods logs: [FoodLog]) {
+        upsertDaily(date) { e in
+            e.foods = logs.isEmpty ? nil : logs
+            // Day-level food logging is its own mode: clear the quick total and
+            // the per-meal breakdown so the day total is unambiguous.
+            if !logs.isEmpty {
+                e.kcal = nil; e.protein = nil; e.carbs = nil; e.fat = nil
+                e.meals = nil
+            }
+        }
+        for l in logs { if let fid = l.foodId { touchFood(fid) } }
+    }
+
+    /// Series of logged-intake days for the nutrition charts (most recent `days`).
+    struct NutPoint: Identifiable {
+        var day: Date; var kcal: Int
+        var protein: Double; var carbs: Double; var fat: Double
+        var id: Date { day }
+    }
+
+    /// Weekly-averaged nutrition series for the charts. Mirrors `metricSeries`:
+    /// groups logged days into ISO-week buckets and averages each macro, so the
+    /// nutrition charts show weekly means — consistent with every other overview
+    /// chart (sleep, steps, weight…) instead of noisy day-by-day values.
+    func nutritionWeeklySeries(months: Int = ChartGranularity.week.months) -> [NutPoint] {
+        func weekly(_ value: @escaping (DailyEntry) -> Double) -> [Date: Double] {
+            let points = metricSeries({ $0.hasNutrition ? value($0) : nil }, granularity: .week, months: months)
+            return Dictionary(uniqueKeysWithValues: points.map { ($0.day, $0.value) })
+        }
+        let kcal = weekly { Double($0.totalKcal) }
+        let protein = weekly(\.totalProtein), carbs = weekly(\.totalCarbs), fat = weekly(\.totalFat)
+        return kcal.keys.sorted().map { day in
+            NutPoint(day: day, kcal: Int((kcal[day] ?? 0).rounded()),
+                     protein: protein[day] ?? 0, carbs: carbs[day] ?? 0, fat: fat[day] ?? 0)
+        }
+    }
+
+
+    // MARK: Saved recipes
+    /// All recipes sorted most-recently-used first, then alphabetically.
+    func recentRecipes() -> [Recipe] {
+        recipes.sorted {
+            ($0.lastUsed ?? "") != ($1.lastUsed ?? "")
+                ? ($0.lastUsed ?? "") > ($1.lastUsed ?? "")
+                : $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+        }
+    }
+
+    @discardableResult
+    func saveRecipe(_ r: Recipe) -> Recipe {
+        if let i = recipes.firstIndex(where: { $0.id == r.id }) { recipes[i] = r }
+        else { recipes.append(r) }
+        return r
+    }
+
+    func deleteRecipe(_ id: String) { recipes.removeAll { $0.id == id } }
+    func restoreRecipe(_ recipe: Recipe, at index: Int) {
+        guard !recipes.contains(where: { $0.id == recipe.id }) else { return }
+        recipes.insert(recipe, at: min(max(0, index), recipes.count))
     }
 }

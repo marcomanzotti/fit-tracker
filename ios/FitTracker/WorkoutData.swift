@@ -337,8 +337,7 @@ extension HealthKitManager {
     }
 
     private static func meanHR(_ hr: [(Date, Double)], from: Date, to: Date) -> Double? {
-        let v = hr.filter { $0.0 >= from && $0.0 < to }.map(\.1)
-        return v.isEmpty ? nil : v.reduce(0, +) / Double(v.count)
+        average(hr.filter { $0.0 >= from && $0.0 < to }.map(\.1))
     }
 
     static func splits(route: [CLLocation], heartRate: [(Date, Double)]) -> [WorkoutSplit] {
@@ -438,3 +437,218 @@ extension HealthKitManager {
     }
 }
 #endif
+
+// MARK: - Importing workouts from Health and from files
+extension Store {
+    // MARK: Apple Health workout import (any paired watch, the band, files)
+    /// Bring HKWorkout records (Apple Watch, Garmin, Polar, Coros, the band, …)
+    /// into the app, one session per workout and never two:
+    ///   1. a workout a session already stands for is read again: what the device
+    ///      measured and its time span refresh, what the user typed (or cleared) stays;
+    ///   2. one this app exported, or recorded with its own Apple Watch app, is
+    ///      skipped: the session it belongs to already carries its UUID; so is one
+    ///      whose session the user deleted;
+    ///   3. any other device's enriches the session the user logged for the same
+    ///      workout (overlapping in time, or same sport and about as long when the
+    ///      session has no times);
+    ///   4. one a second device recorded at the same time as an already linked
+    ///      session (watch and band both worn) joins that session;
+    ///   5. else it becomes a session.
+    /// `importNew` false (the user turned workout import off) keeps 1-2 only.
+    @discardableResult
+    func applyHealthWorkouts(_ workouts: [HealthWorkout], importNew: Bool = true) -> (count: Int, sources: [String]) {
+        var list = sessions
+        var imported = 0
+        var srcs = Set<String>()
+        // Linked sessions first, so the matching below compares real time spans.
+        var unlinked: [HealthWorkout] = []
+        for w in workouts {
+            guard let i = list.firstIndex(where: { $0.healthUUID == w.uuid }) else { unlinked.append(w); continue }
+            list[i].absorbDevice(w.measures.metrics)
+            list[i].takeTimes(of: w)
+        }
+        let dismissed = Set(prefs.dismissedHealthUUIDs ?? [])
+        for w in unlinked {
+            // Absorbed by a merge, or exported from a session.
+            if list.contains(where: { $0.allHealthUUIDs.contains(w.uuid) || $0.exportedHealthUUID == w.uuid }) { continue }
+            if w.fromThisApp || !importNew || dismissed.contains(w.uuid) { continue }
+            if let i = Store.matchingSession(for: w, in: list) {
+                list[i].link(w)
+            } else if let i = Store.matchingSession(for: w, in: list, linked: true) {
+                list[i].mergedHealthUUIDs = (list[i].mergedHealthUUIDs ?? []) + [w.uuid]
+                list[i].absorb(w.measures, onlyMissingMetrics: true)
+            } else {
+                list.append(sessionFromHealth(w))
+                imported += 1
+            }
+            if !w.sourceName.isEmpty { srcs.insert(w.sourceName) }
+        }
+        if list != sessions { sessions = list }
+        return (imported, srcs.sorted())
+    }
+
+    /// The session logged for the same workout as `w`, same day and sport. When
+    /// both have a time span they must overlap for most of it; a session without
+    /// times (logged by hand) must be about as long. `linked` false looks among
+    /// sessions not linked to Health yet, where one with no duration matches when
+    /// it is the day's only candidate; `linked` true among those already linked to
+    /// another workout.
+    static func matchingSession(for w: HealthWorkout, in list: [WorkoutSession], linked: Bool = false) -> Int? {
+        let strength = w.sport == "strength"
+        let tolerance = max(sameWorkoutToleranceSec, w.durationSec / 10)
+        var candidates = list.indices.filter { i in
+            let s = list[i]
+            let isLinked = s.healthUUID != nil || s.exportedHealthUUID != nil
+            return s.date == w.date && isLinked == linked && (strength ? s.sport == nil : s.sport == w.sport)
+        }
+        if let start = w.start, let end = w.end {
+            let same = candidates.filter { list[$0].isSameWorkout(start, end) }
+            if let best = same.max(by: { (list[$0].overlap(start, end) ?? 0) < (list[$1].overlap(start, end) ?? 0) }) {
+                return best
+            }
+            // A session with its own times that does not overlap is another workout.
+            candidates = candidates.filter { list[$0].overlap(start, end) == nil }
+        }
+        let gap = { (i: Int) in abs((list[i].durationSeconds ?? 0) - w.durationSec) }
+        if let best = candidates.filter({ list[$0].durationSeconds != nil && gap($0) <= tolerance }).min(by: { gap($0) < gap($1) }) {
+            return best
+        }
+        guard !linked else { return nil }
+        return candidates.count == 1 && list[candidates[0]].durationSeconds == nil ? candidates[0] : nil
+    }
+
+    /// Build a WorkoutSession from a Health workout. Imported sessions get Apple's
+    /// workout green and the HK display name ("Weight Training", "Running", …) so
+    /// they read as "from Apple Health" on the calendar and carry every metric the
+    /// device recorded.
+    private func sessionFromHealth(_ w: HealthWorkout) -> WorkoutSession {
+        let sportType = Sport(rawValue: w.sport) ?? .other
+        let sessionName = w.displayName.isEmpty ? sportType.label : w.displayName
+        var s = WorkoutSession(date: w.date, planId: "health-\(w.sport)",
+                               planName: sessionName, planColor: Theme.appleGreen)
+        s.sport = w.sport == "strength" ? nil : w.sport
+        s.healthUUID = w.uuid
+        s.source = w.sourceName.isEmpty ? nil : w.sourceName
+        s.takeTimes(of: w)
+        s.absorb(w.measures)
+        return s
+    }
+
+    /// Manually import one Health workout (from the calendar's import action),
+    /// skipping the auto-match dedupe guards the user has already overridden by
+    /// choosing it: a workout once deleted comes back, and one folded into a
+    /// session it does not overlap (the pre-v14 match went by duration alone)
+    /// leaves it for a session of its own. Returns the created (or existing)
+    /// session so the caller can open its editor.
+    @discardableResult
+    func importHealthWorkout(_ w: HealthWorkout) -> WorkoutSession {
+        if let existing = sessions.first(where: { $0.healthUUID == w.uuid || accountsFor(w, $0) }) { return existing }
+        var list = sessions
+        for i in list.indices where list[i].mergedHealthUUIDs?.contains(w.uuid) == true {
+            let rest = list[i].mergedHealthUUIDs?.filter { $0 != w.uuid } ?? []
+            list[i].mergedHealthUUIDs = rest.isEmpty ? nil : rest
+        }
+        let s = sessionFromHealth(w)
+        list.append(s)
+        sessions = list
+        undismissHealthWorkouts([w.uuid])
+        save()
+        return s
+    }
+
+    /// Whether `s` already stands for `w` through a merge that is the same workout
+    /// (they overlap, or the session has no time span to tell otherwise).
+    private func accountsFor(_ w: HealthWorkout, _ s: WorkoutSession) -> Bool {
+        guard s.mergedHealthUUIDs?.contains(w.uuid) == true else { return false }
+        guard let start = w.start, let end = w.end, s.overlap(start, end) != nil else { return true }
+        return s.isSameWorkout(start, end)
+    }
+
+    /// The day's Health workouts the user can still import: not this app's own,
+    /// not already a session, not folded into a session they really belong to.
+    func importable(_ workouts: [HealthWorkout]) -> [HealthWorkout] {
+        workouts.filter { w in
+            !w.fromThisApp && !sessions.contains { $0.healthUUID == w.uuid || $0.exportedHealthUUID == w.uuid || accountsFor(w, $0) }
+        }
+    }
+
+    func dismissHealthWorkouts(_ uuids: [String]) {
+        guard !uuids.isEmpty else { return }
+        prefs.dismissedHealthUUIDs = Array(Set(prefs.dismissedHealthUUIDs ?? []).union(uuids)).sorted()
+    }
+
+    func undismissHealthWorkouts(_ uuids: [String]) {
+        guard let current = prefs.dismissedHealthUUIDs, !Set(current).isDisjoint(with: uuids) else { return }
+        let rest = current.filter { !uuids.contains($0) }
+        prefs.dismissedHealthUUIDs = rest.isEmpty ? nil : rest
+    }
+
+    // MARK: Workout file import (FIT / GPX / TCX — any device that can export a file)
+    /// Parse a file the user exported from a watch app that does NOT sync to Apple
+    /// Health (Huawei Health, Strava, Garmin Connect's export…) and turn it into a
+    /// session with every metric the file holds. With export to Health on, the
+    /// workout also goes into Health with its heart rate and route, so the session
+    /// opens with the same charts as a watch's. Returns the created session so the
+    /// caller can confirm / let the user edit.
+    enum FileImportOutcome { case imported(WorkoutSession), alreadyLogged, unreadable }
+
+    func importWorkoutFile(_ url: URL) -> FileImportOutcome {
+        let access = url.startAccessingSecurityScopedResource()
+        defer { if access { url.stopAccessingSecurityScopedResource() } }
+        let data: Data
+        do {
+            data = try Data(contentsOf: url)
+        } catch {
+            appLog.error("Workout file unreadable: \(String(describing: error), privacy: .public)")
+            return .unreadable
+        }
+        guard let p = WorkoutFile.parse(data) else { return .unreadable }
+
+        let sportType = Sport(rawValue: p.sport) ?? .other
+        let isStrength = p.sport == "strength"
+        // The same file picked twice, or a workout Health already delivered.
+        guard !hasSession(matching: p) else { return .alreadyLogged }
+        var s = WorkoutSession(date: p.date, planId: "file-\(p.sport)",
+                               planName: sportType.label, planColor: Theme.appleGreen)
+        s.sport = isStrength ? nil : p.sport
+        if p.durationSec > 0 {
+            s.startTime = p.start
+            s.endTime = p.start.addingTimeInterval(TimeInterval(p.durationSec))
+        }
+        s.absorb(p.measures)
+        s.source = url.lastPathComponent
+        setRestDay(p.date, on: false)
+        sessions.append(s)
+        if prefs.healthKitEnabled, prefs.exportsToHealth {
+            HealthKitManager.shared.saveImported(p) { [weak self] uuid in
+                guard let self, let uuid, let i = self.sessions.firstIndex(where: { $0.id == s.id }) else { return }
+                self.sessions[i].healthUUID = uuid
+            }
+        }
+        return .imported(s)
+    }
+
+    /// Whether a session of this sport already stands for the file's workout that
+    /// day: overlapping in time when both have times, else about as long.
+    private func hasSession(matching p: ParsedWorkout) -> Bool {
+        let end = p.start.addingTimeInterval(TimeInterval(p.durationSec))
+        return sessions.contains { s in
+            guard s.date == p.date, p.sport == "strength" ? (s.sport == nil) : (s.sport == p.sport) else { return false }
+            if p.durationSec > 0, s.overlap(p.start, end) != nil { return s.isSameWorkout(p.start, end) }
+            return abs((s.durationSeconds ?? 0) - p.durationSec) <= Store.sameWorkoutToleranceSec
+        }
+    }
+    private static let sameWorkoutToleranceSec = 120
+
+    /// Fetch Apple Health workouts recorded on a given day that are NOT already in
+    /// the app, so the calendar can offer them for manual import when the automatic
+    /// match missed them. Requests authorization first if needed.
+    func importableHealthWorkouts(onDate date: String, completion: @escaping ([HealthWorkout]) -> Void) {
+        let hk = HealthKitManager.shared
+        guard hk.isAvailable else { completion([]); return }
+        hk.requestAuthorization { granted in
+            guard granted else { completion([]); return }
+            hk.fetchWorkouts(onDate: date) { workouts in completion(self.importable(workouts)) }
+        }
+    }
+}

@@ -338,7 +338,7 @@ final class WorkoutManager: NSObject, ObservableObject {
         activity = snapshot.activity
         exLogs = snapshot.exLogs
         let a = snapshot.activity
-        let day = snapshot.startDate.map { wkISO.string(from: $0) } ?? wkToday()
+        let day = snapshot.startDate.map { isoFormatter.string(from: $0) } ?? today()
         WatchLink.shared.queue(WatchResult(id: UUID().uuidString, date: day, kind: a.kind,
                                            activityId: a.id, name: a.name, color: a.color, sport: a.sport,
                                            durationSec: 0, avgHR: nil, maxHR: nil, activeKcal: nil,
@@ -373,7 +373,7 @@ final class WorkoutManager: NSObject, ObservableObject {
         let r = WatchResult(
             id: UUID().uuidString,
             // The day it started: a workout ending after midnight belongs to that day.
-            date: wkISO.string(from: startDate),
+            date: isoFormatter.string(from: startDate),
             kind: a?.kind ?? WatchKind.cardio.rawValue,
             activityId: a?.id ?? "",
             name: a?.name ?? wt("cardio"),
@@ -408,24 +408,12 @@ final class WorkoutManager: NSObject, ObservableObject {
 
     // MARK: Sport -> HealthKit activity type
     private func hkType(for a: WatchActivity) -> HKWorkoutActivityType {
-        if a.kindValue == .strength { return .traditionalStrengthTraining }
-        switch a.sport {
-        case "running":  return .running
-        case "cycling":  return .cycling
-        case "walking":  return .walking
-        case "swimming": return .swimming
-        default:         return .other
-        }
+        a.kindValue == .strength ? .traditionalStrengthTraining : hkActivityType(sport: a.sport)
     }
 
     fileprivate func distanceType(for a: WatchActivity?) -> HKQuantityType? {
-        guard let a, a.kindValue == .cardio else { return nil }
-        switch a.sport {
-        case "running", "walking": return HKObjectType.quantityType(forIdentifier: .distanceWalkingRunning)
-        case "cycling":            return HKObjectType.quantityType(forIdentifier: .distanceCycling)
-        case "swimming":           return HKObjectType.quantityType(forIdentifier: .distanceSwimming)
-        default:                   return nil
-        }
+        guard let a, a.kindValue == .cardio, let id = hkDistanceIdentifier(sport: a.sport) else { return nil }
+        return HKObjectType.quantityType(forIdentifier: id)
     }
 }
 

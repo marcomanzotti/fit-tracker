@@ -120,6 +120,7 @@ struct HomeView: View {
                 HStack(alignment: .firstTextBaseline, spacing: 3) {
                     Text("\(store.streak)").font(.num(22)).foregroundColor(Theme.good)
                     Text(store.streak == 1 ? t("home.day") : t("home.days")).font(.ui(11)).foregroundColor(Theme.sub)
+                    InfoButton(id: .streak, size: 18)
                 }
             }
         }
