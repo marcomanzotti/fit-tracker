@@ -1231,6 +1231,7 @@ extension Store {
                     let r = self.applyHealthWorkouts(workouts, importNew: self.prefs.importWorkoutsEnabled)
                     finish(true, r.count, r.sources)
                     self.readWorkoutHeartRate()
+                    self.readWorkoutEffort()
                 }
             }
         }

@@ -170,6 +170,31 @@ extension Store {
         }
     }
 
+    private static let effortReadDays = 14
+
+    /// The effort of recent sessions linked to Health that do not have one yet: the
+    /// one given on Apple Watch, else Apple's estimate. It counts in the load of a
+    /// strength session (see `trimp`).
+    func readWorkoutEffort() {
+        let from = Calendar.current.date(byAdding: .day, value: -Store.effortReadDays, to: Date())
+            .map { isoFormatter.string(from: $0) } ?? ""
+        let pending = sessions.filter { $0.rpe == nil && $0.date >= from }.compactMap { s in s.healthUUID.map { (s.id, $0) } }
+        guard !pending.isEmpty else { return }
+        Task {
+            var read: [UUID: Int] = [:]
+            for (id, uuid) in pending {
+                if let effort = await HealthKitManager.shared.effort(ofWorkout: uuid) { read[id] = effort }
+            }
+            let found = read
+            guard !found.isEmpty else { return }
+            await MainActor.run {
+                var list = self.sessions
+                for i in list.indices where list[i].rpe == nil { list[i].rpe = found[list[i].id] }
+                if list != self.sessions { self.sessions = list }
+            }
+        }
+    }
+
     /// Monday-based weeks, oldest first, only those with workout heart rate.
     func intensityWeeks() -> [IntensityWeek] { memo("intensityWeeks") { computeIntensityWeeks() } }
 
@@ -257,6 +282,31 @@ extension HealthKitManager {
             return WorkoutHeartRate(histogram: histogram, decoupling: try await decoupling(of: w, kind: kind, heartRate: hr))
         } catch {
             appLog.error("Workout heart rate unreadable: \(String(describing: error), privacy: .public)")
+            return nil
+        }
+    }
+
+    /// The effort of a workout, 1-10: the one the person gave, else Apple's estimate.
+    func effort(ofWorkout uuid: String) async -> Int? {
+        guard isAvailable, let id = UUID(uuidString: uuid) else { return nil }
+        do {
+            let found = try await HKSampleQueryDescriptor(
+                predicates: [.workout(HKQuery.predicateForObject(with: id))], sortDescriptors: [], limit: 1
+            ).result(for: store)
+            guard let w = found.first else { return nil }
+            let related = HKQuery.predicateForWorkoutEffortSamplesRelated(workout: w, activity: nil)
+            for kind in [HKQuantityTypeIdentifier.workoutEffortScore, .estimatedWorkoutEffortScore] {
+                guard let type = HKObjectType.quantityType(forIdentifier: kind) else { continue }
+                let samples = try await HKSampleQueryDescriptor(
+                    predicates: [.quantitySample(type: type, predicate: related)], sortDescriptors: [], limit: 1
+                ).result(for: store)
+                if let v = samples.first?.quantity.doubleValue(for: .appleEffortScore()), v.isFinite {
+                    return max(1, min(10, Int(v.rounded())))
+                }
+            }
+            return nil
+        } catch {
+            appLog.error("Workout effort unreadable: \(String(describing: error), privacy: .public)")
             return nil
         }
     }

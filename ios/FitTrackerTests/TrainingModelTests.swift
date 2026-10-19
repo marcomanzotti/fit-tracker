@@ -213,4 +213,19 @@ final class TrainingModelTests: XCTestCase {
         XCTAssertEqual(week.volume, 4 * 8 * 80, accuracy: 0.1)
         XCTAssertEqual(week.weightChange ?? 0, -1, accuracy: 0.001)
     }
+
+    // MARK: Effort
+
+    func testAStrengthSessionWithEffortGetsALoadEvenWithoutHeartRate() {
+        var lift = bench(daysAgo: 1)
+        lift.durationSec = 3_600
+        XCTAssertNil(store.trimp(lift), "no heart rate, no effort: no load")
+
+        lift.rpe = 7
+        let load = store.trimp(lift) ?? 0
+        XCTAssertEqual(load, 60 * 0.7 * 0.64 * exp(1.92 * 0.7), accuracy: 0.01, "effort 7 counts like 70 % of the HR reserve")
+
+        lift.avgHR = 100                                    // a low average HR does not lower it
+        XCTAssertEqual(store.trimp(lift) ?? 0, load, accuracy: 0.01)
+    }
 }

@@ -96,6 +96,8 @@ enum WL {
         "unlock":       ("Sblocca", "Unlock"),
         "swipe_unlock": ("Scorri per sbloccare", "Swipe to unlock"),
         "restart":      ("Ricomincia", "Restart"),
+        "effort":       ("Sforzo", "Effort"),
+        "effort_q":     ("Quanto è stata dura?", "How hard was it?"),
         "restart_q":    ("Ricominciare da zero? Il tempo e le serie di ora si perdono.", "Start over? The time and sets so far are lost."),
         "reps":         ("Rip", "Reps"),
         "weight":       ("Peso", "Weight"),

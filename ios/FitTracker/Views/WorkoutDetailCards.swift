@@ -263,6 +263,10 @@ struct SessionEditorView: View {
                             metricField(t("wk.avg_hr"), intBinding(\.avgHR), info: .trimp)
                             metricField(t("wk.max_hr"), intBinding(\.maxHRSes))
                         }
+                        if session.sportType == .strength {
+                            Spacer().frame(height: 12)
+                            metricField(t("wk.session_effort"), effortBinding, info: .effort)
+                        }
                         if session.sportType.isCardio {
                             Spacer().frame(height: 12)
                             HStack(alignment: .top, spacing: 10) {
@@ -553,6 +557,11 @@ struct SessionEditorView: View {
     private var durationBinding: Binding<Int?> {
         Binding(get: { session.durationSeconds },
                 set: { session.durationSec = $0; session.durationMin = nil })
+    }
+    /// Effort 1-10; anything else is left empty.
+    private var effortBinding: Binding<String> {
+        Binding(get: { session.rpe.map(String.init) ?? "" },
+                set: { session.rpe = Int($0).flatMap { (1...10).contains($0) ? $0 : nil } })
     }
     private func intBinding(_ kp: WritableKeyPath<WorkoutSession, Int?>) -> Binding<String> {
         Binding(get: { session[keyPath: kp].map(String.init) ?? "" },

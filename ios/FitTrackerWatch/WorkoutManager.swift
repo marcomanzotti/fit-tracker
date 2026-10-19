@@ -61,6 +61,9 @@ final class WorkoutManager: NSObject, ObservableObject {
     private var startDate = Date()
     private var ticker: AnyCancellable?
     private var discarding = false                 // restart/discard: skip the summary
+    /// The workout saved in Health, to attach the effort the person gives at the end.
+    private(set) var finishedWorkout: HKWorkout?
+    @Published private(set) var effortGiven: Int?
     private var finishing = false                   // a failure and the end transition can both ask
 
     var available: Bool { HKHealthStore.isHealthDataAvailable() }
@@ -68,7 +71,8 @@ final class WorkoutManager: NSObject, ObservableObject {
     // MARK: Authorization
     func requestAuthorization() async -> Bool {
         guard available else { return false }
-        let share: Set<HKSampleType> = [HKObjectType.workoutType()]
+        var share: Set<HKSampleType> = [HKObjectType.workoutType()]
+        if let t = HKObjectType.quantityType(forIdentifier: .workoutEffortScore) { share.insert(t) }
         var read: Set<HKObjectType> = [HKObjectType.workoutType()]
         if let t = HKObjectType.quantityType(forIdentifier: .heartRate) { read.insert(t) }
         if let t = HKObjectType.quantityType(forIdentifier: .activeEnergyBurned) { read.insert(t) }
@@ -356,7 +360,8 @@ final class WorkoutManager: NSObject, ObservableObject {
         var savedUUID: String?
         do {
             try await builder.endCollection(at: Date())
-            savedUUID = try await builder.finishWorkout()?.uuid.uuidString
+            finishedWorkout = try await builder.finishWorkout()
+            savedUUID = finishedWorkout?.uuid.uuidString
         } catch {
             // The summary is still built from what was collected and still goes to
             // the phone; only the copy in Health is missing, and the user is told.
@@ -396,7 +401,24 @@ final class WorkoutManager: NSObject, ObservableObject {
         phase = .ended
     }
 
+    /// Save the effort (1-10) and relate it to the workout, as the Workout app does.
+    func saveEffort(_ score: Int) async {
+        guard let workout = finishedWorkout,
+              let type = HKObjectType.quantityType(forIdentifier: .workoutEffortScore) else { return }
+        let value = Double(max(1, min(10, score)))
+        let sample = HKQuantitySample(type: type, quantity: HKQuantity(unit: .appleEffortScore(), doubleValue: value),
+                                      start: workout.startDate, end: workout.endDate)
+        do {
+            try await store.save(sample)
+            try await store.relateWorkoutEffortSample(sample, with: workout, activity: nil)
+            effortGiven = Int(value)
+        } catch {
+            appLog.error("Effort not saved: \(String(describing: error), privacy: .public)")
+        }
+    }
+
     func reset() {
+        finishedWorkout = nil; effortGiven = nil
         session = nil; builder = nil; activity = nil; result = nil
         heartRate = 0; activeCalories = 0; distanceMeters = 0; elapsed = 0
         avgHR = 0; maxHR = 0; paused = false; locked = false; discarding = false

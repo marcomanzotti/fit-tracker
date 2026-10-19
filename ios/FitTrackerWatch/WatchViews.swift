@@ -560,6 +560,7 @@ struct LockOverlay: View {
 struct SummaryView: View {
     @EnvironmentObject var workout: WorkoutManager
     @EnvironmentObject var link: WatchLink
+    @State private var askEffort = false
 
     var body: some View {
         ScrollView {
@@ -584,6 +585,19 @@ struct SummaryView: View {
                 if workout.healthSaveFailed {
                     status("heart.slash.fill", wt("health_failed"), T.red)
                 }
+                // How hard it was, saved with the workout in Health (the phone reads it).
+                if workout.finishedWorkout != nil {
+                    Button { wkTap(); askEffort = true } label: {
+                        HStack {
+                            Text(wt("effort").uppercased()).font(.head(10, .semibold)).tracking(1).foregroundColor(T.sub)
+                            Spacer()
+                            Text(workout.effortGiven.map { "\($0)/10" } ?? wt("effort_q"))
+                                .font(.num(15)).foregroundColor(workout.effortGiven == nil ? T.acc : T.txt)
+                        }
+                        .frame(minHeight: 40)
+                    }
+                    .buttonStyle(.plain)
+                }
 
                 Button {
                     wkTap(); workout.reset()
@@ -600,6 +614,11 @@ struct SummaryView: View {
             .padding(.horizontal, 6).padding(.bottom, 8)
         }
         .onAppear { if workout.result != nil { wkSuccess() } }
+        .sheet(isPresented: $askEffort) {
+            NumberCrownEditor(title: wt("effort_q"), subtitle: "1–10", value: Double(workout.effortGiven ?? 5), step: 1) { v in
+                Task { await workout.saveEffort(Int(v.rounded())) }
+            }
+        }
     }
 
     // The result is queued the moment it exists; this reports where it stands.

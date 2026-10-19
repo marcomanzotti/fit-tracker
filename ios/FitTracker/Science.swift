@@ -10,6 +10,16 @@ extension Store {
     /// from the profile (max estimated from age if not measured).
     func trimp(_ s: WorkoutSession) -> Double? {
         guard let dur = s.durationMinutesD, dur > 0 else { return nil }
+        let fromHR = heartRateTrimp(s, minutes: dur)
+        // Lifting barely moves the average heart rate, so a strength session's
+        // effort (1-10, Apple Watch or typed) counts as that share of the HR
+        // reserve (CR10 ≈ %HRR), on the same scale; the higher of the two wins.
+        guard s.sportType == .strength, let effort = s.rpe, (1...10).contains(effort) else { return fromHR }
+        let fromEffort = dur * Store.banister(Double(effort) / 10, female: prefs.sex_ == "f")
+        return max(fromHR ?? 0, fromEffort)
+    }
+
+    private func heartRateTrimp(_ s: WorkoutSession, minutes dur: Double) -> Double? {
         // The exponential weights hard minutes more than easy ones, so intervals are
         // integrated over the heart-rate samples when Health has them for most of
         // the workout; the average is the fallback.

@@ -470,7 +470,7 @@ struct WorkoutSession: Codable, Identifiable, Equatable {
     var sport: String?         // Sport raw value; nil => strength
     var durationMin: Int?      // legacy whole-minute duration (kept for old data)
     var durationSec: Int?      // canonical duration in seconds (H/M/S input)
-    var rpe: Int?              // session global RPE 1-10 (Borg CR10) for sRPE
+    var rpe: Int?              // effort 1-10 (Apple Watch effort or typed, Borg CR10)
     var avgHR: Int?            // average heart rate (manual) for TRIMP
     var maxHRSes: Int?         // max heart rate during session (manual)
     var distanceKm: Double?    // running / cycling / walking
