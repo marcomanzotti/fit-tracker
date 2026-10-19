@@ -157,6 +157,12 @@ struct FoodPickerSheet: View {
     @State private var sortKey: FoodSortKey = .recent
     @State private var sortAsc = false
     @State private var sortLoaded = false
+    /// Products from Open Food Facts matching the search, after a short pause in typing.
+    @State private var online: [FoodItem] = []
+    @State private var onlineState = OnlineSearch.idle
+    private enum OnlineSearch { case idle, searching, done, failed }
+    private static let onlineMinChars = 3
+    private static let onlineDebounce: Duration = .milliseconds(500)
 
     /// Apply the remembered sort once, on first appear (prefs aren't available at
     /// State init, so we can't seed it there).
@@ -242,6 +248,7 @@ struct FoodPickerSheet: View {
                         } else {
                             ForEach(filtered) { f in foodRow(f) }
                         }
+                        onlineResults
                     }
                     .padding(.bottom, 30)
                 }
@@ -260,6 +267,21 @@ struct FoodPickerSheet: View {
         .preferredColorScheme(.dark)
         .keyboardDoneBar()
         .onAppear { loadSort() }
+        // A new search waits for the typing to pause; the previous one is cancelled.
+        .task(id: search) {
+            let text = search.trimmingCharacters(in: .whitespaces)
+            guard text.count >= Self.onlineMinChars else { online = []; onlineState = .idle; return }
+            try? await Task.sleep(for: Self.onlineDebounce)
+            guard !Task.isCancelled else { return }
+            onlineState = .searching
+            OpenFoodFacts.search(text) { result in
+                guard text == search.trimmingCharacters(in: .whitespaces) else { return }
+                switch result {
+                case .results(let items): online = items; onlineState = .done
+                case .unreachable:        online = []; onlineState = .failed
+                }
+            }
+        }
         .sheet(item: $sheet, onDismiss: { if sheet == nil { scanNotice = nil } }) { which in
             switch which {
             case .scan:
@@ -343,6 +365,35 @@ struct FoodPickerSheet: View {
         .chrome(11, fill: Theme.c1)
     }
 
+    @ViewBuilder private var onlineResults: some View {
+        if onlineState != .idle {
+            HStack {
+                Text(t("food.online").uppercased()).font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.acc2)
+                Spacer()
+                if onlineState == .searching { ProgressView().tint(Theme.acc) }
+            }
+            .padding(.top, 12)
+            if onlineState == .failed {
+                Text(t("food.lookup_failed")).font(.ui(12)).foregroundColor(Theme.sub).frame(maxWidth: .infinity, alignment: .leading)
+            } else if onlineState == .done && online.isEmpty {
+                Text(t("food.online_none")).font(.ui(12)).foregroundColor(Theme.sub).frame(maxWidth: .infinity, alignment: .leading)
+            }
+            ForEach(online) { item in
+                Button { tap(); sheet = .form(store.food(barcode: item.barcode ?? "") ?? item) } label: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(item.fullName).font(.ui(14, weight: .semibold)).foregroundColor(Theme.txt).lineLimit(1)
+                        Text("\(trimNum(item.k100)) kcal · \(t("nut.protein_short")) \(trimNum(item.p100)) · /100\(item.unit)")
+                            .font(.ui(10)).foregroundColor(Theme.sub).lineLimit(1)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 9).padding(.horizontal, 12)
+                    .chrome(11, fill: Theme.c1)
+                }
+                .buttonStyle(PressableStyle())
+            }
+        }
+    }
+
     private func handleScan(_ code: String) {
         if let existing = store.food(barcode: code) { sheet = .qty(existing); return }
         looking = true
@@ -385,6 +436,7 @@ struct FoodFormSheet: View {
     @State private var name = ""
     @State private var brand = ""
     @State private var k = ""; @State private var p = ""; @State private var c = ""; @State private var f = ""
+    @State private var fiber = ""; @State private var salt = ""
     @State private var liquid = false
     @State private var loaded = false
 
@@ -431,6 +483,10 @@ struct FoodFormSheet: View {
                                 num("\(t("nut.carbs")) (g)", "78", $c)
                                 num("\(t("nut.fat")) (g)", "1", $f)
                             }
+                            HStack(spacing: 10) {
+                                num("\(t("nut.fiber")) (g)", "—", $fiber)
+                                num("\(t("nut.salt_name")) (g)", "—", $salt)
+                            }
                             Toggle(isOn: $liquid) {
                                 Text(t("food.liquid")).font(.ui(13)).foregroundColor(Theme.txt)
                             }.tint(Theme.acc)
@@ -458,6 +514,8 @@ struct FoodFormSheet: View {
             if food.p100 > 0 { p = trimNum(food.p100) }
             if food.c100 > 0 { c = trimNum(food.c100) }
             if food.f100 > 0 { f = trimNum(food.f100) }
+            fiber = food.fiber100.map(trimNum) ?? ""
+            salt = food.salt100.map(trimNum) ?? ""
             liquid = food.liquid
         }
     }
@@ -477,6 +535,9 @@ struct FoodFormSheet: View {
         let br = brand.trimmingCharacters(in: .whitespacesAndNewlines)
         item.brand = br.isEmpty ? nil : br
         item.k100 = pf(k); item.p100 = pf(p); item.c100 = pf(c); item.f100 = pf(f)
+        // Empty means "not on the label", which is not the same as zero.
+        item.fiber100 = fiber.isEmpty ? nil : min(100, pf(fiber))
+        item.salt100 = salt.isEmpty ? nil : min(100, pf(salt))
         item.liquid = liquid
         item.lastUsed = today()
         haptic(.success)

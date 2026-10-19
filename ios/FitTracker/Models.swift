@@ -183,6 +183,19 @@ struct DailyEntry: Codable, Identifiable, Equatable {
     var totalCarbs: Double { macroTotal(\.effCarbs, \.carbs, quick: carbs) }
     var totalFat: Double { macroTotal(\.effFat, \.fat, quick: fat) }
 
+    /// Every food logged this day, whether by meal or on its own.
+    private var allFoods: [FoodLog] { (meals?.values.flatMap { $0.foods ?? [] } ?? []) + (foods ?? []) }
+    /// Fibre of the foods that carry it; nil when none does.
+    var totalFiber: Double? {
+        let known = allFoods.compactMap(\.fiber)
+        return known.isEmpty ? nil : known.reduce(0, +)
+    }
+    /// Salt of the foods that carry it, else the salt typed for the day.
+    var totalSalt: Double? {
+        let known = allFoods.compactMap(\.salt)
+        return known.isEmpty ? salt : known.reduce(0, +)
+    }
+
     /// Sum a macro across meals (effective) + day foods, falling back to the quick
     /// total when nothing structured is present.
     private func macroTotal(_ mealKP: KeyPath<MealEntry, Double>,
@@ -229,6 +242,8 @@ struct FoodItem: Codable, Identifiable, Equatable {
     var c100: Double = 0       // carbs
     var f100: Double = 0       // fat
     var liquid: Bool = false   // measured in ml rather than g (display only)
+    var fiber100: Double?      // g per 100, when the label gives it
+    var salt100: Double?       // g per 100, when the label gives it
     var lastUsed: String?      // yyyy-MM-dd, for "recent" sorting
     var unit: String { liquid ? "ml" : "g" }
     /// Display name including brand when present.
@@ -236,7 +251,8 @@ struct FoodItem: Codable, Identifiable, Equatable {
 
     /// Build a logged use of this food for `grams` (or ml) eaten.
     func log(_ grams: Double) -> FoodLog {
-        FoodLog(foodId: id, name: fullName, grams: grams, k100: k100, p100: p100, c100: c100, f100: f100)
+        FoodLog(foodId: id, name: fullName, grams: grams, k100: k100, p100: p100, c100: c100, f100: f100,
+                fiber100: fiber100, salt100: salt100)
     }
 }
 
@@ -253,8 +269,13 @@ struct FoodLog: Codable, Identifiable, Equatable {
     /// Used purely for display so the row reads "2 porzioni" instead of "200 g";
     /// the kcal/macro math always runs off `grams`, so this is backward compatible.
     var portions: Double?
+    var fiber100: Double?
+    var salt100: Double?
 
     private func scale(_ per100: Double) -> Double { (per100 * grams / 100 * 10).rounded() / 10 }
+    /// nil when the food's label did not give it, so a day is not shown as zero.
+    var fiber: Double? { fiber100.map { $0 * grams / 100 } }
+    var salt: Double? { salt100.map { $0 * grams / 100 } }
     var kcal: Int { safeInt(k100 * grams / 100) }
     var protein: Double { scale(p100) }
     var carbs: Double { scale(c100) }

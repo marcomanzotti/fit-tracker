@@ -48,6 +48,9 @@ struct AdherenceResult {
 }
 
 extension Store {
+    /// Fibre advice: 14 g for every 1000 kcal eaten (US Dietary Guidelines).
+    static let fiberPer1000kcal = 14.0
+
     // --- Basal & total energy ------------------------------------------------
     /// Katch-McArdle (370 + 21.6 × lean mass) once body fat is known, which is
     /// more precise than Mifflin-St Jeor for muscular and for lean builds; Mifflin

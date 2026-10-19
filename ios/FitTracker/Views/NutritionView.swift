@@ -36,7 +36,16 @@ struct NutritionView: View {
             }
             .padding(.bottom, 8)
             Bar(value: min(1, pct), gradient: pct > 1.12 ? [Theme.red, Theme.red] : [Theme.acc, Theme.acc2])
-                .padding(.bottom, 14)
+                .padding(.bottom, 8)
+            // Fibre (14 g per 1000 kcal) and salt (at most 5 g), once a food carries them.
+            if entry?.totalFiber != nil || entry?.totalSalt != nil {
+                let salt = entry?.totalSalt ?? 0
+                Text(t("nut.fiber_salt", entry?.totalFiber.map { trimNum(($0 * 10).rounded() / 10) } ?? "—",
+                       Int((e.target / 1000 * Store.fiberPer1000kcal).rounded()),
+                       trimNum((salt * 10).rounded() / 10), trimNum(e.saltMax)))
+                    .font(.ui(11)).foregroundColor(salt > e.saltMax ? Theme.red : Theme.sub)
+            }
+            Spacer().frame(height: 6)
             FilledButton(title: logged ? t("nutp.edit_today") : t("nutp.log_today")) { editingToday = true }
         }
         .sheet(isPresented: $editingToday) { NutritionDayEditor(date: today()) }

@@ -358,4 +358,29 @@ final class DataSafetyTests: XCTestCase {
         XCTAssertEqual(lines.count, 3)
         XCTAssertTrue(lines[1].hasPrefix("2026-10-01,80.5"))
     }
+
+    // MARK: Fibre, salt and food search
+
+    func testAScannedFoodKeepsFibreAndSaltAndSodiumBecomesSalt() throws {
+        let json = #"{"status":1,"product":{"product_name":"Oats","nutriments":{"energy-kcal_100g":370,"proteins_100g":13,"carbohydrates_100g":60,"fat_100g":7,"fiber_100g":10,"sodium_100g":0.2}}}"#
+        let food = try XCTUnwrap(OpenFoodFacts.parse(Data(json.utf8), barcode: "12345678"))
+        XCTAssertEqual(food.fiber100, 10)
+        XCTAssertEqual(food.salt100 ?? 0, 0.5, accuracy: 0.001)
+
+        let log = food.log(50)
+        XCTAssertEqual(log.fiber ?? 0, 5, accuracy: 0.001)
+        let day = DailyEntry(date: "2026-10-01", foods: [log, food.log(50)])
+        XCTAssertEqual(day.totalFiber ?? 0, 10, accuracy: 0.001)
+        XCTAssertEqual(day.totalSalt ?? 0, 0.5, accuracy: 0.001)
+    }
+
+    func testFoodSearchResultsAreParsedAndAServerErrorIsNotProductNotFound() {
+        let json = #"{"products":[{"code":"8001","product_name":"Pasta","brands":"Barilla","nutriments":{"energy-kcal_100g":359,"proteins_100g":12.5}},{"code":"8002","nutriments":{}}]}"#
+        let found = OpenFoodFacts.parseSearch(Data(json.utf8))
+        XCTAssertEqual(found.map(\.name), ["Pasta"], "a result with nothing usable is dropped")
+        XCTAssertEqual(found.first?.brand, "Barilla")
+
+        XCTAssertEqual(OpenFoodFacts.outcome(status: 404, data: Data(), barcode: "8001"), .notFound)
+        XCTAssertEqual(OpenFoodFacts.outcome(status: 503, data: Data(), barcode: "8001"), .unreachable)
+    }
 }

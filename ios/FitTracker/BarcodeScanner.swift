@@ -137,7 +137,7 @@ private struct DataScannerRepresentable: UIViewControllerRepresentable {
 // product that is not in the database from a lookup that could not be made, so
 // "no connection" is never shown as "unknown product".
 enum OpenFoodFacts {
-    enum Lookup { case found(FoodItem), notFound, unreachable }
+    enum Lookup: Equatable { case found(FoodItem), notFound, unreachable }
 
     /// Retail barcodes are 8 to 14 digits (EAN-8, UPC, EAN-13, GTIN-14).
     private static let barcodeLength = 8...14
@@ -154,16 +154,59 @@ enum OpenFoodFacts {
         // OpenFoodFacts asks API clients to identify themselves.
         req.setValue("FitTracker/1.0 (iOS; nutrition tracker)", forHTTPHeaderField: "User-Agent")
 
-        URLSession.shared.dataTask(with: req) { data, _, error in
-            let outcome: Lookup
-            if let data {
-                outcome = parse(data, barcode: code).map(Lookup.found) ?? .notFound
-            } else {
-                appLog.error("Food lookup failed: \(String(describing: error), privacy: .public)")
-                outcome = .unreachable
-            }
-            DispatchQueue.main.async { completion(outcome) }
+        URLSession.shared.dataTask(with: req) { data, response, error in
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            if data == nil { appLog.error("Food lookup failed: \(String(describing: error), privacy: .public)") }
+            let found = outcome(status: status, data: data, barcode: code)
+            DispatchQueue.main.async { completion(found) }
         }.resume()
+    }
+
+    /// A missing product (404, or an answer without one) is "not found"; any other
+    /// failure is the server or the connection, never "unknown product".
+    static func outcome(status: Int, data: Data?, barcode: String) -> Lookup {
+        switch status {
+        case 200: return data.flatMap { parse($0, barcode: barcode) }.map(Lookup.found) ?? .notFound
+        case 404: return .notFound
+        default:  return .unreachable
+        }
+    }
+
+    enum Search { case results([FoodItem]), unreachable }
+
+    /// Products whose name matches the text, best matches first.
+    static func search(_ text: String, completion: @escaping (Search) -> Void) {
+        let query = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        var parts = URLComponents(string: "https://world.openfoodfacts.org/cgi/search.pl")
+        parts?.queryItems = [URLQueryItem(name: "search_terms", value: query), URLQueryItem(name: "search_simple", value: "1"),
+                             URLQueryItem(name: "action", value: "process"), URLQueryItem(name: "json", value: "1"),
+                             URLQueryItem(name: "page_size", value: "20"),
+                             URLQueryItem(name: "fields", value: "code,product_name,brands,nutriments")]
+        guard !query.isEmpty, let url = parts?.url else { completion(.results([])); return }
+        var req = URLRequest(url: url)
+        req.timeoutInterval = 12
+        req.setValue("FitTracker/1.0 (iOS; nutrition tracker)", forHTTPHeaderField: "User-Agent")
+        URLSession.shared.dataTask(with: req) { data, response, error in
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            let result: Search
+            if status == 200, let data { result = .results(parseSearch(data)) } else {
+                appLog.error("Food search failed (\(status)): \(String(describing: error), privacy: .public)")
+                result = .unreachable
+            }
+            DispatchQueue.main.async { completion(result) }
+        }.resume()
+    }
+
+    static func parseSearch(_ data: Data) -> [FoodItem] {
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let products = json["products"] as? [[String: Any]] else { return [] }
+        return products.compactMap { product in
+            guard let code = product["code"] as? String,
+                  var item = food(from: product, barcode: code), !(product["product_name"] as? String ?? "").isEmpty else { return nil }
+            let brand = (product["brands"] as? String)?.split(separator: ",").first.map { $0.trimmingCharacters(in: .whitespaces) }
+            item.brand = brand?.isEmpty == false ? brand : nil
+            return item
+        }
     }
 
     /// A food database is outside data: values are taken only when they are
@@ -175,29 +218,33 @@ enum OpenFoodFacts {
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               (json["status"] as? Int) == 1,
               let product = json["product"] as? [String: Any] else { return nil }
+        return food(from: product, barcode: barcode)
+    }
 
+    private static func food(from product: [String: Any], barcode: String) -> FoodItem? {
         let nutr = product["nutriments"] as? [String: Any] ?? [:]
-        func num(_ keys: [String], max: Double) -> Double {
+        func num(_ keys: [String], max: Double) -> Double? {
             for k in keys {
                 let v = (nutr[k] as? Double) ?? (nutr[k] as? String).flatMap(parsedNumber)
                 if let v, v.isFinite, (0...max).contains(v) { return v }
             }
-            return 0
+            return nil
         }
-        var kcal = num(["energy-kcal_100g", "energy-kcal"], max: maxKcal)
-        if kcal == 0 {                                   // some products only list kJ
-            let kj = num(["energy-kj_100g", "energy-kj", "energy_100g"], max: maxKJ)
-            if kj > 0 { kcal = kj / 4.184 }
+        var kcal = num(["energy-kcal_100g", "energy-kcal"], max: maxKcal) ?? 0
+        if kcal == 0, let kj = num(["energy-kj_100g", "energy-kj", "energy_100g"], max: maxKJ) {
+            kcal = kj / 4.184                            // some products only list kJ
         }
-        let p = num(["proteins_100g"], max: maxGrams)
-        let c = num(["carbohydrates_100g"], max: maxGrams)
-        let f = num(["fat_100g"], max: maxGrams)
+        // Salt is sodium × 2.5 when only sodium is on the label.
+        let salt = num(["salt_100g"], max: maxGrams) ?? num(["sodium_100g"], max: maxGrams / 2.5).map { $0 * 2.5 }
 
         let rawName = (product["product_name"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard !rawName.isEmpty || kcal > 0 else { return nil }   // nothing usable
 
         func r1(_ v: Double) -> Double { (v * 10).rounded() / 10 }
         return FoodItem(name: rawName.isEmpty ? barcode : rawName, barcode: barcode,
-                        k100: r1(kcal), p100: r1(p), c100: r1(c), f100: r1(f))
+                        k100: r1(kcal), p100: r1(num(["proteins_100g"], max: maxGrams) ?? 0),
+                        c100: r1(num(["carbohydrates_100g"], max: maxGrams) ?? 0),
+                        f100: r1(num(["fat_100g"], max: maxGrams) ?? 0),
+                        fiber100: num(["fiber_100g"], max: maxGrams).map(r1), salt100: salt.map { ($0 * 100).rounded() / 100 })
     }
 }
