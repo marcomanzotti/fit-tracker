@@ -297,6 +297,116 @@ final class ScienceTests: XCTestCase {
         }
     }
 
+    // MARK: v14 formula corrections
+
+    func testWomenGetBanistersFemaleTrimpWeighting() {
+        store.prefs.restingHR = 60
+        store.prefs.maxHR = 190
+        var s = WorkoutSession(date: day(1), planId: "p", planName: "Run", planColor: "ff5a52")
+        s.durationSec = 3_600
+        s.avgHR = 150
+        let hrr = 90.0 / 130
+
+        store.prefs.sex = "m"
+        XCTAssertEqual(try XCTUnwrap(store.trimp(s)), 60 * hrr * 0.64 * exp(1.92 * hrr), accuracy: 0.01)
+        store.prefs.sex = "f"
+        XCTAssertEqual(try XCTUnwrap(store.trimp(s)), 60 * hrr * 0.86 * exp(1.67 * hrr), accuracy: 0.01)
+    }
+
+    func testPassedDaysWithoutASessionCountAsZeroInTheWeeksMonotony() {
+        var calendar = Calendar.current
+        calendar.firstWeekday = 2
+        let monday = calendar.date(from: DateComponents(year: 2026, month: 10, day: 12))!
+        let wednesday = calendar.date(from: DateComponents(year: 2026, month: 10, day: 14, hour: 20))!
+        store.prefs.restingHR = 60
+        store.prefs.maxHR = 190
+        func ride(_ date: String, minutes: Int) -> WorkoutSession {
+            var s = WorkoutSession(date: date, planId: "p", planName: "Ride", planColor: "ff5a52")
+            s.durationSec = minutes * 60
+            s.avgHR = 150
+            return s
+        }
+        store.sessions = [ride("2026-10-12", minutes: 60), ride("2026-10-14", minutes: 50)]
+
+        let week = store.weekLoad(offset: 0, now: wednesday)
+
+        // Monday, Tuesday (nothing) and Wednesday: three days, not two.
+        let load = store.loadByDay.values.sorted()
+        let mean = (load[0] + load[1]) / 3
+        XCTAssertEqual(week.mean, mean, accuracy: 0.001)
+        XCTAssertLessThan(try XCTUnwrap(week.monotony), 2, "two sessions and a rest day is not a monotonous week")
+        _ = monday
+    }
+
+    func testCarbCyclingKeepsTheWeeksAverageOnTarget() {
+        store.daily = [DailyEntry(date: day(1), weight: 80)]
+        for trainingDays in [2, 3, 5, 6] {
+            store.prefs.schedule = (0..<7).map { $0 < trainingDays ? store.plans[0].id : "rest" }
+            let e = store.energyTargets()
+            let mean = (Double(trainingDays) * e.carbHigh + Double(7 - trainingDays) * e.carbLow) / 7
+            XCTAssertEqual(mean, e.carbs, accuracy: 2, "\(trainingDays) training days")
+            XCTAssertGreaterThan(e.carbHigh, e.carbLow)
+        }
+    }
+
+    func testRepRangesWithSetsOrRepsWordsStillProgressButTimesDoNot() {
+        XCTAssertNotNil(store.repRange("8-10 reps"))
+        XCTAssertNotNil(store.repRange("3 sets"))
+        XCTAssertNil(store.repRange("30s"))
+        XCTAssertNil(store.repRange("45 sec"))
+        XCTAssertNil(store.repRange("30s/lato"))
+    }
+
+    func testLoggingEveryDayIsFullAdherence() {
+        store.daily = (1...14).map { DailyEntry(date: day($0), kcal: 2_000) }
+        XCTAssertEqual(store.adherence().loggingPct, 1, accuracy: 0.001)
+    }
+
+    func testEnergyAvailabilityCountsTheSameDaysForFoodAndExercise() {
+        store.daily = [DailyEntry(date: day(1), weight: 80, kcal: 2_500)]
+        store.body = [BodyEntry(date: day(1), bfManual: 20)]
+        var todays = WorkoutSession(date: today(), planId: "p", planName: "Run", planColor: "ff5a52")
+        todays.caloriesManual = 2_000
+        store.sessions = [todays]
+
+        // Today's workout is outside the window, like today's food.
+        XCTAssertEqual(try XCTUnwrap(store.energyAvailability().ea), 2_500 / 64.0, accuracy: 0.1)
+    }
+
+    func testSleepTimesAreClockTimesAlsoOnTheNightTheClocksChange() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Europe/Rome")!
+        let midnight = calendar.date(from: DateComponents(year: 2026, month: 10, day: 25))!
+        let bed = calendar.date(from: DateComponents(year: 2026, month: 10, day: 24, hour: 23, minute: 30))!
+        let wake = calendar.date(from: DateComponents(year: 2026, month: 10, day: 25, hour: 7))!
+
+        XCTAssertEqual(HealthKitManager.clockMinutes(bed, from: midnight, calendar: calendar), -30)
+        XCTAssertEqual(HealthKitManager.clockMinutes(wake, from: midnight, calendar: calendar), 420,
+                       "elapsed time since midnight would say 480")
+    }
+
+    func testBasalRateUsesLeanMassWhenBodyFatIsKnown() {
+        store.prefs.sex = "m"
+        store.daily = [DailyEntry(date: day(1), weight: 90)]
+        let mifflin = store.bmr()
+
+        store.body = [BodyEntry(date: day(1), bfManual: 12)]
+
+        XCTAssertEqual(store.bmr(), 370 + 21.6 * 90 * 0.88, accuracy: 0.5)
+        XCTAssertNotEqual(store.bmr(), mifflin)
+    }
+
+    func testProteinFollowsLeanMassWhenBodyFatIsHigh() {
+        store.prefs.sex = "m"
+        store.prefs.goalMode = "cut"
+        store.daily = [DailyEntry(date: day(1), weight: 110)]
+        XCTAssertEqual(store.energyTargets().protein, 242)
+
+        store.body = [BodyEntry(date: day(1), bfManual: 35)]
+
+        XCTAssertLessThan(store.energyTargets().protein, 200)
+    }
+
     // MARK: Heart rate, VO2max
 
     func testTrimpDoesNotTreatALowSessionPeakAsTheMaxHR() {

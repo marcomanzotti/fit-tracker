@@ -10,8 +10,9 @@ extension Store {
     /// from the profile (max estimated from age if not measured).
     func trimp(_ s: WorkoutSession) -> Double? {
         guard let dur = s.durationMinutesD, dur > 0, let hrr = hrReserve(s.avgHR, session: s) else { return nil }
-        let y = prefs.sex_ == "f" ? 1.67 : 1.92
-        return dur * hrr * 0.64 * exp(y * hrr)
+        // Banister/Morton: 0.64·e^(1.92x) for men, 0.86·e^(1.67x) for women.
+        let female = prefs.sex_ == "f"
+        return dur * hrr * (female ? 0.86 : 0.64) * exp((female ? 1.67 : 1.92) * hrr)
     }
 
     /// TRIMP of every stored session that has one, computed once per change.
@@ -167,11 +168,11 @@ extension Store {
     /// rest day still counts as a legitimate zero (which is what monotony should
     /// reward). Past weeks (offset > 0) fall back to 7 when nothing is known, since
     /// we can't retroactively distinguish rest from a gap.
-    func weekLoad(offset: Int) -> WeekLoad { memo("weekLoad|\(offset)") { computeWeekLoad(offset: offset) } }
+    func weekLoad(offset: Int) -> WeekLoad { memo("weekLoad|\(offset)") { weekLoad(offset: offset, now: Date()) } }
 
-    private func computeWeekLoad(offset: Int) -> WeekLoad {
+    func weekLoad(offset: Int, now: Date) -> WeekLoad {
         let cal = Calendar.current
-        let mon = weekStart(offset: offset)
+        let mon = weekStart(offset: offset, now: now)
         // The week's seven dates as text, so sessions are placed without parsing.
         let dayKeys = (0..<7).map { cal.date(byAdding: .day, value: $0, to: mon).map { isoFormatter.string(from: $0) } ?? "" }
         let index = Dictionary(uniqueKeysWithValues: dayKeys.enumerated().map { ($1, $0) })
@@ -188,6 +189,13 @@ extension Store {
         // of the current week aren't known yet, so they don't dilute the mean.
         let restSet = prefs.restDaySet
         for (diff, key) in dayKeys.enumerated() where restSet.contains(key) { knownDays.insert(diff) }
+        // The days of this week that have already passed are known too: with no
+        // session they were days without load (Foster counts them as zeros), and
+        // leaving them out made two sessions in three days look like a monotony of 9.
+        if offset == 0 {
+            let passed = cal.dateComponents([.day], from: mon, to: cal.startOfDay(for: now)).day ?? 0
+            for diff in 0..<max(0, min(7, passed)) { knownDays.insert(diff) }
+        }
         // Denominator: known days for the current week; classic 7 for past weeks
         // where a gap can't be told apart from rest.
         let denom = Double(offset == 0 ? max(1, knownDays.count) : 7)
@@ -518,7 +526,8 @@ extension Store {
     /// Parse a target like "8-10" or "10" into a rep range. Returns nil for
     /// time/asymmetric targets ("30s/lato") we shouldn't auto-progress.
     func repRange(_ s: String) -> (Int, Int)? {
-        if s.lowercased().contains("s") { return nil }       // seconds-based
+        // Times ("30s", "45 sec") are not rep ranges; "8-10 reps" and "3 sets" are.
+        if s.lowercased().range(of: #"\d\s*(s|sec|secs|seconds)\b"#, options: .regularExpression) != nil { return nil }
         let nums = s.split(whereSeparator: { !$0.isNumber }).compactMap { Int($0) }
         guard let lo = nums.first else { return nil }
         let hi = nums.count > 1 ? nums[1] : lo

@@ -52,8 +52,12 @@ struct AdherenceResult {
 
 extension Store {
     // --- Basal & total energy ------------------------------------------------
+    /// Katch-McArdle (370 + 21.6 × lean mass) once body fat is known, which is
+    /// more precise than Mifflin-St Jeor for muscular and for lean builds; Mifflin
+    /// otherwise.
     func bmr(weight: Double? = nil) -> Double {
         let w = weight ?? lastWeight
+        if let bf = currentBF, bf > 0, bf < 60, w > 0 { return 370 + 21.6 * w * (1 - bf / 100) }
         let cm = prefs.height * 100
         let age = Double(prefs.age ?? 30)
         let base = 10 * w + 6.25 * cm - 5 * age
@@ -150,14 +154,25 @@ extension Store {
         // Macros: protein scaled by goal (higher in a cut to protect lean mass),
         // fat ~0.8 g/kg floor, carbs fill the remainder.
         let proteinPerKg: Double = mode == .cut ? 2.2 : (mode == .bulk ? 1.8 : 2.0)
-        let protein = (proteinPerKg * w).rounded()
+        // 2.2 g per kg of a 110 kg person with 35 % body fat is 242 g, far above
+        // what the lean tissue can use: when fat is high, the target follows lean
+        // mass (scaled so that it matches body weight at about 15 % fat).
+        let highFat = (currentBF ?? 0) > (prefs.sex_ == "f" ? 32 : 25)
+        let proteinBase = highFat ? (fatFreeMass() ?? w) / 0.85 : w
+        let protein = (proteinPerKg * proteinBase).rounded()
         let fat = (0.8 * w).rounded()              // ~0.8 g/kg essential-fat floor
         let carbsKcal = max(0, target - protein * 4 - fat * 9)
         let carbs = (carbsKcal / 4).rounded()
 
-        // Carb cycling: shuttle carbs toward training days, keep the weekly mean.
-        let carbHigh = (carbs * 1.30).rounded()
-        let carbLow  = (carbs * 0.65).rounded()
+        // Carb cycling: training days get twice the carbs of the others, and the
+        // two values are set so that the week's average is the target, whatever
+        // the number of training days (a fixed ×1.30 / ×0.65 only did at 3.8).
+        let trainingDays = prefs.hasSchedule
+            ? Double(prefs.weekSchedule.filter { !$0.isEmpty && $0 != "rest" }.count)
+            : Double(prefs.trainingDays ?? 4)
+        let low = trainingDays > 0 && trainingDays < 7 ? 7 * carbs / (trainingDays + 7) : carbs
+        let carbHigh = (trainingDays > 0 && trainingDays < 7 ? 2 * low : carbs).rounded()
+        let carbLow  = low.rounded()
 
         return EnergyTargets(
             bmr: bmr(weight: w).rounded(),
@@ -241,7 +256,7 @@ extension Store {
         else { return LEAResult(ea: nil, risk: "none") }
         let avgIntake = Double(intakes.reduce(0, +)) / Double(intakes.count)
         let from = isoFormatter.string(from: cutoff)
-        let exDays = sessions.filter { $0.date >= from }
+        let exDays = sessions.filter { $0.date >= from && $0.date != today() }
         let exEnergy = exDays.reduce(0.0) { $0 + Double($1.caloriesManual ?? estimateCalories($1)) }
         let ea = (avgIntake - exEnergy / 7) / ffm
         let risk: String

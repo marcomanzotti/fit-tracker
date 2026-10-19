@@ -658,13 +658,22 @@ final class HealthKitManager {
         store.execute(query)
     }
 
+    /// Minutes on the clock from `midnight` (negative before it): a night that spans
+    /// a clock change is an hour longer or shorter than the elapsed time says, and
+    /// bedtime "at 23:30" must read 23:30 either way.
+    static func clockMinutes(_ date: Date, from midnight: Date, calendar cal: Calendar) -> Double {
+        let days = cal.dateComponents([.day], from: midnight, to: cal.startOfDay(for: date)).day ?? 0
+        let c = cal.dateComponents([.hour, .minute], from: date)
+        return Double(days * 1440 + (c.hour ?? 0) * 60 + (c.minute ?? 0))
+    }
+
     private static func sleepFields(_ n: SleepNight, cal: Calendar) -> [HealthField: Double] {
         let midnight = cal.startOfDay(for: n.end)
         var f: [HealthField: Double] = [
             .sleepHours: n.asleepHours,
             .inBedHours: n.inBedHours,
-            .sleepStartMin: n.start.timeIntervalSince(midnight) / 60,
-            .sleepEndMin: n.end.timeIntervalSince(midnight) / 60
+            .sleepStartMin: clockMinutes(n.start, from: midnight, calendar: cal),
+            .sleepEndMin: clockMinutes(n.end, from: midnight, calendar: cal)
         ]
         if n.hasStages {
             f[.sleepDeepMin] = n.deepMin
@@ -681,8 +690,8 @@ final class HealthKitManager {
         let midnight = cal.startOfDay(for: n.end)
         return n.slices.flatMap { s -> [Int] in
             guard let code = s.stage.code else { return [] }
-            return [Int((s.start.timeIntervalSince(midnight) / 60).rounded()),
-                    Int((s.end.timeIntervalSince(midnight) / 60).rounded()), code]
+            return [Int(clockMinutes(s.start, from: midnight, calendar: cal)),
+                    Int(clockMinutes(s.end, from: midnight, calendar: cal)), code]
         }
     }
 
