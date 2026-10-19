@@ -66,7 +66,6 @@ extension WorkoutSession {
     /// The value in use: typed by the user, else measured by the device.
     func metric(_ m: WorkoutMetric) -> Double? { metricOverrides?[m.rawValue] ?? metrics?[m.rawValue] }
     func deviceMetric(_ m: WorkoutMetric) -> Double? { metrics?[m.rawValue] }
-    func isTyped(_ m: WorkoutMetric) -> Bool { metricOverrides?[m.rawValue] != nil }
     var shownMetrics: [WorkoutMetric] { WorkoutMetric.allCases.filter { metric($0) != nil } }
 
     /// Type a value, or pass nil to go back to the device's.

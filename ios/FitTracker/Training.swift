@@ -95,7 +95,6 @@ struct IntensityWeek: Identifiable {
     var total: Double { zoneSeconds.reduce(0, +) }
     /// Share of easy time (Z1–Z2) and of hard time (Z4–Z5), %.
     var easyShare: Double { total > 0 ? (zoneSeconds[0] + zoneSeconds[1]) / total * 100 : 0 }
-    var hardShare: Double { total > 0 ? (zoneSeconds[3] + zoneSeconds[4]) / total * 100 : 0 }
 }
 
 /// Seconds at each whole bpm, each reading standing for the time until the next,

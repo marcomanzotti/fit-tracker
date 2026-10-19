@@ -335,6 +335,16 @@ enum TrainMethod: String, Codable, CaseIterable {
         case .giant:     return "GIANT"
         }
     }
+    /// The name shown in menus.
+    var label: String {
+        switch self {
+        case .normal:    return t("none")
+        case .superset:  return t("wk.superset")
+        case .dropset:   return "Drop set"
+        case .restpause: return "Rest-pause"
+        case .giant:     return "Giant set"
+        }
+    }
 }
 
 // MARK: - Effort tracking scale for per-set feedback
@@ -520,12 +530,6 @@ struct WorkoutSession: Codable, Identifiable, Equatable {
     }
     /// Duration in (possibly fractional) minutes for the science formulas.
     var durationMinutesD: Double? { durationSeconds.map { Double($0) / 60.0 } }
-
-    /// sRPE internal load = duration (min) × session RPE.
-    var sRPE: Double? {
-        guard let d = durationMinutesD, let r = rpe, d > 0, r > 0 else { return nil }
-        return d * Double(r)
-    }
 
     /// Pace/speed unit for this sport: cycling tracks speed (km/h), swimming
     /// tracks min/100m, everything else min/km.
@@ -714,7 +718,6 @@ struct Prefs: Codable, Equatable {
     var trainingDays: Int?     // sessions/week planned
     var restingHR: Int?        // resting HR for TRIMP / zones
     var maxHR: Int?            // measured max HR (else estimated from age)
-    var sleepTracking: Bool?   // prompt for sleep score (default true)
     /// Optional weekly schedule: exactly 7 entries, Monday..Sunday. Each entry is
     /// a plan id, a cardio-type id, "rest", or "" (auto/none). When any slot is
     /// assigned, the "next workout" follows this weekday schedule; otherwise it
@@ -785,7 +788,6 @@ struct Prefs: Codable, Equatable {
     var sex_: String { sex ?? "m" }
     var goal: GoalMode { GoalMode(rawValue: goalMode ?? "maintain") ?? .maintain }
     var activityLevel: Activity { Activity(rawValue: activity ?? "moderate") ?? .moderate }
-    var sleepEnabled: Bool { sleepTracking ?? true }
 
     var age: Int? {
         guard let birthDate, let d = isoFormatter.date(from: birthDate) else { return nil }

@@ -14,6 +14,7 @@ final class WorkoutImportTests: XCTestCase {
     }
 
     override func tearDownWithError() throws {
+        store.waitForWrites()
         store = nil
         try FileManager.default.removeItem(at: dir)
     }

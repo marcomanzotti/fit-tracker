@@ -15,7 +15,6 @@ struct EnergyTargets {
     var carbHigh: Double        // g on training days
     var carbLow: Double         // g on rest days
     var saltMax: Double         // g/day (WHO)
-    var rateTarget: Double      // kg/week (signed)
     var mode: GoalMode
     var adaptive: Bool          // true when TDEE was learned from logged data
 }
@@ -181,7 +180,6 @@ extension Store {
             protein: protein, fat: fat, carbs: carbs,
             carbHigh: carbHigh, carbLow: carbLow,
             saltMax: 5,                                 // WHO recommendation
-            rateTarget: (rate * 100).rounded() / 100,
             mode: mode,
             adaptive: adaptive != nil
         )

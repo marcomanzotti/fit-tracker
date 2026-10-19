@@ -35,6 +35,9 @@ final class Store: ObservableObject {
     @Published private(set) var storageProblem: StorageProblem?
     /// Numbers a save found not finite and wrote as 0, counted for the UI to say so.
     @Published private(set) var repairedNumbers = 0
+    /// A plan id or cardio-activity id the Home "Start" button asked for; the Train
+    /// tab starts it and clears this. Not saved.
+    @Published var startRequest: String?
     /// The calendar day the app is showing. It moves at midnight and when the app
     /// comes back on a new day, so nothing stays on yesterday.
     @Published private(set) var currentDay = today()
@@ -319,6 +322,10 @@ final class Store: ObservableObject {
         let document = currentDocument
         writeQueue.sync { write(document) }
     }
+
+    /// Returns once every write already queued has finished (a test removes its
+    /// folder only after this).
+    func waitForWrites() { writeQueue.sync {} }
 
     private func write(_ document: AppData) {
         do {
@@ -771,6 +778,7 @@ extension Store {
     enum NextItem {
         case plan(WorkoutPlan)
         case cardio(CardioType)
+        var id: String { switch self { case .plan(let p): return p.id; case .cardio(let c): return c.id } }
         var name: String { switch self { case .plan(let p): return p.name; case .cardio(let c): return c.name } }
         var color: String { switch self { case .plan(let p): return p.color; case .cardio(let c): return c.color } }
         var sub: String {
@@ -983,25 +991,10 @@ extension Store {
         }
     }
 
-    // MARK: Daily nutrition & recovery
-    /// Write daily extras for `date` (defaults to today, so existing call sites are
-    /// unchanged). Routing through `upsertDaily` means any past day can be corrected
-    /// by hand — the Body page's day picker relies on this.
-    func saveDailyExtras(date: String = today(),
-                         kcal: Int? = nil, protein: Double? = nil, carbs: Double? = nil,
-                         fat: Double? = nil, salt: Double? = nil, steps: Int? = nil,
-                         rmssd: Double? = nil, restHR: Int? = nil, sleepHR: Int? = nil) {
-        upsertDaily(date) { e in
-            if let kcal { e.kcal = kcal }
-            if let protein { e.protein = protein }
-            if let carbs { e.carbs = carbs }
-            if let fat { e.fat = fat }
-            if let salt { e.salt = salt }
-            if let steps { e.steps = steps; e.stepsManual = true }
-            if let rmssd { e.rmssd = rmssd }
-            if let restHR { e.restHR = restHR; e.markManual(.restHR) }
-            if let sleepHR { e.sleepHR = sleepHR; e.markManual(.sleepHR) }
-        }
+    // MARK: Steps
+    /// A step count typed by hand for `date`: Health stops overwriting it for that day.
+    func saveSteps(_ steps: Int, date: String = today()) {
+        upsertDaily(date) { e in e.steps = steps; e.stepsManual = true }
     }
 
     // MARK: Nutrition (quick total OR per-meal, for any date)

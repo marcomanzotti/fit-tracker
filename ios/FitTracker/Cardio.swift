@@ -385,8 +385,7 @@ struct LiveCardioView: View {
         let s = session
         guard let p = s.effectivePace, p > 0, p.isFinite else { return "—" }
         if s.paceIsSpeed { return trimNum((p * 10).rounded() / 10) }   // km/h
-        let m = Int(p), sec = Int((p - Double(m)) * 60)               // min/km or /100m
-        return String(format: "%d:%02d", m, sec)
+        return paceStr(p)                                             // min/km or /100m
     }
 
     private var estCalories: Int? {

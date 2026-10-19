@@ -57,7 +57,6 @@ final class ActiveCardio: ObservableObject {
         self.tracksLocation = tracksLocation
     }
 
-    var typeId: String? { type?.id }
     /// Id the watch knows this activity by.
     var activityId: String? { type.map { "cardio-\($0.id)" } }
     var isActive: Bool { type != nil }

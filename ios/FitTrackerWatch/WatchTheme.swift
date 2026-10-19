@@ -19,7 +19,7 @@ enum T {
     static let acc  = Color(hex: "ffe000")
     static let acc2 = Color(hex: "ffb000")
     static let txt  = Color(hex: "f4efe6")
-    static let sub  = Color(hex: "8a857d")
+    static let sub  = Color(hex: "9a958d")
     static let red  = Color(hex: "ff5a52")
     static let blue = Color(hex: "4fb8c4")
     static let good = Color(hex: "7fc950")

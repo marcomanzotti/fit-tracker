@@ -252,9 +252,19 @@ struct HomeView: View {
                                 }
                             }
                             Spacer()
-                            Image(systemName: "chevron.right").foregroundColor(Theme.sub)
+                            Image(systemName: "chevron.right").foregroundColor(Theme.sub).padding(.trailing, 52)
                         }
                     }
+                }
+                // Outside the card's own button: a button inside a button swallows the tap.
+                .overlay(alignment: .trailing) {
+                    Button { haptic(.success); store.startRequest = item.id; tab = .allena } label: {
+                        Image(systemName: "play.fill").accessibilityLabel(t("a11y.start"))
+                            .font(.system(size: 17, weight: .bold)).foregroundColor(Theme.bg)
+                            .frame(width: 46, height: 46).background(Color(hex: item.color)).clipShape(Circle())
+                    }
+                    .buttonStyle(PressableStyle())
+                    .padding(.trailing, 14)
                 }
             }
         }

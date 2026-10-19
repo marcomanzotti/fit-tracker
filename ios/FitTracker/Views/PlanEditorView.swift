@@ -413,11 +413,11 @@ struct PlanEditorView: View {
             Text(t("wk.method").uppercased()).font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.sub)
             Menu {
                 ForEach(TrainMethod.allCases, id: \.self) { m in
-                    Button(methodLabel(m)) { tap(); ex.wrappedValue.method = m == .normal ? nil : m.rawValue }
+                    Button(m.label) { tap(); ex.wrappedValue.method = m == .normal ? nil : m.rawValue }
                 }
             } label: {
                 HStack(spacing: 5) {
-                    Text(methodLabel(cur)).font(.system(size: 12, weight: .semibold)).foregroundColor(Theme.txt)
+                    Text(cur.label).font(.system(size: 12, weight: .semibold)).foregroundColor(Theme.txt)
                     Image(systemName: "chevron.down").font(.system(size: 10)).foregroundColor(Theme.sub)
                 }
                 .padding(.vertical, 6).padding(.horizontal, 10)
@@ -452,16 +452,6 @@ struct PlanEditorView: View {
             }
         }
         .padding(.top, 2)
-    }
-
-    private func methodLabel(_ m: TrainMethod) -> String {
-        switch m {
-        case .normal:    return t("none")
-        case .superset:  return t("wk.superset")
-        case .dropset:   return "Drop set"
-        case .restpause: return "Rest-pause"
-        case .giant:     return "Giant set"
-        }
     }
 }
 

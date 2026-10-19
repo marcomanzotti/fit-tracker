@@ -22,6 +22,12 @@ struct WorkoutView: View {
     var body: some View {
         Group { content }
             .sheet(item: $summary) { WorkoutSummaryView(summary: $0) }
+            .onChange(of: store.startRequest, initial: true) { _, id in
+                guard let id else { return }
+                store.startRequest = nil
+                if let plan = store.plan(id) { start(plan) }
+                else if let activity = store.cardioType(id) { startCardio(activity) }
+            }
     }
 
     @ViewBuilder private var content: some View {

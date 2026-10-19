@@ -11,7 +11,7 @@ enum Theme {
     static let acc    = Color(hex: "ffe000")   // Lamborghini-bright yellow (was ffd21e)
     static let acc2   = Color(hex: "ffb000")
     static let txt    = Color(hex: "f4efe6")
-    static let sub    = Color(hex: "8a857d")
+    static let sub    = Color(hex: "9a958d")   // 5.2:1 on the card surface (AA)
     static let mut    = Color(hex: "161619")
     static let red    = Color(hex: "ff5a52")
     static let blue   = Color(hex: "4fb8c4")

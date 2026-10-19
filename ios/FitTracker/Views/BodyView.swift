@@ -243,7 +243,7 @@ struct BodyView: View {
                 InputField(placeholder: "8000", text: $stepsInput)
                 FilledButton(title: t("save")) {
                     guard let v = Int(stepsInput), v > 0 else { haptic(.error); toast.show(t("body.steps_invalid")); return }
-                    store.saveDailyExtras(date: day, steps: v)
+                    store.saveSteps(v, date: day)
                     toast.show(t("save"))
                 }
                 .frame(width: 90)

@@ -297,7 +297,6 @@ enum L {
         // --- Settings / profile --------------------------------------------
         "set.title":         ("Impostazioni", "Settings"),
         "set.profile":       ("Profilo & obiettivi", "Profile & goals"),
-        "set.sleep_track":   ("Traccia il sonno", "Track sleep"),
         "set.timer":         ("Timer recupero (s)", "Rest timer (s)"),
         "set.units":         ("Unità di misura", "Units"),
         "set.metric":        ("Metrico (kg, cm, km)", "Metric (kg, cm, km)"),
@@ -355,7 +354,6 @@ enum L {
         "wk.day_deleted":    ("Giorno eliminato", "Day deleted"),
 
         // --- Live workout (legacy) ------------------------------------------
-        "wk.saved":          ("Salvata", "Saved"),
         "wk.finish_session": ("Termina sessione", "Finish session"),
         "wk.finish":         ("Termina", "Finish"),
         "wk.pause":          ("Pausa", "Pause"),
@@ -900,7 +898,6 @@ enum L {
         "form.title": ("Forma", "Form"),
         "form.fitness": ("Fitness", "Fitness"),
         "form.fatigue": ("Fatica", "Fatigue"),
-        "form.form": ("Forma", "Form"),
         "form.chart_fitness": ("Fitness e fatica · 90 giorni", "Fitness and fatigue · 90 days"),
         "form.chart_form": ("Forma giorno per giorno", "Form day by day"),
         "recovery.title": ("Recupero", "Recovery"),
@@ -1213,7 +1210,6 @@ enum L {
         "hk.cat.weight":      ("Peso (bilancia)", "Weight (scale)"),
         "hk.cat.bodyFat":     ("Grasso corporeo (bilancia)", "Body fat (scale)"),
         "st.vo2_time":        ("VO₂ max", "VO₂ max"),
-        "st.hrv_sdnn":        ("SDNN", "SDNN"),
         "hrv.sleep":          ("HRV notte", "Sleep HRV"),
         "hrv.sleep_note":     ("durante il sonno", "while asleep"),
         "st.sort.sessions":   ("Sessioni", "Sessions"),

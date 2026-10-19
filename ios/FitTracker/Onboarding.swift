@@ -310,7 +310,6 @@ struct SettingsView: View {
     @EnvironmentObject var toast: ToastCenter
     @Environment(\.dismiss) private var dismiss
     @State private var f: ProfileFields
-    @State private var sleepTrack: Bool
     @State private var timerSec: String
     @State private var hkOn: Bool
     @State private var unitSys: String
@@ -327,7 +326,6 @@ struct SettingsView: View {
 
     init(store: Store) {
         _f = State(initialValue: ProfileFields(store.prefs, currentWeight: store.lastWeight))
-        _sleepTrack = State(initialValue: store.prefs.sleepEnabled)
         _timerSec = State(initialValue: String(store.prefs.timer))
         _hkOn = State(initialValue: store.prefs.healthKitEnabled)
         _unitSys = State(initialValue: store.prefs.imperial ? "imperial" : "metric")
@@ -370,11 +368,6 @@ struct SettingsView: View {
                     }
 
                     Card {
-                        Toggle(isOn: $sleepTrack) {
-                            Text(t("set.sleep_track")).font(.system(size: 14, weight: .medium)).foregroundColor(Theme.txt)
-                        }
-                        .tint(Theme.acc)
-                        Spacer().frame(height: 14)
                         FieldRow(label: t("set.timer")) {
                             InputField(placeholder: "60", text: $timerSec, keyboard: .numberPad)
                         }
@@ -529,7 +522,6 @@ struct SettingsView: View {
         p.units = unitSys
         Units.imperial = (unitSys == "imperial")
         f.apply(to: &p)
-        p.sleepTracking = sleepTrack
         p.healthKit = hkOn
         p.setHealthCategories(healthCats)
         p.importWorkouts = importWk
