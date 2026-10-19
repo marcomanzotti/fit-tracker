@@ -1,0 +1,6 @@
+/* Siri phrases in Italian (the English ones are in AppIntents.swift). */
+"Start ${workout} in ${applicationName}" = "Inizia ${workout} con ${applicationName}";
+"Start ${workout} with ${applicationName}" = "Avvia ${workout} con ${applicationName}";
+"Start my next workout in ${applicationName}" = "Inizia il prossimo allenamento con ${applicationName}";
+"Log my weight in ${applicationName}" = "Registra il peso in ${applicationName}";
+"How am I today in ${applicationName}" = "Come sto oggi con ${applicationName}";

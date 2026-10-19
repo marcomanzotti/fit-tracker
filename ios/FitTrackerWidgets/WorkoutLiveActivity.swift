@@ -1,6 +1,7 @@
 import SwiftUI
 import WidgetKit
 import ActivityKit
+import AppIntents
 
 // MARK: - Workout Live Activity (Lock Screen + Dynamic Island)
 // Shows the running workout without unlocking the phone: elapsed clock, current
@@ -138,6 +139,24 @@ struct WorkoutLiveActivity: Widget {
             }
         }
         .padding(.vertical, 12).padding(.horizontal, 16)
+        .overlay(alignment: .bottom) {
+            if restRange(context.state) != nil { restButtons.padding(.bottom, 6) }
+        }
+        .padding(.bottom, restRange(context.state) != nil ? 30 : 0)
+    }
+
+    /// +30 s and Skip, run by the app (AdjustRestIntent) without opening it.
+    private var restButtons: some View {
+        HStack(spacing: 8) {
+            Button(intent: AdjustRestIntent(seconds: 30)) {
+                Text("+30 s").font(.caption2.weight(.bold)).frame(maxWidth: .infinity)
+            }
+            Button(intent: AdjustRestIntent(seconds: 0)) {
+                Text(wl("Salta", "Skip")).font(.caption2.weight(.bold)).frame(maxWidth: .infinity)
+            }
+        }
+        .tint(W.blue)
+        .padding(.horizontal, 16)
     }
 
     /// Elapsed workout time, ticking on its own from the start date.
@@ -270,10 +289,23 @@ struct NextWorkoutWidget: Widget {
     }
 }
 
+// MARK: - Control Center: start the next workout
+struct NextWorkoutControl: ControlWidget {
+    var body: some ControlWidgetConfiguration {
+        StaticControlConfiguration(kind: "com.marco.manzotti.fittracker.next-workout") {
+            ControlWidgetButton(action: OpenURLIntent(URL(string: "fittracker://next")!)) {
+                Label(wl("Prossimo allenamento", "Next workout"), systemImage: "figure.strengthtraining.traditional")
+            }
+        }
+        .displayName(LocalizedStringResource(stringLiteral: wl("Inizia il prossimo allenamento", "Start the next workout")))
+    }
+}
+
 @main
 struct FitTrackerWidgetsBundle: WidgetBundle {
     var body: some Widget {
         WorkoutLiveActivity()
         NextWorkoutWidget()
+        NextWorkoutControl()
     }
 }

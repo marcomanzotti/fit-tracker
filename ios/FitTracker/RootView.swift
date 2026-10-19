@@ -152,13 +152,19 @@ struct RootView: View {
             if phase != .inactive { Reminders.reschedule(store) }
         }
         .onChange(of: store.repairedNumbers) { announceRepairedNumbers() }
-        // The Lock Screen activity opens the session that is running.
+        // The Lock Screen activity opens the session that is running; the Control
+        // Center button starts the next workout.
         .onOpenURL { url in
-            guard url.scheme == "fittracker", url.host == "session" else { return }
+            guard url.scheme == "fittracker" else { return }
+            if url.host == "next", !activeWorkout.isActive, !activeCardio.isActive, let next = store.nextUp() {
+                store.startRequest = next.id
+            }
             activeWorkout.minimized = false
             activeCardio.minimized = false
             tab = .allena
         }
+        // A workout asked for by Siri or a shortcut starts on the Train tab.
+        .onChange(of: store.startRequest) { _, id in if id != nil { tab = .allena } }
     }
 
     /// Said once: a save met a number that was not a number and wrote it as 0.

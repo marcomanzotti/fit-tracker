@@ -348,4 +348,15 @@ final class WatchMergeTests: XCTestCase {
         XCTAssertEqual(workout.avgHR, "140")
         XCTAssertEqual(workout.durationSec, 2_700)
     }
+
+    func testThirtySecondsMoreMovesTheEndOfTheRest() {
+        let timer = RestTimer()
+        let now = Date()
+        timer.start(60, now: now)
+        timer.extend(by: 30, now: now)
+        XCTAssertEqual(timer.endsAt?.timeIntervalSince(now) ?? 0, 90, accuracy: 0.01)
+        timer.stop()
+        timer.extend(by: 30, now: now)
+        XCTAssertNil(timer.endsAt, "nothing to extend once stopped")
+    }
 }

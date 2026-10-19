@@ -2,6 +2,9 @@ import Foundation
 #if canImport(ActivityKit)
 import ActivityKit
 #endif
+#if os(iOS)
+import AppIntents
+#endif
 
 // MARK: - Live Activity payload (shared by the app and the widget extension)
 // What the Lock Screen and Dynamic Island show while a workout is running.
@@ -28,6 +31,29 @@ struct WorkoutActivityAttributes: ActivityAttributes {
     var planColor: String      // hex, matches the plan's colour in the app
     /// SF Symbol of a cardio session; nil for a strength workout.
     var icon: String?
+}
+#endif
+
+// MARK: - Rest buttons on the Lock Screen
+#if os(iOS)
+/// "+30 s" and "Skip" on the Live Activity. The system runs a LiveActivityIntent in
+/// the app's process; the extension only needs the type, so the action travels as
+/// a notification the app's rest timer listens to.
+struct AdjustRestIntent: LiveActivityIntent {
+    static let title: LocalizedStringResource = "Adjust rest"
+    static let isDiscoverable = false
+    static let notification = Notification.Name("fittracker.adjustRest")
+
+    /// Seconds to add; 0 ends the rest.
+    @Parameter(title: "Seconds") var seconds: Int
+
+    init() { seconds = 0 }
+    init(seconds: Int) { self.seconds = seconds }
+
+    func perform() async throws -> some IntentResult {
+        await MainActor.run { NotificationCenter.default.post(name: Self.notification, object: nil, userInfo: ["seconds": seconds]) }
+        return .result()
+    }
 }
 #endif
 

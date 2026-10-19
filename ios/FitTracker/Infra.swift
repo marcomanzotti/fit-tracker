@@ -47,6 +47,11 @@ final class RestTimer: ObservableObject {
     }
 
     func reset() { start(total) }
+    /// Add time to the rest under way (the Lock Screen's +30 s).
+    func extend(by seconds: Int, now: Date = Date()) {
+        guard running, let endsAt else { return }
+        resume(endsAt: endsAt.addingTimeInterval(Double(seconds)), total: total + seconds, now: now)
+    }
     func stop() {
         cancellable?.cancel(); active = false; done = false; endsAt = nil
         RestNotifier.cancel()   // no alert for a rest that was cut short
@@ -596,6 +601,10 @@ final class SessionKeeper {
         watch.$pendingResult.compactMap { $0 }.receive(on: main)
             .sink { [weak self] result in self?.take(result) }
             .store(in: &bag)
+        // +30 s / Skip pressed on the Lock Screen.
+        NotificationCenter.default.publisher(for: AdjustRestIntent.notification).receive(on: main)
+            .sink { [weak self] note in self?.adjustRest(by: note.userInfo?["seconds"] as? Int ?? 0) }
+            .store(in: &bag)
     }
 
     /// A workout or a cardio session started, was restored or ended: the Lock Screen
@@ -612,6 +621,16 @@ final class SessionKeeper {
             LiveActivityController.end()
         }
         sessionChanged()
+    }
+
+    private func adjustRest(by seconds: Int) {
+        if seconds > 0 {
+            timer.extend(by: seconds)
+            RestNotifier.schedule(after: timer.remaining)
+        } else {
+            timer.stop()
+        }
+        LiveActivityController.updateRest(endsAt: timer.running ? timer.endsAt : nil)
     }
 
     private func sessionChanged() {
@@ -784,6 +803,17 @@ enum LiveActivityController {
             return
         }
         start(planName: planName, planColor: planColor, startDate: startDate, icon: icon, enabled: enabled)
+        #endif
+    }
+
+    /// Only the rest changes (Lock Screen buttons); exercise and sets stay.
+    static func updateRest(endsAt: Date?) {
+        #if canImport(ActivityKit)
+        guard let id = activeId,
+              let activity = ActivityKit.Activity<WorkoutActivityAttributes>.activities.first(where: { $0.id == id }) else { return }
+        var state = activity.content.state
+        state.restEndsAt = endsAt
+        Task { await activity.update(ActivityContent(state: state, staleDate: endsAt)) }
         #endif
     }
 
