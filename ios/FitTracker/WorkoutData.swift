@@ -102,7 +102,15 @@ extension WorkoutSession {
     /// This session and a Health workout are the same workout.
     mutating func link(_ w: HealthWorkout) {
         healthUUID = w.uuid
+        takeTimes(of: w)
         absorb(w.measures)
+    }
+
+    /// The workout's time span, when the session has none yet.
+    mutating func takeTimes(of w: HealthWorkout) {
+        guard startTime == nil || endTime == nil, let start = w.start, let end = w.end else { return }
+        startTime = start
+        endTime = end
     }
 }
 
@@ -178,7 +186,8 @@ extension HealthKitManager {
     /// and the band's own), its lap events. No extra query, so a sync can read a
     /// whole season of workouts.
     static func measures(of w: HKWorkout) -> WorkoutMeasures {
-        func positive(_ v: Double?) -> Double? { v.flatMap { $0.isFinite && $0 > 0 ? $0 : nil } }
+        // Bounded too: a corrupt value would trap in the Int conversions below.
+        func positive(_ v: Double?) -> Double? { v.flatMap { $0.isFinite && $0 > 0 && $0 < 1e9 ? $0 : nil } }
         func stat(_ id: HKQuantityTypeIdentifier) -> HKStatistics? {
             HKObjectType.quantityType(forIdentifier: id).flatMap { w.statistics(for: $0) }
         }
@@ -384,12 +393,6 @@ extension HealthKitManager {
         if let w = existing.first { return w.uuid.uuidString }
 
         let sport = Sport(rawValue: p.sport) ?? .other
-        let config = HKWorkoutConfiguration()
-        config.activityType = Self.activityType(for: sport)
-        config.locationType = p.points.contains { $0.lat != nil } ? .outdoor : .unknown
-        let builder = HKWorkoutBuilder(healthStore: store, configuration: config, device: nil)
-        try await builder.beginCollection(at: p.start)
-
         var samples: [HKSample] = []
         if let t = HKObjectType.quantityType(forIdentifier: .heartRate) {
             samples += p.points.compactMap { pt in
@@ -403,22 +406,34 @@ extension HealthKitManager {
         if let km = p.distanceKm, km > 0, let id = Self.distanceIdentifier(for: sport), let t = HKObjectType.quantityType(forIdentifier: id) {
             samples.append(HKQuantitySample(type: t, quantity: HKQuantity(unit: .meter(), doubleValue: km * 1000), start: p.start, end: end))
         }
-        if !samples.isEmpty { try await builder.addSamples(samples) }
         var metadata: [String: Any] = [HKMetadataKeySyncIdentifier: syncID, HKMetadataKeySyncVersion: 1]
         if let e = p.elevationM, e > 0 { metadata[HKMetadataKeyElevationAscended] = HKQuantity(unit: .meter(), doubleValue: e) }
-        try await builder.addMetadata(metadata)
-        try await builder.endCollection(at: end)
-        guard let workout = try await builder.finishWorkout() else { return nil }
-
         let locations = p.points.compactMap { pt -> CLLocation? in
             guard let lat = pt.lat, let lon = pt.lon, let time = pt.time else { return nil }
             return CLLocation(coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lon), altitude: pt.ele ?? 0,
                               horizontalAccuracy: 5, verticalAccuracy: pt.ele == nil ? -1 : 5, timestamp: time)
         }
-        if !locations.isEmpty {
-            let route = HKWorkoutRouteBuilder(healthStore: store, device: nil)
-            try await route.insertRouteData(locations)
-            _ = try await route.finishRoute(with: workout, metadata: nil)
+        return try await writeWorkout(sport: sport, start: p.start, end: end, samples: samples,
+                                      metadata: metadata, route: locations, device: nil)
+    }
+
+    /// One workout into Health: its samples, metadata and route. Returns its UUID.
+    func writeWorkout(sport: Sport, start: Date, end: Date, samples: [HKSample], metadata: [String: Any] = [:],
+                      route: [CLLocation], device: HKDevice?) async throws -> String? {
+        guard isAvailable, end > start else { return nil }
+        let config = HKWorkoutConfiguration()
+        config.activityType = Self.activityType(for: sport)
+        config.locationType = route.isEmpty ? .unknown : .outdoor
+        let builder = HKWorkoutBuilder(healthStore: store, configuration: config, device: device)
+        try await builder.beginCollection(at: start)
+        if !samples.isEmpty { try await builder.addSamples(samples) }
+        if !metadata.isEmpty { try await builder.addMetadata(metadata) }
+        try await builder.endCollection(at: end)
+        guard let workout = try await builder.finishWorkout() else { return nil }
+        if !route.isEmpty {
+            let routeBuilder = HKWorkoutRouteBuilder(healthStore: store, device: device)
+            try await routeBuilder.insertRouteData(route)
+            _ = try await routeBuilder.finishRoute(with: workout, metadata: nil)
         }
         return workout.uuid.uuidString
     }

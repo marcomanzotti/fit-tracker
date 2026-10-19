@@ -20,7 +20,7 @@ final class WorkoutImportTests: XCTestCase {
 
     private func workout(_ uuid: String = UUID().uuidString, sport: String = "running", seconds: Int = 1800,
                          avgHR: Int? = 150, metrics: [WorkoutMetric: Double] = [.cadence: 160],
-                         fromThisApp: Bool = false, date: String = "2026-10-10") -> HealthWorkout {
+                         fromThisApp: Bool = false, date: String = "2026-10-10", start: Date? = nil) -> HealthWorkout {
         var m = WorkoutMeasures()
         m.durationSec = seconds
         m.avgHR = avgHR
@@ -29,7 +29,13 @@ final class WorkoutImportTests: XCTestCase {
         m.distanceKm = sport == "strength" ? nil : 5
         m.metrics = metrics
         return HealthWorkout(uuid: uuid, date: date, sport: sport, displayName: "Running", measures: m,
-                             fromThisApp: fromThisApp, sourceName: "Garmin Connect")
+                             fromThisApp: fromThisApp, sourceName: "Garmin Connect",
+                             start: start, end: start?.addingTimeInterval(TimeInterval(seconds)))
+    }
+
+    /// A clock time on the test day.
+    private func at(_ time: String, on date: String = "2026-10-10") -> Date {
+        cachedFormatter("yyyy-MM-dd HH:mm").date(from: "\(date) \(time)")!
     }
 
     private func manualSession(sport: String?, seconds: Int?, date: String = "2026-10-10") -> WorkoutSession {
@@ -85,7 +91,7 @@ final class WorkoutImportTests: XCTestCase {
         var s = store.sessions[0]
         s.avgHR = 140
         s.setTyped(.cadence, 170)
-        store.updateSession(s)
+        store.saveSession(s)
 
         let r = store.applyHealthWorkouts([workout("A", avgHR: 152, metrics: [.cadence: 165, .steps: 5000])])
 
@@ -142,7 +148,7 @@ final class WorkoutImportTests: XCTestCase {
         store.applyHealthWorkouts([workout("A")])
         var s = store.sessions[0]
         s.avgHR = nil
-        store.updateSession(s)
+        store.saveSession(s)
 
         store.applyHealthWorkouts([workout("A")])
 
@@ -211,6 +217,121 @@ final class WorkoutImportTests: XCTestCase {
 
         XCTAssertEqual(merged.metric(.cadence), 160)
         XCTAssertEqual(merged.metric(.avgPower), 240)
+    }
+
+    // MARK: Same day, different workouts
+
+    func testTwoRidesOnTheSameDayStayTwoSessions() {
+        let r = store.applyHealthWorkouts([
+            workout("morning", sport: "cycling", seconds: 1500, start: at("08:00")),
+            workout("evening", sport: "cycling", seconds: 1620, avgHR: 120, start: at("18:00")),
+        ])
+
+        XCTAssertEqual(r.count, 2)
+        XCTAssertEqual(Set(store.sessions.compactMap(\.healthUUID)), ["morning", "evening"])
+        XCTAssertEqual(store.sessions.first { $0.healthUUID == "evening" }?.avgHR, 120,
+                       "the second ride keeps its own numbers")
+    }
+
+    func testWatchAndBandWornTogetherStillMakeOneSession() {
+        let r = store.applyHealthWorkouts([
+            workout("watch", seconds: 1800, start: at("08:00")),
+            workout("band", seconds: 1750, metrics: [.aerobicEffect: 3], start: at("08:01")),
+        ])
+
+        XCTAssertEqual(r.count, 1)
+        XCTAssertEqual(store.sessions.first?.mergedHealthUUIDs, ["band"])
+    }
+
+    func testARideTheOldRuleFoldedIntoAnotherCanBeImportedByHand() {
+        var morning = manualSession(sport: "cycling", seconds: 1500)
+        morning.healthUUID = "morning"
+        morning.mergedHealthUUIDs = ["evening"]
+        store.sessions = [morning]
+        // The sync gives the session the time span of its own workout.
+        store.applyHealthWorkouts([workout("morning", sport: "cycling", seconds: 1500, start: at("08:00"))])
+        let evening = workout("evening", sport: "cycling", seconds: 1620, start: at("18:00"))
+
+        XCTAssertEqual(store.importable([evening]).map(\.uuid), ["evening"])
+        store.importHealthWorkout(evening)
+
+        XCTAssertEqual(store.sessions.count, 2)
+        XCTAssertNil(store.sessions.first { $0.healthUUID == "morning" }?.mergedHealthUUIDs)
+        XCTAssertTrue(store.importable([evening]).isEmpty)
+    }
+
+    func testADeletedHealthWorkoutDoesNotComeBackOnTheNextSync() throws {
+        store.applyHealthWorkouts([workout("A")])
+        let removed = try XCTUnwrap(store.deleteSession(store.sessions[0].id))
+
+        store.applyHealthWorkouts([workout("A")])
+        XCTAssertTrue(store.sessions.isEmpty)
+
+        store.restoreSession(removed.session, at: removed.index)           // Undo
+        store.applyHealthWorkouts([workout("A")])
+        XCTAssertEqual(store.sessions.count, 1)
+
+        store.deleteSession(store.sessions[0].id)
+        store.importHealthWorkout(workout("A"))                             // picked by hand from the day
+        store.applyHealthWorkouts([workout("A")])
+        XCTAssertEqual(store.sessions.count, 1)
+    }
+
+    func testTwoFilesOfDifferentRidesOnTheSameDayBothImport() throws {
+        func ride(_ name: String, start: String) throws -> URL {
+            let tcx = """
+            <?xml version="1.0"?>
+            <TrainingCenterDatabase><Activities><Activity Sport="Biking"><Id>\(start)</Id>
+            <Lap StartTime="\(start)"><TotalTimeSeconds>1500</TotalTimeSeconds><DistanceMeters>9000</DistanceMeters>
+            <Track><Trackpoint><Time>\(start)</Time></Trackpoint></Track></Lap></Activity></Activities></TrainingCenterDatabase>
+            """
+            let url = dir.appendingPathComponent(name)
+            try Data(tcx.utf8).write(to: url)
+            return url
+        }
+        let morning = try ride("morning.tcx", start: "2026-10-01T07:00:00Z")
+        let evening = try ride("evening.tcx", start: "2026-10-01T16:00:00Z")
+
+        guard case .imported = store.importWorkoutFile(morning) else { return XCTFail("morning not imported") }
+        guard case .imported = store.importWorkoutFile(evening) else { return XCTFail("evening not imported") }
+        guard case .alreadyLogged = store.importWorkoutFile(morning) else { return XCTFail("same file twice") }
+        XCTAssertEqual(store.sessions.count, 2)
+    }
+
+    // MARK: Sessions from the watch and from the day picker
+
+    func testWatchResultArrivingAfterTheSessionWasSavedJoinsIt() {
+        var saved = WorkoutSession(date: "2026-10-10", planId: "p1", planName: "Push", planColor: "ff5a52",
+                                   exercises: [LoggedExercise(name: "Bench", sets: [SetEntry(reps: "8", weight: "100")])])
+        saved.durationSec = 3_000
+        store.sessions = [saved]
+        let r = WatchResult(id: UUID().uuidString, date: "2026-10-10", kind: "strength", activityId: "p1",
+                            name: "Push", color: "ff5a52", sport: nil, durationSec: 3_100, avgHR: 128, maxHR: 160,
+                            activeKcal: 320, distanceKm: nil, healthUUID: "HK1")
+
+        store.ingestWatchResult(r)
+        store.ingestWatchResult(r)          // the second transport
+
+        XCTAssertEqual(store.sessions.count, 1)
+        let s = store.sessions[0]
+        XCTAssertEqual(s.avgHR, 128)
+        XCTAssertEqual(s.caloriesManual, 320)
+        XCTAssertEqual(s.durationSec, 3_000, "what the phone recorded stays")
+        XCTAssertEqual(s.healthUUID, "HK1")
+        XCTAssertEqual(s.exercises.count, 1)
+    }
+
+    func testASessionFromTheDayPickerExistsOnlyOnceSaved() {
+        let plan = WorkoutPlan(id: "p1", name: "Push", exercises: [PlanExercise(name: "Bench")])
+        store.setRestDay("2026-10-09", on: true)
+
+        let draft = store.newSession(plan: plan, date: "2026-10-09")
+        XCTAssertTrue(store.sessions.isEmpty, "cancelling the editor leaves nothing behind")
+        XCTAssertTrue(store.isRestDay("2026-10-09"))
+
+        store.saveSession(draft)
+        XCTAssertEqual(store.sessions.map(\.id), [draft.id])
+        XCTAssertFalse(store.isRestDay("2026-10-09"))
     }
 
     // MARK: Files

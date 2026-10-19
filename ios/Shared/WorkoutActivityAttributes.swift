@@ -40,6 +40,11 @@ struct WidgetSnapshot: Codable, Equatable {
     var streak: Int
     var kcalToday: Int
     var kcalTarget: Int
+    /// The day the numbers above describe (yyyy-MM-dd): past midnight they are
+    /// yesterday's until the app writes again. nil in a snapshot from before v14.
+    var date: String? = nil
+    /// The app's language, which the widget follows instead of the device's.
+    var lang: String? = nil
 
     static let appGroup = "group.com.marco.manzotti.fittracker"
     static let widgetKind = "FitTrackerNextWorkout"

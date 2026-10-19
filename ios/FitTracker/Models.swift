@@ -1,17 +1,5 @@
 import Foundation
 
-// MARK: - Parsing helper (mirrors the web app's pf(): accepts "," or ".")
-/// Anything that is not a plain, sane number parses to 0: "inf", "nan" and absurd
-/// magnitudes would otherwise break JSON encoding (and so every later save) or
-/// trap in an `Int(...)` conversion.
-func pf(_ s: String) -> Double {
-    guard let v = Double(s.replacingOccurrences(of: ",", with: ".")),
-          v.isFinite, abs(v) < maxParsedMagnitude else { return 0 }
-    return v
-}
-/// No weight, rep count, distance or duration in this app comes near this.
-private let maxParsedMagnitude = 1e9
-
 // IMPORTANT for backward compatibility: every field added after the original
 // schema is Optional. Swift's synthesized Codable throws on a missing key for a
 // non-optional property (it ignores the default value), so older saved JSON would
@@ -267,7 +255,7 @@ struct FoodLog: Codable, Identifiable, Equatable {
     var portions: Double?
 
     private func scale(_ per100: Double) -> Double { (per100 * grams / 100 * 10).rounded() / 10 }
-    var kcal: Int { Int((k100 * grams / 100).rounded()) }
+    var kcal: Int { safeInt(k100 * grams / 100) }
     var protein: Double { scale(p100) }
     var carbs: Double { scale(c100) }
     var fat: Double { scale(f100) }
@@ -489,9 +477,29 @@ struct WorkoutSession: Codable, Identifiable, Equatable {
     /// Values typed by the user for those metrics: they win over the device's and
     /// no sync ever touches them.
     var metricOverrides: [String: Double]?
+    /// When the workout started and ended, when something measured it (a device,
+    /// a file, the live session). A session logged after the fact has neither.
+    var startTime: Date?
+    var endTime: Date?
 
     /// Every Health UUID this session accounts for — its own plus any it absorbed.
     var allHealthUUIDs: [String] { (healthUUID.map { [$0] } ?? []) + (mergedHealthUUIDs ?? []) }
+
+    /// Seconds this session shares with a workout running from `start` to `end`;
+    /// nil when the session has no time span to compare.
+    func overlap(_ start: Date, _ end: Date) -> TimeInterval? {
+        guard let s = startTime, let e = endTime, e > s else { return nil }
+        return max(0, min(e, end).timeIntervalSince(max(s, start)))
+    }
+
+    /// Whether a workout from `start` to `end` is this one: they overlap for at
+    /// least half of the shorter of the two. Two rides on the same day, about as
+    /// long, are two workouts.
+    func isSameWorkout(_ start: Date, _ end: Date) -> Bool {
+        guard let shared = overlap(start, end), let s = startTime, let e = endTime else { return false }
+        let shorter = min(e.timeIntervalSince(s), end.timeIntervalSince(start))
+        return shorter > 0 && shared >= shorter / 2
+    }
 
     var totalSets: Int { exercises.reduce(0) { $0 + $1.sets.count } }
     var volume: Double { exercises.reduce(0) { $0 + $1.volume } }
@@ -695,7 +703,7 @@ struct Prefs: Codable, Equatable {
     var sex: String?           // "m" | "f"
     var birthDate: String?     // yyyy-MM-dd
     var goalMode: String?      // GoalMode raw value
-    var weeklyRate: Double?    // target kg/week, signed (+gain / -loss)
+    var weeklyRate: Double?    // target kg/week, signed by the goal (-loss in a cut, +gain in a bulk)
     var activity: String?      // Activity raw value
     var trainingDays: Int?     // sessions/week planned
     var restingHR: Int?        // resting HR for TRIMP / zones
@@ -755,6 +763,9 @@ struct Prefs: Codable, Equatable {
     /// Seeding runs only when this is false, so a user who deletes seeded entries
     /// never has them silently reappear on the next launch.
     var seededExercises: Bool?
+    /// Health workouts whose session the user deleted: the sync does not bring
+    /// them back. Importing one by hand from its day takes it off the list.
+    var dismissedHealthUUIDs: [String]?
 
     // Convenience accessors -----------------------------------------------
     var langCode: String {
@@ -803,8 +814,17 @@ struct Prefs: Codable, Equatable {
     var autoRest: Bool { autoRestTimer != false }
     var bar: Double { (barWeight ?? 0) > 0 ? barWeight! : 20 }
     var plateSet: [Double] {
-        let p = (plates ?? []).filter { $0 > 0 }
+        let p = (plates ?? []).filter { $0 >= Prefs.smallestPlateKg }
         return p.isEmpty ? [25, 20, 15, 10, 5, 2.5, 1.25] : p.sorted(by: >)
+    }
+    /// Lighter "plates" are typos: a 0.0000001 kg one kept the calculator looping.
+    static let smallestPlateKg = 0.25
+
+    /// Store a weekly rate typed as a plain number: the goal gives the sign, so
+    /// "0.5" in a cut is a loss of half a kilo a week, never a gain.
+    mutating func setWeeklyRate(_ magnitude: Double?) {
+        guard let m = magnitude.map(abs), m > 0 else { weeklyRate = nil; return }
+        weeklyRate = goal == .cut ? -m : m
     }
     var exportsToHealth: Bool { exportToHealth == true }
     var liveActivityEnabled: Bool { liveActivity != false }
@@ -936,7 +956,7 @@ struct RecipeIngredient: Codable, Identifiable, Equatable {
     var name: String
     var grams: Double
     var k100: Double; var p100: Double; var c100: Double; var f100: Double
-    var kcal: Int  { Int((k100 * grams / 100).rounded()) }
+    var kcal: Int  { safeInt(k100 * grams / 100) }
     var protein: Double { (p100 * grams / 100 * 10).rounded() / 10 }
     var carbs: Double   { (c100 * grams / 100 * 10).rounded() / 10 }
     var fat: Double     { (f100 * grams / 100 * 10).rounded() / 10 }
@@ -1007,7 +1027,7 @@ struct AppData: Codable {
     /// (e.g. a rename or a semantic change), and add an explicit migration in
     /// `Store.migrate(_:)`. Adding new optional fields never needs a bump.
     var schemaVersion: Int? = AppData.currentSchemaVersion
-    static let currentSchemaVersion = 2
+    static let currentSchemaVersion = 3
     var daily: [DailyEntry] = []
     var sessions: [WorkoutSession] = []
     var body: [BodyEntry] = []

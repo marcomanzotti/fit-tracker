@@ -157,6 +157,19 @@ final class WorkoutDraftTests: XCTestCase {
         XCTAssertEqual(workout.log[0].sets[0].weight, "100", "typed values are never overwritten")
     }
 
+    func testTheWatchHealthLinkSurvivesARelaunch() throws {
+        let workout = startedWorkout()
+        workout.absorb(result: WatchResult(id: UUID().uuidString, date: isoFormatter.string(from: now),
+                                           kind: WatchKind.strength.rawValue, activityId: "p1", name: "Push",
+                                           color: "ff5a52", sport: nil, durationSec: 2_700, avgHR: nil, maxHR: nil,
+                                           activeKcal: nil, distanceKm: nil, healthUUID: "HK1"))
+
+        let restored = ActiveWorkout(clock: clock)
+        restored.restore(try XCTUnwrap(workout.draft))
+
+        XCTAssertEqual(restored.finishedSession()?.healthUUID, "HK1", "else it goes to Health a second time")
+    }
+
     func testWatchDataForAnotherActivityIsIgnored() {
         let workout = startedWorkout()
         let other = WatchResult(id: UUID().uuidString, date: "2026-10-13", kind: WatchKind.strength.rawValue,

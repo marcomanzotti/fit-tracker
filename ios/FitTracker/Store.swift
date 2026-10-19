@@ -1,5 +1,6 @@
-import SwiftUI
 import Combine
+import CoreLocation
+import SwiftUI
 import WidgetKit
 
 final class Store: ObservableObject {
@@ -35,6 +36,13 @@ final class Store: ObservableObject {
     /// Heart-rate zones and drift of the recent workouts, read from Health at each
     /// sync (any watch, Apple Watch included). Not saved: Health keeps the source.
     @Published var workoutIntensity: [WorkoutIntensity] = []
+    /// Numbers a save found not finite and wrote as 0, counted for the UI to say so.
+    @Published private(set) var repairedNumbers = 0
+    /// The calendar day the app is showing. It moves at midnight and when the app
+    /// comes back on a new day, so nothing stays on yesterday.
+    @Published private(set) var currentDay = today()
+    /// Latest zone request: an older answer arriving after it is dropped.
+    var intensityRequest = 0
 
     enum ImportOutcome: Equatable { case imported, invalidFile, snapshotFailed }
 
@@ -47,10 +55,17 @@ final class Store: ObservableObject {
     private static let autosaveDebounceSeconds = 0.5
 
     private var loaded = false
-    private var isSyncingHealth = false
+    /// A Health read (sync or history import) is running; others wait for it.
+    private var healthBusy = false
+    /// The running read is a sync, whose answer a second sync request can share.
+    private var syncInProgress = false
     /// Band data that landed in Health while a sync was running: read it once that
     /// sync ends instead of dropping the request.
     private var healthResyncRequested = false
+    /// Callers that asked for a sync while one was running get its answer.
+    private var waitingForSync: [(Bool, Int, [String]) -> Void] = []
+    /// Work queued behind the running Health read.
+    private var afterHealthRead: [() -> Void] = []
     /// False only when an unreadable file could not be moved out of the way: saving
     /// would then overwrite the one copy of the user's history.
     private var canSave = true
@@ -83,15 +98,33 @@ final class Store: ObservableObject {
             .debounce(for: .seconds(Store.autosaveDebounceSeconds), scheduler: RunLoop.main)
             .sink { [weak self] in self?.save() }
             .store(in: &bag)
+        NotificationCenter.default.publisher(for: .NSCalendarDayChanged)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.refreshDay() }
+            .store(in: &bag)
+    }
+
+    /// Move to the new day if the date changed: the screens, the recovery gate and
+    /// the widget all follow it.
+    func refreshDay() {
+        let day = today()
+        guard day != currentDay else { return }
+        currentDay = day
+        recoveryGateCache = nil
+        let widget = widgetSnapshot
+        writeQueue.async { [weak self] in self?.publish(widget) }
     }
 
     // MARK: Persistence
     func load() {
-        if let document = readDocument() { apply(document) }
-        if plans.isEmpty { plans = Store.defaultPlans() }
-        if cardioTypes.isEmpty { cardioTypes = Store.defaultCardioTypes() }
-        // Register the default plans' exercises so a fresh install's library isn't
-        // empty, then layer the curated catalog on top (once, never overwriting).
+        // The templates are a first launch's starting point only: plans the user
+        // deleted, down to the last one, stay deleted.
+        if let document = readDocument() { apply(document) } else {
+            plans = Store.defaultPlans()
+            cardioTypes = Store.defaultCardioTypes()
+        }
+        // Register the plans' exercises so the library is never missing one, then
+        // layer the curated catalog on top (once, never overwriting).
         for p in plans { registerPlanExercises(p) }
         seedExerciseLibraryIfNeeded()
         syncLang()
@@ -208,15 +241,31 @@ final class Store: ObservableObject {
                 return typed
             }
         }
+        if version < 3 {
+            // Every launch used to mark the plans' exercises as used that day, so
+            // "recent" meant nothing: the sessions say when each was really logged.
+            var lastLogged: [String: String] = [:]
+            for s in a.sessions {
+                for e in s.exercises where s.date > (lastLogged[e.name] ?? "") { lastLogged[e.name] = s.date }
+            }
+            a.exerciseItems = a.exerciseItems?.map { item in
+                var fixed = item
+                fixed.lastUsed = lastLogged[item.name]
+                return fixed
+            }
+            // The weekly rate was typed with its own sign and could contradict the
+            // goal (a cut with +0.5 ate a surplus): the goal decides the sign now.
+            a.prefs.setWeeklyRate(a.prefs.weeklyRate)
+        }
         a.schemaVersion = AppData.currentSchemaVersion
         return a
     }
 
     private func apply(_ a: AppData) {
         daily = a.daily; sessions = a.sessions; body = a.body; prefs = a.prefs
-        plans = a.plans.isEmpty ? Store.defaultPlans() : a.plans
-        let savedCardio = a.cardioTypes ?? []
-        cardioTypes = savedCardio.isEmpty ? Store.defaultCardioTypes() : savedCardio
+        plans = a.plans
+        // nil only in a file older than cardio activities.
+        cardioTypes = a.cardioTypes ?? Store.defaultCardioTypes()
         foods = a.foods ?? []
         exerciseItems = a.exerciseItems ?? []
         recipes = a.recipes ?? []
@@ -253,15 +302,38 @@ final class Store: ObservableObject {
 
     private func write(_ document: AppData) {
         do {
-            let data = try JSONEncoder().encode(document)
+            let encoded = try Store.encode(document)
+            if encoded.repaired > 0 { reportRepaired(encoded.repaired) }
             try keepDatedBackup()
-            try data.write(to: dataURL, options: .atomic)
+            try encoded.data.write(to: dataURL, options: .atomic)
             prune(prefix: Store.backupPrefix, keep: Store.backupsKept)
             reportSave(failure: nil)
         } catch {
             appLog.error("Save failed: \(String(describing: error), privacy: .public)")
             reportSave(failure: error.localizedDescription)
         }
+    }
+
+    private static let nonFiniteMarker = "fittracker.nonfinite"
+
+    /// The document as JSON. A number that is not finite (a bad value from a food
+    /// database, a bug) makes the plain encoder fail, and with it every save from
+    /// then on: it is written as 0 instead, and counted.
+    static func encode(_ document: AppData, pretty: Bool = false) throws -> (data: Data, repaired: Int) {
+        let encoder = pretty ? JSONEncoder.pretty : JSONEncoder()
+        encoder.nonConformingFloatEncodingStrategy = .convertToString(
+            positiveInfinity: nonFiniteMarker, negativeInfinity: nonFiniteMarker, nan: nonFiniteMarker)
+        let data = try encoder.encode(document)
+        let quoted = "\"\(nonFiniteMarker)\""
+        guard data.range(of: Data(quoted.utf8)) != nil else { return (data, 0) }
+        let text = String(decoding: data, as: UTF8.self)
+        let repaired = text.components(separatedBy: quoted).count - 1
+        return (Data(text.replacingOccurrences(of: quoted, with: "0").utf8), repaired)
+    }
+
+    private func reportRepaired(_ count: Int) {
+        appLog.error("Save wrote \(count, privacy: .public) non-finite numbers as 0")
+        DispatchQueue.main.async { [weak self] in self?.repairedNumbers += count }
     }
 
     /// Publish a failed write, or clear the previous failure once a write succeeds.
@@ -290,7 +362,7 @@ final class Store: ObservableObject {
         return WidgetSnapshot(nextName: next?.name ?? "", nextColor: next?.color ?? "ffe000",
                               nextIcon: next?.icon ?? "dumbbell.fill", streak: streak,
                               kcalToday: dailyEntry(today())?.totalKcal ?? 0,
-                              kcalTarget: Int(energyTargets().target))
+                              kcalTarget: Int(energyTargets().target), date: today(), lang: prefs.langCode)
     }
     private var publishedWidget: WidgetSnapshot?
 
@@ -340,7 +412,7 @@ final class Store: ObservableObject {
     func exportFile() -> URL? {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("fittracker-\(today()).json")
         do {
-            try JSONEncoder.pretty.encode(currentDocument).write(to: url, options: .atomic)
+            try Store.encode(currentDocument, pretty: true).data.write(to: url, options: .atomic)
             return url
         } catch {
             appLog.error("Export failed: \(String(describing: error), privacy: .public)")
@@ -364,7 +436,7 @@ final class Store: ObservableObject {
         do {
             let stamp = Store.fileStampFormatter.string(from: Date())
             let snapshot = directory.appendingPathComponent("\(Store.preImportPrefix)\(stamp).json")
-            try JSONEncoder().encode(currentDocument).write(to: snapshot, options: .atomic)
+            try Store.encode(currentDocument).data.write(to: snapshot, options: .atomic)
             prune(prefix: Store.preImportPrefix, keep: Store.preImportSnapshotsKept)
         } catch {
             appLog.error("Pre-import snapshot failed: \(String(describing: error), privacy: .public)")
@@ -473,13 +545,14 @@ extension Store {
             case .year:  return 120
             }
         }
-        /// Calendar components that identify a bucket.
-        var comps: Set<Calendar.Component> {
+        /// Start of the bucket holding `d`. Weeks run Monday to Sunday, whatever
+        /// the device's first weekday.
+        func bucket(of d: Date, calendar cal: Calendar = .current) -> Date {
             switch self {
-            case .day:   return [.year, .month, .day]
-            case .week:  return [.yearForWeekOfYear, .weekOfYear]
-            case .month: return [.year, .month]
-            case .year:  return [.year]
+            case .day:   return cal.startOfDay(for: d)
+            case .week:  return weekStart(now: d, calendar: cal)
+            case .month: return cal.date(from: cal.dateComponents([.year, .month], from: d)) ?? d
+            case .year:  return cal.date(from: cal.dateComponents([.year], from: d)) ?? d
             }
         }
         /// The bucket width on a Date axis (bar width, tap targets).
@@ -506,8 +579,7 @@ extension Store {
         for e in daily {
             guard let v = value(e), v.isFinite,
                   let d = isoFormatter.date(from: e.date), d >= cutoff else { continue }
-            let comps = cal.dateComponents(granularity.comps, from: d)
-            guard let bucket = cal.date(from: comps) else { continue }
+            let bucket = granularity.bucket(of: d, calendar: cal)
             var acc = byBucket[bucket] ?? (0, 0)
             acc.sum += v; acc.n += 1
             byBucket[bucket] = acc
@@ -991,10 +1063,9 @@ extension Store {
         guard let cutoff = cal.date(byAdding: .month, value: -months, to: Date()) else { return [] }
         struct Acc { var kcal = 0.0; var p = 0.0; var c = 0.0; var f = 0.0; var n = 0 }
         var byBucket: [Date: Acc] = [:]
-        let comps = ChartGranularity.week.comps
         for e in daily where e.hasNutrition {
             guard let d = isoFormatter.date(from: e.date), d >= cutoff else { continue }
-            guard let bucket = cal.date(from: cal.dateComponents(comps, from: d)) else { continue }
+            let bucket = ChartGranularity.week.bucket(of: d, calendar: cal)
             var acc = byBucket[bucket] ?? Acc()
             acc.kcal += Double(e.totalKcal); acc.p += e.totalProtein
             acc.c += e.totalCarbs; acc.f += e.totalFat; acc.n += 1
@@ -1017,20 +1088,37 @@ extension Store {
         max(0, min(100, Int((100 - abs(h - 8.0) * 12.0).rounded())))
     }
 
+    /// What a complete Health read covered: these days, these categories. A value
+    /// it did not return there was deleted or corrected in Health.
+    typealias HealthCoverage = (days: Set<String>, categories: Set<String>)
+
     /// Merge Health samples into the daily entries.
     ///
     /// Health is the reference for every value the user did not type: a later sync
     /// replaces what an earlier one wrote (a night the band delivered late, a day
-    /// total that kept climbing, a value Health corrected). A typed value
+    /// total that kept climbing, a value Health corrected) and, after a complete
+    /// read (`clearing`), empties what Health no longer has. A typed value
     /// (`DailyEntry.isManual`) is never touched, except by the explicit re-import
     /// (`overwrite: true`) on the Health-history screen, where the user asked for
     /// Health to win.
     @discardableResult
-    func applyHealthSamples(_ samples: [HealthDaySample], overwrite: Bool = false) -> Int {
+    func applyHealthSamples(_ samples: [HealthDaySample], overwrite: Bool = false,
+                            clearing: HealthCoverage? = nil) -> Int {
         // Worked on a copy and published once: a year-long backfill would otherwise
         // fire a change (and a re-render) for every single day.
         var byDate = Dictionary(daily.map { ($0.date, $0) }, uniquingKeysWith: { first, _ in first })
         var touched = Set<String>()
+        if let clearing {
+            let reported = Dictionary(samples.map { ($0.date, $0.values) }, uniquingKeysWith: { first, _ in first })
+            let fields = HealthCategory.allCases.filter { clearing.categories.contains($0.rawValue) }.flatMap(\.fields)
+            for date in clearing.days {
+                guard let entry = byDate[date] else { continue }
+                let cleared = Store.clearingStaleHealth(entry, fields: fields, reported: reported[date] ?? [:])
+                guard cleared != entry else { continue }
+                byDate[date] = cleared
+                touched.insert(date)
+            }
+        }
         for s in samples {
             var e = byDate[s.date] ?? DailyEntry(date: s.date)
             let before = e
@@ -1063,6 +1151,34 @@ extension Store {
         return touched.count
     }
 
+    /// The entry without the Health values that Health stopped reporting. Typed
+    /// values stay; a night that is gone takes its derived score and stages along.
+    private static func clearingStaleHealth(_ entry: DailyEntry, fields: [HealthField],
+                                            reported: [HealthField: Double]) -> DailyEntry {
+        var e = entry
+        for f in fields where e[f] != nil && reported[f] == nil && !e.isManual(f) {
+            e[f] = nil
+            if f == .weight { e.weightFromHealth = nil }
+            if f == .sleepHours {
+                e.sleepTimeline = nil
+                if !e.sleepScoreManual { e.sleep = nil }
+            }
+        }
+        return e
+    }
+
+    /// Every yyyy-MM-dd from `start` to `end`, both day starts, both included.
+    static func dayKeys(from start: Date, to end: Date) -> Set<String> {
+        var days = Set<String>()
+        var d = start
+        while d <= end {
+            days.insert(isoFormatter.string(from: d))
+            guard let next = Calendar.current.date(byAdding: .day, value: 1, to: d) else { break }
+            d = next
+        }
+        return days
+    }
+
     /// How many days in `[from, to]` already carry a value for each Health category.
     /// Feeds the Health-history screen so a category that never imported is visible
     /// as a plain "0 / N" instead of being silently absent.
@@ -1085,33 +1201,52 @@ extension Store {
                            completion: @escaping (_ granted: Bool, _ complete: Bool, _ daysWritten: Int) -> Void) {
         let hk = HealthKitManager.shared
         guard hk.isAvailable else { completion(false, false, 0); return }
+        // A sync reading the same days at the same time would race this one.
+        guard !healthBusy else {
+            afterHealthRead.append { [weak self] in self?.importHealthRange(days: days, overwrite: overwrite, completion: completion) }
+            return
+        }
         let cal = Calendar.current
         let end = cal.startOfDay(for: Date())
         guard let start = cal.date(byAdding: .day, value: -(days - 1), to: end) else {
             completion(false, false, 0); return
         }
+        healthBusy = true
         hk.requestAuthorization { granted in
-            guard granted else { completion(false, false, 0); return }
-            hk.fetch(from: start, to: end, categories: self.prefs.healthCategories) { samples, complete in
-                let n = self.applyHealthSamples(samples, overwrite: overwrite)
+            guard granted else { self.healthReadEnded(); completion(false, false, 0); return }
+            let categories = self.prefs.healthCategories
+            hk.fetch(from: start, to: end, categories: categories) { samples, complete in
+                let n = self.applyHealthSamples(samples, overwrite: overwrite,
+                                                clearing: complete ? (Store.dayKeys(from: start, to: end), categories) : nil)
                 // Only a full-year pull that Health answered in full counts as the
                 // backfill. A 30-day manual import, or a year cut short by a locked
                 // phone, must not cancel the automatic one.
                 if complete, days >= Store.healthBackfillDays { self.markHealthBackfilled() }
+                self.healthReadEnded()
                 completion(true, complete, n)
             }
         }
+    }
+
+    /// The running Health read is over: what queued up behind it runs now.
+    private func healthReadEnded() {
+        healthBusy = false
+        let queued = afterHealthRead
+        afterHealthRead = []
+        queued.forEach { $0() }
     }
 
     // MARK: Apple Health workout import (any paired watch, the band, files)
     /// Bring HKWorkout records (Apple Watch, Garmin, Polar, Coros, the band, …)
     /// into the app, one session per workout and never two:
     ///   1. a workout a session already stands for is read again: what the device
-    ///      measured refreshes, what the user typed (or cleared) stays;
+    ///      measured and its time span refresh, what the user typed (or cleared) stays;
     ///   2. one this app exported, or recorded with its own Apple Watch app, is
-    ///      skipped: the session it belongs to already carries its UUID;
+    ///      skipped: the session it belongs to already carries its UUID; so is one
+    ///      whose session the user deleted;
     ///   3. any other device's enriches the session the user logged for the same
-    ///      workout (same day and sport, about as long);
+    ///      workout (overlapping in time, or same sport and about as long when the
+    ///      session has no times);
     ///   4. one a second device recorded at the same time as an already linked
     ///      session (watch and band both worn) joins that session;
     ///   5. else it becomes a session.
@@ -1121,14 +1256,18 @@ extension Store {
         var list = sessions
         var imported = 0
         var srcs = Set<String>()
+        // Linked sessions first, so the matching below compares real time spans.
+        var unlinked: [HealthWorkout] = []
         for w in workouts {
-            if let i = list.firstIndex(where: { $0.healthUUID == w.uuid }) {
-                list[i].absorbDevice(w.measures.metrics)
-                continue
-            }
+            guard let i = list.firstIndex(where: { $0.healthUUID == w.uuid }) else { unlinked.append(w); continue }
+            list[i].absorbDevice(w.measures.metrics)
+            list[i].takeTimes(of: w)
+        }
+        let dismissed = Set(prefs.dismissedHealthUUIDs ?? [])
+        for w in unlinked {
             // Absorbed by a merge, or exported from a session.
             if list.contains(where: { $0.allHealthUUIDs.contains(w.uuid) || $0.exportedHealthUUID == w.uuid }) { continue }
-            if w.fromThisApp || !importNew { continue }
+            if w.fromThisApp || !importNew || dismissed.contains(w.uuid) { continue }
             if let i = Store.matchingSession(for: w, in: list) {
                 list[i].link(w)
             } else if let i = Store.matchingSession(for: w, in: list, linked: true) {
@@ -1144,17 +1283,27 @@ extension Store {
         return (imported, srcs.sorted())
     }
 
-    /// The session logged for the same workout as `w`: same day and sport, and as
-    /// long within a tolerance. `linked` false looks among sessions not linked to
-    /// Health yet, where one with no duration matches when it is the day's only
-    /// candidate; `linked` true among those already linked to another workout.
+    /// The session logged for the same workout as `w`, same day and sport. When
+    /// both have a time span they must overlap for most of it; a session without
+    /// times (logged by hand) must be about as long. `linked` false looks among
+    /// sessions not linked to Health yet, where one with no duration matches when
+    /// it is the day's only candidate; `linked` true among those already linked to
+    /// another workout.
     static func matchingSession(for w: HealthWorkout, in list: [WorkoutSession], linked: Bool = false) -> Int? {
         let strength = w.sport == "strength"
         let tolerance = max(sameWorkoutToleranceSec, w.durationSec / 10)
-        let candidates = list.indices.filter { i in
+        var candidates = list.indices.filter { i in
             let s = list[i]
             let isLinked = s.healthUUID != nil || s.exportedHealthUUID != nil
             return s.date == w.date && isLinked == linked && (strength ? s.sport == nil : s.sport == w.sport)
+        }
+        if let start = w.start, let end = w.end {
+            let same = candidates.filter { list[$0].isSameWorkout(start, end) }
+            if let best = same.max(by: { (list[$0].overlap(start, end) ?? 0) < (list[$1].overlap(start, end) ?? 0) }) {
+                return best
+            }
+            // A session with its own times that does not overlap is another workout.
+            candidates = candidates.filter { list[$0].overlap(start, end) == nil }
         }
         let gap = { (i: Int) in abs((list[i].durationSeconds ?? 0) - w.durationSec) }
         if let best = candidates.filter({ list[$0].durationSeconds != nil && gap($0) <= tolerance }).min(by: { gap($0) < gap($1) }) {
@@ -1176,21 +1325,58 @@ extension Store {
         s.sport = w.sport == "strength" ? nil : w.sport
         s.healthUUID = w.uuid
         s.source = w.sourceName.isEmpty ? nil : w.sourceName
+        s.takeTimes(of: w)
         s.absorb(w.measures)
         return s
     }
 
     /// Manually import one Health workout (from the calendar's import action),
     /// skipping the auto-match dedupe guards the user has already overridden by
-    /// choosing it. Still avoids creating a duplicate of an already-imported UUID.
-    /// Returns the created (or existing) session so the caller can open its editor.
+    /// choosing it: a workout once deleted comes back, and one folded into a
+    /// session it does not overlap (the pre-v14 match went by duration alone)
+    /// leaves it for a session of its own. Returns the created (or existing)
+    /// session so the caller can open its editor.
     @discardableResult
     func importHealthWorkout(_ w: HealthWorkout) -> WorkoutSession {
-        if let existing = sessions.first(where: { $0.allHealthUUIDs.contains(w.uuid) }) { return existing }
+        if let existing = sessions.first(where: { $0.healthUUID == w.uuid || accountsFor(w, $0) }) { return existing }
+        var list = sessions
+        for i in list.indices where list[i].mergedHealthUUIDs?.contains(w.uuid) == true {
+            let rest = list[i].mergedHealthUUIDs?.filter { $0 != w.uuid } ?? []
+            list[i].mergedHealthUUIDs = rest.isEmpty ? nil : rest
+        }
         let s = sessionFromHealth(w)
-        sessions.append(s)
+        list.append(s)
+        sessions = list
+        undismissHealthWorkouts([w.uuid])
         save()
         return s
+    }
+
+    /// Whether `s` already stands for `w` through a merge that is the same workout
+    /// (they overlap, or the session has no time span to tell otherwise).
+    private func accountsFor(_ w: HealthWorkout, _ s: WorkoutSession) -> Bool {
+        guard s.mergedHealthUUIDs?.contains(w.uuid) == true else { return false }
+        guard let start = w.start, let end = w.end, s.overlap(start, end) != nil else { return true }
+        return s.isSameWorkout(start, end)
+    }
+
+    /// The day's Health workouts the user can still import: not this app's own,
+    /// not already a session, not folded into a session they really belong to.
+    func importable(_ workouts: [HealthWorkout]) -> [HealthWorkout] {
+        workouts.filter { w in
+            !w.fromThisApp && !sessions.contains { $0.healthUUID == w.uuid || $0.exportedHealthUUID == w.uuid || accountsFor(w, $0) }
+        }
+    }
+
+    private func dismissHealthWorkouts(_ uuids: [String]) {
+        guard !uuids.isEmpty else { return }
+        prefs.dismissedHealthUUIDs = Array(Set(prefs.dismissedHealthUUIDs ?? []).union(uuids)).sorted()
+    }
+
+    private func undismissHealthWorkouts(_ uuids: [String]) {
+        guard let current = prefs.dismissedHealthUUIDs, !Set(current).isDisjoint(with: uuids) else { return }
+        let rest = current.filter { !uuids.contains($0) }
+        prefs.dismissedHealthUUIDs = rest.isEmpty ? nil : rest
     }
 
     // MARK: Workout file import (FIT / GPX / TCX — any device that can export a file)
@@ -1217,11 +1403,14 @@ extension Store {
         let sportType = Sport(rawValue: p.sport) ?? .other
         let isStrength = p.sport == "strength"
         // The same file picked twice, or a workout Health already delivered.
-        guard !hasSession(on: p.date, strength: isStrength, sport: p.sport, durationSec: p.durationSec)
-        else { return .alreadyLogged }
+        guard !hasSession(matching: p) else { return .alreadyLogged }
         var s = WorkoutSession(date: p.date, planId: "file-\(p.sport)",
                                planName: sportType.label, planColor: Theme.appleGreen)
         s.sport = isStrength ? nil : p.sport
+        if p.durationSec > 0 {
+            s.startTime = p.start
+            s.endTime = p.start.addingTimeInterval(TimeInterval(p.durationSec))
+        }
         s.absorb(p.measures)
         s.source = url.lastPathComponent
         setRestDay(p.date, on: false)
@@ -1235,11 +1424,14 @@ extension Store {
         return .imported(s)
     }
 
-    /// Whether a session of this sport and about this length already exists that day.
-    private func hasSession(on date: String, strength: Bool, sport: String, durationSec: Int) -> Bool {
-        sessions.contains { s in
-            guard s.date == date, strength ? (s.sport == nil) : (s.sport == sport) else { return false }
-            return abs((s.durationSeconds ?? 0) - durationSec) <= Store.sameWorkoutToleranceSec
+    /// Whether a session of this sport already stands for the file's workout that
+    /// day: overlapping in time when both have times, else about as long.
+    private func hasSession(matching p: ParsedWorkout) -> Bool {
+        let end = p.start.addingTimeInterval(TimeInterval(p.durationSec))
+        return sessions.contains { s in
+            guard s.date == p.date, p.sport == "strength" ? (s.sport == nil) : (s.sport == p.sport) else { return false }
+            if p.durationSec > 0, s.overlap(p.start, end) != nil { return s.isSameWorkout(p.start, end) }
+            return abs((s.durationSeconds ?? 0) - p.durationSec) <= Store.sameWorkoutToleranceSec
         }
     }
     private static let sameWorkoutToleranceSec = 120
@@ -1252,13 +1444,7 @@ extension Store {
         guard hk.isAvailable else { completion([]); return }
         hk.requestAuthorization { granted in
             guard granted else { completion([]); return }
-            hk.fetchWorkouts(onDate: date) { workouts in
-                // Hide ones already saved (by UUID) and ones recorded by this app's
-                // own watch companion (those arrive over WatchConnectivity).
-                let existing = Set(self.sessions.flatMap { $0.allHealthUUIDs })
-                let out = workouts.filter { !$0.fromThisApp && !existing.contains($0.uuid) }
-                completion(out)
-            }
+            hk.fetchWorkouts(onDate: date) { workouts in completion(self.importable(workouts)) }
         }
     }
 
@@ -1286,23 +1472,33 @@ extension Store {
         // open with real history instead of building up over three months. Later
         // syncs only need the recent window.
         // The launch sync and the first foreground sync would otherwise overlap,
-        // each pulling a year of samples.
-        // A request that arrives meanwhile (the band just wrote) runs once this
-        // sync ends, so its data is not left for the next launch.
-        guard !isSyncingHealth else {
-            healthResyncRequested = true
-            completion?(false, 0, [])
+        // each pulling a year of samples. A caller arriving meanwhile (the
+        // Sync button) gets the running sync's answer; a request for fresh band
+        // data runs once this sync ends, so its data is not left for the next launch.
+        guard !healthBusy else {
+            if syncInProgress {
+                if let completion { waitingForSync.append(completion) }
+                if days != nil { healthResyncRequested = true }
+            } else {
+                // A history import is reading: this sync runs right after it.
+                afterHealthRead.append { [weak self] in self?.syncHealth(days: days, completion: completion) }
+            }
             return
         }
-        isSyncingHealth = true
+        healthBusy = true
+        syncInProgress = true
         let finish: (Bool, Int, [String]) -> Void = { [weak self] ok, imported, sources in
             guard let self else { return }
-            self.isSyncingHealth = false
-            completion?(ok, imported, sources)
+            let waiting = self.waitingForSync
+            self.waitingForSync = []
+            self.syncInProgress = false
             if self.healthResyncRequested {
                 self.healthResyncRequested = false
-                self.syncHealth(days: Store.healthResyncDays)
+                self.afterHealthRead.append { [weak self] in self?.syncHealth(days: Store.healthResyncDays) }
             }
+            self.healthReadEnded()
+            completion?(ok, imported, sources)
+            waiting.forEach { $0(ok, imported, sources) }
         }
         // The year is read again whenever the reader learns something new about
         // past days: sleep HRV, then (v12) nights on the right day, stages and the
@@ -1310,15 +1506,16 @@ extension Store {
         let window = days ?? (isHealthBackfilled ? Store.healthRoutineDays : Store.healthBackfillDays)
         hk.requestAuthorization { granted in
             guard granted else { finish(false, 0, []); return }
-            hk.fetch(days: window, categories: self.prefs.healthCategories) { samples, complete in
-                self.applyHealthSamples(samples)
+            let categories = self.prefs.healthCategories
+            hk.fetch(days: window, categories: categories) { samples, complete in
+                // Only a complete answer says what Health no longer has.
+                let end = Calendar.current.startOfDay(for: Date())
+                let covered = Calendar.current.date(byAdding: .day, value: -(window - 1), to: end)
+                    .map { Store.dayKeys(from: $0, to: end) }
+                self.applyHealthSamples(samples, clearing: complete ? covered.map { ($0, categories) } : nil)
                 // An incomplete answer leaves the backfill to run again next time.
                 if complete, window >= Store.healthBackfillDays { self.markHealthBackfilled() }
                 self.refreshWorkoutIntensity()
-                // Keep resting HR profile fresh from the most recent reading.
-                if let last = samples.compactMap({ $0.values[.restHR] }).last, last > 0 {
-                    self.prefs.restingHR = Int(last.rounded())
-                }
                 // Workouts stay on the 90-day window even during the daily-metric
                 // backfill: a year of imported sessions from another watch would
                 // bury the user's own log. Sessions already linked to Health are
@@ -1340,25 +1537,48 @@ extension Store {
     ///   • never exports a session that CAME from Health or a file — writing it back
     ///     would duplicate the original record;
     ///   • needs a duration, since an HKWorkout without one carries no information.
-    func exportToHealth(_ session: WorkoutSession, completion: ((Bool) -> Void)? = nil) {
+    /// `route` is the GPS track of a live cardio session, written with the workout.
+    func exportToHealth(_ session: WorkoutSession, route: [CLLocation] = [], completion: ((Bool) -> Void)? = nil) {
         guard prefs.exportsToHealth,
               session.exportedHealthUUID == nil,
               session.healthUUID == nil, session.source == nil,
               let sec = session.durationSeconds, sec > 0 else { completion?(false); return }
         let kcal = estimateCalories(session)
-        HealthKitManager.shared.save(session: session, sport: session.sportType,
-                                     durationSec: sec, kcal: kcal > 0 ? kcal : nil,
-                                     distanceKm: session.distanceKm) { uuid in
+        // A live session knows when it ran; one logged afterwards ends now.
+        let end = session.endTime ?? Date()
+        let start = session.startTime ?? end.addingTimeInterval(-Double(sec))
+        HealthKitManager.shared.save(sport: session.sportType, start: start, end: end,
+                                     kcal: kcal > 0 ? kcal : nil, distanceKm: session.distanceKm,
+                                     route: route) { uuid in
             guard let uuid else { completion?(false); return }
             if let i = self.sessions.firstIndex(where: { $0.id == session.id }) {
                 self.sessions[i].exportedHealthUUID = uuid
+                if self.sessions[i].startTime == nil { self.sessions[i].startTime = start; self.sessions[i].endTime = end }
             }
             completion?(true)
         }
     }
 
     // MARK: Session editing
-    func deleteSession(_ id: UUID) { sessions.removeAll { $0.id == id } }
+    /// Delete a session. Its Health workouts are remembered so the next sync does
+    /// not bring it back. Returns it with its position, for Undo.
+    @discardableResult
+    func deleteSession(_ id: UUID) -> (session: WorkoutSession, index: Int)? {
+        guard let i = sessions.firstIndex(where: { $0.id == id }) else { return nil }
+        let removed = sessions[i]
+        sessions = sessions.filter { $0.id != id }
+        dismissHealthWorkouts(removed.allHealthUUIDs)
+        return (removed, i)
+    }
+
+    /// Undo of a delete: back where it was, and its Health workouts are its own again.
+    func restoreSession(_ session: WorkoutSession, at index: Int) {
+        guard !sessions.contains(where: { $0.id == session.id }) else { return }
+        var list = sessions
+        list.insert(session, at: min(max(0, index), list.count))
+        sessions = list
+        undismissHealthWorkouts(session.allHealthUUIDs)
+    }
 
     /// Copy a past session to another day (default today), keeping its exercises and
     /// their weights but clearing what belongs to the original performance: the
@@ -1392,8 +1612,15 @@ extension Store {
         sessions.append(copy)
         return copy
     }
-    func updateSession(_ s: WorkoutSession) {
-        if let i = sessions.firstIndex(where: { $0.id == s.id }) { sessions[i] = s }
+    /// Save an edited session, or add a new one (from the day picker). A day with
+    /// a workout is no longer a rest day.
+    func saveSession(_ s: WorkoutSession) {
+        if let i = sessions.firstIndex(where: { $0.id == s.id }) {
+            sessions[i] = s
+        } else {
+            setRestDay(s.date, on: false)
+            sessions.append(s)
+        }
     }
 
     /// Fold several sessions from the same day into one — a gym session logged in
@@ -1474,7 +1701,7 @@ extension Store {
         }
 
         sessions.removeAll { s in others.contains { $0.id == s.id } }
-        updateSession(merged)
+        saveSession(merged)
         return merged
     }
 
@@ -1487,12 +1714,12 @@ extension Store {
     }
     func toggleRestDay(_ date: String) { setRestDay(date, on: !isRestDay(date)) }
 
-    // MARK: Quick insert (log a workout for a past/other day from Home or Calendar)
-    /// Create a strength session for `date`, prefilled from the most recent
-    /// session of that plan (its sets, reps, weights, load), or from the plan
-    /// template when there's no history. Marking the day clears any rest flag.
-    @discardableResult
-    func quickInsertSession(plan: WorkoutPlan, date: String) -> WorkoutSession {
+    // MARK: New session for a past/other day (from Home or Calendar)
+    /// A strength session for `date`, prefilled from the most recent session of
+    /// that plan (its sets, reps, weights, load), or from the plan template when
+    /// there's no history. Not saved: the editor's Save adds it, Cancel leaves
+    /// nothing behind.
+    func newSession(plan: WorkoutPlan, date: String) -> WorkoutSession {
         let last = sessions.filter { $0.planId == plan.id }.sorted { $0.date > $1.date }.first
         let exercises: [LoggedExercise]
         if let last {
@@ -1515,15 +1742,12 @@ extension Store {
         // Heart rate is a measurement of that day, not a template: copying it would
         // invent TRIMP load for a day nobody recorded.
         s.durationSec = last?.durationSeconds
-        setRestDay(date, on: false)
-        sessions.append(s)
         return s
     }
 
-    /// Create a cardio session for `date`, prefilled from the most recent log of
-    /// that activity. Returns it so the caller can open the editor to adjust.
-    @discardableResult
-    func quickInsertCardio(type: CardioType, date: String) -> WorkoutSession {
+    /// A cardio session for `date`, prefilled from the most recent log of that
+    /// activity. Not saved until the editor's Save, like `newSession(plan:date:)`.
+    func newSession(cardio type: CardioType, date: String) -> WorkoutSession {
         let pid = "cardio-\(type.id)"
         let last = sessions.filter { $0.planId == pid }.sorted { $0.date > $1.date }.first
         var s = WorkoutSession(date: date, planId: pid, planName: type.name,
@@ -1531,8 +1755,6 @@ extension Store {
         s.durationSec = last?.durationSeconds
         s.distanceKm = last?.distanceKm
         s.paceManual = last?.paceManual
-        setRestDay(date, on: false)
-        sessions.append(s)
         return s
     }
 
@@ -1569,19 +1791,20 @@ extension Store {
 
     // MARK: Exercise library
 
-    /// Auto-save an exercise the first time it is used; update its bodyweight flag.
+    /// Auto-save an exercise the first time it is seen; update its bodyweight flag.
     /// On first save it also gets a suggested movement family (base) and a guessed
-    /// muscle-group category, both of which the user can later override.
+    /// muscle-group category, both of which the user can later override. `used`
+    /// is true only when the exercise was logged: being in a plan is not using it.
     @discardableResult
-    func touchExerciseInLibrary(_ name: String, isBodyweight: Bool = false) -> ExerciseItem {
+    func touchExerciseInLibrary(_ name: String, isBodyweight: Bool = false, used: Bool = true) -> ExerciseItem {
         if let i = exerciseItems.firstIndex(where: { $0.name == name }) {
-            exerciseItems[i].lastUsed = today()
+            if used { exerciseItems[i].lastUsed = today() }
             if isBodyweight { exerciseItems[i].isBodyweight = true }
             if exerciseItems[i].base == nil { exerciseItems[i].base = Store.normalizedBase(name) }
             if exerciseItems[i].category == nil { exerciseItems[i].category = Store.guessCategory(name).rawValue }
             return exerciseItems[i]
         }
-        let item = ExerciseItem(name: name, isBodyweight: isBodyweight, lastUsed: today(),
+        let item = ExerciseItem(name: name, isBodyweight: isBodyweight, lastUsed: used ? today() : nil,
                                 base: Store.normalizedBase(name), category: Store.guessCategory(name).rawValue)
         exerciseItems.append(item)
         return item
@@ -1622,7 +1845,7 @@ extension Store {
         for ex in plan.exercises {
             let name = ex.name.trimmingCharacters(in: .whitespaces)
             guard !name.isEmpty else { continue }
-            touchExerciseInLibrary(name, isBodyweight: ex.bodyweight)
+            touchExerciseInLibrary(name, isBodyweight: ex.bodyweight, used: false)
             if let m = ex.muscle, !m.isEmpty,
                let i = exerciseItems.firstIndex(where: { $0.name == name }) {
                 exerciseItems[i].category = m
@@ -1638,7 +1861,7 @@ extension Store {
             exerciseItems[i].base = (cleanBase?.isEmpty ?? true) ? Store.normalizedBase(name) : cleanBase
             if let category { exerciseItems[i].category = category }
         } else {
-            exerciseItems.append(ExerciseItem(name: name, lastUsed: today(),
+            exerciseItems.append(ExerciseItem(name: name,
                                               base: (cleanBase?.isEmpty ?? true) ? Store.normalizedBase(name) : cleanBase,
                                               category: category ?? Store.guessCategory(name).rawValue))
         }
@@ -1687,7 +1910,7 @@ extension Store {
                 exerciseItems[oi].name = newName
             }
         } else if !isMerge {
-            touchExerciseInLibrary(newName)
+            touchExerciseInLibrary(newName, used: false)
         }
         return true
     }
@@ -1699,6 +1922,8 @@ extension Store {
     func deleteExercise(_ name: String) {
         // Only a session this delete emptied is dropped. Sessions that never had
         // exercises (Health imports, watch sessions, cardio) are not touched.
+        let emptied = sessions.filter { s in !s.exercises.isEmpty && s.exercises.allSatisfy { $0.name == name } }
+        dismissHealthWorkouts(emptied.flatMap(\.allHealthUUIDs))
         sessions = sessions.compactMap { session in
             guard session.exercises.contains(where: { $0.name == name }) else { return session }
             var stripped = session

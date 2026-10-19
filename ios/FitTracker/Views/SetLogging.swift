@@ -78,7 +78,11 @@ struct TimedSetRows: View {
                                 .foregroundColor(Theme.acc).frame(width: 34, height: 42)
                         }.buttonStyle(PressableStyle())
                     }
-                    Button { tap(); exercise.sets.removeAll { $0.id == set.id } } label: {
+                    Button {
+                        tap()
+                        let id = set.id
+                        afterKeyboardDismissed { exercise.sets.removeAll { $0.id == id } }
+                    } label: {
                         Image(systemName: "xmark").accessibilityLabel(t("a11y.remove")).font(.system(size: 13)).foregroundColor(Theme.red.opacity(0.5))
                             .frame(width: 30, height: 42)
                     }.buttonStyle(PressableStyle())

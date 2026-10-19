@@ -173,6 +173,52 @@ final class ScienceTests: XCTestCase {
                        DateComponents(month: 10, day: 12))
     }
 
+    func testWeeklyChartBucketsStartOnMondayWhateverTheDeviceSays() {
+        var sundayFirst = Calendar(identifier: .gregorian)
+        sundayFirst.firstWeekday = 1
+        let sunday = sundayFirst.date(from: DateComponents(year: 2026, month: 10, day: 18, hour: 9))!
+
+        let bucket = Store.ChartGranularity.week.bucket(of: sunday, calendar: sundayFirst)
+
+        XCTAssertEqual(sundayFirst.dateComponents([.month, .day], from: bucket), DateComponents(month: 10, day: 12))
+    }
+
+    // MARK: Goal and plates
+
+    func testTheGoalDecidesWhetherTheRateLosesOrGains() {
+        store.prefs.goalMode = "cut"
+        store.prefs.weeklyRate = 0.5
+        XCTAssertEqual(store.targetRate(), -0.5)
+        XCTAssertLessThan(store.energyTargets().target, store.energyTargets().tdee)
+
+        store.prefs.goalMode = "bulk"
+        store.prefs.weeklyRate = -0.3
+        XCTAssertEqual(store.targetRate(), 0.3)
+
+        store.prefs.goalMode = "maintain"
+        XCTAssertEqual(store.targetRate(), 0)
+    }
+
+    func testATinyPlateCannotStallThePlateCalculator() {
+        store.prefs.plates = [0.0000001, 20]
+        XCTAssertEqual(store.prefs.plateSet, [20])
+        XCTAssertEqual(store.plateBreakdown(target: 60)?.plates, [20])
+    }
+
+    // MARK: Health values that change
+
+    func testAValueRemovedFromHealthIsClearedAfterAFullReadButATypedOneStays() {
+        store.applyHealthSamples([HealthDaySample(date: day(1), values: [.steps: 9_000, .restHR: 55, .vo2max: 45])])
+        store.saveCheckIn(weight: nil, sleep: nil, restHR: 58, date: day(2))
+
+        store.applyHealthSamples([], clearing: (days: [day(1), day(2)], categories: ["steps", "restHR"]))
+
+        XCTAssertNil(store.dailyEntry(day(1))?.steps)
+        XCTAssertNil(store.dailyEntry(day(1))?.restHR)
+        XCTAssertEqual(store.dailyEntry(day(1))?.vo2max, 45, "a category that was not read stays")
+        XCTAssertEqual(store.dailyEntry(day(2))?.restHR, 58, "typed by the user")
+    }
+
     // MARK: Heart rate, VO2max
 
     func testTrimpDoesNotTreatALowSessionPeakAsTheMaxHR() {

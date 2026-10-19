@@ -333,8 +333,10 @@ enum FitDecoder {
             i += size
             if compressed {
                 let offset = UInt32(header & 0x1F)
-                var ts = (lastTimestamp & ~0x1F) + offset
-                if offset < lastTimestamp & 0x1F { ts += 0x20 }
+                // Wrapping arithmetic: a corrupt file near the top of the range
+                // must not trap.
+                var ts = (lastTimestamp & ~0x1F) &+ offset
+                if offset < lastTimestamp & 0x1F { ts &+= 0x20 }
                 lastTimestamp = ts
                 values[253] = Double(ts)
             } else if let ts = values[253] {

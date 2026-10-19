@@ -69,20 +69,14 @@ func wkClock(_ seconds: Int) -> String {
 }
 
 // MARK: - Number parsing / formatting (for strength logging)
-/// Parse a number from a free-text field, accepting "," or ".".
-func parseNum(_ s: String) -> Double? {
-    Double(s.replacingOccurrences(of: ",", with: ".").trimmingCharacters(in: .whitespaces))
-}
 /// First number in a string like "8-10" or "12" -> 8 / 12.
 func firstNumber(_ s: String) -> Double? {
     var out = ""
     for ch in s { if ch.isNumber || ch == "." || ch == "," { out.append(ch) } else if !out.isEmpty { break } }
-    return parseNum(out)
+    return parsedNumber(out)
 }
 /// Compact numeric string: integer when whole, else one decimal.
-func fmtNum(_ v: Double) -> String {
-    v == v.rounded() ? String(Int(v)) : String(format: "%g", (v * 10).rounded() / 10)
-}
+func fmtNum(_ v: Double) -> String { trimNum((v * 10).rounded() / 10) }
 
 // MARK: - Minimal IT/EN strings for the watch
 // The watch shows only a handful of words; rather than ship the phone's whole

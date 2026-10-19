@@ -94,13 +94,17 @@ struct IntensityWeek: Identifiable {
 extension Store {
     private static let intensityDays = 56
 
-    /// Reads the recent workouts from Health and keeps their zones and drift.
+    /// Reads the recent workouts from Health and keeps their zones and drift. Two
+    /// syncs close together can answer out of order: only the latest request lands.
     func refreshWorkoutIntensity() {
         let zones = hrZones()
         guard zones.count == 5 else { return }
         let bounds = zones.map(\.lower) + [zones[4].upper]
+        intensityRequest += 1
+        let request = intensityRequest
         HealthKitManager.shared.fetchIntensity(days: Store.intensityDays, bounds: bounds) { [weak self] result in
-            self?.workoutIntensity = result
+            guard let self, request == self.intensityRequest else { return }
+            self.workoutIntensity = result
         }
     }
 

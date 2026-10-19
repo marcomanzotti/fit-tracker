@@ -108,7 +108,8 @@ final class DataSafetyTests: XCTestCase {
         let store = Store(directory: dir)
 
         XCTAssertNil(store.storageProblem)
-        XCTAssertFalse(store.plans.isEmpty, "an empty plan list is seeded with the defaults")
+        XCTAssertTrue(store.plans.isEmpty, "plans the user deleted stay deleted")
+        XCTAssertFalse(store.cardioTypes.isEmpty, "a file older than cardio activities gets the defaults")
     }
 
     func testImportKeepsACopyOfWhatItReplaces() throws {
@@ -199,5 +200,67 @@ final class DataSafetyTests: XCTestCase {
 
         prefs.setHealthCategories(["steps"])
         XCTAssertEqual(prefs.healthCategories, ["steps"])
+    }
+
+    // MARK: v14
+
+    func testANumberThatIsNotFiniteIsSavedAsZeroAndSavingGoesOn() {
+        let store = Store(directory: dir)
+        store.foods = [FoodItem(name: "Scanned", k100: .nan, p100: .infinity)]
+        store.flushNow()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))     // the save result lands on main
+
+        XCTAssertNil(store.storageProblem)
+        let reread = Store(directory: dir)
+        XCTAssertEqual(reread.foods.first?.k100, 0)
+        XCTAssertEqual(reread.foods.first?.p100, 0)
+        XCTAssertEqual(FoodLog(name: "x", grams: 100, k100: .nan, p100: 0, c100: 0, f100: 0).kcal, 0, "never traps")
+    }
+
+    func testFoodFactsKeepsOnlyFiniteAndPlausibleNumbers() throws {
+        let json = """
+        {"status":1,"product":{"product_name":"Cracker","nutriments":{"energy-kcal_100g":"nan",
+        "energy-kj_100g":"inf","proteins_100g":"12","carbohydrates_100g":250,"fat_100g":"-3"}}}
+        """
+        let food = try XCTUnwrap(OpenFoodFacts.parse(Data(json.utf8), barcode: "12345678"))
+
+        XCTAssertEqual(food.k100, 0)
+        XCTAssertEqual(food.p100, 12)
+        XCTAssertEqual(food.c100, 0, "more than 100 g in 100 g")
+        XCTAssertEqual(food.f100, 0)
+    }
+
+    func testDefaultPlansDoNotComeBackOnceAllAreDeleted() {
+        let first = Store(directory: dir)
+        XCTAssertFalse(first.plans.isEmpty, "a first launch starts from the templates")
+        first.plans = []
+        first.cardioTypes = []
+        first.flushNow()
+
+        let second = Store(directory: dir)
+        XCTAssertTrue(second.plans.isEmpty)
+        XCTAssertTrue(second.cardioTypes.isEmpty)
+    }
+
+    func testLaunchingDoesNotMarkThePlansExercisesAsUsed() {
+        Store(directory: dir).flushNow()
+        let second = Store(directory: dir)
+        XCTAssertTrue(second.exerciseItems.allSatisfy { $0.lastUsed == nil }, "nothing was logged yet")
+    }
+
+    func testOlderDataTakesLastUsedFromTheSessionsAndTheRateSignFromTheGoal() throws {
+        var doc = AppData(sessions: [strengthSession("Bench", date: "2026-09-01")])
+        doc.schemaVersion = 2
+        doc.exerciseItems = [ExerciseItem(name: "Bench", lastUsed: "2026-10-18"),
+                             ExerciseItem(name: "Fly", lastUsed: "2026-10-18")]
+        doc.prefs.goalMode = "cut"
+        doc.prefs.weeklyRate = 0.5
+        try JSONEncoder().encode(doc).write(to: dataFile)
+
+        let store = Store(directory: dir)
+
+        XCTAssertEqual(store.exerciseItems.first { $0.name == "Bench" }?.lastUsed, "2026-09-01")
+        XCTAssertNil(store.exerciseItems.first { $0.name == "Fly" }?.lastUsed, "never logged")
+        XCTAssertEqual(store.prefs.weeklyRate, -0.5)
     }
 }

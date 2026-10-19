@@ -87,6 +87,14 @@ func weekStart(offset: Int = 0, now: Date = Date(), calendar: Calendar = .curren
     return calendar.date(byAdding: .day, value: -daysSinceMonday - offset * 7, to: today) ?? today
 }
 
+/// Run `change` once the focused text field, if any, has let go of the keyboard.
+/// Removing a row while its field is focused traps: the field writes its text back
+/// through a binding into an element that is gone.
+func afterKeyboardDismissed(_ change: @escaping () -> Void) {
+    UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+    DispatchQueue.main.async(execute: change)
+}
+
 /// Total seconds -> compact "1h 05m", "45m 30s" or "30s" for session summaries.
 func fmtDuration(_ seconds: Int) -> String {
     let h = seconds / 3600, m = (seconds % 3600) / 60, s = seconds % 60
@@ -99,14 +107,6 @@ func fmtDuration(_ seconds: Int) -> String {
 func fmtClock(_ seconds: Int) -> String {
     let h = seconds / 3600, m = (seconds % 3600) / 60, s = seconds % 60
     return h > 0 ? String(format: "%d:%02d:%02d", h, m, s) : String(format: "%d:%02d", m, s)
-}
-
-// MARK: - Number formatting
-func trimNum(_ v: Double) -> String {
-    guard v.isFinite else { return "—" }
-    // Int(v) traps outside Int's range, so only whole numbers well inside it.
-    if v == v.rounded(), abs(v) < 1e15 { return String(Int(v)) }
-    return String(format: "%g", v)
 }
 
 // MARK: - Units (metric / imperial)

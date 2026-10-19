@@ -76,15 +76,21 @@ enum RestNotifier {
 
     static func schedule(after seconds: Int) {
         guard seconds > 0 else { return }
+        // Written here, on the main thread: the settings callback below runs on
+        // another queue, where the app's language must not be read.
+        let content = UNMutableNotificationContent()
+        content.title = L.t("wk.rest_over")
+        content.body = L.t("wk.rest_over_body")
+        content.sound = .default
         let center = UNUserNotificationCenter.current()
         center.getNotificationSettings { settings in
             switch settings.authorizationStatus {
             case .notDetermined:
                 center.requestAuthorization(options: [.alert, .sound]) { granted, _ in
-                    if granted { post(after: seconds) }
+                    if granted { post(content, after: seconds) }
                 }
             case .authorized, .provisional, .ephemeral:
-                post(after: seconds)
+                post(content, after: seconds)
             default:
                 break   // denied: the in-app timer and haptic still work
             }
@@ -97,11 +103,7 @@ enum RestNotifier {
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [id])
     }
 
-    private static func post(after seconds: Int) {
-        let content = UNMutableNotificationContent()
-        content.title = L.t("wk.rest_over")
-        content.body = L.t("wk.rest_over_body")
-        content.sound = .default
+    private static func post(_ content: UNNotificationContent, after seconds: Int) {
         let trigger = UNTimeIntervalNotificationTrigger(timeInterval: Double(seconds), repeats: false)
         let req = UNNotificationRequest(identifier: id, content: content, trigger: trigger)
         let center = UNUserNotificationCenter.current()
@@ -142,8 +144,8 @@ final class ActiveWorkout: ObservableObject {
     /// Id of the watch workout folded into this session. The saved session takes
     /// it, so the same result arriving again over the second transport dedupes.
     private(set) var watchResultId: String?
-    /// The HKWorkout the watch saved for this session. Not in the draft: a session
-    /// restored after a relaunch is saved without it.
+    /// The HKWorkout the watch saved for this session. In the draft too: a session
+    /// restored without it was exported to Health a second time.
     private var watchHealthUUID: String?
     /// Last time the log or a session field changed.
     private(set) var lastEditAt: Date?
@@ -227,7 +229,8 @@ final class ActiveWorkout: ObservableObject {
         return WorkoutDraft.Strength(plan: plan, log: log, startDate: startDate,
                                      lastEditAt: lastEditAt ?? startDate,
                                      durationSec: durationSec, avgHR: avgHR,
-                                     caloriesManual: caloriesManual, watchResultId: watchResultId)
+                                     caloriesManual: caloriesManual, watchResultId: watchResultId,
+                                     watchHealthUUID: watchHealthUUID)
     }
 
     func restore(_ draft: WorkoutDraft.Strength) {
@@ -239,6 +242,7 @@ final class ActiveWorkout: ObservableObject {
         avgHR = draft.avgHR
         caloriesManual = draft.caloriesManual
         watchResultId = draft.watchResultId
+        watchHealthUUID = draft.watchHealthUUID
         lastEditAt = draft.lastEditAt      // after the assignments above, which count as edits
         let idle = clock().timeIntervalSince(draft.lastEditAt)
         restored = idle > Self.staleAfterSec ? .stale : .resumed
@@ -345,6 +349,8 @@ final class ActiveWorkout: ObservableObject {
         // Duration source of truth: the value the user typed, else whatever the
         // paired watch streamed in (both land in durationSec), else the clock.
         session.durationSec = durationSec ?? fallbackDurationSec(now: clock())
+        session.startTime = startDate
+        session.endTime = startDate.addingTimeInterval(TimeInterval(session.durationSec ?? 0))
         session.avgHR = Int(avgHR)
         session.caloriesManual = Int(caloriesManual).flatMap { $0 > 0 ? $0 : nil }
         return session
@@ -363,6 +369,7 @@ struct WorkoutDraft: Codable, Equatable {
         var avgHR: String
         var caloriesManual: String
         var watchResultId: String?
+        var watchHealthUUID: String?
     }
     struct Cardio: Codable, Equatable {
         var type: CardioType

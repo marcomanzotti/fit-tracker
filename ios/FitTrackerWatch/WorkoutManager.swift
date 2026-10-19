@@ -249,10 +249,10 @@ final class WorkoutManager: NSObject, ObservableObject {
             var phR: [Double] = [], phW: [Double] = [], phS: [Double] = []
             let defSec = Double(e.targetSec ?? 30)
             for i in 0..<n {
-                phR.append(i < e.lastReps.count ? (parseNum(e.lastReps[i]) ?? def) : def)
-                phW.append(i < e.lastWeight.count ? (parseNum(e.lastWeight[i]) ?? 0) : 0)
+                phR.append(i < e.lastReps.count ? (parsedNumber(e.lastReps[i]) ?? def) : def)
+                phW.append(i < e.lastWeight.count ? (parsedNumber(e.lastWeight[i]) ?? 0) : 0)
                 let last = e.lastSeconds ?? []
-                phS.append(i < last.count ? (parseNum(last[i]) ?? defSec) : defSec)
+                phS.append(i < last.count ? (parsedNumber(last[i]) ?? defSec) : defSec)
             }
             return ExLog(name: e.name,
                          setReps: Array(repeating: nil, count: n),
@@ -297,13 +297,14 @@ final class WorkoutManager: NSObject, ObservableObject {
     private struct Snapshot: Codable {
         var activity: WatchActivity
         var exLogs: [ExLog]
+        var startDate: Date?
     }
     private static let snapshotKey = "fittracker.watch.session"
 
     private func saveSnapshot() {
         guard let activity else { return }
         do {
-            let data = try JSONEncoder().encode(Snapshot(activity: activity, exLogs: exLogs))
+            let data = try JSONEncoder().encode(Snapshot(activity: activity, exLogs: exLogs, startDate: startDate))
             UserDefaults.standard.set(data, forKey: Self.snapshotKey)
         } catch {
             appLog.error("Workout snapshot not saved: \(String(describing: error), privacy: .public)")
@@ -332,7 +333,8 @@ final class WorkoutManager: NSObject, ObservableObject {
         activity = snapshot.activity
         exLogs = snapshot.exLogs
         let a = snapshot.activity
-        WatchLink.shared.queue(WatchResult(id: UUID().uuidString, date: wkToday(), kind: a.kind,
+        let day = snapshot.startDate.map { wkISO.string(from: $0) } ?? wkToday()
+        WatchLink.shared.queue(WatchResult(id: UUID().uuidString, date: day, kind: a.kind,
                                            activityId: a.id, name: a.name, color: a.color, sport: a.sport,
                                            durationSec: 0, avgHR: nil, maxHR: nil, activeKcal: nil,
                                            distanceKm: nil, exercises: resultExercises()))
@@ -365,7 +367,8 @@ final class WorkoutManager: NSObject, ObservableObject {
         let resultEx = resultExercises()
         let r = WatchResult(
             id: UUID().uuidString,
-            date: wkToday(),
+            // The day it started: a workout ending after midnight belongs to that day.
+            date: wkISO.string(from: startDate),
             kind: a?.kind ?? WatchKind.cardio.rawValue,
             activityId: a?.id ?? "",
             name: a?.name ?? wt("cardio"),

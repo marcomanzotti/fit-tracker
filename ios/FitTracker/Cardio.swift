@@ -101,7 +101,11 @@ struct CardioLoggerView: View {
 
     private func save() {
         guard let dur = durationSec, dur > 0 else { toast.show(t("wk.duration")); return }
-        store.sessions.append(buildSession())
+        let session = buildSession()
+        store.saveSession(session)
+        if store.prefs.exportsToHealth {
+            store.exportToHealth(session) { [toast] ok in toast.show(t(ok ? "hk.exported" : "hk.export_failed")) }
+        }
         haptic(.success)
         toast.show(t("save"))
         dismiss()
@@ -403,8 +407,15 @@ struct LiveCardioView: View {
         guard var s = activeCardio.finishedSession(live: liveSample) else { discard(); return }
         // The watch's measured energy is already on the session; else the estimate.
         if s.caloriesManual == nil, let k = estCalories, k > 0 { s.caloriesManual = k }
-        store.sessions.append(s)
+        store.saveSession(s)
         store.flushNow()            // before the draft is removed
+        // To Health with its GPS track, when the user opted in. A session the
+        // paired watch recorded is already there (it carries its UUID).
+        if store.prefs.exportsToHealth {
+            store.exportToHealth(s, route: activeCardio.route) { [toast] ok in
+                toast.show(t(ok ? "hk.exported" : "hk.export_failed"))
+            }
+        }
         haptic(.success)
         toast.show(t("wk.session_saved"))
         onSaved()

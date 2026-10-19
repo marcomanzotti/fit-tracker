@@ -277,7 +277,6 @@ enum L {
         "ob.weight":         ("Peso attuale", "Current weight"),
         "ob.goal_weight":    ("Peso obiettivo", "Goal weight"),
         "ob.goal_mode":      ("Obiettivo", "Goal"),
-        "ob.rate":           ("Ritmo", "Rate"),
         "ob.per_wk":         ("sett", "wk"),
         "ob.activity":       ("Livello di attività", "Activity level"),
         "ob.act_sed":        ("Sedentario", "Sedentary"),
@@ -1367,6 +1366,12 @@ enum L {
         "set.live_activity":  ("Allenamento su schermata di blocco", "Workout on Lock Screen"),
         "set.live_activity_hint": ("Mostra cronometro, esercizio in corso e recupero su schermata di blocco e Dynamic Island.",
                                    "Shows the clock, current exercise and rest on the Lock Screen and Dynamic Island."),
+
+        // --- v14 ---------------------------------------------------------------
+        "wk.session_deleted": ("Allenamento eliminato", "Workout deleted"),
+        "store.repaired":     ("Un valore non valido è stato salvato come 0", "An invalid value was saved as 0"),
+        "ob.rate_loss":       ("Peso da perdere", "Weight to lose"),
+        "ob.rate_gain":       ("Peso da prendere", "Weight to gain"),
     ]
 }
 

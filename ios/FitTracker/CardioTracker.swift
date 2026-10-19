@@ -174,6 +174,10 @@ final class ActiveCardio: ObservableObject {
     }
 
     // MARK: Finishing
+    /// The GPS track so far, for the workout written to Health. Kept in memory
+    /// only: a session restored after a relaunch exports without it.
+    var route: [CLLocation] { gps?.route ?? [] }
+
     /// Distance to show and save: the watch's when it measured one, else GPS.
     func distanceKm(live: WatchLiveSample?) -> Double? {
         if let d = watchResult?.distanceKm, d > 0 { return d }
@@ -192,6 +196,8 @@ final class ActiveCardio: ObservableObject {
         if let id = (watchResult?.id).flatMap(UUID.init(uuidString:)) { session.id = id }
         session.sport = type.sport
         session.durationSec = seconds
+        session.startTime = startDate
+        session.endTime = clock()
         session.avgHR = (watchResult?.avgHR ?? watchAvgHR).flatMap { $0 > 0 ? $0 : nil }
         session.maxHRSes = (watchResult?.maxHR).flatMap { $0 > 0 ? $0 : nil }
         session.distanceKm = distanceKm(live: live)
@@ -210,6 +216,8 @@ final class LocationTracker: NSObject, ObservableObject, CLLocationManagerDelega
     @Published var distanceKm: Double = 0
     @Published var speedMS: Double = 0
     @Published var authorized = false
+    /// Every accepted fix since start.
+    private(set) var route: [CLLocation] = []
 
     private let manager = CLLocationManager()
     private var last: CLLocation?
@@ -243,6 +251,7 @@ final class LocationTracker: NSObject, ObservableObject, CLLocationManagerDelega
         running = true
         paused = false
         last = nil
+        route = []
         distanceKm = km
         speedMS = 0
         // Ask for permission the first time; updates begin once granted.
@@ -286,6 +295,7 @@ final class LocationTracker: NSObject, ObservableObject, CLLocationManagerDelega
             guard loc.horizontalAccuracy >= 0, loc.horizontalAccuracy < Self.maxAccuracyMeters,
                   abs(loc.timestamp.timeIntervalSinceNow) < Self.maxFixAgeSeconds else { continue }
             speedMS = max(0, loc.speed)
+            route.append(loc)
             if let prev = last {
                 let step = loc.distance(from: prev)
                 if step >= Self.minStepMeters { distanceKm += step / 1000 }

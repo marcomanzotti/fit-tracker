@@ -134,10 +134,17 @@ struct RootView: View {
         // time the app returns to the foreground, so a session recorded on a
         // Garmin/Fitbit/etc. shows up without a manual refresh.
         .onChange(of: scenePhase) { _, phase in
+            if phase == .active { store.refreshDay() }
             if phase == .active, store.prefs.healthKitEnabled { store.syncHealth(completion: healthToast) }
             // The autosave is debounced: write now, before the app can be suspended.
             if phase != .active { store.flushNow() }
         }
+        .onChange(of: store.repairedNumbers) { announceRepairedNumbers() }
+    }
+
+    /// Said once: a save met a number that was not a number and wrote it as 0.
+    private func announceRepairedNumbers() {
+        toast.show(t("store.repaired"), duration: ToastCenter.longDuration)
     }
 
     /// Tell the user a session was brought back, and take them to it.

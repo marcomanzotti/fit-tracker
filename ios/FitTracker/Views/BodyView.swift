@@ -29,7 +29,7 @@ struct BodyView: View {
     @State private var day = today()
     @State private var showHealthHistory = false
 
-    private var isToday: Bool { day == today() }
+    private var isToday: Bool { day == store.currentDay }
 
     var body: some View {
         // Analysis follows the selected day when that day carries its own numbers,
@@ -91,6 +91,9 @@ struct BodyView: View {
             }
         }
         .sheet(isPresented: $showHealthHistory) { HealthHistoryView() }
+        // Left open on today past midnight: today is the new day, so the morning
+        // weigh-in lands on it and not on yesterday.
+        .onChange(of: store.currentDay) { old, new in if day == old { day = new } }
         .onChange(of: day) {
             // Every card prefills from the store, so clear typed-but-unsaved text
             // when the day changes — otherwise yesterday's draft leaks into today.

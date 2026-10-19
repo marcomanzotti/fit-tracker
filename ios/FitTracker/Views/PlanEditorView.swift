@@ -204,7 +204,7 @@ struct PlanEditorView: View {
             HStack(alignment: .top, spacing: 8) {
                 ExerciseNameField(name: ex.name, placeholder: t("pe.ex_name_ph"))
                 BodyweightChip(isBodyweight: ex.isBodyweight)
-                Button { tap(); plan.exercises.removeAll { $0.id == id } } label: {
+                Button { tap(); afterKeyboardDismissed { plan.exercises.removeAll { $0.id == id } } } label: {
                     Image(systemName: "xmark").accessibilityLabel(t("a11y.remove")).font(.system(size: 13)).foregroundColor(Theme.red.opacity(0.7))
                         .frame(width: 30, height: 34)
                 }.buttonStyle(PressableStyle())

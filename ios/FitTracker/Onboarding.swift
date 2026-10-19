@@ -104,7 +104,7 @@ struct ProfileFields {
         weight = dispW(currentWeight)
         goalWeight = dispW(p.goalWeight)
         goalMode = p.goal.rawValue
-        rate = p.weeklyRate.map { dispW($0) } ?? ""
+        rate = p.weeklyRate.map { dispW(abs($0)) } ?? ""
         activity = p.activityLevel.rawValue
         trainDays = p.trainingDays.map(String.init) ?? ""
         restHR = p.restingHR.map(String.init) ?? ""
@@ -118,7 +118,7 @@ struct ProfileFields {
         if pf(heightCm) > 0 { p.height = Units.heightIn(pf(heightCm)) }
         if pf(goalWeight) > 0 { p.goalWeight = Units.wIn(pf(goalWeight)) }
         p.goalMode = goalMode
-        p.weeklyRate = rate.isEmpty ? nil : Units.wIn(pf(rate))
+        p.setWeeklyRate(rate.isEmpty ? nil : Units.wIn(pf(rate)))
         p.activity = activity
         p.trainingDays = Int(trainDays)
         p.restingHR = Int(restHR)
@@ -148,6 +148,11 @@ private func activityDesc(_ v: String) -> String {
     default:          return ""
     }
 }
+/// "Weight to lose (kg/week)" or "to gain", from the goal.
+func rateLabel(_ goalMode: String) -> String {
+    "\(t(goalMode == GoalMode.cut.rawValue ? "ob.rate_loss" : "ob.rate_gain")) (\(Units.wLabel)/\(t("ob.per_wk")))"
+}
+
 private func goalTitle(_ v: String) -> String {
     switch v {
     case "cut":      return t("nut.cut")
@@ -192,7 +197,10 @@ struct ProfileFormBody: View {
             }
             HStack(spacing: 12) {
                 FieldRow(label: "\(t("ob.goal_weight")) (\(Units.wLabel))") { InputField(placeholder: Units.imperial ? "165" : "75", text: $f.goalWeight) }
-                FieldRow(label: "\(t("ob.rate")) (\(Units.wLabel)/\(t("ob.per_wk")))") { InputField(placeholder: "-0.5", text: $f.rate) }
+                // A plain number: the goal says whether it is lost or gained.
+                if f.goalMode != GoalMode.maintain.rawValue {
+                    FieldRow(label: rateLabel(f.goalMode)) { InputField(placeholder: Units.imperial ? "1" : "0.5", text: $f.rate) }
+                }
             }
             VStack(alignment: .leading, spacing: 7) {
                 HStack(spacing: 2) {
@@ -538,7 +546,7 @@ struct SettingsView: View {
         let plates = platesText
             .split(whereSeparator: { $0.isWhitespace || $0 == ";" })
             .map { pf(String($0)) }
-            .filter { $0 > 0 }
+            .filter { $0 >= Prefs.smallestPlateKg }
         p.plates = plates.isEmpty ? nil : plates.sorted(by: >)
         store.prefs = p
         store.syncLang()

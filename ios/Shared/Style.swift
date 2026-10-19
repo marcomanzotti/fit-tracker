@@ -3,6 +3,35 @@ import SwiftUI
 // Colour, font and formatting helpers shared by the phone app, the watch app and
 // the widgets, so the three look the same and the definitions exist once.
 
+// MARK: - Numbers
+/// No weight, rep count, distance or duration in this app comes near this.
+private let maxParsedMagnitude = 1e9
+
+/// A number typed or received as text, accepting "," or "."; nil when it is not a
+/// plain, sane number. "inf", "nan" and absurd magnitudes would otherwise break JSON
+/// encoding (and so every later save) or trap in an `Int(...)` conversion.
+func parsedNumber(_ s: String) -> Double? {
+    guard let v = Double(s.replacingOccurrences(of: ",", with: ".").trimmingCharacters(in: .whitespaces)),
+          v.isFinite, abs(v) < maxParsedMagnitude else { return nil }
+    return v
+}
+
+/// `parsedNumber`, with 0 for anything that is not a number (mirrors the web app's pf()).
+func pf(_ s: String) -> Double { parsedNumber(s) ?? 0 }
+
+/// Rounded to an Int, 0 when the value is not finite or out of range: `Int(_:)` traps there.
+func safeInt(_ v: Double) -> Int {
+    guard v.isFinite, abs(v) < maxParsedMagnitude else { return 0 }
+    return Int(v.rounded())
+}
+
+func trimNum(_ v: Double) -> String {
+    guard v.isFinite else { return "—" }
+    // Int(v) traps outside Int's range, so only whole numbers well inside it.
+    if v == v.rounded(), abs(v) < 1e15 { return String(Int(v)) }
+    return String(format: "%g", v)
+}
+
 /// "1.0 · 412 · 9d1b60e": version, build number (commit count) and commit, set by
 /// build_and_run.py. A build from the Xcode IDE shows only version and build.
 var appVersionLabel: String {

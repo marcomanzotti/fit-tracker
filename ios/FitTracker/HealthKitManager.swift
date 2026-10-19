@@ -1,4 +1,5 @@
 import Band10Sync
+import CoreLocation
 import Foundation
 #if canImport(HealthKit)
 import HealthKit
@@ -190,6 +191,8 @@ struct HealthWorkout {
     var measures: WorkoutMeasures
     var fromThisApp: Bool     // recorded or exported by FitTracker itself (not the band it syncs)
     var sourceName: String    // origin app name ("Garmin Connect", "Polar Flow", …)
+    var start: Date? = nil
+    var end: Date? = nil
 
     var durationSec: Int { measures.durationSec }
     var kcal: Int? { measures.kcal }
@@ -358,51 +361,34 @@ final class HealthKitManager {
 
     // MARK: Writing a session back into Health
     /// Save a logged session as an HKWorkout so it counts toward the activity rings
-    /// and shows up in Fitness. Uses HKWorkoutBuilder (the HKWorkout initialiser is
-    /// deprecated from iOS 17), and returns the new sample's UUID so the caller can
-    /// record it and avoid writing the same session twice.
-    ///
-    /// The end time is "now" and the start is `end - duration`: a session logged in
-    /// the app has a date and a length but no wall-clock start, and back-dating a
+    /// and shows up in Fitness, with the GPS track of a live cardio session. Returns
+    /// the new workout's UUID so the caller can record it and never write the same
+    /// session twice. The caller passes the real start and end when the session was
+    /// live, else the end is "now" and the start `end - duration`: back-dating a
     /// guess would put the workout at the wrong hour in Health.
-    func save(session: WorkoutSession, sport: Sport, durationSec: Int, kcal: Int?, distanceKm: Double?,
+    func save(sport: Sport, start: Date, end: Date, kcal: Int?, distanceKm: Double?, route: [CLLocation],
               completion: @escaping (String?) -> Void) {
         #if canImport(HealthKit)
-        guard isAvailable, durationSec > 0 else { completion(nil); return }
-        let config = HKWorkoutConfiguration()
-        config.activityType = Self.activityType(for: sport)
-        config.locationType = .unknown
-
-        let end = Date()
-        let start = end.addingTimeInterval(-Double(durationSec))
-        let builder = HKWorkoutBuilder(healthStore: store, configuration: config, device: .local())
-
-        var samples: [HKSample] = []
-        if let kcal, kcal > 0, let t = HKObjectType.quantityType(forIdentifier: .activeEnergyBurned) {
-            let q = HKQuantity(unit: .kilocalorie(), doubleValue: Double(kcal))
-            samples.append(HKQuantitySample(type: t, quantity: q, start: start, end: end))
-        }
-        if let km = distanceKm, km > 0, let id = Self.distanceIdentifier(for: sport),
-           let t = HKObjectType.quantityType(forIdentifier: id) {
-            let q = HKQuantity(unit: .meter(), doubleValue: km * 1000)
-            samples.append(HKQuantitySample(type: t, quantity: q, start: start, end: end))
-        }
-
-        builder.beginCollection(withStart: start) { ok, _ in
-            guard ok else { DispatchQueue.main.async { completion(nil) }; return }
-            let finish = {
-                builder.endCollection(withEnd: end) { ok2, _ in
-                    guard ok2 else { DispatchQueue.main.async { completion(nil) }; return }
-                    builder.finishWorkout { workout, _ in
-                        DispatchQueue.main.async { completion(workout?.uuid.uuidString) }
-                    }
-                }
+        Task {
+            var samples: [HKSample] = []
+            if let kcal, kcal > 0, let t = HKObjectType.quantityType(forIdentifier: .activeEnergyBurned) {
+                samples.append(HKQuantitySample(type: t, quantity: HKQuantity(unit: .kilocalorie(), doubleValue: Double(kcal)),
+                                                start: start, end: end))
             }
-            if samples.isEmpty {
-                finish()
-            } else {
-                builder.add(samples) { _, _ in finish() }
+            if let km = distanceKm, km > 0, let id = Self.distanceIdentifier(for: sport),
+               let t = HKObjectType.quantityType(forIdentifier: id) {
+                samples.append(HKQuantitySample(type: t, quantity: HKQuantity(unit: .meter(), doubleValue: km * 1000),
+                                                start: start, end: end))
             }
+            let uuid: String?
+            do {
+                uuid = try await writeWorkout(sport: sport, start: start, end: end, samples: samples,
+                                              route: route, device: .local())
+            } catch {
+                appLog.error("Workout not exported to Health: \(String(describing: error), privacy: .public)")
+                uuid = nil
+            }
+            await MainActor.run { completion(uuid) }
         }
         #else
         completion(nil)
@@ -446,7 +432,8 @@ final class HealthKitManager {
             displayName: Self.displayName(for: w.workoutActivityType),
             measures: Self.measures(of: w),
             fromThisApp: !band && (src == appBundle || src.hasPrefix("com.marco.manzotti.fittracker")),
-            sourceName: band ? (w.device?.name ?? "Xiaomi Smart Band") : w.sourceRevision.source.name)
+            sourceName: band ? (w.device?.name ?? "Xiaomi Smart Band") : w.sourceRevision.source.name,
+            start: w.startDate, end: w.endDate)
     }
 
     /// Map an HKWorkoutActivityType to the app's Sport raw value.

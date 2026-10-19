@@ -115,10 +115,13 @@ extension Store {
                                avgIntake: avgIntake, days: days, status: status)
     }
 
-    /// Target kg/week (signed). User value wins, else derived from goal mode.
+    /// Target kg/week, signed by the goal: a cut always loses, a bulk always gains,
+    /// maintenance holds. The pace typed by the user wins over the goal's default.
     func targetRate() -> Double {
-        if let r = prefs.weeklyRate, abs(r) > 0.001 { return r }
-        return prefs.goal.defaultWeeklyPct / 100 * lastWeight
+        let goal = prefs.goal
+        guard goal != .maintain else { return 0 }
+        if let r = prefs.weeklyRate, abs(r) > 0.001 { return goal == .cut ? -abs(r) : abs(r) }
+        return goal.defaultWeeklyPct / 100 * lastWeight
     }
 
     /// Fat-free mass from current body-fat %, if known.

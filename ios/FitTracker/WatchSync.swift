@@ -199,7 +199,42 @@ extension Store {
     func ingestWatchResult(_ r: WatchResult) {
         // De-dupe: the same result may arrive via more than one transport.
         if let rid = UUID(uuidString: r.id), sessions.contains(where: { $0.id == rid }) { return }
+        if let uuid = r.healthUUID, sessions.contains(where: { $0.allHealthUUIDs.contains(uuid) }) { return }
+        let exercises = watchExercises(r)
 
+        // The phone saved this workout before the watch's result came in: the
+        // session takes what the watch measured instead of a second session
+        // counting the same load and calories twice.
+        if let i = sessions.firstIndex(where: { $0.date == r.date && $0.planId == r.activityId
+                                                && $0.healthUUID == nil && $0.source == nil }) {
+            var s = sessions[i]
+            if s.durationSeconds == nil, r.durationSec > 0 { s.durationSec = r.durationSec }
+            if s.avgHR == nil { s.avgHR = (r.avgHR ?? 0) > 0 ? r.avgHR : nil }
+            if s.maxHRSes == nil { s.maxHRSes = (r.maxHR ?? 0) > 0 ? r.maxHR : nil }
+            if (s.distanceKm ?? 0) <= 0, let d = r.distanceKm, d > 0 { s.distanceKm = d }
+            if s.caloriesManual == nil, let k = r.activeKcal, k > 0 { s.caloriesManual = k }
+            if s.exercises.isEmpty { s.exercises = exercises }
+            s.healthUUID = r.healthUUID
+            sessions[i] = s
+            return
+        }
+
+        var s = WorkoutSession(date: r.date, planId: r.activityId, planName: r.name,
+                               planColor: r.color, exercises: exercises)
+        s.id = UUID(uuidString: r.id) ?? UUID()
+        s.sport = (r.kind == WatchKind.cardio.rawValue) ? r.sport : nil
+        s.durationSec = r.durationSec > 0 ? r.durationSec : nil
+        s.avgHR = (r.avgHR ?? 0) > 0 ? r.avgHR : nil
+        s.maxHRSes = (r.maxHR ?? 0) > 0 ? r.maxHR : nil
+        s.distanceKm = (r.distanceKm ?? 0) > 0 ? r.distanceKm : nil
+        if let k = r.activeKcal, k > 0 { s.caloriesManual = k }
+        s.healthUUID = r.healthUUID
+        sessions.append(s)
+    }
+
+    /// The strength sets logged on the wrist, with the plan's metadata; the plan's
+    /// empty template when nothing was confirmed there; nothing for cardio.
+    private func watchExercises(_ r: WatchResult) -> [LoggedExercise] {
         var exercises: [LoggedExercise] = []
         if r.kind == WatchKind.strength.rawValue {
             let plan = plans.first(where: { $0.id == r.activityId })
@@ -236,18 +271,7 @@ extension Store {
                 }
             }
         }
-
-        var s = WorkoutSession(date: r.date, planId: r.activityId, planName: r.name,
-                               planColor: r.color, exercises: exercises)
-        s.id = UUID(uuidString: r.id) ?? UUID()
-        s.sport = (r.kind == WatchKind.cardio.rawValue) ? r.sport : nil
-        s.durationSec = r.durationSec > 0 ? r.durationSec : nil
-        s.avgHR = (r.avgHR ?? 0) > 0 ? r.avgHR : nil
-        s.maxHRSes = (r.maxHR ?? 0) > 0 ? r.maxHR : nil
-        s.distanceKm = (r.distanceKm ?? 0) > 0 ? r.distanceKm : nil
-        if let k = r.activeKcal, k > 0 { s.caloriesManual = k }
-        s.healthUUID = r.healthUUID
-        sessions.append(s)
+        return exercises
     }
 }
 

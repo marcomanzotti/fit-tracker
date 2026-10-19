@@ -535,6 +535,11 @@ struct LiveWorkoutView: View {
     /// Remove a set, leaving a few seconds to take it back: the X sits right next to
     /// the fields, and a slip mid-workout should not cost the numbers just typed.
     private func removeSet(_ setId: UUID, from exerciseId: UUID) {
+        if focus?.setId == setId { focus = nil }
+        afterKeyboardDismissed { removeSetNow(setId, from: exerciseId) }
+    }
+
+    private func removeSetNow(_ setId: UUID, from exerciseId: UUID) {
         guard let ei = log.firstIndex(where: { $0.id == exerciseId }),
               let si = log[ei].sets.firstIndex(where: { $0.id == setId }) else { return }
         let removed = log[ei].sets[si]
@@ -605,8 +610,8 @@ struct LiveWorkoutView: View {
             store.plans[idx].exercises.append(PlanExercise(name: name, sets: 3, reps: "10",
                                                            isBodyweight: isBW ? true : nil))
         }
-        // Auto-save to the exercise library on first use.
-        store.touchExerciseInLibrary(name, isBodyweight: isBW)
+        // Into the library now; it counts as used once a set of it is saved.
+        store.touchExerciseInLibrary(name, isBodyweight: isBW, used: false)
         addName = ""
         toast.show(t("wk.ex_added"))
     }

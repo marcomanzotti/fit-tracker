@@ -133,28 +133,32 @@ enum OpenFoodFacts {
         }.resume()
     }
 
-    private static func parse(_ data: Data, barcode: String) -> FoodItem? {
+    /// A food database is outside data: values are taken only when they are
+    /// numbers a label can carry per 100 g.
+    private static let maxKcal = 900.0, maxKJ = 3_800.0, maxGrams = 100.0
+
+    static func parse(_ data: Data, barcode: String) -> FoodItem? {
         // Anything that is not the expected JSON is "no such product".
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               (json["status"] as? Int) == 1,
               let product = json["product"] as? [String: Any] else { return nil }
 
         let nutr = product["nutriments"] as? [String: Any] ?? [:]
-        func num(_ keys: [String]) -> Double {
+        func num(_ keys: [String], max: Double) -> Double {
             for k in keys {
-                if let v = nutr[k] as? Double { return v }
-                if let s = nutr[k] as? String, let v = Double(s) { return v }
+                let v = (nutr[k] as? Double) ?? (nutr[k] as? String).flatMap(parsedNumber)
+                if let v, v.isFinite, (0...max).contains(v) { return v }
             }
             return 0
         }
-        var kcal = num(["energy-kcal_100g", "energy-kcal"])
+        var kcal = num(["energy-kcal_100g", "energy-kcal"], max: maxKcal)
         if kcal == 0 {                                   // some products only list kJ
-            let kj = num(["energy-kj_100g", "energy-kj", "energy_100g"])
+            let kj = num(["energy-kj_100g", "energy-kj", "energy_100g"], max: maxKJ)
             if kj > 0 { kcal = kj / 4.184 }
         }
-        let p = num(["proteins_100g"])
-        let c = num(["carbohydrates_100g"])
-        let f = num(["fat_100g"])
+        let p = num(["proteins_100g"], max: maxGrams)
+        let c = num(["carbohydrates_100g"], max: maxGrams)
+        let f = num(["fat_100g"], max: maxGrams)
 
         let rawName = (product["product_name"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard !rawName.isEmpty || kcal > 0 else { return nil }   // nothing usable

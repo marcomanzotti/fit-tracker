@@ -18,11 +18,19 @@ private enum W {
     static let blue = Color(hex: "4fb8c4")
 }
 
-/// Italian/English pair chosen from the device language — the extension has no
-/// access to the app's runtime language table, and these are the only two strings
-/// it shows.
-private func wl(_ it: String, _ en: String) -> String {
-    (Locale.preferredLanguages.first?.hasPrefix("it") == true) ? it : en
+/// Italian/English pair in the app's language, which the app writes into the
+/// widget snapshot; the device language before the app has written one.
+private func wl(_ it: String, _ en: String, lang: String? = WidgetSnapshot.load()?.lang) -> String {
+    let code = lang ?? (Locale.preferredLanguages.first?.hasPrefix("it") == true ? "it" : "en")
+    return code == "it" ? it : en
+}
+
+/// The rest still to run, from one reading of the clock: reading it twice (once to
+/// test, once to build the range) traps when the rest ends in between.
+private func restRange(_ state: WorkoutActivityAttributes.ContentState) -> ClosedRange<Date>? {
+    let now = Date()
+    guard let end = state.restEndsAt, end > now else { return nil }
+    return now...end
 }
 
 struct WorkoutLiveActivity: Widget {
@@ -53,10 +61,10 @@ struct WorkoutLiveActivity: Widget {
                         Label("\(context.state.setsDone) \(wl("serie", "sets"))", systemImage: "list.bullet")
                             .font(.caption2).foregroundColor(W.sub)
                         Spacer()
-                        if let end = context.state.restEndsAt, end > Date() {
+                        if let rest = restRange(context.state) {
                             HStack(spacing: 4) {
                                 Image(systemName: "hourglass").font(.caption2)
-                                Text(timerInterval: Date()...end, countsDown: true)
+                                Text(timerInterval: rest, countsDown: true)
                                     .font(.caption.monospacedDigit().weight(.semibold))
                                     .frame(width: 44)
                             }
@@ -98,10 +106,10 @@ struct WorkoutLiveActivity: Widget {
             Spacer(minLength: 0)
             VStack(alignment: .trailing, spacing: 2) {
                 clock(context).font(.title2.monospacedDigit().weight(.semibold)).foregroundColor(W.txt)
-                if let end = context.state.restEndsAt, end > Date() {
+                if let rest = restRange(context.state) {
                     HStack(spacing: 4) {
                         Image(systemName: "hourglass").font(.caption2)
-                        Text(timerInterval: Date()...end, countsDown: true)
+                        Text(timerInterval: rest, countsDown: true)
                             .font(.caption.monospacedDigit().weight(.semibold))
                             .frame(width: 46, alignment: .trailing)
                     }
@@ -122,8 +130,8 @@ struct WorkoutLiveActivity: Widget {
     /// In the compact island the rest countdown is the more urgent number, so it
     /// takes the slot whenever a rest is running.
     private func compactTimer(_ context: ActivityViewContext<WorkoutActivityAttributes>) -> Text {
-        if let end = context.state.restEndsAt, end > Date() {
-            return Text(timerInterval: Date()...end, countsDown: true)
+        if let rest = restRange(context.state) {
+            return Text(timerInterval: rest, countsDown: true)
         }
         return Text(context.state.startDate, style: .timer)
     }
@@ -132,6 +140,14 @@ struct WorkoutLiveActivity: Widget {
 // MARK: - Next workout widget (Home Screen + Lock Screen)
 // Next workout, streak and today's calories at a glance. It reads the snapshot the
 // app writes into the shared App Group container; it never touches the data file.
+/// Today as yyyy-MM-dd, the format of `WidgetSnapshot.date`.
+private let snapshotDay: DateFormatter = {
+    let f = DateFormatter()
+    f.locale = Locale(identifier: "en_US_POSIX")
+    f.dateFormat = "yyyy-MM-dd"
+    return f
+}()
+
 private struct NextWorkoutEntry: TimelineEntry {
     let date: Date
     let snapshot: WidgetSnapshot?
@@ -148,15 +164,27 @@ private struct NextWorkoutProvider: TimelineProvider {
         completion(NextWorkoutEntry(date: Date(), snapshot: context.isPreview ? Self.sample : WidgetSnapshot.load()))
     }
     func getTimeline(in context: Context, completion: @escaping (Timeline<NextWorkoutEntry>) -> Void) {
-        // The app reloads the widget whenever its data changes; nothing here
-        // depends on the clock, so there is no refresh schedule.
-        completion(Timeline(entries: [NextWorkoutEntry(date: Date(), snapshot: WidgetSnapshot.load())], policy: .never))
+        // The app reloads the widget whenever its data changes. Past midnight the
+        // snapshot speaks of yesterday until the app runs again, so the widget
+        // redraws then and stops showing yesterday's calories as today's.
+        let midnight = Calendar.current.startOfDay(for: Date()).addingTimeInterval(24 * 3600)
+        completion(Timeline(entries: [NextWorkoutEntry(date: Date(), snapshot: WidgetSnapshot.load())],
+                            policy: .after(midnight)))
     }
 }
 
 private struct NextWorkoutView: View {
     @Environment(\.widgetFamily) private var family
     let snapshot: WidgetSnapshot?
+
+    /// Text in the language of the snapshot already in hand.
+    private func tr(_ it: String, _ en: String) -> String { wl(it, en, lang: snapshot?.lang) }
+
+    /// A snapshot from an earlier day: its calories are not today's.
+    private func kcalToday(_ s: WidgetSnapshot) -> Int {
+        guard let day = s.date else { return s.kcalToday }
+        return day == snapshotDay.string(from: Date()) ? s.kcalToday : 0
+    }
 
     var body: some View {
         Group {
@@ -167,19 +195,19 @@ private struct NextWorkoutView: View {
                 default:                    small(snapshot)
                 }
             } else {
-                Text(wl("Apri Fit Tracker", "Open Fit Tracker")).font(.caption).multilineTextAlignment(.center)
+                Text(tr("Apri Fit Tracker", "Open Fit Tracker")).font(.caption).multilineTextAlignment(.center)
             }
         }
         .widgetBackground(W.bg)
     }
 
     private func nextName(_ s: WidgetSnapshot) -> String {
-        s.nextName.isEmpty ? wl("Nessun allenamento", "No workout") : s.nextName
+        s.nextName.isEmpty ? tr("Nessun allenamento", "No workout") : s.nextName
     }
 
     private func small(_ s: WidgetSnapshot) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(wl("PROSSIMO", "NEXT")).font(.system(size: 10, weight: .semibold)).tracking(1.5).foregroundColor(W.sub)
+            Text(tr("PROSSIMO", "NEXT")).font(.system(size: 10, weight: .semibold)).tracking(1.5).foregroundColor(W.sub)
             HStack(spacing: 6) {
                 Image(systemName: s.nextIcon).font(.system(size: 14, weight: .bold))
                 Text(nextName(s).uppercased()).font(.system(size: 17, weight: .bold)).lineLimit(1).minimumScaleFactor(0.6)
@@ -188,9 +216,9 @@ private struct NextWorkoutView: View {
             Spacer(minLength: 0)
             HStack(alignment: .firstTextBaseline, spacing: 4) {
                 Text("\(s.streak)").font(.system(size: 22, weight: .bold, design: .rounded)).foregroundColor(W.acc)
-                Text(wl("giorni", "days")).font(.system(size: 11)).foregroundColor(W.sub)
+                Text(tr("giorni", "days")).font(.system(size: 11)).foregroundColor(W.sub)
             }
-            Text("\(s.kcalToday) / \(s.kcalTarget) kcal").font(.system(size: 11, weight: .semibold))
+            Text("\(kcalToday(s)) / \(s.kcalTarget) kcal").font(.system(size: 11, weight: .semibold))
                 .foregroundColor(W.txt).lineLimit(1).minimumScaleFactor(0.7)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -199,8 +227,8 @@ private struct NextWorkoutView: View {
     private func rectangular(_ s: WidgetSnapshot) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Label(nextName(s), systemImage: s.nextIcon).font(.headline).lineLimit(1)
-            Text("\(s.streak) \(wl("giorni di fila", "day streak"))").font(.caption)
-            Text("\(s.kcalToday) / \(s.kcalTarget) kcal").font(.caption)
+            Text("\(s.streak) \(tr("giorni di fila", "day streak"))").font(.caption)
+            Text("\(kcalToday(s)) / \(s.kcalTarget) kcal").font(.caption)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

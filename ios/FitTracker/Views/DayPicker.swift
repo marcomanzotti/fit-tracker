@@ -133,7 +133,7 @@ struct DayPickerSheet: View {
                         Card {
                             ForEach(store.plans) { p in
                                 pickRow(name: p.name, sub: p.sub, color: p.color, icon: "dumbbell.fill") {
-                                    let s = store.quickInsertSession(plan: p, date: date); finish(s)
+                                    finish(store.newSession(plan: p, date: date))
                                 }
                                 if p.id != store.plans.last?.id { divider }
                             }
@@ -145,7 +145,7 @@ struct DayPickerSheet: View {
                         Card {
                             ForEach(store.cardioTypes) { c in
                                 pickRow(name: c.name, sub: c.sportType.label, color: c.color, icon: c.sportType.icon) {
-                                    let s = store.quickInsertCardio(type: c, date: date); finish(s)
+                                    finish(store.newSession(cardio: c, date: date))
                                 }
                                 if c.id != store.cardioTypes.last?.id { divider }
                             }
@@ -320,16 +320,17 @@ struct DayPickerSheet: View {
         finish(merged)
     }
 
-    /// Re-pull the daily metrics for just this date from Health (gap-fill, so a
-    /// value the user typed for the day is never overwritten by the refresh).
+    /// Re-pull the daily metrics for just this date from Health. A value the user
+    /// typed for the day is never overwritten; one Health no longer has goes.
     private func refreshDayHealth() {
         let hk = HealthKitManager.shared
         guard hk.isAvailable, let d = isoFormatter.date(from: date) else { return }
         let start = Calendar.current.startOfDay(for: d)
         hk.requestAuthorization { granted in
             guard granted else { return }
-            hk.fetch(from: start, to: start, categories: store.prefs.healthCategories) { samples, _ in
-                store.applyHealthSamples(samples)
+            let categories = store.prefs.healthCategories
+            hk.fetch(from: start, to: start, categories: categories) { samples, complete in
+                store.applyHealthSamples(samples, clearing: complete ? ([date], categories) : nil)
             }
         }
     }

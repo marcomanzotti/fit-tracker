@@ -473,6 +473,8 @@ struct SessionEditorView: View {
     @Environment(\.dismiss) private var dismiss
     @State var session: WorkoutSession
     @State private var confirmDelete = false
+    /// Opened from the day picker for a day not logged yet: Save adds it.
+    private var isNew: Bool { !store.sessions.contains { $0.id == session.id } }
 
     var body: some View {
         ZStack {
@@ -553,7 +555,7 @@ struct SessionEditorView: View {
                     }
 
                     BigButton(title: t("save")) {
-                        store.updateSession(session); haptic(.success); dismiss()
+                        store.saveSession(session); haptic(.success); dismiss()
                     }
                     // Repeat this workout today: same exercises and weights, fresh
                     // ids, no heart rate or Health provenance carried over. Hidden
@@ -563,7 +565,7 @@ struct SessionEditorView: View {
                             tap()
                             // Commit any open edits first: the copy is built from the
                             // STORED session, so unsaved changes would be lost.
-                            store.updateSession(session)
+                            store.saveSession(session)
                             store.duplicateSession(session.id)
                             haptic(.success); toast.show(t("wk.repeated")); dismiss()
                         } label: {
@@ -591,11 +593,13 @@ struct SessionEditorView: View {
                             .chrome(fill: Theme.acc.opacity(0.08), stroke: Theme.acc)
                         }
                     }
-                    Button { tap(); confirmDelete = true } label: {
-                        Text(t("wk.del_session")).font(.head(13, .semibold)).foregroundColor(Theme.red)
-                            .frame(maxWidth: .infinity, minHeight: 44)
+                    if !isNew {
+                        Button { tap(); confirmDelete = true } label: {
+                            Text(t("wk.del_session")).font(.head(13, .semibold)).foregroundColor(Theme.red)
+                                .frame(maxWidth: .infinity, minHeight: 44)
+                        }
                     }
-                    .padding(.bottom, 30)
+                    Spacer().frame(height: 30)
                 }
                 .padding(.horizontal, 18)
             }
@@ -605,8 +609,15 @@ struct SessionEditorView: View {
         .keyboardDoneBar()
         .alert(t("wk.del_session"), isPresented: $confirmDelete) {
             Button(t("cancel"), role: .cancel) {}
-            Button(t("delete"), role: .destructive) { store.deleteSession(session.id); dismiss() }
+            Button(t("delete"), role: .destructive) { deleteSession() }
         } message: { Text(t("confirm_delete")) }
+    }
+
+    private func deleteSession() {
+        if let removed = store.deleteSession(session.id) {
+            toast.showUndo(t("wk.session_deleted")) { [store] in store.restoreSession(removed.session, at: removed.index) }
+        }
+        dismiss()
     }
 
     private func exerciseEditor(_ exB: Binding<LoggedExercise>) -> some View {
