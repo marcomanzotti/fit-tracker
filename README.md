@@ -10,7 +10,8 @@ restano sul telefono**.
 |---|---|---|
 | App iPhone (iOS 18+) | [`ios/FitTracker/`](ios/FitTracker/) | SwiftUI, Swift Charts, HealthKit |
 | App Apple Watch (watchOS 11+) | [`ios/FitTrackerWatch/`](ios/FitTrackerWatch/) | SwiftUI, HealthKit, WatchConnectivity |
-| Widget e Live Activity | [`ios/FitTrackerWidgets/`](ios/FitTrackerWidgets/) | WidgetKit, ActivityKit |
+| Widget, Live Activity, Centro di Controllo | [`ios/FitTrackerWidgets/`](ios/FitTrackerWidgets/) | WidgetKit, ActivityKit, App Intents |
+| Complicazione del Watch | [`ios/FitTrackerWatchWidgets/`](ios/FitTrackerWatchWidgets/) | WidgetKit |
 | Codice comune ai tre | [`ios/Shared/`](ios/Shared/) | tipi del collegamento col Watch, stile |
 | Test | [`ios/FitTrackerTests/`](ios/FitTrackerTests/) | XCTest |
 
@@ -30,32 +31,44 @@ che va clonato accanto a questo (`../band10-health`).
 
 ## Le schede
 
-- **Home**: prontezza e recupero, prossimo allenamento, check-in del peso, settimana,
-  carico, nutrizione di oggi.
+- **Home "Oggi"**: prontezza e recupero, prossimo allenamento con Inizia, check-in del peso,
+  settimana, carico (tocco: Stats › Carico), nutrizione di oggi.
 - **Allena**: giorni di forza personalizzabili (metodi, serie a tempo, intervalli, tenute
-  isometriche con conto alla rovescia), attività cardio salvate, seduta live con recupero
-  automatico, PR, peso suggerito, calcolatore dei dischi e riscaldamento, piano settimanale,
+  isometriche con conto alla rovescia), attività cardio salvate, seduta live con serie in un
+  tocco (conferma i valori dell'ultima volta e avvia il recupero), barra fissa con tempo e
+  Termina, durata, FC e calorie chiesti alla fine, PR, peso suggerito, calcolatore dei dischi e riscaldamento, piano settimanale,
   calendario, import di allenamenti da Salute e da file GPX, TCX e FIT.
 - **Corpo**: peso, massa grassa (manuale o metodo Navy), FFMI, misure, sonno con fasi e
   ipnogramma, parametri notturni (HRV, FC, SpO2, respiro, temperatura), storico di Salute.
-- **Nutrizione**: calendario mensile, pasti, alimenti con codice a barre (Open Food Facts),
-  ricette, obiettivi di calorie e macro.
-- **Stats**: grafici di tutte le metriche, PR, progressione per esercizio, carico e forma.
+- **Nutrizione**: calendario mensile, pasti, alimenti con codice a barre o ricerca per nome
+  (Open Food Facts) con fibre e sale, ricette, obiettivi di calorie, macro, fibre e sale.
+- **Stats**: riepilogo della settimana scorsa, sezioni richiudibili (corpo, sonno e
+  recupero, attività), scheda Carico (forma, andamento, monotonia e strain, zone), PR,
+  progressione per esercizio.
+- **Impostazioni**: Profilo, Allenamento (recupero, dischi, serie per muscolo, promemoria),
+  Salute (stato del collegamento, categorie), Dati (backup, copia in iCloud Drive, CSV).
 
 ## Motori di calcolo
 
-- **Carico**: TRIMP di Banister dalla FC della seduta, con la FC a riposo e la FC max del
-  profilo. Fitness, fatica e forma con le medie esponenziali di Banister (42 e 7 giorni),
-  monotonia e strain di Foster, zone FC e decoupling per gli allenamenti aerobici.
+- **Carico**: TRIMP di Banister (pesi diversi per uomini e donne) integrato sui campioni di
+  FC quando ci sono, con la FC a riposo del giorno della seduta (mediana dei 7 giorni prima)
+  e una sola FC max per TRIMP e zone (con proposta di quella osservata). Per la forza conta
+  anche lo sforzo 1-10 di Apple Watch. Fitness, fatica e forma di Banister (42 e 7 giorni):
+  la forma è in percentuale della fitness e il rapporto acuto/cronico viene dalle stesse
+  medie. Monotonia e strain di Foster, zone FC, decoupling di corsa e bici (senza i primi
+  10 minuti).
 - **Prontezza**: HRV notturna, FC a riposo e punteggio del sonno contro una baseline
   personale di 60 giorni; i parametri notturni fuori norma la limitano a "leggero".
 - **Calorie bruciate**: valore del dispositivo o manuale, altrimenti MET specifico per sport
   affinato da velocità e FC.
-- **Nutrizione**: metabolismo basale Mifflin-St Jeor, TDEE dal livello di attività, TDEE
-  adattivo dall'andamento reale del peso, macro su range ISSN, disponibilità energetica.
-- **Progressione**: doppia progressione per esercizio, e1RM, volume per gruppo muscolare.
+- **Nutrizione**: metabolismo basale Katch-McArdle con la massa grassa, Mifflin-St Jeor
+  senza; TDEE adattivo dall'andamento reale del peso, proteine sulla massa magra quando il
+  grasso è alto, carb cycling che pareggia la settimana, disponibilità energetica.
+- **Progressione**: doppia progressione per esercizio, e1RM, volume per gruppo muscolare
+  (i muscoli secondari contano mezza serie).
 - **Sonno**: notti ricostruite per fonte (una notte contata una volta sola anche con due
-  dispositivi), punteggio, debito di sonno, regolarità e jet lag sociale.
+  dispositivi), orari corretti nelle notti del cambio d'ora, punteggio, debito di sonno
+  contro il bisogno personale, regolarità e jet lag sociale.
 
 ## I tuoi dati
 
@@ -63,7 +76,11 @@ che va clonato accanto a questo (`../band10-health`).
   datata al giorno (`backup-AAAA-MM-GG.json`, ne restano 30).
 - Un file illeggibile non viene mai sovrascritto: viene rinominato, si carica il backup
   più recente e l'app lo dice. Un salvataggio fallito mostra un avviso.
-- Export e import JSON da Corpo e Impostazioni; l'import tiene una copia di ciò che sostituisce.
+- **Copia fuori dal telefono**: si sceglie una cartella (per esempio in iCloud Drive) e ogni
+  giorno ci finisce `FitTracker-AAAA-MM-GG.json`, ne restano 14. La cartella dell'app è
+  visibile anche in File › Sul mio iPhone.
+- Export e import JSON ed export CSV (una riga per serie, una per giorno) in Impostazioni ›
+  Dati; l'import tiene una copia di ciò che sostituisce.
 - **Una seduta in corso sopravvive alla chiusura dell'app**: serie, durata, FC, recupero,
   tempo e distanza del cardio vengono scritti man mano e ripristinati al riavvio.
 - Ogni campo aggiunto dopo lo schema iniziale è facoltativo, quindi un backup vecchio si
@@ -109,8 +126,18 @@ chiudere l'app all'avvio), esegue i test e compila l'app con e senza Watch.
 
 L'app del Watch mostra gli stessi piani di forza e le stesse attività cardio del telefono.
 Durante la seduta registra FC, calorie e distanza con `HKWorkoutSession`; per la forza si
-segnano le serie dal polso con la Digital Crown. A fine seduta il risultato arriva al
-telefono via WatchConnectivity e l'allenamento viene salvato in Salute una volta sola.
+segnano le serie dal polso con la Digital Crown e parte il recupero, che vibra alla fine
+(anche quando il recupero parte dal telefono). Con il polso abbassato l'orologio si aggiorna
+al minuto. A fine seduta chiede lo sforzo da 1 a 10 e lo collega all'allenamento in Salute;
+il risultato arriva al telefono via WatchConnectivity e l'allenamento viene salvato in
+Salute una volta sola. La complicazione mostra il prossimo allenamento e la prontezza.
+
+## Siri, Comandi rapidi e Centro di Controllo
+
+"Inizia Push con Fit Tracker", "Registra il peso in Fit Tracker", "Come sto oggi con Fit
+Tracker" e "Inizia il prossimo allenamento con Fit Tracker" (anche dal tasto Azione). Nel
+Centro di Controllo c'è il pulsante "Inizia il prossimo allenamento"; la Live Activity ha
++30 s e Salta durante il recupero.
 
 ```
 ios/
@@ -127,5 +154,6 @@ ios/
 | `FitTracker` | app iPhone senza Watch |
 | `FitTrackerWatch` | app del Watch |
 | `FitTrackerWatchHost` | app iPhone con il Watch incorporato (quella installata dallo script) |
-| `FitTrackerWidgets` | widget e Live Activity, incorporati in entrambe le app iPhone |
+| `FitTrackerWidgets` | widget, Live Activity e controllo del Centro di Controllo, incorporati in entrambe le app iPhone |
+| `FitTrackerWatchWidgets` | complicazione e Smart Stack, incorporati nell'app del Watch |
 | `FitTrackerTests` | test, ospitati nell'app |
