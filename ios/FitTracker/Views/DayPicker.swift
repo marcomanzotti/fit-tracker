@@ -192,7 +192,7 @@ struct DayPickerSheet: View {
                 Spacer()
                 if healthState == .loaded {
                     Button { tap(); loadHealth() } label: {
-                        Image(systemName: "arrow.clockwise").font(.ui(12, weight: .semibold)).foregroundColor(Theme.sub)
+                        Image(systemName: "arrow.clockwise").accessibilityLabel(t("a11y.refresh")).font(.ui(12, weight: .semibold)).foregroundColor(Theme.sub)
                     }.buttonStyle(PressableStyle())
                 }
             }
@@ -259,7 +259,7 @@ struct DayPickerSheet: View {
                 Lbl(text: t("hk.day_health"), color: Theme.acc2)
                 Spacer()
                 Button { tap(); refreshDayHealth() } label: {
-                    Image(systemName: "arrow.clockwise").font(.ui(12, weight: .semibold))
+                    Image(systemName: "arrow.clockwise").accessibilityLabel(t("a11y.refresh")).font(.ui(12, weight: .semibold))
                         .foregroundColor(Theme.sub)
                 }.buttonStyle(PressableStyle())
             }

@@ -598,6 +598,7 @@ final class ToastCenter: ObservableObject {
         }
         message = msg
         self.action = action
+        AccessibilityNotification.Announcement(msg).post()
         work?.cancel()
         let w = DispatchWorkItem { [weak self] in self?.hide() }
         work = w

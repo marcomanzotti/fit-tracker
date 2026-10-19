@@ -146,7 +146,7 @@ struct RecipePickerSheet: View {
             }
             .buttonStyle(PressableStyle())
             Button { tap(); sheet = .form(r) } label: {
-                Image(systemName: "slider.horizontal.3").font(.ui(13)).foregroundColor(Theme.sub).frame(width: 30, height: 30)
+                Image(systemName: "slider.horizontal.3").accessibilityLabel(t("a11y.edit")).font(.ui(13)).foregroundColor(Theme.sub).frame(width: 30, height: 30)
             }
         }
         .padding(.vertical, 9).padding(.horizontal, 12)
@@ -410,7 +410,8 @@ struct RecipeFormSheet: View {
             }
             Spacer()
             Button { tap(); ingredients.removeAll { $0.id == ing.id } } label: {
-                Image(systemName: "xmark.circle.fill").font(.ui(17)).foregroundColor(Theme.mut)
+                Image(systemName: "xmark.circle.fill").accessibilityLabel(t("a11y.remove")).font(.ui(17)).foregroundColor(Theme.sub)
+                    .frame(width: Theme.minTapTarget, height: Theme.minTapTarget)
             }
         }
         .padding(.vertical, 7).padding(.horizontal, 10)

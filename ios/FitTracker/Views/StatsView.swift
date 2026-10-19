@@ -32,6 +32,7 @@ struct StatsView: View {
                             .background(statsTab == t.0 ? Theme.acc : Theme.mut)
                             .clipShape(Capsule())
                     }
+                    .accessibilityAddTraits(statsTab == t.0 ? .isSelected : [])
                 }
             }
         }
@@ -80,11 +81,11 @@ struct StatsView: View {
                         ChartWindowPicker(window: $compWindow).padding(.bottom, 10)
                         Chart {
                             ForEach(shown) { e in
-                                LineMark(x: .value("d", chartDay(e.date), unit: .day),
+                                LineMark(x: .value(t("chart.date"), chartDay(e.date), unit: .day),
                                          y: .value("w", Units.wOut(((e.weight ?? 0) * (1 - bf / 100) * 10).rounded() / 10)),
                                          series: .value("s", t("st.lean")))
                                     .foregroundStyle(Theme.blue).interpolationMethod(.catmullRom)
-                                LineMark(x: .value("d", chartDay(e.date), unit: .day),
+                                LineMark(x: .value(t("chart.date"), chartDay(e.date), unit: .day),
                                          y: .value("w", Units.wOut(((e.weight ?? 0) * bf / 100 * 10).rounded() / 10)),
                                          series: .value("s", t("st.fat")))
                                     .foregroundStyle(Theme.fat).interpolationMethod(.catmullRom)
@@ -281,9 +282,9 @@ struct StatsView: View {
                     Card {
                         InfoLbl(text: t("st.max_per_session"), info: .overload).padding(.bottom, 8)
                         Chart(data) { d in
-                            LineMark(x: .value("d", d.day, unit: .day), y: .value("kg", d.maxW))
+                            LineMark(x: .value(t("chart.date"), d.day, unit: .day), y: .value("kg", d.maxW))
                                 .foregroundStyle(Theme.acc).interpolationMethod(.catmullRom)
-                            PointMark(x: .value("d", d.day, unit: .day), y: .value("kg", d.maxW))
+                            PointMark(x: .value(t("chart.date"), d.day, unit: .day), y: .value("kg", d.maxW))
                                 .foregroundStyle(Theme.acc).symbolSize(data.count > 40 ? 10 : 30)
                         }
                         .chartYScale(domain: .automatic(includesZero: false))
@@ -292,7 +293,7 @@ struct StatsView: View {
                     Card {
                         InfoLbl(text: t("st.vol_per_session"), info: .volume).padding(.bottom, 8)
                         Chart(data) { d in
-                            BarMark(x: .value("d", d.day, unit: .day), y: .value("vol", d.vol))
+                            BarMark(x: .value(t("chart.date"), d.day, unit: .day), y: .value("vol", d.vol))
                                 .foregroundStyle(Theme.acc.opacity(0.55)).cornerRadius(3)
                         }
                         .dateAxes(data.map(\.day)).frame(height: 120)
@@ -325,10 +326,10 @@ struct StatsView: View {
             Text(selEx).font(.ui(13, weight: .semibold)).foregroundColor(Theme.acc).lineLimit(1)
             Spacer()
             Button { tap(); editingFam = FamilyEdit(base: selEx) } label: {
-                Image(systemName: "slider.horizontal.3").font(.ui(12)).foregroundColor(Theme.sub).frame(width: 28, height: 28)
+                Image(systemName: "slider.horizontal.3").accessibilityLabel(t("a11y.edit")).font(.ui(12)).foregroundColor(Theme.sub).frame(width: 28, height: 28)
             }.buttonStyle(PressableStyle())
             Button { tap(); selEx = ""; selVariant = nil } label: {
-                Image(systemName: "xmark.circle.fill").foregroundColor(Theme.sub)
+                Image(systemName: "xmark.circle.fill").accessibilityLabel(t("a11y.clear")).foregroundColor(Theme.sub)
             }.buttonStyle(PressableStyle())
         }
         .padding(.vertical, 6).padding(.horizontal, 12)
@@ -687,10 +688,10 @@ struct ExerciseManagerView: View {
             }
             Spacer()
             Button { tap(); renaming = ManageTarget(name: name) } label: {
-                Image(systemName: "pencil").font(.ui(13)).foregroundColor(Theme.blue).frame(width: 34, height: 34)
+                Image(systemName: "pencil").accessibilityLabel(t("a11y.edit")).font(.ui(13)).foregroundColor(Theme.blue).frame(width: 34, height: 34)
             }.buttonStyle(PressableStyle())
             Button { tap(); confirmDelete = ManageTarget(name: name) } label: {
-                Image(systemName: "trash").font(.ui(13)).foregroundColor(Theme.red.opacity(0.7)).frame(width: 34, height: 34)
+                Image(systemName: "trash").accessibilityLabel(t("delete")).font(.ui(13)).foregroundColor(Theme.red.opacity(0.7)).frame(width: 34, height: 34)
             }.buttonStyle(PressableStyle())
         }
         .padding(.vertical, 8)

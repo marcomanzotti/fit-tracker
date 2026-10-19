@@ -115,12 +115,7 @@ struct PlanEditorView: View {
                 InputField(placeholder: t("pe.subtitle_ph"), text: $plan.sub, keyboard: .default)
                     .padding(.bottom, 12)
                 Lbl(text: t("pe.color")).padding(.bottom, 8)
-                FlexWrap(Theme.sportColors, spacing: 10) { c in
-                    Circle().fill(Color(hex: c))
-                        .frame(width: 30, height: 30)
-                        .overlay(Circle().stroke(Theme.txt, lineWidth: plan.color == c ? 2 : 0))
-                        .onTapGesture { tap(); plan.color = c }
-                }
+                ColorSwatches(selection: $plan.color)
             }
 
             // Exercises
@@ -271,12 +266,12 @@ struct PlanEditorView: View {
             HStack(spacing: 8) {
                 Text(t("pe.sets").uppercased()).font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.sub)
                 Button { tap(); if ex.wrappedValue.sets > 1 { ex.wrappedValue.sets -= 1 } } label: {
-                    Image(systemName: "minus").font(.ui(11, weight: .bold)).foregroundColor(Theme.txt)
+                    Image(systemName: "minus").accessibilityLabel(t("a11y.decrease")).font(.ui(11, weight: .bold)).foregroundColor(Theme.txt)
                         .frame(width: 26, height: 26).background(Theme.c3).clipShape(Circle())
                 }.buttonStyle(PressableStyle())
                 Text("\(ex.wrappedValue.sets)").font(.num(16)).frame(minWidth: 16)
                 Button { tap(); ex.wrappedValue.sets += 1 } label: {
-                    Image(systemName: "plus").font(.ui(11, weight: .bold)).foregroundColor(Theme.txt)
+                    Image(systemName: "plus").accessibilityLabel(t("a11y.increase")).font(.ui(11, weight: .bold)).foregroundColor(Theme.txt)
                         .frame(width: 26, height: 26).background(Theme.c3).clipShape(Circle())
                 }.buttonStyle(PressableStyle())
             }
@@ -311,18 +306,18 @@ struct PlanEditorView: View {
             Text(t("pe.rest_timer").uppercased()).font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.sub)
             Spacer()
             Button { tap(); ex.wrappedValue.restTimerSec = Swift.max(0, (cur ?? store.prefs.timer) - 15) } label: {
-                Image(systemName: "minus").font(.ui(10, weight: .bold)).foregroundColor(Theme.txt)
+                Image(systemName: "minus").accessibilityLabel(t("a11y.decrease")).font(.ui(10, weight: .bold)).foregroundColor(Theme.txt)
                     .frame(width: 24, height: 24).background(Theme.c3).clipShape(Circle())
             }.buttonStyle(PressableStyle())
             Text(cur.map { "\($0)s" } ?? "\(store.prefs.timer)s")
                 .font(.num(14)).foregroundColor(cur == nil ? Theme.sub : Theme.txt).frame(minWidth: 38)
             Button { tap(); ex.wrappedValue.restTimerSec = (cur ?? store.prefs.timer) + 15 } label: {
-                Image(systemName: "plus").font(.ui(10, weight: .bold)).foregroundColor(Theme.txt)
+                Image(systemName: "plus").accessibilityLabel(t("a11y.increase")).font(.ui(10, weight: .bold)).foregroundColor(Theme.txt)
                     .frame(width: 24, height: 24).background(Theme.c3).clipShape(Circle())
             }.buttonStyle(PressableStyle())
             if cur != nil {
                 Button { tap(); ex.wrappedValue.restTimerSec = nil } label: {
-                    Image(systemName: "arrow.uturn.backward").font(.ui(10, weight: .bold))
+                    Image(systemName: "arrow.uturn.backward").accessibilityLabel(t("a11y.reset")).font(.ui(10, weight: .bold))
                         .foregroundColor(Theme.sub).frame(width: 24, height: 24)
                 }.buttonStyle(PressableStyle())
             }
@@ -354,12 +349,12 @@ struct PlanEditorView: View {
         HStack(spacing: 7) {
             Text(label.uppercased()).font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.sub)
             Button { tap(); value.wrappedValue = Swift.max(min, value.wrappedValue - step) } label: {
-                Image(systemName: "minus").font(.ui(10, weight: .bold)).foregroundColor(Theme.txt)
+                Image(systemName: "minus").accessibilityLabel(t("a11y.decrease")).font(.ui(10, weight: .bold)).foregroundColor(Theme.txt)
                     .frame(width: 24, height: 24).background(Theme.c3).clipShape(Circle())
             }.buttonStyle(PressableStyle())
             Text("\(value.wrappedValue)\(suffix)").font(.num(15)).frame(minWidth: 28)
             Button { tap(); value.wrappedValue += step } label: {
-                Image(systemName: "plus").font(.ui(10, weight: .bold)).foregroundColor(Theme.txt)
+                Image(systemName: "plus").accessibilityLabel(t("a11y.increase")).font(.ui(10, weight: .bold)).foregroundColor(Theme.txt)
                     .frame(width: 24, height: 24).background(Theme.c3).clipShape(Circle())
             }.buttonStyle(PressableStyle())
         }
@@ -368,12 +363,12 @@ struct PlanEditorView: View {
     private func reorderButtons(idx: Int?) -> some View {
         VStack(spacing: 2) {
             Button { tap(); if let i = idx, i > 0 { plan.exercises.swapAt(i, i - 1) } } label: {
-                Image(systemName: "chevron.up").font(.ui(11)).foregroundColor((idx ?? 0) > 0 ? Theme.sub : Theme.brd)
-                    .frame(width: 26, height: 18)
+                Image(systemName: "chevron.up").accessibilityLabel(t("a11y.move_up")).font(.ui(11)).foregroundColor((idx ?? 0) > 0 ? Theme.sub : Theme.brd)
+                    .frame(width: Theme.minTapTarget, height: 26)
             }.buttonStyle(PressableStyle()).disabled((idx ?? 0) == 0)
             Button { tap(); if let i = idx, i < plan.exercises.count - 1 { plan.exercises.swapAt(i, i + 1) } } label: {
-                Image(systemName: "chevron.down").font(.ui(11)).foregroundColor((idx ?? 0) < plan.exercises.count - 1 ? Theme.sub : Theme.brd)
-                    .frame(width: 26, height: 18)
+                Image(systemName: "chevron.down").accessibilityLabel(t("a11y.move_down")).font(.ui(11)).foregroundColor((idx ?? 0) < plan.exercises.count - 1 ? Theme.sub : Theme.brd)
+                    .frame(width: Theme.minTapTarget, height: 26)
             }.buttonStyle(PressableStyle()).disabled((idx ?? 0) == plan.exercises.count - 1)
         }
     }
@@ -441,12 +436,12 @@ struct PlanEditorView: View {
             if isGrouped {
                 Text(t("pe.group").uppercased()).font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.sub)
                 Button { tap(); let g = (ex.wrappedValue.supersetGroup ?? 1); ex.wrappedValue.supersetGroup = max(1, g - 1) } label: {
-                    Image(systemName: "minus").font(.ui(10, weight: .bold)).foregroundColor(Theme.txt)
+                    Image(systemName: "minus").accessibilityLabel(t("a11y.decrease")).font(.ui(10, weight: .bold)).foregroundColor(Theme.txt)
                         .frame(width: 24, height: 24).background(Theme.c3).clipShape(Circle())
                 }.buttonStyle(PressableStyle())
                 Text("\(ex.wrappedValue.supersetGroup ?? 1)").font(.num(15)).frame(minWidth: 14)
                 Button { tap(); ex.wrappedValue.supersetGroup = (ex.wrappedValue.supersetGroup ?? 0) + 1 } label: {
-                    Image(systemName: "plus").font(.ui(10, weight: .bold)).foregroundColor(Theme.txt)
+                    Image(systemName: "plus").accessibilityLabel(t("a11y.increase")).font(.ui(10, weight: .bold)).foregroundColor(Theme.txt)
                         .frame(width: 24, height: 24).background(Theme.c3).clipShape(Circle())
                 }.buttonStyle(PressableStyle())
             }

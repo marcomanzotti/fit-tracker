@@ -81,11 +81,12 @@ struct NutritionCalendarCard: View {
                 }
             }
             .frame(maxWidth: .infinity).frame(height: 40)
-            .chrome(8, fill: color ?? Color.clear, stroke: isToday && color == nil ? Theme.acc : Color.clear)
+            .chrome(8, fill: color ?? Color.clear, stroke: isToday ? (color == nil ? Theme.acc : Theme.bg) : Color.clear)
             .opacity(future ? 0.35 : 1)
         }
         .buttonStyle(PressableStyle())
         .disabled(future)
+        .accessibilityLabel(logged ? "\(spokenDay(ds)), \(kcal) kcal" : spokenDay(ds))
     }
 }
 
@@ -360,9 +361,9 @@ struct NutritionChartsSection: View {
             InfoLbl(text: title, info: .intake).padding(.bottom, 8)
             Chart {
                 ForEach(pts, id: \.0) { p in
-                    LineMark(x: .value("d", p.0, unit: .weekOfYear), y: .value("v", p.1))
+                    LineMark(x: .value(t("chart.date"), p.0, unit: .weekOfYear), y: .value(t("chart.value"), p.1))
                         .interpolationMethod(.catmullRom).foregroundStyle(color)
-                    AreaMark(x: .value("d", p.0, unit: .weekOfYear), yStart: .value("v", range.lowerBound), yEnd: .value("v", p.1))
+                    AreaMark(x: .value(t("chart.date"), p.0, unit: .weekOfYear), yStart: .value(t("chart.value"), range.lowerBound), yEnd: .value(t("chart.value"), p.1))
                         .interpolationMethod(.catmullRom)
                         .foregroundStyle(LinearGradient(colors: [color.opacity(0.25), .clear], startPoint: .top, endPoint: .bottom))
                 }

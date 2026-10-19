@@ -45,12 +45,7 @@ struct CardioTypeEditorView: View {
                         PillSelect(options: sportKinds, title: { Sport(rawValue: $0)?.label ?? $0 }, selection: $type.sport)
                             .padding(.bottom, 14)
                         Lbl(text: t("pe.color")).padding(.bottom, 8)
-                        FlexWrap(Theme.sportColors, spacing: 10) { c in
-                            Circle().fill(Color(hex: c))
-                                .frame(width: 30, height: 30)
-                                .overlay(Circle().stroke(Theme.txt, lineWidth: type.color == c ? 2 : 0))
-                                .onTapGesture { tap(); type.color = c }
-                        }
+                        ColorSwatches(selection: $type.color)
                     }
 
                     BigButton(title: isNew ? t("add") : t("save")) { save() }
@@ -167,7 +162,7 @@ struct LiveCardioView: View {
             Spacer()
             // Minimize — keep running in the background, return to the app.
             Button { tap(); onBack() } label: {
-                Image(systemName: "chevron.down").foregroundColor(Theme.sub).frame(width: 34, height: 34)
+                Image(systemName: "chevron.down").accessibilityLabel(t("wk.minimize")).foregroundColor(Theme.sub).frame(width: 34, height: 34)
             }
         }
         .padding(.top, 10)

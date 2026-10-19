@@ -73,10 +73,10 @@ struct FormCard: View {
     private func fitnessChart(_ s: [FormPoint]) -> some View {
         let fitness = t("form.fitness"), fatigue = t("form.fatigue")
         return Chart(s) { p in
-            LineMark(x: .value("d", p.day, unit: .day), y: .value("v", p.fitness), series: .value("s", fitness))
+            LineMark(x: .value(t("chart.date"), p.day, unit: .day), y: .value(t("chart.value"), p.fitness), series: .value("s", fitness))
                 .foregroundStyle(by: .value("s", fitness))
                 .lineStyle(StrokeStyle(lineWidth: 2))
-            LineMark(x: .value("d", p.day, unit: .day), y: .value("v", p.fatigue), series: .value("s", fatigue))
+            LineMark(x: .value(t("chart.date"), p.day, unit: .day), y: .value(t("chart.value"), p.fatigue), series: .value("s", fatigue))
                 .foregroundStyle(by: .value("s", fatigue))
                 .lineStyle(StrokeStyle(lineWidth: 2))
         }
@@ -89,7 +89,7 @@ struct FormCard: View {
     /// Form around zero: fresh above, loaded below, on its own axis.
     private func formChart(_ s: [FormPoint]) -> some View {
         Chart(s) { p in
-            BarMark(x: .value("d", p.day, unit: .day), y: .value("f", p.form))
+            BarMark(x: .value(t("chart.date"), p.day, unit: .day), y: .value("f", p.form))
                 .foregroundStyle(p.form >= 0 ? TrainingColors.fitness : TrainingColors.fatigue)
             RuleMark(y: .value("zero", 0)).foregroundStyle(Theme.sub.opacity(0.5)).lineStyle(StrokeStyle(lineWidth: 1))
         }

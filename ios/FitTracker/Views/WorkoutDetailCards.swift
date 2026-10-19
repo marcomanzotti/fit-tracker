@@ -499,12 +499,12 @@ struct SessionEditorView: View {
                 if isGrouped {
                     Text(t("pe.group").uppercased()).font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.sub)
                     Button { tap(); let g = (exB.wrappedValue.supersetGroup ?? 1); exB.wrappedValue.supersetGroup = max(1, g - 1) } label: {
-                        Image(systemName: "minus").font(.ui(10, weight: .bold)).foregroundColor(Theme.txt)
+                        Image(systemName: "minus").accessibilityLabel(t("a11y.decrease")).font(.ui(10, weight: .bold)).foregroundColor(Theme.txt)
                             .frame(width: 24, height: 24).background(Theme.c3).clipShape(Circle())
                     }.buttonStyle(PressableStyle())
                     Text("\(exB.wrappedValue.supersetGroup ?? 1)").font(.num(15)).frame(minWidth: 14)
                     Button { tap(); exB.wrappedValue.supersetGroup = (exB.wrappedValue.supersetGroup ?? 0) + 1 } label: {
-                        Image(systemName: "plus").font(.ui(10, weight: .bold)).foregroundColor(Theme.txt)
+                        Image(systemName: "plus").accessibilityLabel(t("a11y.increase")).font(.ui(10, weight: .bold)).foregroundColor(Theme.txt)
                             .frame(width: 24, height: 24).background(Theme.c3).clipShape(Circle())
                     }.buttonStyle(PressableStyle())
                 }

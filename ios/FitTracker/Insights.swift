@@ -454,10 +454,13 @@ struct CalendarCard: View {
                 }
             }
             .frame(maxWidth: .infinity).frame(height: 38)
-            .chrome(8, fill: color ?? (rest ? Theme.restFill : Color.clear), stroke: isToday && !dark ? Theme.acc : Color.clear)
+            // Today keeps a ring on a filled day too: dark on colour, yellow on the empty surface.
+            .chrome(8, fill: color ?? (rest ? Theme.restFill : Color.clear), stroke: isToday ? (dark ? Theme.bg : Theme.acc) : Color.clear)
             .opacity(future ? 0.35 : 1)
         }
         .buttonStyle(PressableStyle())
+        .accessibilityLabel([spokenDay(ds), rest ? t("a11y.rest_day") : daySessions.map(\.planName).joined(separator: ", ")]
+            .filter { !$0.isEmpty }.joined(separator: ", "))
         .disabled(future && daySessions.isEmpty)
     }
 }

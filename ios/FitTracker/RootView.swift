@@ -124,7 +124,7 @@ struct RootView: View {
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
-        .animation(.spring(response: 0.4, dampingFraction: 0.75), value: toast.message)
+        .animation(reduceMotion ? nil : .spring(response: 0.4, dampingFraction: 0.75), value: toast.message)
         .sheet(isPresented: $showSettings) { SettingsView(store: store) }
         .onAppear {
             announceRestoredSession()
@@ -227,7 +227,7 @@ struct HeaderBar: View {
             }
             Button { tap(); onSettings() } label: {
                 Image(systemName: "gearshape.fill").accessibilityLabel(t("set.title")).foregroundColor(Theme.sub).font(.ui(18))
-                    .frame(width: 38, height: 38)
+                    .frame(width: Theme.minTapTarget, height: Theme.minTapTarget)
             }
             .padding(.leading, 6)
         }

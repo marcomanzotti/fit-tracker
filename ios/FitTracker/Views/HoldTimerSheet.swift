@@ -167,7 +167,8 @@ struct HoldTimerSheet: View {
     private func stepButton(_ icon: String, _ action: @escaping () -> Void) -> some View {
         Button { tap(); action() } label: {
             Image(systemName: icon).font(.ui(13, weight: .bold)).foregroundColor(Theme.txt)
-                .frame(width: 38, height: 38).background(Theme.c3).clipShape(Circle())
+                .frame(width: Theme.minTapTarget, height: Theme.minTapTarget).background(Theme.c3).clipShape(Circle())
+                .accessibilityLabel(t(icon == "minus" ? "a11y.decrease" : "a11y.increase"))
         }.buttonStyle(PressableStyle())
     }
 

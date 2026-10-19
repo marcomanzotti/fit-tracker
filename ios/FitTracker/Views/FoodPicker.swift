@@ -107,7 +107,8 @@ struct FoodLogRow: View {
             Text("\(log.kcal)").font(.num(15)).foregroundColor(Theme.acc)
             Text("kcal").font(.ui(10)).foregroundColor(Theme.sub)
             Button { tap(); onDelete() } label: {
-                Image(systemName: "xmark.circle.fill").font(.ui(17)).foregroundColor(Theme.mut)
+                Image(systemName: "xmark.circle.fill").accessibilityLabel(t("a11y.remove")).font(.ui(17)).foregroundColor(Theme.sub)
+                    .frame(width: Theme.minTapTarget, height: Theme.minTapTarget)
             }
         }
         .padding(.vertical, 8).padding(.horizontal, 11)
@@ -335,7 +336,7 @@ struct FoodPickerSheet: View {
             }
             .buttonStyle(PressableStyle())
             Button { tap(); sheet = .form(f) } label: {
-                Image(systemName: "slider.horizontal.3").font(.ui(13)).foregroundColor(Theme.sub).frame(width: 30, height: 30)
+                Image(systemName: "slider.horizontal.3").accessibilityLabel(t("a11y.edit")).font(.ui(13)).foregroundColor(Theme.sub).frame(width: 30, height: 30)
             }
         }
         .padding(.vertical, 9).padding(.horizontal, 12)

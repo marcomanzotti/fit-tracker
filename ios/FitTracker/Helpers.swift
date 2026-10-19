@@ -11,6 +11,12 @@ let isoFormatter: DateFormatter = {
 
 func today() -> String { isoFormatter.string(from: Date()) }
 
+/// A day as VoiceOver should say it ("Monday 19 October 2026"), in the app's language.
+func spokenDay(_ date: String) -> String {
+    guard let d = isoFormatter.date(from: date) else { return date }
+    return d.formatted(Date.FormatStyle(date: .complete, time: .omitted).locale(Locale(identifier: L.lang)))
+}
+
 private var formatterCache: [String: DateFormatter] = [:]
 /// A formatter for a fixed format and locale, created once. Building a
 /// DateFormatter is slow, and chart axes and day headers ask for one per label.

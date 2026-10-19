@@ -34,7 +34,7 @@ struct MetricChartCard: View {
                                           granularity: .week, color: color)
                         }
                         Button { tap(); expanded = true } label: {
-                            Image(systemName: "arrow.up.left.and.arrow.down.right")
+                            Image(systemName: "arrow.up.left.and.arrow.down.right").accessibilityLabel(t("a11y.expand"))
                                 .font(.ui(12, weight: .semibold)).foregroundColor(Theme.sub)
                                 .frame(width: 28, height: 28)
                                 .background(Theme.c2).clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -108,22 +108,22 @@ struct InteractiveMetricPlot: View {
         Chart(data) { p in
             let isSelected = selected?.id == p.id
             if kind == .bar {
-                BarMark(x: .value("d", p.day, unit: unit), y: .value("v", p.value))
+                BarMark(x: .value(t("chart.date"), p.day, unit: unit), y: .value(t("chart.value"), p.value))
                     .foregroundStyle(isSelected ? color : color.opacity(0.55))
                     .cornerRadius(3)
             } else {
-                LineMark(x: .value("d", p.day, unit: unit), y: .value("v", p.value))
+                LineMark(x: .value(t("chart.date"), p.day, unit: unit), y: .value(t("chart.value"), p.value))
                     .interpolationMethod(.catmullRom).foregroundStyle(color)
-                AreaMark(x: .value("d", p.day, unit: unit), yStart: .value("v", range.lowerBound), yEnd: .value("v", p.value))
+                AreaMark(x: .value(t("chart.date"), p.day, unit: unit), yStart: .value(t("chart.value"), range.lowerBound), yEnd: .value(t("chart.value"), p.value))
                     .interpolationMethod(.catmullRom)
                     .foregroundStyle(LinearGradient(colors: [color.opacity(0.22), .clear],
                                                     startPoint: .top, endPoint: .bottom))
                 if showPoints || isSelected {
-                    PointMark(x: .value("d", p.day, unit: unit), y: .value("v", p.value))
+                    PointMark(x: .value(t("chart.date"), p.day, unit: unit), y: .value(t("chart.value"), p.value))
                         .foregroundStyle(color).symbolSize(isSelected ? 36 : 14)
                 }
                 if isSelected {
-                    RuleMark(x: .value("d", p.day, unit: unit))
+                    RuleMark(x: .value(t("chart.date"), p.day, unit: unit))
                         .foregroundStyle(color.opacity(0.4))
                         .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
                 }

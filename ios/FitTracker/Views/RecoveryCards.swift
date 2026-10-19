@@ -195,7 +195,7 @@ struct WeekSleepChart: View {
                 RectangleMark(yStart: .value("lo", 7), yEnd: .value("hi", 9))
                     .foregroundStyle(Theme.good.opacity(0.12))
                 ForEach(days, id: \.0) { d, h in
-                    BarMark(x: .value("d", d, unit: .day), y: .value("h", h))
+                    BarMark(x: .value(t("chart.date"), d, unit: .day), y: .value("h", h))
                         .foregroundStyle(h >= 7 && h <= 9 ? Theme.good : Theme.acc2)
                         .cornerRadius(3)
                 }

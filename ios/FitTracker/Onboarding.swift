@@ -55,7 +55,7 @@ struct FieldRow<Content: View>: View {
             // Resting HR) keep their input boxes perfectly aligned regardless of
             // how long the localized label is.
             FieldLabel(label)
-            content
+            content.environment(\.fieldLabel, label)
         }
     }
 }
@@ -75,6 +75,7 @@ struct PillSelect: View {
                     .padding(.vertical, 9).padding(.horizontal, 14)
                     .chrome(10, fill: on ? Theme.acc : Theme.c2, stroke: on ? Color.clear : Theme.brd)
             }
+            .accessibilityAddTraits(on ? .isSelected : [])
         }
     }
 }

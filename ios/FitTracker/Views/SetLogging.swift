@@ -74,7 +74,7 @@ struct TimedSetRows: View {
                     if let holdTarget, let onStartHold {
                         // Run the hold instead of guessing the number afterwards.
                         Button { tap(); onStartHold(set.id, holdTarget(set)) } label: {
-                            Image(systemName: "play.circle.fill").font(.ui(22))
+                            Image(systemName: "play.circle.fill").accessibilityLabel(t("a11y.start")).font(.ui(22))
                                 .foregroundColor(Theme.acc).frame(width: 34, height: 42)
                         }.buttonStyle(PressableStyle())
                     }
@@ -116,12 +116,12 @@ struct IntervalSetBlock: View {
                     .foregroundColor(Theme.sub)
                 Spacer()
                 Button { tap(); done.wrappedValue = max(0, done.wrappedValue - 1) } label: {
-                    Image(systemName: "minus").font(.ui(12, weight: .bold)).foregroundColor(Theme.txt)
+                    Image(systemName: "minus").accessibilityLabel(t("a11y.decrease")).font(.ui(12, weight: .bold)).foregroundColor(Theme.txt)
                         .frame(width: 30, height: 30).background(Theme.c3).clipShape(Circle())
                 }.buttonStyle(PressableStyle()).hitArea((Theme.minTapTarget - 30) / 2)
                 Text("\(done.wrappedValue)/\(target)").font(.num(18)).frame(minWidth: 50)
                 Button { tap(); done.wrappedValue += 1 } label: {
-                    Image(systemName: "plus").font(.ui(12, weight: .bold)).foregroundColor(Theme.txt)
+                    Image(systemName: "plus").accessibilityLabel(t("a11y.increase")).font(.ui(12, weight: .bold)).foregroundColor(Theme.txt)
                         .frame(width: 30, height: 30).background(Theme.c3).clipShape(Circle())
                 }.buttonStyle(PressableStyle()).hitArea((Theme.minTapTarget - 30) / 2)
             }

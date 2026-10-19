@@ -287,7 +287,7 @@ struct WorkoutView: View {
                             .font(.ui(13)).foregroundColor(Theme.txt)
                         if !sessionQuery.isEmpty {
                             Button { tap(); sessionQuery = "" } label: {
-                                Image(systemName: "xmark.circle.fill").font(.ui(13)).foregroundColor(Theme.sub)
+                                Image(systemName: "xmark.circle.fill").accessibilityLabel(t("a11y.clear")).font(.ui(13)).foregroundColor(Theme.sub)
                             }.buttonStyle(PressableStyle())
                         }
                     }

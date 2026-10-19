@@ -132,17 +132,20 @@ struct BodyView: View {
                     Text(t("hk.from_health").uppercased()).font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.sub)
                 }
                 Button {
-                    tap(); withAnimation(Theme.settle) { showManualSleep.toggle() }
+                    tap(); withSettle { showManualSleep.toggle() }
                     if showManualSleep { prefillManualSleep(e) }
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: showManualSleep ? "chevron.up" : "pencil")
                             .font(.ui(10, weight: .semibold))
+                            .accessibilityLabel(t(showManualSleep ? "a11y.close" : "a11y.edit"))
                         if !hasHealthData {
                             Text(t("body.sleep_manual").uppercased()).font(.head(10, .semibold)).tracking(1)
                         }
                     }
                     .foregroundColor(Theme.acc2)
+                    .frame(minWidth: Theme.minTapTarget, minHeight: Theme.minTapTarget, alignment: .trailing)
+                    .contentShape(Rectangle())
                 }
             }
             .padding(.bottom, 12)
@@ -160,7 +163,7 @@ struct BodyView: View {
             }
             if let e, hrs != nil {
                 Button {
-                    tap(); withAnimation(Theme.settle) { showSleepDetail.toggle() }
+                    tap(); withSettle { showSleepDetail.toggle() }
                 } label: {
                     HStack(spacing: 6) {
                         Image(systemName: "moon.zzz.fill").font(.ui(12))
@@ -597,8 +600,8 @@ struct BodyView: View {
                     Chart {
                         ForEach(measureFields) { m in
                             ForEach(bw.filter { $0.value(for: m.key) != nil }) { e in
-                                LineMark(x: .value("d", chartDay(e.date), unit: .day),
-                                         y: .value("v", Units.lenOut(e.value(for: m.key) ?? 0)),
+                                LineMark(x: .value(t("chart.date"), chartDay(e.date), unit: .day),
+                                         y: .value(t("chart.value"), Units.lenOut(e.value(for: m.key) ?? 0)),
                                          series: .value("p", measLabel(m.key)))
                                     .foregroundStyle(Color(hex: m.color))
                                     .interpolationMethod(.catmullRom)
@@ -617,10 +620,10 @@ struct BodyView: View {
                         let pts = bw.filter { $0.value(for: m.key) != nil }
                         let range = chartRange(pts.map { Units.lenOut($0.value(for: m.key) ?? 0) })
                         Chart(pts) { e in
-                            LineMark(x: .value("d", chartDay(e.date), unit: .day), y: .value("v", Units.lenOut(e.value(for: m.key) ?? 0)))
+                            LineMark(x: .value(t("chart.date"), chartDay(e.date), unit: .day), y: .value(t("chart.value"), Units.lenOut(e.value(for: m.key) ?? 0)))
                                 .foregroundStyle(Color(hex: m.color)).interpolationMethod(.catmullRom)
-                            AreaMark(x: .value("d", chartDay(e.date), unit: .day), yStart: .value("v", range.lowerBound),
-                                     yEnd: .value("v", Units.lenOut(e.value(for: m.key) ?? 0)))
+                            AreaMark(x: .value(t("chart.date"), chartDay(e.date), unit: .day), yStart: .value(t("chart.value"), range.lowerBound),
+                                     yEnd: .value(t("chart.value"), Units.lenOut(e.value(for: m.key) ?? 0)))
                                 .foregroundStyle(LinearGradient(colors: [Color(hex: m.color).opacity(0.25), .clear], startPoint: .top, endPoint: .bottom))
                                 .interpolationMethod(.catmullRom)
                         }

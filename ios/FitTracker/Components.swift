@@ -1,6 +1,11 @@
 import SwiftUI
 import UIKit
 
+/// `withAnimation(Theme.settle)`, or the change alone when Reduce Motion is on.
+func withSettle(_ change: () -> Void) {
+    if UIAccessibility.isReduceMotionEnabled { change() } else { withAnimation(Theme.settle, change) }
+}
+
 // MARK: - Shared surface, press and hit-area helpers
 extension View {
     /// The app's standard surface: fill, continuous rounded corners, hairline border.
@@ -368,12 +373,23 @@ struct PaceField: View {
 }
 
 // MARK: - Inputs
+/// The caption of the field a FieldRow wraps: VoiceOver reads it as the field's name.
+private struct FieldLabelKey: EnvironmentKey { static let defaultValue: String? = nil }
+extension EnvironmentValues {
+    var fieldLabel: String? {
+        get { self[FieldLabelKey.self] }
+        set { self[FieldLabelKey.self] = newValue }
+    }
+}
+
 struct InputField: View {
     var placeholder: String
     @Binding var text: String
     var keyboard: UIKeyboardType = .decimalPad
+    @Environment(\.fieldLabel) private var fieldLabel
     var body: some View {
         TextField("", text: $text, prompt: Text(placeholder).foregroundColor(Theme.sub))
+            .accessibilityLabel(fieldLabel ?? placeholder)
             .keyboardType(keyboard)
             .foregroundColor(Theme.txt)
             .font(.ui(16, weight: .medium))
@@ -382,14 +398,37 @@ struct InputField: View {
     }
 }
 
+/// The colour picker of a workout day or a cardio activity: real buttons, named
+/// for VoiceOver and with the selected one marked.
+struct ColorSwatches: View {
+    @Binding var selection: String
+    var body: some View {
+        FlexWrap(Theme.sportColors, spacing: 4) { c in
+            let index = (Theme.sportColors.firstIndex(of: c) ?? 0) + 1
+            Button { tap(); selection = c } label: {
+                Circle().fill(Color(hex: c))
+                    .frame(width: 30, height: 30)
+                    .overlay(Circle().stroke(Theme.txt, lineWidth: selection == c ? 2 : 0))
+                    .frame(width: Theme.minTapTarget, height: Theme.minTapTarget)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(t("a11y.color_n", index))
+            .accessibilityAddTraits(selection == c ? .isSelected : [])
+        }
+    }
+}
+
 struct SmallNumField: View {
     @Binding var text: String
     var placeholder: String = "–"
     var highlight: Bool = false
+    /// What VoiceOver calls the field ("Set 2, reps"); the placeholder otherwise.
+    var name: String? = nil
     /// Width of a set field and of its column header, growing with the text size.
     static var width: CGFloat { TypeScale.scaled(66, cap: 1.35) }
     var body: some View {
         TextField("", text: $text, prompt: Text(placeholder).foregroundColor(Theme.sub))
+            .accessibilityLabel(name ?? placeholder)
             .keyboardType(.decimalPad)
             .multilineTextAlignment(.center)
             .foregroundColor(Theme.txt)

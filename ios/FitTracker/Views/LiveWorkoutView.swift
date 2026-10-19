@@ -352,7 +352,7 @@ struct LiveWorkoutView: View {
                     .chrome(10)
                     .padding(.top, 9)
             } else {
-                Button { tap(); withAnimation(Theme.settle) { _ = activeWorkout.openNotes.insert(ex.id) } } label: {
+                Button { tap(); withSettle { _ = activeWorkout.openNotes.insert(ex.id) } } label: {
                     Text(t("wk.add_note")).font(.ui(11, weight: .semibold)).foregroundColor(Theme.sub)
                         .padding(.vertical, 8).padding(.horizontal, 12)
                         .chrome(9)
@@ -440,9 +440,11 @@ struct LiveWorkoutView: View {
             } label: {
                 Text("S\(idx + 1)").font(.num(11)).foregroundColor(Theme.sub).frame(width: 28, height: Theme.minTapTarget)
             }
-            SmallNumField(text: set.reps, placeholder: lastTimeHint(prevSet?.reps), highlight: isPR)
+            SmallNumField(text: set.reps, placeholder: lastTimeHint(prevSet?.reps), highlight: isPR,
+                          name: "\(t("wk.set")) \(idx + 1), \(t("wk.reps"))")
                 .focused($focus, equals: .reps(id))
-            SmallNumField(text: set.weight, placeholder: lastTimeHint(prevSet?.weight), highlight: isPR)
+            SmallNumField(text: set.weight, placeholder: lastTimeHint(prevSet?.weight), highlight: isPR,
+                          name: "\(t("wk.set")) \(idx + 1), kg")
                 .focused($focus, equals: .weight(id))
                 .overlay(alignment: .topTrailing) {
                     if isPR {
@@ -553,7 +555,7 @@ struct LiveWorkoutView: View {
                     .padding(.vertical, 12).padding(.horizontal, 14)
                     .chrome()
                 Button { addExercise() } label: {
-                    Image(systemName: "plus").font(.ui(16, weight: .bold)).foregroundColor(Theme.bg)
+                    Image(systemName: "plus").accessibilityLabel(t("wk.add_ex")).font(.ui(16, weight: .bold)).foregroundColor(Theme.bg)
                         .frame(width: 50, height: 48).background(Theme.acc)
                         .clipShape(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous))
                 }.buttonStyle(PressableStyle())

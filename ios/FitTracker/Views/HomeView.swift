@@ -68,7 +68,8 @@ struct HomeView: View {
                 ZStack {
                     RoundedRectangle(cornerRadius: 11, style: .continuous).fill(fill)
                     RoundedRectangle(cornerRadius: 11, style: .continuous)
-                        .stroke(isToday ? Theme.acc : ((trained || rest) ? Color.clear : Theme.brd),
+                        // On the ivory rest chip a yellow ring is invisible (1.07:1): dark there.
+                        .stroke(isToday ? (rest ? Theme.bg : Theme.acc) : ((trained || rest) ? Color.clear : Theme.brd),
                                 lineWidth: isToday ? 2 : 1)
                     if trained {
                         Image(systemName: sess.first!.sportType.isCardio ? sess.first!.sportType.icon : "dumbbell.fill")
@@ -87,6 +88,8 @@ struct HomeView: View {
                 .frame(height: 42)
             }
             .buttonStyle(PressableStyle())
+            .accessibilityLabel([spokenDay(ds), rest ? t("a11y.rest_day") : sess.map(\.planName).joined(separator: ", ")]
+                .filter { !$0.isEmpty }.joined(separator: ", "))
         }
         .frame(maxWidth: .infinity)
     }
