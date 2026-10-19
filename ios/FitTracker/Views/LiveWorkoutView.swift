@@ -478,7 +478,8 @@ struct LiveWorkoutView: View {
                             prev: SetEntry?, suggested: Double?) {
         tap()
         let id = set.wrappedValue.id
-        if set.wrappedValue.filled { setCompleted(id); return }
+        // Reps typed already: the set is done. Weight alone still takes last time's reps.
+        if pf(set.wrappedValue.reps) > 0 || (set.wrappedValue.seconds ?? 0) > 0 { setCompleted(id); return }
         let sets = exB.wrappedValue.sets
         let before = sets.firstIndex { $0.id == id }.flatMap { $0 > 0 ? sets[$0 - 1] : nil }
         func known(_ v: String?) -> String? { v.flatMap { pf($0) > 0 ? $0 : nil } }

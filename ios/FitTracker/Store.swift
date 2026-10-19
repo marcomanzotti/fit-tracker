@@ -45,8 +45,14 @@ final class Store {
     /// comes back on a new day, so nothing stays on yesterday.
     private(set) var currentDay = today()
     /// Every change empties the derived values and marks the data to save.
+    /// Bumped on every change. The cache is not observed (memo writes it while a
+    /// view draws), so every memo read touches this instead: a view that only reads
+    /// cached values still redraws when the data behind them changes.
+    private var revision = 0
+
     private func dataChanged() {
         derived.removeAll(keepingCapacity: true)
+        revision &+= 1
         guard loaded else { return }
         unsaved = true
         scheduleSave()
@@ -66,6 +72,7 @@ final class Store {
 
     /// The value for `key`, computed by `compute` once per data change.
     func memo<T>(_ key: String, _ compute: () -> T) -> T {
+        _ = revision
         // The key is tested first: for an Optional T, casting an absent entry (nil)
         // succeeds with nil, and a miss would be mistaken for a cached nil.
         if let boxed = derived[key], let hit = boxed as? T { return hit }
@@ -112,6 +119,8 @@ final class Store {
     private let directory: URL
     /// Serial, so writes land in the order the changes happened.
     private let writeQueue = DispatchQueue(label: "fittracker.store.write", qos: .utility)
+    /// The daily copy into the person's folder, apart from the saves.
+    private static let copyQueue = DispatchQueue(label: "fittracker.store.copy", qos: .utility)
 
     static var documentsDirectory: URL {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
@@ -134,6 +143,7 @@ final class Store {
         guard day != currentDay else { return }
         currentDay = day
         derived.removeAll()
+        revision &+= 1
         let widget = widgetSnapshot
         writeQueue.async { [weak self] in self?.publish(widget) }
     }
@@ -338,7 +348,10 @@ final class Store {
             let newBackup = try keepDatedBackup()
             try encoded.data.write(to: dataURL, options: .atomic)
             if newBackup { prune(prefix: Store.backupPrefix, keep: Store.backupsKept) }
-            ExternalBackup.copyIfDue(dataURL, day: today())
+            // A slow or offline cloud provider must not hold up a save (flushNow
+            // waits on this queue from the main thread).
+            let file = dataURL, day = today()
+            Store.copyQueue.async { ExternalBackup.copyIfDue(file, day: day) }
             reportSave(failure: nil)
         } catch {
             appLog.error("Save failed: \(String(describing: error), privacy: .public)")

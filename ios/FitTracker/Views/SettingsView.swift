@@ -21,7 +21,8 @@ struct SettingsView: View {
     @Environment(ToastCenter.self) var toast
     @Environment(\.dismiss) private var dismiss
     @State private var draft: SettingsDraft
-    private let opened: SettingsDraft
+    /// State, so a redraw of the screen behind the sheet does not rebuild it.
+    @State private var opened: SettingsDraft
     @State private var section = "profile"
     @State private var showGuide = false
     @State private var showHealthHistory = false
@@ -39,7 +40,7 @@ struct SettingsView: View {
             plates: p.plateSet.map { trimNum($0) }.joined(separator: " "),
             units: p.imperial ? "imperial" : "metric")
         _draft = State(initialValue: initial)
-        opened = initial
+        _opened = State(initialValue: initial)
     }
 
     private var isDirty: Bool { draft != opened }
@@ -308,9 +309,12 @@ struct SettingsView: View {
         var p = store.prefs
         // Apply the unit choice first so ProfileFields converts its height/weight
         // inputs against the right system.
+        // The fields were typed in the units shown when Settings opened: read them in
+        // those, then switch (180 typed as cm must not become 180 inches).
+        Units.imperial = (opened.units == "imperial")
+        draft.profile.apply(to: &p, includingGoals: false)
         p.units = draft.units
         Units.imperial = (draft.units == "imperial")
-        draft.profile.apply(to: &p, includingGoals: false)
         if let ts = Int(draft.timerSec), ts > 0 { p.timer = ts }
         // 0 is a valid choice here (skip the lead-in), so only a non-numeric entry
         // falls back to the stored value.

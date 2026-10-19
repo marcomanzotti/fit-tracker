@@ -218,8 +218,10 @@ extension Store {
     /// keeps the bands the same whatever the unit of the load.
     func formPercent() -> Double? {
         memo("formPercent") { () -> Double? in
-            guard let today = formSeries(days: 1).last, today.fitness > 0 else { return nil }
-            return today.form / today.fitness * 100
+            // Form is yesterday's fitness minus yesterday's fatigue: a share of that same fitness.
+            let days = formSeries(days: 2)
+            guard let today = days.last, let fitness = days.dropLast().last?.fitness, fitness > 0 else { return nil }
+            return today.form / fitness * 100
         }
     }
     static let overreachingBelowFormPercent = -30.0

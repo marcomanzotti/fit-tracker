@@ -1,3 +1,4 @@
+import Observation
 import XCTest
 @testable import FitTracker
 
@@ -397,5 +398,14 @@ final class DataSafetyTests: XCTestCase {
         wait(for: [written], timeout: 5)
         let saved = try JSONDecoder().decode(AppData.self, from: Data(contentsOf: dataFile))
         XCTAssertEqual(saved.daily.first?.weight, 77.7)
+    }
+
+    func testAViewReadingOnlyCachedValuesIsToldWhenTheDataChanges() {
+        let store = Store(directory: dir)
+        _ = store.sortedDaily                                     // warm the cache
+        let changed = expectation(description: "observation fired")
+        withObservationTracking { _ = store.sortedDaily } onChange: { changed.fulfill() }
+        store.daily = [DailyEntry(date: "2026-10-01", weight: 80)]
+        wait(for: [changed], timeout: 1)
     }
 }
