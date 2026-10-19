@@ -80,7 +80,7 @@ struct PillSelect: View {
 }
 
 // MARK: - Editable profile state (shared by onboarding & settings)
-struct ProfileFields {
+struct ProfileFields: Equatable {
     var lang: String
     var sex: String
     var birth: Date
@@ -113,14 +113,16 @@ struct ProfileFields {
         sleepNeed = p.sleepNeed.map(trimNum) ?? ""
     }
 
-    func apply(to p: inout Prefs) {
+    func apply(to p: inout Prefs, includingGoals: Bool = true) {
         p.language = lang
         p.sex = sex
         p.birthDate = isoFormatter.string(from: birth)
         if pf(heightCm) > 0 { p.height = Units.heightIn(pf(heightCm)) }
-        if pf(goalWeight) > 0 { p.goalWeight = Units.wIn(pf(goalWeight)) }
-        p.goalMode = goalMode
-        p.setWeeklyRate(rate.isEmpty ? nil : Units.wIn(pf(rate)))
+        if includingGoals {
+            if pf(goalWeight) > 0 { p.goalWeight = Units.wIn(pf(goalWeight)) }
+            p.goalMode = goalMode
+            p.setWeeklyRate(rate.isEmpty ? nil : Units.wIn(pf(rate)))
+        }
         p.activity = activity
         p.trainingDays = Int(trainDays)
         p.restingHR = Int(restHR)
@@ -170,6 +172,8 @@ struct ProfileFormBody: View {
     @EnvironmentObject var store: Store
     @Binding var f: ProfileFields
     var showLanguage: Bool = true
+    /// Settings edits goals in the goal editor only; the first launch asks for them here.
+    var showGoals: Bool = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -196,14 +200,16 @@ struct ProfileFormBody: View {
                 FieldRow(label: "\(t("ob.height")) (\(Units.heightLabel))") { InputField(placeholder: Units.imperial ? "71" : "180", text: $f.heightCm) }
                 FieldRow(label: "\(t("ob.weight")) (\(Units.wLabel))") { InputField(placeholder: Units.imperial ? "176" : "80", text: $f.weight) }
             }
-            FieldRow(label: t("ob.goal_mode")) {
-                PillSelect(options: ["cut", "maintain", "bulk"], title: goalTitle, selection: $f.goalMode)
-            }
-            HStack(spacing: 12) {
-                FieldRow(label: "\(t("ob.goal_weight")) (\(Units.wLabel))") { InputField(placeholder: Units.imperial ? "165" : "75", text: $f.goalWeight) }
-                // A plain number: the goal says whether it is lost or gained.
-                if f.goalMode != GoalMode.maintain.rawValue {
-                    FieldRow(label: rateLabel(f.goalMode)) { InputField(placeholder: Units.imperial ? "1" : "0.5", text: $f.rate) }
+            if showGoals {
+                FieldRow(label: t("ob.goal_mode")) {
+                    PillSelect(options: ["cut", "maintain", "bulk"], title: goalTitle, selection: $f.goalMode)
+                }
+                HStack(spacing: 12) {
+                    FieldRow(label: "\(t("ob.goal_weight")) (\(Units.wLabel))") { InputField(placeholder: Units.imperial ? "165" : "75", text: $f.goalWeight) }
+                    // A plain number: the goal says whether it is lost or gained.
+                    if f.goalMode != GoalMode.maintain.rawValue {
+                        FieldRow(label: rateLabel(f.goalMode)) { InputField(placeholder: Units.imperial ? "1" : "0.5", text: $f.rate) }
+                    }
                 }
             }
             VStack(alignment: .leading, spacing: 7) {
@@ -313,248 +319,5 @@ struct OnboardingView: View {
         store.syncLang()
         if wKg > 0 { store.saveCheckIn(weight: wKg, sleep: nil) }
         haptic(.success)
-    }
-}
-
-// MARK: - Settings / edit profile (sheet)
-struct SettingsView: View {
-    @EnvironmentObject var store: Store
-    @EnvironmentObject var toast: ToastCenter
-    @Environment(\.dismiss) private var dismiss
-    @State private var f: ProfileFields
-    @State private var timerSec: String
-    @State private var hkOn: Bool
-    @State private var unitSys: String
-    @State private var showGuide = false
-    @State private var showHealthHistory = false
-    @State private var healthCats: Set<String>
-    @State private var importWk: Bool
-    @State private var exportHK: Bool
-    @State private var autoRest: Bool
-    @State private var liveAct: Bool
-    @State private var holdPrep: String
-    @State private var barWeight: String
-    @State private var platesText: String
-
-    init(store: Store) {
-        _f = State(initialValue: ProfileFields(store.prefs, currentWeight: store.lastWeight))
-        _timerSec = State(initialValue: String(store.prefs.timer))
-        _hkOn = State(initialValue: store.prefs.healthKitEnabled)
-        _unitSys = State(initialValue: store.prefs.imperial ? "imperial" : "metric")
-        _healthCats = State(initialValue: store.prefs.healthCategories)
-        _importWk = State(initialValue: store.prefs.importWorkoutsEnabled)
-        _exportHK = State(initialValue: store.prefs.exportsToHealth)
-        _autoRest = State(initialValue: store.prefs.autoRest)
-        _liveAct = State(initialValue: store.prefs.liveActivityEnabled)
-        _holdPrep = State(initialValue: String(store.prefs.holdPrep))
-        _barWeight = State(initialValue: trimNum(store.prefs.bar))
-        _platesText = State(initialValue: store.prefs.plateSet.map { trimNum($0) }.joined(separator: " "))
-    }
-
-    var body: some View {
-        ZStack {
-            Theme.bg.ignoresSafeArea()
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    HStack {
-                        Text(t("set.title").uppercased()).font(.head(18, .bold)).tracking(1).foregroundColor(Theme.txt)
-                        Spacer()
-                        Button { dismiss() } label: {
-                            Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: Theme.minTapTarget, height: Theme.minTapTarget)
-                        }
-                    }
-                    .padding(.top, 18)
-
-                    Card {
-                        Lbl(text: t("set.profile"))
-                        Spacer().frame(height: 14)
-                        ProfileFormBody(f: $f)
-                    }
-
-                    Card {
-                        FieldRow(label: t("set.units")) {
-                            PillSelect(options: ["metric", "imperial"],
-                                       title: { $0 == "metric" ? t("set.metric") : t("set.imperial") },
-                                       selection: $unitSys)
-                        }
-                    }
-
-                    Card {
-                        FieldRow(label: t("set.timer")) {
-                            InputField(placeholder: "60", text: $timerSec, keyboard: .numberPad)
-                        }
-                        Spacer().frame(height: 14)
-                        Toggle(isOn: $autoRest) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(t("set.auto_rest")).font(.system(size: 14, weight: .medium)).foregroundColor(Theme.txt)
-                                Text(t("set.auto_rest_hint")).font(.system(size: 10)).foregroundColor(Theme.sub)
-                            }
-                        }
-                        .tint(Theme.acc)
-                        Spacer().frame(height: 14)
-                        Toggle(isOn: $liveAct) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(t("set.live_activity")).font(.system(size: 14, weight: .medium)).foregroundColor(Theme.txt)
-                                Text(t("set.live_activity_hint")).font(.system(size: 10)).foregroundColor(Theme.sub)
-                            }
-                        }
-                        .tint(Theme.acc)
-                    }
-
-                    // Isometric holds + barbell maths
-                    Card {
-                        FieldRow(label: t("set.hold_prep")) {
-                            InputField(placeholder: "7", text: $holdPrep, keyboard: .numberPad)
-                        }
-                        Text(t("set.hold_prep_hint")).font(.system(size: 10)).foregroundColor(Theme.sub)
-                            .padding(.top, 6)
-                        Spacer().frame(height: 14)
-                        FieldRow(label: t("set.bar_weight")) {
-                            InputField(placeholder: "20", text: $barWeight)
-                        }
-                        Spacer().frame(height: 14)
-                        FieldRow(label: t("set.plates")) {
-                            InputField(placeholder: "25 20 15 10 5 2.5 1.25", text: $platesText)
-                        }
-                    }
-
-                    healthCard
-
-                    BigButton(title: t("save")) { save() }
-                    Text(appVersionLabel).font(.system(size: 12)).foregroundColor(Theme.sub)
-                        .frame(maxWidth: .infinity).padding(.bottom, 30)
-                }
-                .padding(.horizontal, 18)
-            }
-            .scrollDismissesKeyboard(.interactively)
-        }
-        .preferredColorScheme(.dark)
-        .keyboardDoneBar()
-        .sheet(isPresented: $showGuide) { WatchSetupGuide() }
-        .sheet(isPresented: $showHealthHistory) { HealthHistoryView() }
-    }
-
-    // MARK: Apple Health (optional data source)
-    private var healthCard: some View {
-        Card {
-            HStack(spacing: 2) {
-                Lbl(text: t("hk.connect"), color: Theme.acc2)
-                InfoButton(id: .steps, color: Theme.acc2)
-                Spacer()
-            }
-            .padding(.bottom, 8)
-            Text(t("hk.hint")).font(.system(size: 11)).foregroundColor(Theme.sub).lineSpacing(3).padding(.bottom, 12)
-            if HealthKitManager.shared.isAvailable {
-                if hkOn {
-                    HStack(spacing: 10) {
-                        Text(t("hk.connected").uppercased()).font(.head(11, .semibold)).tracking(0.5).foregroundColor(Theme.good)
-                        Spacer()
-                        GhostButton(title: t("hk.sync"), color: Theme.acc) {
-                            // Persist the current selection before syncing so the
-                            // pull respects exactly what's toggled on right now.
-                            store.prefs.setHealthCategories(healthCats)
-                            store.prefs.importWorkouts = importWk
-                            store.syncHealth { ok, n, sources in if ok { toast.show(syncMsg(n, sources)) } }
-                        }
-                    }
-                    Spacer().frame(height: 12)
-                    Text(t("hk.choose").uppercased()).font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.sub)
-                        .padding(.bottom, 8)
-                    ForEach(HealthCategory.allCases) { cat in
-                        Toggle(isOn: Binding(
-                            get: { healthCats.contains(cat.rawValue) },
-                            set: { on in if on { healthCats.insert(cat.rawValue) } else { healthCats.remove(cat.rawValue) } }
-                        )) {
-                            HStack(spacing: 8) {
-                                Image(systemName: cat.icon).font(.system(size: 12)).foregroundColor(Theme.acc2).frame(width: 18)
-                                Text(t(cat.labelKey)).font(.system(size: 13)).foregroundColor(Theme.txt)
-                            }
-                        }
-                        .tint(Theme.acc)
-                    }
-                    Rectangle().fill(Theme.brd).frame(height: 1).padding(.vertical, 10)
-                    Toggle(isOn: $importWk) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(t("hk.import_workouts")).font(.system(size: 13, weight: .medium)).foregroundColor(Theme.txt)
-                            Text(t("hk.import_workouts_hint")).font(.system(size: 10)).foregroundColor(Theme.sub)
-                        }
-                    }
-                    .tint(Theme.acc)
-                    Rectangle().fill(Theme.brd).frame(height: 1).padding(.vertical, 10)
-                    Toggle(isOn: $exportHK) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(t("hk.export")).font(.system(size: 13, weight: .medium)).foregroundColor(Theme.txt)
-                            Text(t("hk.export_hint")).font(.system(size: 10)).foregroundColor(Theme.sub)
-                        }
-                    }
-                    .tint(Theme.acc)
-                    Rectangle().fill(Theme.brd).frame(height: 1).padding(.vertical, 10)
-                    // Past daily data: pick a window, import it, and see exactly
-                    // which categories actually arrived.
-                    Button { tap(); showHealthHistory = true } label: {
-                        HStack(spacing: 8) {
-                            Image(systemName: "clock.arrow.circlepath").font(.system(size: 13, weight: .bold))
-                            Text(t("hk.history")).font(.system(size: 13, weight: .semibold))
-                            Spacer()
-                            Image(systemName: "chevron.right").font(.system(size: 11))
-                        }
-                        .foregroundColor(Theme.acc2)
-                        .padding(.vertical, 10)
-                    }
-                    .buttonStyle(PressableStyle())
-                } else {
-                    FilledButton(title: t("hk.connect")) {
-                        store.syncHealth { ok, n, sources in
-                            if ok { hkOn = true; store.prefs.healthKit = true; toast.show(syncMsg(n, sources)) }
-                        }
-                    }
-                }
-                // Per-watch setup guide (Garmin/Polar/… toggles + GPX/TCX import).
-                Spacer().frame(height: 14)
-                GhostButton(title: t("guide.open"), color: Theme.blue) { showGuide = true }
-                    .padding(.bottom, 4)
-            } else {
-                Text(t("hk.unavailable")).font(.system(size: 12)).foregroundColor(Theme.sub)
-            }
-        }
-    }
-
-    /// Build the post-sync toast: a count + the source apps when workouts were
-    /// imported, otherwise the plain "synced" confirmation.
-    private func syncMsg(_ n: Int, _ sources: [String]) -> String {
-        guard n > 0 else { return t("hk.synced") }
-        let src = sources.isEmpty ? "" : " · " + sources.joined(separator: ", ")
-        return "\(n) \(t("hk.imported_n"))\(src)"
-    }
-
-    private func save() {
-        var p = store.prefs
-        // Apply the unit choice first so ProfileFields converts its height/weight
-        // inputs against the right system.
-        p.units = unitSys
-        Units.imperial = (unitSys == "imperial")
-        f.apply(to: &p)
-        p.healthKit = hkOn
-        p.setHealthCategories(healthCats)
-        p.importWorkouts = importWk
-        p.exportToHealth = exportHK
-        if let ts = Int(timerSec), ts > 0 { p.timer = ts }
-        p.autoRestTimer = autoRest
-        p.liveActivity = liveAct
-        // 0 is a valid choice here (skip the lead-in), so only a non-numeric entry
-        // falls back to the stored value.
-        if let hp = Int(holdPrep) { p.holdPrepSec = max(0, min(30, hp)) }
-        if pf(barWeight) > 0 { p.barWeight = pf(barWeight) }
-        // Split on spaces/semicolons only — a comma is a decimal separator here
-        // ("2,5" is one plate, not two), and pf() already accepts both forms.
-        let plates = platesText
-            .split(whereSeparator: { $0.isWhitespace || $0 == ";" })
-            .map { pf(String($0)) }
-            .filter { $0 >= Prefs.smallestPlateKg }
-        p.plates = plates.isEmpty ? nil : plates.sorted(by: >)
-        store.prefs = p
-        store.syncLang()
-        haptic(.success)
-        dismiss()
     }
 }

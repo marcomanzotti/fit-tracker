@@ -9,37 +9,11 @@ struct NutritionView: View {
     @State private var editingToday = false
 
     var body: some View {
-        targetCard
+        NutritionCard()
         todayCard
         NutritionCalendarCard()
         NutritionChartsSection()
         FoodDatabaseCard()
-    }
-
-    // MARK: Today's targets (compact, action-oriented header)
-    private var targetCard: some View {
-        let e = store.energyTargets()
-        return Card(accent: Theme.acc) {
-            HStack(spacing: 6) {
-                Lbl(text: t("nut.target"), color: Theme.acc2)
-                InfoButton(id: .tdee, color: Theme.acc2)
-                Spacer()
-                Text(modeLabel(e.mode).uppercased()).font(.head(11, .semibold)).tracking(1).foregroundColor(Theme.acc)
-            }
-            .padding(.bottom, 12)
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text("\(Int(e.target))").font(.num(34)).foregroundColor(Theme.txt)
-                Text("kcal").font(.system(size: 12, weight: .semibold)).foregroundColor(Theme.sub)
-                Spacer()
-                Text("TDEE \(Int(e.tdee)) · BMR \(Int(e.bmr))").font(.system(size: 10)).foregroundColor(Theme.sub)
-            }
-            .padding(.bottom, 12)
-            HStack(spacing: 9) {
-                StatTile(label: t("nut.protein"), value: "\(Int(e.protein))", unit: "g", valueColor: Theme.blue, info: .macros)
-                StatTile(label: t("nut.carbs"), value: "\(Int(e.carbs))", unit: "g", valueColor: Theme.acc2, info: .macros)
-                StatTile(label: t("nut.fat"), value: "\(Int(e.fat))", unit: "g", valueColor: Theme.good, info: .macros)
-            }
-        }
     }
 
     // MARK: Today's intake (logged vs target + the main logging entry point)
@@ -66,10 +40,6 @@ struct NutritionView: View {
             FilledButton(title: logged ? t("nutp.edit_today") : t("nutp.log_today")) { editingToday = true }
         }
         .sheet(isPresented: $editingToday) { NutritionDayEditor(date: today()) }
-    }
-
-    private func modeLabel(_ m: GoalMode) -> String {
-        switch m { case .cut: return t("nut.cut"); case .bulk: return t("nut.bulk"); default: return t("nut.maintain") }
     }
 }
 

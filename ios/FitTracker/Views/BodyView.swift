@@ -9,9 +9,6 @@ struct BodyView: View {
     @State private var weightInput = ""
     @State private var bfInput = ""
     @State private var measInputs: [String: String] = [:]
-    @State private var shareURL: IdentURL?
-    @State private var importing = false
-    @State private var pendingImport: IdentURL?
     @State private var stepsInput = ""
     @State private var measWindow: ChartWindow = .all
     // Manual sleep entry (shown when Health has no data for today)
@@ -28,6 +25,7 @@ struct BodyView: View {
     // (yesterday's steps, last week's sleep) instead of only ever seeing today.
     @State private var day = today()
     @State private var showHealthHistory = false
+    @State private var editingGoal = false
 
     private var isToday: Bool { day == store.currentDay }
 
@@ -45,13 +43,14 @@ struct BodyView: View {
         let fat = bf.map { ((lw * $0 / 100) * 10).rounded() / 10 }
 
         dayBar
+        if store.prefs.healthKitEnabled { HealthStatusRow().frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 4) }
         bodyLogCard(bl: bl)
         sleepCard
         NightVitalsCard(day: day)
         stepsCard
         analysisCard(lw: lw, bmi: bmi, cat: cat, bl: bl, navy: navy, bf: bf, lean: lean, fat: fat)
+        goalsCard(lw: lw)
         chartsSection
-        backupCard
     }
 
     // MARK: Day selector — drives every entry card below it
@@ -413,6 +412,55 @@ struct BodyView: View {
         }
     }
 
+    // MARK: Goals
+    private func goalsCard(lw: Double) -> some View {
+        let p = store.prefs
+        // Bidirectional: progress from start weight toward the goal, loss or gain.
+        let denom = p.goalWeight - p.startWeight
+        let wtPct = abs(denom) < 0.1 ? 1 : max(0, min(1, (lw - p.startWeight) / denom))
+        let bf = store.currentBF
+        let bfPct = bf.map { max(0, min(1, ($0 - p.goalBF) / max(0.1, 35 - p.goalBF))) }
+        return Card {
+            HStack(spacing: 2) {
+                Lbl(text: t("home.goals"), color: Theme.acc2)
+                InfoButton(id: .goal, color: Theme.acc2)
+                Spacer()
+                Button { tap(); editingGoal = true } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "target").font(.system(size: 10, weight: .bold))
+                        Text(t("goal.change").uppercased()).font(.head(10, .semibold)).tracking(0.8)
+                    }
+                    .foregroundColor(Theme.acc)
+                    .padding(.vertical, 6).padding(.horizontal, 10)
+                    .background(Theme.acc.opacity(0.10))
+                    .clipShape(Capsule())
+                    .overlay(Capsule().stroke(Theme.acc.opacity(0.5), lineWidth: 1))
+                }
+            }
+            .padding(.bottom, 12)
+            HStack(spacing: 16) {
+                VStack(spacing: 0) {
+                    HStack {
+                        Text(t("home.weight")).font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.sub)
+                        Spacer()
+                        Text("\(dispW(lw)) → \(dispW(p.goalWeight)) \(Units.wLabel)").font(.num(13)).foregroundColor(Theme.acc)
+                    }.padding(.bottom, 5)
+                    Bar(value: wtPct).padding(.bottom, bf != nil ? 12 : 0)
+                    if let bf, let bfPct {
+                        HStack {
+                            Text(t("home.fat")).font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.sub)
+                            Spacer()
+                            Text("\(trimNum(bf))% → \(trimNum(p.goalBF))%").font(.num(13)).foregroundColor(Theme.red)
+                        }.padding(.bottom, 5)
+                        Bar(value: max(0.05, 1 - bfPct), gradient: [Theme.red, Theme.acc])
+                    }
+                }
+                GoalRing(value: wtPct, color: Theme.acc, size: 64)
+            }
+        }
+        .sheet(isPresented: $editingGoal) { GoalEditorView() }
+    }
+
     // MARK: Body analysis
     private func analysisCard(lw: Double, bmi: Double, cat: (text: String, color: Color),
                               bl: BodyEntry?, navy: Double?, bf: Double?,
@@ -574,44 +622,4 @@ struct BodyView: View {
             }
         }
     }
-
-    // MARK: Backup
-    private var backupCard: some View {
-        Card {
-            Lbl(text: t("home.backup")).padding(.bottom, 10)
-            HStack(spacing: 10) {
-                GhostButton(title: t("home.export")) {
-                    if let url = store.exportFile() { shareURL = IdentURL(url: url) }
-                    else { toast.show(t("home.export_failed")) }
-                }
-                GhostButton(title: t("home.import")) { importing = true }
-            }
-        }
-        .sheet(item: $shareURL) { item in ShareSheet(items: [item.url]) }
-        .fileImporter(isPresented: $importing, allowedContentTypes: [.json]) { result in
-            switch result {
-            case .success(let url):
-                pendingImport = IdentURL(url: url)
-            case .failure:
-                toast.show(t("body.import_cancelled"))
-            }
-        }
-        // Importing replaces everything, so it is confirmed first. The store keeps a
-        // copy of the current data either way.
-        .confirmationDialog(t("body.import_q"), isPresented: Binding(
-            get: { pendingImport != nil }, set: { if !$0 { pendingImport = nil } }),
-            titleVisibility: .visible, presenting: pendingImport) { file in
-            Button(t("body.import_replace"), role: .destructive) { importBackup(file.url) }
-            Button(t("cancel"), role: .cancel) {}
-        } message: { _ in Text(t("body.import_q_body")) }
-    }
-
-    private func importBackup(_ url: URL) {
-        switch store.importFile(url) {
-        case .imported:       haptic(.success); toast.show(t("body.imported"))
-        case .invalidFile:    haptic(.error); toast.show(t("body.invalid_file"))
-        case .snapshotFailed: haptic(.error); toast.show(t("body.import_snapshot_failed"))
-        }
-    }
-
 }

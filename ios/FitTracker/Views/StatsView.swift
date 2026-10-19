@@ -17,7 +17,7 @@ struct StatsView: View {
     @State private var progWindow: ChartWindow = .y1
 
     private var tabs: [(String, String)] {
-        [("overview", t("st.overview")), ("pr", t("st.records")), ("prog", t("st.progress")), ("storico", t("st.history"))]
+        [("overview", t("st.overview")), ("load", t("st.load")), ("pr", t("st.records")), ("prog", t("st.progress"))]
     }
 
     var body: some View {
@@ -36,11 +36,18 @@ struct StatsView: View {
             }
         }
 
+        Color.clear.frame(height: 0)
+            .onChange(of: store.statsRequest, initial: true) { _, request in
+                guard let request else { return }
+                statsTab = request
+                store.statsRequest = nil
+            }
+
         switch statsTab {
         case "overview": overview
+        case "load":     load
         case "pr":       records
-        case "prog":     progress
-        default:         history
+        default:         progress
         }
     }
 
@@ -53,17 +60,9 @@ struct StatsView: View {
         let withW = ws.filter { $0.weight != nil }
         let bf = store.currentBF
         return Group {
+            StatsSection(id: "body", title: t("st.sec_body")) {
             MetricChartCard(title: t("home.weight"), info: .weight, color: Theme.acc) {
                 $0.weight.map { Units.wOut($0) }
-            }
-            MetricChartCard(title: t("st.sleep"), info: .sleep, color: Theme.blue, yDomain: 0...100) {
-                $0.sleep.map(Double.init)
-            }
-            MetricChartCard(title: t("st.steps_time"), info: .steps, color: Color(hex: "ff9500"), kind: .bar) {
-                $0.steps.map(Double.init)
-            }
-            MetricChartCard(title: t("st.vo2_time"), info: .vo2max, color: Theme.good) {
-                $0.vo2max
             }
             MetricChartCard(title: t("st.bmi_time"), info: .bmi, color: Color(hex: "b08fff")) {
                 e in e.weight.map { store.bmi($0) }
@@ -72,23 +71,6 @@ struct StatsView: View {
             // days between two body-fat measurements (the weight line again otherwise).
             MetricChartCard(title: t("st.ffmi_time"), info: .ffmi, color: Theme.blue) {
                 e in e.weight.flatMap { store.ffmiTrend(on: e.date, weight: $0) }
-            }
-            // Recovery and activity from the watch or band: each card only appears
-            // once Health has delivered that value in two different weeks.
-            MetricChartCard(title: t("st.hrv_time"), info: .hrv, color: Theme.blue, unit: "ms") { $0.hrvSleep }
-            MetricChartCard(title: t("st.rhr_time"), info: .restingHR, color: Theme.red, unit: "bpm") {
-                $0.restHR.map(Double.init)
-            }
-            MetricChartCard(title: t("st.resp_time"), info: .respRate, color: Color(hex: "4fb8c4"), unit: "/min") { $0.respRate }
-            MetricChartCard(title: t("st.spo2_time"), info: .spo2, color: Color(hex: "ff5d5d"), unit: "%") { $0.spo2 }
-            MetricChartCard(title: t("st.walk_hr_time"), info: .walkingHR, color: Theme.acc2, unit: "bpm") {
-                $0.walkingHR.map(Double.init)
-            }
-            MetricChartCard(title: t("st.daylight_time"), info: .daylight, color: Theme.acc, kind: .bar, unit: "min") {
-                $0.daylightMin.map(Double.init)
-            }
-            MetricChartCard(title: t("st.stand_time"), info: .stand, color: Theme.good, kind: .bar, unit: "h") {
-                $0.standHours.map(Double.init)
             }
             if withW.count > 1 {
                 if let bf {
@@ -118,17 +100,49 @@ struct StatsView: View {
             if withW.count < 2 {
                 Card { EmptyBox(title: t("st.no_data"), text: t("st.charts_hint"), icon: "chart.xyaxis.line") }
             }
-            MuscleVolumeCard()
-            VitalsTrendCard()
-            FitnessCard()
-            IntensityCard()
-            profileCard
+            }
+            StatsSection(id: "sleep", title: t("st.sec_sleep")) {
+            MetricChartCard(title: t("st.sleep"), info: .sleep, color: Theme.blue, yDomain: 0...100) {
+                $0.sleep.map(Double.init)
+            }
+            MetricChartCard(title: t("st.hrv_time"), info: .hrv, color: Theme.blue, unit: "ms") { $0.hrvSleep }
+            MetricChartCard(title: t("st.rhr_time"), info: .restingHR, color: Theme.red, unit: "bpm") {
+                $0.restHR.map(Double.init)
+            }
+            MetricChartCard(title: t("st.resp_time"), info: .respRate, color: Color(hex: "4fb8c4"), unit: "/min") { $0.respRate }
+            MetricChartCard(title: t("st.spo2_time"), info: .spo2, color: Color(hex: "ff5d5d"), unit: "%") { $0.spo2 }
+            MetricChartCard(title: t("st.walk_hr_time"), info: .walkingHR, color: Theme.acc2, unit: "bpm") {
+                $0.walkingHR.map(Double.init)
+            }
+                VitalsTrendCard()
+            }
+            StatsSection(id: "activity", title: t("st.sec_activity")) {
+            MetricChartCard(title: t("st.steps_time"), info: .steps, color: Color(hex: "ff9500"), kind: .bar) {
+                $0.steps.map(Double.init)
+            }
+            MetricChartCard(title: t("st.daylight_time"), info: .daylight, color: Theme.acc, kind: .bar, unit: "min") {
+                $0.daylightMin.map(Double.init)
+            }
+            MetricChartCard(title: t("st.stand_time"), info: .stand, color: Theme.good, kind: .bar, unit: "h") {
+                $0.standHours.map(Double.init)
+            }
+            MetricChartCard(title: t("st.vo2_time"), info: .vo2max, color: Theme.good) {
+                $0.vo2max
+            }
+                FitnessCard()
+                MuscleVolumeCard()
+            }
         }
     }
 
-    // MARK: Profile / goals
-    private var profileCard: some View {
-        ProfileCard()
+    // MARK: Load — the form, the weekly trend, the time in zones, monotony and strain
+    private var load: some View {
+        Group {
+            FormCard()
+            LoadTrendCard()
+            LoadCard()
+            IntensityCard()
+        }
     }
 
     // MARK: Records
@@ -453,76 +467,6 @@ struct StatsView: View {
             }
             .padding(.vertical, 9).padding(.horizontal, 12)
         }.buttonStyle(PressableStyle())
-    }
-
-    // MARK: History (two calendars only)
-    // Workout + nutrition calendars, nothing underneath them: tapping a workout
-    // day opens that session, tapping a nutrition day opens its editor. The full
-    // session list and the calorie/macro charts moved to the Train and Nutrition
-    // pages respectively, so nothing is duplicated here.
-    private var history: some View {
-        Group {
-            SectionHeader(text: t("st.section_workout"), icon: "dumbbell.fill")
-            CalendarCard()
-
-            SectionHeader(text: t("st.section_nutrition"), icon: "fork.knife")
-            NutritionCalendarCard()
-        }
-    }
-}
-
-// MARK: - Editable profile / goals
-struct ProfileCard: View {
-    @EnvironmentObject var store: Store
-    @EnvironmentObject var toast: ToastCenter
-
-    @State private var goalW = ""
-    @State private var goalBF = ""
-    @State private var startW = ""
-    @State private var height = ""
-    @State private var timer = ""
-    @State private var loaded = false
-
-    var body: some View {
-        Card {
-            Lbl(text: t("pc.title"), color: Theme.acc2).padding(.bottom, 10)
-            HStack(spacing: 10) {
-                miniField("\(t("pc.goal_weight")) (\(Units.wLabel))".uppercased(), "80", $goalW)
-                miniField(t("pc.goal_bf").uppercased(), "15", $goalBF)
-            }.padding(.bottom, 10)
-            HStack(spacing: 10) {
-                miniField("\(t("pc.start_weight")) (\(Units.wLabel))".uppercased(), "88", $startW)
-                miniField("\(t("pc.height")) (\(Units.heightLabel))".uppercased(), Units.imperial ? "71" : "185", $height)
-            }.padding(.bottom, 10)
-            miniField(t("pc.timer").uppercased(), "60", $timer).padding(.bottom, 12)
-            FilledButton(title: t("pc.save")) {
-                var p = store.prefs
-                if pf(goalW) > 0 { p.goalWeight = Units.wIn(pf(goalW)) }
-                if pf(goalBF) > 0 { p.goalBF = pf(goalBF) }
-                if pf(startW) > 0 { p.startWeight = Units.wIn(pf(startW)) }
-                if pf(height) > 0 { p.height = Units.heightIn(pf(height)) }
-                if pf(timer) > 0 { p.timer = Int(pf(timer)) }
-                store.prefs = p
-                toast.show(t("pc.saved"))
-            }
-        }
-        .onAppear {
-            guard !loaded else { return }
-            loaded = true
-            goalW = dispW(store.prefs.goalWeight)
-            goalBF = trimNum(store.prefs.goalBF)
-            startW = dispW(store.prefs.startWeight)
-            height = trimNum((Units.heightOut(store.prefs.height) * 10).rounded() / 10)
-            timer = "\(store.prefs.timer)"
-        }
-    }
-
-    private func miniField(_ label: String, _ ph: String, _ binding: Binding<String>) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(label).font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.sub)
-            InputField(placeholder: ph, text: binding)
-        }
-        .frame(maxWidth: .infinity)
     }
 }
 
@@ -851,5 +795,38 @@ struct MergeExerciseSheet: View {
         .preferredColorScheme(.dark)
         .keyboardDoneBar()
         .onAppear { keep = names.first ?? "" }
+    }
+}
+
+// MARK: - A group of cards that folds away
+/// A titled group of Stats cards. Open or closed is remembered per section, so the
+/// page shows what the person looks at instead of one long column.
+struct StatsSection<Content: View>: View {
+    let title: String
+    private let content: Content
+    @AppStorage private var open: Bool
+
+    init(id: String, title: String, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.content = content()
+        _open = AppStorage(wrappedValue: true, "stats.section.\(id)")
+    }
+
+    var body: some View {
+        VStack(spacing: 11) {
+            Button { tap(); open.toggle() } label: {
+                HStack {
+                    Text(title.uppercased()).font(.head(12, .semibold)).tracking(1).foregroundColor(Theme.txt)
+                    Spacer()
+                    Image(systemName: open ? "chevron.up" : "chevron.down").font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(Theme.sub)
+                }
+                .frame(minHeight: Theme.minTapTarget)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityValue(open ? t("a11y.expanded") : t("a11y.collapsed"))
+            if open { content }
+        }
     }
 }

@@ -102,43 +102,6 @@ struct FormCard: View {
     }
 }
 
-// MARK: Recovery
-struct RecoveryCard: View {
-    @EnvironmentObject var store: Store
-
-    var body: some View {
-        Group {
-            if let r = store.recoveryEstimate() {
-                let left = r.remaining
-                Card(accent: left == 0 ? Theme.good : Theme.acc2) {
-                    HStack(spacing: 4) {
-                        InfoLbl(text: t("recovery.title"), info: .recovery, color: Theme.acc2)
-                        Spacer()
-                        Text(left == 0 ? t("recovery.done").uppercased() : t("metric.estimated").uppercased())
-                            .font(.head(10, .semibold)).tracking(0.5)
-                            .foregroundColor(left == 0 ? Theme.good : Theme.sub)
-                    }
-                    .padding(.bottom, 8)
-                    Text(left.map { $0 == 0 ? t("recovery.done") : t("recovery.left", $0) } ?? "\(r.hours) h")
-                        .font(.num(28)).foregroundColor(left == 0 ? Theme.good : Theme.txt)
-                    Text(t("recovery.total", r.hours, relativeDay(r.sessionDate)))
-                        .font(.system(size: 11)).foregroundColor(Theme.sub).padding(.top, 2)
-                    if let left {
-                        Bar(value: Double(r.hours - left) / Double(max(1, r.hours)), gradient: [Theme.acc2, Theme.good])
-                            .padding(.top, 8)
-                    }
-                }
-            }
-        }
-    }
-
-    private func relativeDay(_ date: String) -> String {
-        if date == today() { return t("recovery.today") }
-        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date()).map { isoFormatter.string(from: $0) }
-        return date == yesterday ? t("recovery.yesterday") : fmtDM(date)
-    }
-}
-
 // MARK: Weekly intensity (time in zones)
 struct IntensityCard: View {
     @EnvironmentObject var store: Store

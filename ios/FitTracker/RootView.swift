@@ -43,8 +43,12 @@ struct RootView: View {
     private var stripsShown: [Bool] {
         [activeWorkout.isActive && (tab != .allena || activeWorkout.minimized),
          activeCardio.isActive && (tab != .allena || activeCardio.minimized),
+         activeWorkout.isActive && tab == .allena && !activeWorkout.minimized,
          timer.active]
     }
+    /// Height of everything pinned to the bottom, so the page can end above it.
+    @State private var barsHeight: CGFloat = 0
+    private static let barsBreathing: CGFloat = 16
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -68,7 +72,7 @@ struct RootView: View {
                             }
                         }
                         .frame(width: geo.size.width - 32, alignment: .top)
-                        .padding(.horizontal, 16).padding(.top, 14).padding(.bottom, 130)
+                        .padding(.horizontal, 16).padding(.top, 14).padding(.bottom, barsHeight + Self.barsBreathing)
                     }
                     .scrollDismissesKeyboard(.interactively)
                     // A new scroll view per tab: each tab opens at its top instead
@@ -97,10 +101,16 @@ struct RootView: View {
                     }
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
+                // Time and Finish stay in reach while training.
+                if activeWorkout.isActive && tab == .allena && !activeWorkout.minimized {
+                    LiveWorkoutBar().transition(.move(edge: .bottom).combined(with: .opacity))
+                }
                 if timer.active { TimerStrip().transition(.move(edge: .bottom).combined(with: .opacity)) }
                 if case .saveFailed(let reason) = store.storageProblem { StorageBanner(reason: reason) }
                 NavBar(tab: $tab)
             }
+            .background(GeometryReader { Color.clear.preference(key: BarsHeightKey.self, value: $0.size.height) })
+            .onPreferenceChange(BarsHeightKey.self) { barsHeight = $0 }
             // Strips slide up from the bar they sit on and leave the same way,
             // instead of popping in and shoving the layout.
             .animation(reduceMotion ? nil : Theme.settle, value: stripsShown)
@@ -247,6 +257,33 @@ struct NavBar: View {
         .padding(.bottom, 8)
         .background(Theme.c1.opacity(0.96))
         .overlay(alignment: .top) { Rectangle().fill(Theme.brd).frame(height: 1) }
+    }
+}
+
+private struct BarsHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
+}
+
+// MARK: - Live workout bar (time and Finish, pinned while the workout is on screen)
+struct LiveWorkoutBar: View {
+    @EnvironmentObject var activeWorkout: ActiveWorkout
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Circle().fill(activeWorkout.plan.map { Color(hex: $0.color) } ?? Theme.acc).frame(width: 8, height: 8)
+            ElapsedClock(startDate: activeWorkout.startDate)
+            Spacer()
+            Button { haptic(.success); activeWorkout.finishRequest = true } label: {
+                Text(t("wk.finish").uppercased()).font(.head(13, .bold)).tracking(1).foregroundColor(Theme.bg)
+                    .padding(.horizontal, 20).frame(minHeight: Theme.minTapTarget)
+                    .background(Theme.acc).clipShape(Capsule())
+            }
+            .buttonStyle(PressableStyle())
+        }
+        .padding(.vertical, 4).padding(.leading, 16).padding(.trailing, 6)
+        .chrome(18, stroke: Theme.acc.opacity(0.4))
+        .padding(.horizontal, 16)
     }
 }
 

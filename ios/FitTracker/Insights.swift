@@ -17,90 +17,113 @@ func paceStr(_ minPerUnit: Double) -> String {
     return String(format: "%d:%02d", m, s)
 }
 
-// MARK: - Readiness (HRV) card
-struct ReadinessCard: View {
+// MARK: - Today: readiness and recovery in one card
+struct TodayCard: View {
     @EnvironmentObject var store: Store
     var body: some View {
         let r = store.readiness()
+        let recovery = store.recoveryEstimate()
         Group {
-            if r.score != nil || r.samples > 0 {
+            if r.score != nil || r.samples > 0 || recovery != nil {
                 Card(accent: zoneColor(r.advice)) {
                     InfoLbl(text: t("load.readiness"), info: .readiness, color: Theme.acc2).padding(.bottom, 10)
-                    if let score = r.score {
-                        HStack(alignment: .firstTextBaseline, spacing: 6) {
-                            Text("\(score)").font(.num(34)).foregroundColor(zoneColor(r.advice))
-                            Text("/100").font(.system(size: 12)).foregroundColor(Theme.sub)
-                            Spacer()
-                            Text(t(adviceKey(r.advice)).uppercased())
-                                .font(.head(11, .semibold)).tracking(1).foregroundColor(zoneColor(r.advice))
-                        }
-                        .padding(.bottom, 8)
-                        if let scale = store.infoScale(.readiness) { RangeBar(scale: scale, value: Double(score)) }
-                        if !r.warnings.isEmpty {
-                            Label(t("load.vitals_warning", r.warnings.map { t(NightVitalsCard.spec($0).name) }.joined(separator: ", ")),
-                                  systemImage: "exclamationmark.triangle.fill")
-                                .font(.system(size: 11, weight: .medium)).foregroundColor(Theme.acc2)
-                                .fixedSize(horizontal: false, vertical: true)
-                                .padding(.top, 8)
-                        }
-                        if !r.usedSignals.isEmpty {
-                            HStack(spacing: 5) {
-                                Text(t("load.from").uppercased()).font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.sub)
-                                ForEach(r.usedSignals, id: \.self) { sig in
-                                    Text(t("load.sig." + sig)).font(.head(10, .semibold)).tracking(0.3)
-                                        .foregroundColor(Theme.sub)
-                                        .padding(.vertical, 2).padding(.horizontal, 7)
-                                        .background(Theme.c2).clipShape(Capsule())
-                                }
-                                Spacer()
-                            }
-                            .padding(.top, 8)
-                        }
-                    } else {
-                        Text(t("load.need_data")).font(.system(size: 12)).foregroundColor(Theme.sub)
-                    }
+                    readiness(r)
+                    if let recovery { recoveryRow(recovery) }
                 }
             }
         }
     }
+
+    @ViewBuilder
+    private func readiness(_ r: ReadinessResult) -> some View {
+        if let score = r.score {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text("\(score)").font(.num(34)).foregroundColor(zoneColor(r.advice))
+                Text("/100").font(.system(size: 12)).foregroundColor(Theme.sub)
+                Spacer()
+                Text(t(adviceKey(r.advice)).uppercased())
+                    .font(.head(11, .semibold)).tracking(1).foregroundColor(zoneColor(r.advice))
+            }
+            .padding(.bottom, 8)
+            if let scale = store.infoScale(.readiness) { RangeBar(scale: scale, value: Double(score)) }
+            if !r.warnings.isEmpty {
+                Label(t("load.vitals_warning", r.warnings.map { t(NightVitalsCard.spec($0).name) }.joined(separator: ", ")),
+                      systemImage: "exclamationmark.triangle.fill")
+                    .font(.system(size: 11, weight: .medium)).foregroundColor(Theme.acc2)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 8)
+            }
+        } else {
+            Text(t("load.need_data")).font(.system(size: 12)).foregroundColor(Theme.sub)
+        }
+    }
+
+    private func recoveryRow(_ r: RecoveryEstimate) -> some View {
+        let left = r.remaining
+        return VStack(alignment: .leading, spacing: 6) {
+            Rectangle().fill(Theme.brd).frame(height: 1).padding(.vertical, 6)
+            HStack(spacing: 2) {
+                Text(t("recovery.title")).font(.system(size: 12, weight: .medium)).foregroundColor(Theme.sub)
+                InfoButton(id: .recovery)
+                Spacer()
+                Text(left.map { $0 == 0 ? t("recovery.done") : t("recovery.left", $0) } ?? "\(r.hours) h")
+                    .font(.num(18)).foregroundColor(left == 0 ? Theme.good : Theme.txt)
+            }
+            if let left {
+                Bar(value: Double(r.hours - left) / Double(max(1, r.hours)), gradient: [Theme.acc2, Theme.good])
+            }
+            Text(t("recovery.total", r.hours, relativeDay(r.sessionDate)))
+                .font(.system(size: 11)).foregroundColor(Theme.sub)
+        }
+    }
+
+    private func relativeDay(_ date: String) -> String {
+        if date == today() { return t("recovery.today") }
+        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date()).map { isoFormatter.string(from: $0) }
+        return date == yesterday ? t("recovery.yesterday") : fmtDM(date)
+    }
+
     private func adviceKey(_ a: String) -> String {
         switch a { case "ready": return "load.ready"; case "easy": return "load.easy"; case "rest": return "load.rest"; default: return "load.need_data" }
     }
 }
 
-// MARK: - TRIMP card (cardio training load from avg HR)
+// MARK: - Load: this week against the last, and the form (Home summary)
 // Banister TRIMP per session, summed by week. Appears only once at least one
-// session carries an average HR, since that's what TRIMP is computed from.
-struct TrimpCard: View {
+// session carries an average HR, since that's what TRIMP is computed from. The
+// tap opens Stats › Load, where the form, the trend and the intensity live.
+struct WeekLoadCard: View {
     @EnvironmentObject var store: Store
+    var open: () -> Void
+
     var body: some View {
         let week = store.weeklyTrimp()
         let prev = store.weeklyTrimp(offset: 1)
-        let last = store.lastSessionTrimp()
+        let form = store.loadDataStatus().reliable ? store.formPercent() : nil
         Group {
             if store.hasAnyTrimp {
-                Card(accent: Theme.acc2) {
-                    HStack(spacing: 2) {
-                        Lbl(text: t("trimp.title"), color: Theme.acc2)
-                        InfoButton(id: .trimp, color: Theme.acc2)
-                        Spacer()
-                        if let last {
-                            Text("\(t("trimp.last")) \(Int(last.value.rounded()))")
-                                .font(.head(10, .semibold)).tracking(0.3).foregroundColor(Theme.sub)
+                Button { tap(); open() } label: {
+                    Card(accent: Theme.acc2) {
+                        HStack(spacing: 2) {
+                            Lbl(text: t("trimp.title"), color: Theme.acc2)
+                            Spacer()
+                            if let form, let scale = store.infoScale(.form) { BandLabel(scale: scale, value: form) }
+                            Image(systemName: "chevron.right").font(.system(size: 11, weight: .semibold))
+                                .foregroundColor(Theme.sub).padding(.leading, 6)
                         }
+                        .padding(.bottom, 12)
+                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                            Text("\(Int(week.rounded()))").font(.num(34)).foregroundColor(Theme.acc2)
+                            Text(t("trimp.this_week")).font(.system(size: 12, weight: .semibold)).foregroundColor(Theme.sub)
+                            Spacer()
+                        }
+                        .padding(.bottom, 12)
+                        let mx = max(week, prev, 1)
+                        cmpRow(t("trimp.this_week"), week, mx, Theme.acc2)
+                        cmpRow(t("trimp.last_week"), prev, mx, Theme.sub).padding(.top, 7)
                     }
-                    .padding(.bottom, 12)
-                    HStack(alignment: .firstTextBaseline, spacing: 6) {
-                        Text("\(Int(week.rounded()))").font(.num(34)).foregroundColor(Theme.acc2)
-                        Text(t("trimp.this_week")).font(.system(size: 12, weight: .semibold)).foregroundColor(Theme.sub)
-                        Spacer()
-                    }
-                    .padding(.bottom, 12)
-                    let mx = max(week, prev, 1)
-                    cmpRow(t("trimp.this_week"), week, mx, Theme.acc2)
-                    cmpRow(t("trimp.last_week"), prev, mx, Theme.sub).padding(.top, 7)
-                    Text(t("trimp.note")).font(.system(size: 10)).foregroundColor(Theme.sub).padding(.top, 8)
                 }
+                .buttonStyle(.plain)
             }
         }
     }

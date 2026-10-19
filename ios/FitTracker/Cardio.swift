@@ -173,7 +173,12 @@ struct CardioTypeEditorView: View {
                                 .overlay(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous).stroke(Theme.red.opacity(0.4), lineWidth: 1))
                         }
                         .confirmationDialog(t("wk.delete_cardio_q"), isPresented: $confirmDelete, titleVisibility: .visible) {
-                            Button(t("delete"), role: .destructive) { store.deleteCardioType(type.id); toast.show(t("wk.cardio_deleted")); dismiss() }
+                            Button(t("delete"), role: .destructive) {
+                                if let removed = store.deleteCardioType(type.id) {
+                                    toast.showUndo(t("wk.cardio_deleted")) { [store] in store.restoreCardioType(removed) }
+                                }
+                                dismiss()
+                            }
                             Button(t("cancel"), role: .cancel) {}
                         }
                     }

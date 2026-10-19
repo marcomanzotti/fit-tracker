@@ -7,54 +7,18 @@ struct HomeView: View {
     @Binding var tab: Tab
 
     @State private var weightInput = ""
-    @State private var shareURL: IdentURL?
-    @State private var editingGoal = false
     // "This week" day logging: a picker for empty days, then the session editor.
     @State private var pickerDate: IdentDate?
     @State private var editingSession: WorkoutSession?
     @State private var pendingEdit: WorkoutSession?
 
     var body: some View {
-        let lw = store.lastWeight
-        let comment = store.bmiComment(weight: lw)
-
-        // Check-in
-        if !store.hasCheckedIn() {
-            checkInCard
-        } else {
-            checkedInCard
-        }
-
-        // Key stats — three equally-sized tiles in a row (Weight · Streak ·
-        // Sessions). Body fat lives in the goals section, so it's not repeated here.
-        HStack(spacing: 9) {
-            StatTile(label: t("home.weight"), value: dispW(lw), unit: Units.wLabel,
-                     note: comment.text, info: .bmi)
-            StatTile(label: t("home.streak"), value: "\(store.streak)", valueColor: Theme.acc,
-                     note: store.streak == 1 ? t("home.day") : t("home.days"), info: .streak)
-            StatTile(label: t("home.sessions"), value: "\(store.sessions.count)", valueColor: Theme.blue,
-                     note: t("home.total"), info: .sessions)
-        }
-
-        weekStripCard
+        TodayCard()
         nextWorkoutCard
-        WeeklyPlanCard()
-        goalsCard(lw: lw)
-
-        // Scientific dashboard (visual + data, with info popups).
-        // Headline metrics are computable from your data: TRIMP (avg HR) and
-        // ACWR (EWMA). Readiness only appears if you log HRV (optional sensor).
-        Group {
-            ReadinessCard()
-            RecoveryCard()
-            TrimpCard()
-            LoadTrendCard()
-            FormCard()
-            LoadCard()
-            NutritionCard()
-        }
-
-        backupRow
+        if !store.hasCheckedIn() { checkInCard } else { checkedInCard }
+        weekStripCard
+        WeekLoadCard { store.statsRequest = "load"; tab = .stats }
+        nutritionTodayCard
     }
 
     // MARK: Week activity strip (sporty 7-day overview, tap a day to log)
@@ -146,7 +110,7 @@ struct HomeView: View {
             HStack {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(t("home.checkin_done").uppercased()).font(.head(12, .semibold)).tracking(1).foregroundColor(Theme.good)
-                    Text("\(t("home.weight")) \(dispW(tw?.weight ?? store.lastWeight)) \(Units.wLabel)" + (tw?.sleep != nil ? " · \(t("home.sleep")) \(tw!.sleep!)/100" : ""))
+                    Text("\(dispW(tw?.weight ?? store.lastWeight)) \(Units.wLabel) · \(store.bmiComment(weight: tw?.weight ?? store.lastWeight).text)")
                         .font(.system(size: 11)).foregroundColor(Theme.sub)
                 }
                 Spacer()
@@ -178,53 +142,33 @@ struct HomeView: View {
         toast.show(t("home.checkin_saved"))
     }
 
-    // MARK: Goals
-    private func goalsCard(lw: Double) -> some View {
-        let p = store.prefs
-        // Bidirectional: progress from start weight toward the goal, loss or gain.
-        let denom = p.goalWeight - p.startWeight
-        let wtPct = abs(denom) < 0.1 ? 1 : max(0, min(1, (lw - p.startWeight) / denom))
-        let bf = store.currentBF
-        let bfPct = bf.map { max(0, min(1, ($0 - p.goalBF) / max(0.1, 35 - p.goalBF))) }
-        return Card {
-            HStack(spacing: 2) {
-                Lbl(text: t("home.goals"), color: Theme.acc2)
-                InfoButton(id: .goal, color: Theme.acc2)
-                Spacer()
-                Button { tap(); editingGoal = true } label: {
-                    HStack(spacing: 5) {
-                        Image(systemName: "target").font(.system(size: 10, weight: .bold))
-                        Text(t("goal.change").uppercased()).font(.head(10, .semibold)).tracking(0.8)
-                    }
-                    .foregroundColor(Theme.acc)
-                    .padding(.vertical, 6).padding(.horizontal, 10)
-                    .background(Theme.acc.opacity(0.10))
-                    .clipShape(Capsule())
-                    .overlay(Capsule().stroke(Theme.acc.opacity(0.5), lineWidth: 1))
+    // MARK: Nutrition today (kcal and protein; the rest lives in the Nutrition tab)
+    private var nutritionTodayCard: some View {
+        let e = store.energyTargets()
+        let entry = store.dailyEntry(today())
+        let kcal = entry?.totalKcal ?? 0
+        let protein = entry?.totalProtein ?? 0
+        let pct = e.target > 0 ? Double(kcal) / e.target : 0
+        return Button { tap(); tab = .nutri } label: {
+            Card(accent: Theme.acc) {
+                HStack {
+                    Lbl(text: t("nutp.today"), color: Theme.acc2)
+                    Spacer()
+                    Image(systemName: "chevron.right").font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.sub)
                 }
-            }
-            .padding(.bottom, 12)
-            HStack(spacing: 16) {
-                VStack(spacing: 0) {
-                    HStack {
-                        Text(t("home.weight")).font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.sub)
-                        Spacer()
-                        Text("\(dispW(lw)) → \(dispW(p.goalWeight)) \(Units.wLabel)").font(.num(13)).foregroundColor(Theme.acc)
-                    }.padding(.bottom, 5)
-                    Bar(value: wtPct).padding(.bottom, bf != nil ? 12 : 0)
-                    if let bf, let bfPct {
-                        HStack {
-                            Text(t("home.fat")).font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.sub)
-                            Spacer()
-                            Text("\(trimNum(bf))% → \(trimNum(p.goalBF))%").font(.num(13)).foregroundColor(Theme.red)
-                        }.padding(.bottom, 5)
-                        Bar(value: max(0.05, 1 - bfPct), gradient: [Theme.red, Theme.acc])
-                    }
+                .padding(.bottom, 10)
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text("\(kcal)").font(.num(28)).foregroundColor(kcal > 0 ? Theme.acc : Theme.sub)
+                    Text("/ \(Int(e.target)) kcal").font(.system(size: 12, weight: .semibold)).foregroundColor(Theme.sub)
+                    Spacer()
+                    Text("\(t("nut.protein")) \(Int(protein)) / \(Int(e.protein)) g")
+                        .font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.blue)
                 }
-                GoalRing(value: wtPct, color: Theme.acc, size: 64)
+                .padding(.bottom, 8)
+                Bar(value: min(1, pct), gradient: pct > 1.12 ? [Theme.red, Theme.red] : [Theme.acc, Theme.acc2])
             }
         }
-        .sheet(isPresented: $editingGoal) { GoalEditorView() }
+        .buttonStyle(.plain)
     }
 
     // MARK: Next workout (schedule-aware: strength plan or cardio activity)
@@ -268,24 +212,6 @@ struct HomeView: View {
                 }
             }
         }
-    }
-
-    // MARK: Backup
-    private var backupRow: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(t("home.backup").uppercased()).font(.head(10, .semibold)).tracking(1.5).foregroundColor(Theme.sub)
-                Text(t("home.backup_auto")).font(.system(size: 10)).foregroundColor(Theme.sub)
-            }
-            Spacer()
-            GhostButton(title: t("home.export_data")) {
-                if let url = store.exportFile() { shareURL = IdentURL(url: url) }
-                else { toast.show(t("home.export_failed")) }
-            }
-        }
-        .padding(.vertical, 10).padding(.horizontal, 14)
-        .chrome(fill: Theme.c1)
-        .sheet(item: $shareURL) { item in ShareSheet(items: [item.url]) }
     }
 }
 

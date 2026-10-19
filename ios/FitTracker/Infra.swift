@@ -134,6 +134,8 @@ final class ActiveWorkout: ObservableObject {
     /// True when the user backed out of the live view but the workout is still
     /// running in the background (the floating strip un-minimizes it).
     @Published var minimized = false
+    /// The Finish button of the bottom bar was tapped; the live view opens its finish sheet.
+    @Published var finishRequest = false
     @Published var durationSec: Int? { didSet { touch() } }
     @Published var avgHR = "" { didSet { touch() } }
     @Published var caloriesManual = "" { didSet { touch() } }
@@ -582,7 +584,15 @@ final class ToastCenter: ObservableObject {
     /// For messages the user needs time to read or act on (errors, Undo).
     static let longDuration = 4.0
 
+    /// A plain message that arrived while an Undo was on screen: shown after it.
+    private var waiting: (message: String, duration: Double)?
+
     func show(_ msg: String, duration: Double = ToastCenter.defaultDuration, action: Action? = nil) {
+        // A second message must not take away a deletion's Undo before it times out.
+        if self.action != nil, action == nil, message != nil {
+            waiting = (msg, duration)
+            return
+        }
         message = msg
         self.action = action
         work?.cancel()
@@ -603,8 +613,13 @@ final class ToastCenter: ObservableObject {
     }
 
     private func hide() {
-        withAnimation { message = nil }
         action = nil
+        if let next = waiting {
+            waiting = nil
+            show(next.message, duration: next.duration)
+            return
+        }
+        withAnimation { message = nil }
     }
 }
 

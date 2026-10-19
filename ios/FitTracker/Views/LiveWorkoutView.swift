@@ -15,6 +15,7 @@ struct LiveWorkoutView: View {
     @EnvironmentObject var toast: ToastCenter
     @EnvironmentObject var activeWorkout: ActiveWorkout
     @ObservedObject private var watch = WatchSync.shared
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     // Only transient UI state lives here. Everything that belongs to the session
     // (log, duration, heart rate, calories, open notes) is on ActiveWorkout, so it
@@ -30,6 +31,8 @@ struct LiveWorkoutView: View {
     /// Sets whose completion already started a rest: going back to correct a number
     /// must not restart the clock.
     @State private var restedSets: Set<UUID> = []
+    /// Duration, heart rate and calories are asked for here, at the end, not while training.
+    @State private var showFinish = false
 
     private enum SetField: Hashable {
         case reps(UUID), weight(UUID)
@@ -54,12 +57,10 @@ struct LiveWorkoutView: View {
             }
 
             addExerciseCard
-            sessionLoadCard
-            caloriesCard
 
             // Finish (primary) + Discard (destructive). Back never ends the
             // workout — only these explicit actions do.
-            BigButton(title: t("wk.finish_session")) { saveSession() }
+            BigButton(title: t("wk.finish_session")) { showFinish = true }
             Button { tap(); confirmDiscard = true } label: {
                 HStack(spacing: 6) {
                     Image(systemName: "trash").font(.system(size: 12, weight: .bold))
@@ -95,6 +96,15 @@ struct LiveWorkoutView: View {
             }
         }
         .sheet(item: $plates) { p in PlateSheet(exercise: p.name, target: p.weight) }
+        .sheet(isPresented: $showFinish) {
+            FinishSessionSheet(plan: plan, log: log) { showFinish = false; saveSession() }
+        }
+        // The Finish button of the bar that stays at the bottom of the screen.
+        .onChange(of: activeWorkout.finishRequest) { _, asked in
+            guard asked else { return }
+            activeWorkout.finishRequest = false
+            showFinish = true
+        }
     }
 
     /// Weight the plate sheet loads for: the heaviest weight typed in this session's
@@ -161,89 +171,6 @@ struct LiveWorkoutView: View {
         HStack(alignment: .firstTextBaseline, spacing: 3) {
             Text(v).font(.num(16)).foregroundColor(color)
             if !unit.isEmpty { Text(unit).font(.system(size: 10, weight: .semibold)).foregroundColor(Theme.sub) }
-        }
-    }
-
-    // MARK: Calories burned
-    /// Build a session snapshot from the current inputs so the calorie estimate
-    /// reflects whatever data the session has (volume, duration, avg HR). The
-    /// duration falls back to the live elapsed time so the finish estimate is
-    /// based on the real tracked length even if the user never typed one.
-    private func currentSessionSnapshot() -> WorkoutSession {
-        var s = WorkoutSession(date: today(), planId: plan.id, planName: plan.name,
-                               planColor: plan.color, exercises: log)
-        let elapsed = activeWorkout.elapsedSec()
-        s.durationSec = activeWorkout.durationSec ?? (elapsed > 0 ? elapsed : nil)
-        s.avgHR = Int(activeWorkout.avgHR)
-        return s
-    }
-
-    private var estCalories: Int { store.estimateCalories(currentSessionSnapshot()) }
-
-    /// Calories are NOT prefilled while the workout is running — pressing Play
-    /// starts a live session, it isn't a completed log. The estimate appears only
-    /// once the user enters/records data (duration or HR), and is always editable.
-    private var caloriesReady: Bool {
-        !activeWorkout.caloriesManual.isEmpty || (activeWorkout.durationSec ?? 0) > 0 || Int(activeWorkout.avgHR) ?? 0 > 0
-    }
-
-    private var caloriesCard: some View {
-        Card(accent: Theme.acc) {
-            HStack(spacing: 2) {
-                Lbl(text: t("wk.calories"), color: Theme.acc2)
-                InfoButton(id: .calories, color: Theme.acc2)
-                Spacer()
-                HStack(alignment: .firstTextBaseline, spacing: 4) {
-                    Text(!activeWorkout.caloriesManual.isEmpty ? activeWorkout.caloriesManual : (caloriesReady ? "\(estCalories)" : "—"))
-                        .font(.num(28)).foregroundColor(caloriesReady ? Theme.acc : Theme.sub)
-                    Text("kcal").font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.sub)
-                }
-            }
-            .padding(.bottom, 10)
-            HStack(spacing: 8) {
-                Text(t("wk.cal_override").uppercased()).font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.sub)
-                Spacer()
-                InputField(placeholder: caloriesReady ? "\(estCalories)" : "—", text: $activeWorkout.caloriesManual, keyboard: .numberPad)
-                    .frame(width: 110)
-            }
-            Text(caloriesReady ? t("wk.cal_hint") : t("wk.cal_at_finish"))
-                .font(.system(size: 10)).foregroundColor(Theme.sub).padding(.top, 6)
-        }
-    }
-
-    // MARK: Session internal-load capture (TRIMP from duration + avg HR)
-    private var liveTrimp: Double? {
-        guard let d = activeWorkout.durationSec, d > 0, let hr = Int(activeWorkout.avgHR), hr > 0 else { return nil }
-        var s = WorkoutSession(date: today(), planId: plan.id, planName: plan.name, planColor: plan.color)
-        s.durationSec = d; s.avgHR = hr
-        return store.trimp(s)
-    }
-
-    private var sessionLoadCard: some View {
-        Card {
-            InfoLbl(text: t("load.title"), info: .load, color: Theme.acc2).padding(.bottom, 10)
-            HMSField(label: t("wk.duration"), seconds: $activeWorkout.durationSec)
-            Spacer().frame(height: 12)
-            loadField(t("wk.avg_hr"), $activeWorkout.avgHR, info: .trimp)
-            if let v = liveTrimp {
-                HStack(spacing: 6) {
-                    Text("TRIMP").font(.head(10, .semibold)).tracking(1.5).foregroundColor(Theme.sub)
-                    Text("\(Int(v.rounded()))").font(.num(16)).foregroundColor(Theme.acc2)
-                    Spacer()
-                    Text(t("load.trimp_hint")).font(.system(size: 10)).foregroundColor(Theme.sub)
-                }
-                .padding(.top, 12)
-            }
-            // HRV (recovery) is imported automatically from Apple Health / the
-            // watch — readiness runs on it without any manual entry here.
-        }
-    }
-
-    private func loadField(_ label: String, _ binding: Binding<String>, info: InfoTopic? = nil,
-                           keyboard: UIKeyboardType = .numberPad) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            FieldLabel(label, info: info)
-            InputField(placeholder: "—", text: binding, keyboard: keyboard)
         }
     }
 
@@ -387,7 +314,7 @@ struct LiveWorkoutView: View {
                 .padding(.bottom, 6)
 
                 ForEach(exB.sets) { $set in
-                    setRow($set, in: exB, pr: pr, bw: bw, effortScale: effortScale, prev: prevEx)
+                    setRow($set, in: exB, pr: pr, bw: bw, effortScale: effortScale, prev: prevEx, suggested: sug)
                 }
 
                 // Bodyweight hint
@@ -492,44 +419,80 @@ struct LiveWorkoutView: View {
 
     private func setRow(_ set: Binding<SetEntry>, in exB: Binding<LoggedExercise>,
                         pr: Double, bw: Bool, effortScale: EffortMode?,
-                        prev: LoggedExercise?) -> some View {
+                        prev: LoggedExercise?, suggested: Double?) -> some View {
         let id = set.wrappedValue.id
         let idx = exB.wrappedValue.sets.firstIndex(where: { $0.id == id }) ?? 0
         // Same-numbered set from the last time this exercise was done in this plan.
         // nil past the end (an extra set today has nothing to compare against).
         let prevSet = prev.flatMap { idx < $0.sets.count ? $0.sets[idx] : nil }
         let w = pf(set.wrappedValue.weight)
-        let isPR = w > pr && w > 0
+        let isPR = w > pr && w > 0 && !bw
         return HStack(spacing: 9) {
-            Text("S\(idx + 1)").font(.num(11)).foregroundColor(Theme.sub).frame(width: 28)
+            // The set number is also its menu: removing a set is one tap away and
+            // never replaces anything else on the row.
+            Menu {
+                Button(role: .destructive) { removeSet(id, from: exB.wrappedValue.id) } label: {
+                    Label(t("a11y.remove"), systemImage: "trash")
+                }
+            } label: {
+                Text("S\(idx + 1)").font(.num(11)).foregroundColor(Theme.sub).frame(width: 28, height: Theme.minTapTarget)
+            }
             SmallNumField(text: set.reps, placeholder: lastTimeHint(prevSet?.reps), highlight: isPR)
                 .focused($focus, equals: .reps(id))
-            SmallNumField(text: set.weight, placeholder: lastTimeHint(prevSet?.weight), highlight: isPR && !bw)
+            SmallNumField(text: set.weight, placeholder: lastTimeHint(prevSet?.weight), highlight: isPR)
                 .focused($focus, equals: .weight(id))
+                .overlay(alignment: .topTrailing) {
+                    if isPR {
+                        Text("PR").font(.head(9, .bold)).tracking(0.5).foregroundColor(Theme.bg)
+                            .padding(.horizontal, 5).padding(.vertical, 1)
+                            .background(Theme.acc).clipShape(Capsule())
+                            .offset(x: 4, y: -6)
+                            .transition(.scale(scale: 0.6).combined(with: .opacity))
+                    }
+                }
             if let scale = effortScale {
                 EffortField(scale: scale, value: set.effortVal)
             }
-            if isPR && !bw {
-                Text("PR").font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.acc)
-                    .transition(.scale(scale: 0.6).combined(with: .opacity))
-            } else {
-                Button { tap(); removeSet(id, from: exB.wrappedValue.id) } label: {
-                    Image(systemName: "xmark").accessibilityLabel(t("a11y.remove")).font(.system(size: 13)).foregroundColor(Theme.red.opacity(0.85))
-                        .frame(width: 34, height: 42)
-                }.buttonStyle(PressableStyle())
+            Button { confirmSet(set, in: exB, prev: prevSet, suggested: suggested) } label: {
+                Image(systemName: set.wrappedValue.filled ? "checkmark.circle.fill" : "checkmark.circle")
+                    .font(.system(size: 26))
+                    .foregroundColor(set.wrappedValue.filled ? Theme.good : Theme.sub)
+                    .frame(width: Theme.minTapTarget, height: Theme.minTapTarget)
+                    .accessibilityLabel(t("a11y.set_done"))
             }
+            .buttonStyle(PressableStyle())
             Spacer(minLength: 0)
         }
         .padding(.vertical, 2)
-        .background(isPR && !bw ? Theme.acc.opacity(0.05) : .clear)
+        .background(isPR ? Theme.acc.opacity(0.05) : .clear)
         .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
         // A record is rare and earned: the one place with a little bounce.
-        .animation(.spring(response: 0.35, dampingFraction: 0.7), value: isPR)
+        .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.7), value: isPR)
         // Celebrate the moment a typed weight first crosses the exercise's PR.
         .onChange(of: set.wrappedValue.weight) { _, newVal in
             let w = pf(newVal)
             if !bw && pr > 0 && w > pr { prHaptic() }
         }
+    }
+
+    /// One tap logs the set as it was last time (else as the set before it today,
+    /// else at the suggested weight) and starts the rest. Numbers already typed stay.
+    private func confirmSet(_ set: Binding<SetEntry>, in exB: Binding<LoggedExercise>,
+                            prev: SetEntry?, suggested: Double?) {
+        tap()
+        let id = set.wrappedValue.id
+        if set.wrappedValue.filled { setCompleted(id); return }
+        let sets = exB.wrappedValue.sets
+        let before = sets.firstIndex { $0.id == id }.flatMap { $0 > 0 ? sets[$0 - 1] : nil }
+        func known(_ v: String?) -> String? { v.flatMap { pf($0) > 0 ? $0 : nil } }
+        var s = set.wrappedValue
+        if pf(s.reps) <= 0 { s.reps = known(prev?.reps) ?? known(before?.reps) ?? "" }
+        if pf(s.weight) <= 0 { s.weight = known(prev?.weight) ?? known(before?.weight) ?? suggested.map(trimNum) ?? "" }
+        // Nothing to confirm yet: ask for the reps instead.
+        guard pf(s.reps) > 0 else { focus = .reps(id); return }
+        set.wrappedValue = s
+        haptic(.success)
+        setCompleted(id)
     }
 
     /// Remove a set, leaving a few seconds to take it back: the X sits right next to
@@ -648,5 +611,127 @@ struct LiveWorkoutView: View {
         haptic(.warning)
         toast.show(t("wk.discarded"))
         onSaved()   // tears down the active workout without saving anything
+    }
+}
+
+// MARK: - Finish sheet: what the session amounted to
+/// Duration, average heart rate and calories, asked for once the workout is over
+/// instead of sitting between the exercises while training.
+struct FinishSessionSheet: View {
+    let plan: WorkoutPlan
+    let log: [LoggedExercise]
+    var onSave: () -> Void
+
+    @EnvironmentObject var store: Store
+    @EnvironmentObject var activeWorkout: ActiveWorkout
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        ZStack {
+            Theme.bg.ignoresSafeArea()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    HStack {
+                        Text(t("wk.finish_session").uppercased()).font(.head(18, .bold)).tracking(1).foregroundColor(Theme.txt)
+                        Spacer()
+                        Button { dismiss() } label: {
+                            Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub)
+                                .frame(width: Theme.minTapTarget, height: Theme.minTapTarget)
+                        }
+                    }
+                    .padding(.top, 18)
+                    sessionLoadCard
+                    caloriesCard
+                    BigButton(title: t("save")) { onSave() }.padding(.bottom, 30)
+                }
+                .padding(.horizontal, 18)
+            }
+            .scrollDismissesKeyboard(.interactively)
+        }
+        .preferredColorScheme(.dark)
+        .keyboardDoneBar()
+        .presentationDetents([.large])
+    }
+
+    /// Build a session snapshot from the current inputs so the calorie estimate
+    /// reflects whatever data the session has (volume, duration, avg HR). The
+    /// duration falls back to the live elapsed time so the finish estimate is
+    /// based on the real tracked length even if the user never typed one.
+    private func currentSessionSnapshot() -> WorkoutSession {
+        var s = WorkoutSession(date: today(), planId: plan.id, planName: plan.name,
+                               planColor: plan.color, exercises: log)
+        let elapsed = activeWorkout.elapsedSec()
+        s.durationSec = activeWorkout.durationSec ?? (elapsed > 0 ? elapsed : nil)
+        s.avgHR = Int(activeWorkout.avgHR)
+        return s
+    }
+
+    private var estCalories: Int { store.estimateCalories(currentSessionSnapshot()) }
+
+    /// Calories are NOT prefilled while the workout is running — pressing Play
+    /// starts a live session, it isn't a completed log. The estimate appears only
+    /// once the user enters/records data (duration or HR), and is always editable.
+    private var caloriesReady: Bool {
+        !activeWorkout.caloriesManual.isEmpty || (activeWorkout.durationSec ?? 0) > 0 || Int(activeWorkout.avgHR) ?? 0 > 0
+    }
+
+    private var caloriesCard: some View {
+        Card(accent: Theme.acc) {
+            HStack(spacing: 2) {
+                Lbl(text: t("wk.calories"), color: Theme.acc2)
+                InfoButton(id: .calories, color: Theme.acc2)
+                Spacer()
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    Text(!activeWorkout.caloriesManual.isEmpty ? activeWorkout.caloriesManual : (caloriesReady ? "\(estCalories)" : "—"))
+                        .font(.num(28)).foregroundColor(caloriesReady ? Theme.acc : Theme.sub)
+                    Text("kcal").font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.sub)
+                }
+            }
+            .padding(.bottom, 10)
+            HStack(spacing: 8) {
+                Text(t("wk.cal_override").uppercased()).font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.sub)
+                Spacer()
+                InputField(placeholder: caloriesReady ? "\(estCalories)" : "—", text: $activeWorkout.caloriesManual, keyboard: .numberPad)
+                    .frame(width: 110)
+            }
+            Text(caloriesReady ? t("wk.cal_hint") : t("wk.cal_at_finish"))
+                .font(.system(size: 10)).foregroundColor(Theme.sub).padding(.top, 6)
+        }
+    }
+
+    // MARK: Session internal-load capture (TRIMP from duration + avg HR)
+    private var liveTrimp: Double? {
+        guard let d = activeWorkout.durationSec, d > 0, let hr = Int(activeWorkout.avgHR), hr > 0 else { return nil }
+        var s = WorkoutSession(date: today(), planId: plan.id, planName: plan.name, planColor: plan.color)
+        s.durationSec = d; s.avgHR = hr
+        return store.trimp(s)
+    }
+
+    private var sessionLoadCard: some View {
+        Card {
+            InfoLbl(text: t("load.title"), info: .load, color: Theme.acc2).padding(.bottom, 10)
+            HMSField(label: t("wk.duration"), seconds: $activeWorkout.durationSec)
+            Spacer().frame(height: 12)
+            loadField(t("wk.avg_hr"), $activeWorkout.avgHR, info: .trimp)
+            if let v = liveTrimp {
+                HStack(spacing: 6) {
+                    Text("TRIMP").font(.head(10, .semibold)).tracking(1.5).foregroundColor(Theme.sub)
+                    Text("\(Int(v.rounded()))").font(.num(16)).foregroundColor(Theme.acc2)
+                    Spacer()
+                    Text(t("load.trimp_hint")).font(.system(size: 10)).foregroundColor(Theme.sub)
+                }
+                .padding(.top, 12)
+            }
+            // HRV (recovery) is imported automatically from Apple Health / the
+            // watch — readiness runs on it without any manual entry here.
+        }
+    }
+
+    private func loadField(_ label: String, _ binding: Binding<String>, info: InfoTopic? = nil,
+                           keyboard: UIKeyboardType = .numberPad) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            FieldLabel(label, info: info)
+            InputField(placeholder: "—", text: binding, keyboard: keyboard)
+        }
     }
 }

@@ -82,6 +82,7 @@ struct WorkoutView: View {
             CardGrid(items: store.plans, rowHeight: 130,
                      card: { dayCard($0) }, addCell: { addCard })
 
+            WeeklyPlanCard()
             cardioSection
             CalendarCard()
             recentSessions
@@ -401,10 +402,11 @@ struct WorkoutView: View {
 
     private func deletePlan() {
         guard let p = editing else { return }
-        store.deletePlan(p.id)
+        let removed = store.deletePlan(p.id)
         afterKeyboardDismissed {
             editing = nil
-            toast.show(t("wk.day_deleted"))
+            guard let removed else { return }
+            toast.showUndo(t("wk.day_deleted")) { [store] in store.restorePlan(removed) }
         }
     }
 }

@@ -38,6 +38,8 @@ final class Store: ObservableObject {
     /// A plan id or cardio-activity id the Home "Start" button asked for; the Train
     /// tab starts it and clears this. Not saved.
     @Published var startRequest: String?
+    /// The Stats section a Home card asked for ("load"); Stats opens it and clears this.
+    @Published var statsRequest: String?
     /// The calendar day the app is showing. It moves at midnight and when the app
     /// comes back on a new day, so nothing stays on yesterday.
     @Published private(set) var currentDay = today()
@@ -71,7 +73,11 @@ final class Store: ObservableObject {
     /// A Health read (sync or history import) is running; others wait for it.
     private var healthBusy = false
     /// The running read is a sync, whose answer a second sync request can share.
-    private var syncInProgress = false
+    private var syncInProgress = false { didSet { if syncInProgress != oldValue { healthSyncing = syncInProgress } } }
+    /// What the Health link is doing, for the status line in Settings and Body.
+    @Published private(set) var healthSyncing = false
+    /// The last sync could not read Health (permission refused or Health unavailable).
+    @Published private(set) var healthFailed = false
     /// Band data that landed in Health while a sync was running: read it once that
     /// sync ends instead of dropping the request.
     private var healthResyncRequested = false
@@ -533,13 +539,38 @@ extension Store {
         if let i = cardioTypes.firstIndex(where: { $0.id == ct.id }) { cardioTypes[i] = ct }
         else { cardioTypes.append(ct) }
     }
-    func deleteCardioType(_ id: String) {
-        cardioTypes.removeAll { $0.id == id }
-        unschedule(id)
+    /// What a deletion took away, so Undo can put it back where it was.
+    struct Removed<Item> {
+        let item: Item
+        let index: Int
+        let schedule: [String]?
     }
-    func deletePlan(_ id: String) {
-        plans.removeAll { $0.id == id }
+
+    @discardableResult
+    func deleteCardioType(_ id: String) -> Removed<CardioType>? {
+        guard let i = cardioTypes.firstIndex(where: { $0.id == id }) else { return nil }
+        let removed = Removed(item: cardioTypes[i], index: i, schedule: prefs.schedule)
+        cardioTypes.remove(at: i)
         unschedule(id)
+        return removed
+    }
+    func restoreCardioType(_ r: Removed<CardioType>) {
+        guard !cardioTypes.contains(where: { $0.id == r.item.id }) else { return }
+        cardioTypes.insert(r.item, at: min(r.index, cardioTypes.count))
+        if let schedule = r.schedule { prefs.schedule = schedule }
+    }
+    @discardableResult
+    func deletePlan(_ id: String) -> Removed<WorkoutPlan>? {
+        guard let i = plans.firstIndex(where: { $0.id == id }) else { return nil }
+        let removed = Removed(item: plans[i], index: i, schedule: prefs.schedule)
+        plans.remove(at: i)
+        unschedule(id)
+        return removed
+    }
+    func restorePlan(_ r: Removed<WorkoutPlan>) {
+        guard !plans.contains(where: { $0.id == r.item.id }) else { return }
+        plans.insert(r.item, at: min(r.index, plans.count))
+        if let schedule = r.schedule { prefs.schedule = schedule }
     }
     /// A deleted plan or activity leaves the weekly schedule too.
     private func unschedule(_ id: String) {
@@ -979,6 +1010,23 @@ extension Store {
         upsertDaily(date) { e in
             e.kcal = kcal; e.protein = protein; e.carbs = carbs; e.fat = fat
             e.meals = nil
+        }
+    }
+
+    /// Empties what was eaten on a day and returns the day as it was, for Undo.
+    func clearNutrition(date: String) -> DailyEntry? {
+        let before = dailyEntry(date)
+        upsertDaily(date) { e in
+            e.kcal = nil; e.protein = nil; e.carbs = nil; e.fat = nil; e.salt = nil
+            e.meals = nil; e.foods = nil
+        }
+        return before
+    }
+    /// Undo of `clearNutrition`: only the food comes back, the rest of the day stays as it is now.
+    func restoreNutrition(_ before: DailyEntry) {
+        upsertDaily(before.date) { e in
+            e.kcal = before.kcal; e.protein = before.protein; e.carbs = before.carbs; e.fat = before.fat
+            e.salt = before.salt; e.meals = before.meals; e.foods = before.foods
         }
     }
 
@@ -1494,6 +1542,8 @@ extension Store {
             let waiting = self.waitingForSync
             self.waitingForSync = []
             self.syncInProgress = false
+            self.healthFailed = !ok
+            if ok { self.prefs.lastHealthSync = Date().timeIntervalSince1970 }
             if self.healthResyncRequested {
                 self.healthResyncRequested = false
                 self.afterHealthRead.append { [weak self] in self?.syncHealth(days: Store.healthResyncDays) }

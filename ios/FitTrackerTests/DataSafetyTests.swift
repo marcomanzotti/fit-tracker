@@ -263,4 +263,54 @@ final class DataSafetyTests: XCTestCase {
         XCTAssertNil(store.exerciseItems.first { $0.name == "Fly" }?.lastUsed, "never logged")
         XCTAssertEqual(store.prefs.weeklyRate, -0.5)
     }
+
+    // MARK: Undo of a deletion
+
+    func testADeletedPlanComesBackInPlaceWithItsScheduleDay() {
+        let store = Store(directory: dir)
+        let id = store.plans[1].id
+        store.prefs.schedule = ["", id, "", "", "", "", ""]
+
+        let removed = store.deletePlan(id)
+        XCTAssertFalse(store.plans.contains { $0.id == id })
+        XCTAssertEqual(store.prefs.schedule?[1], "")
+
+        store.restorePlan(removed!)
+        XCTAssertEqual(store.plans[1].id, id)
+        XCTAssertEqual(store.prefs.schedule?[1], id)
+    }
+
+    func testADeletedCardioActivityComesBack() {
+        let store = Store(directory: dir)
+        let activity = store.cardioTypes[0]
+        let removed = store.deleteCardioType(activity.id)
+        store.restoreCardioType(removed!)
+        XCTAssertEqual(store.cardioTypes.first?.id, activity.id)
+    }
+
+    func testAClearedNutritionDayComesBackWithItsFoods() {
+        let store = Store(directory: dir)
+        let food = FoodLog(name: "Rice", grams: 200, k100: 130, p100: 2.7, c100: 28, f100: 0.3)
+        store.saveDayFoods(date: "2026-10-01", foods: [food])
+        store.upsertDaily("2026-10-01") { $0.weight = 80 }
+
+        let before = store.clearNutrition(date: "2026-10-01")
+        XCTAssertNil(store.dailyEntry("2026-10-01")?.foods)
+
+        store.restoreNutrition(before!)
+        XCTAssertEqual(store.dailyEntry("2026-10-01")?.foods?.count, 1)
+        XCTAssertEqual(store.dailyEntry("2026-10-01")?.weight, 80, "the rest of the day was never touched")
+    }
+
+    func testAPlainToastWaitsForAPendingUndo() {
+        let toasts = ToastCenter()
+        var undone = false
+        toasts.showUndo("Deleted") { undone = true }
+        toasts.show("Saved")
+
+        XCTAssertEqual(toasts.message, "Deleted", "the Undo stays reachable")
+        toasts.runAction()
+        XCTAssertTrue(undone)
+        XCTAssertEqual(toasts.message, "Saved", "the waiting message comes next")
+    }
 }

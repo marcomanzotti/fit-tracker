@@ -108,6 +108,9 @@ struct NutritionDayEditor: View {
     @State private var mealFoods: [String: [FoodLog]] = [:]
     @State private var dayFoods: [FoodLog] = []
     @State private var loaded = false
+    @State private var confirmDelete = false
+    /// Saving in this mode would drop foods logged in another one: asked first.
+    @State private var confirmDropFoods = false
 
     var body: some View {
         ZStack {
@@ -125,12 +128,20 @@ struct NutritionDayEditor: View {
                     if mode == "quick" { quickCard }
                     else if mode == "per_meal" { perMealCard }
                     else { foodsCard }
-                    BigButton(title: t("save")) { saveAction() }
-                    Button { tap(); store.saveNutritionTotal(date: date, kcal: nil, protein: nil, carbs: nil, fat: nil); store.saveDayFoods(date: date, foods: []); toast.show(t("nut.cleared")); dismiss() } label: {
+                    BigButton(title: t("save")) { if dropsFoods { confirmDropFoods = true } else { saveAction() } }
+                        .confirmationDialog(t("nut.drop_foods_q"), isPresented: $confirmDropFoods, titleVisibility: .visible) {
+                            Button(t("save"), role: .destructive) { saveAction() }
+                            Button(t("cancel"), role: .cancel) {}
+                        } message: { Text(t("nut.drop_foods_body")) }
+                    Button { tap(); confirmDelete = true } label: {
                         Text(t("delete")).font(.head(13, .semibold)).foregroundColor(Theme.red)
                             .frame(maxWidth: .infinity, minHeight: 44)
                     }
                     .padding(.bottom, 30)
+                    .confirmationDialog(t("nut.delete_day_q"), isPresented: $confirmDelete, titleVisibility: .visible) {
+                        Button(t("delete"), role: .destructive) { deleteDay() }
+                        Button(t("cancel"), role: .cancel) {}
+                    }
                 }
                 .padding(.horizontal, 18)
             }
@@ -303,6 +314,22 @@ struct NutritionDayEditor: View {
     }
 
     private func dn(_ s: String) -> Double? { s.isEmpty ? nil : pf(s) }
+
+    /// Each mode keeps only its own kind of entry: saving here would remove the
+    /// foods logged food-by-food or per meal in another mode.
+    private var dropsFoods: Bool {
+        guard let e = store.dailyEntry(date) else { return false }
+        let dayFoods = !(e.foods ?? []).isEmpty
+        let mealFoods = (e.meals ?? [:]).values.contains { !($0.foods ?? []).isEmpty }
+        return (mode != "foods" && dayFoods) || (mode != "per_meal" && mealFoods)
+    }
+
+    private func deleteDay() {
+        if let before = store.clearNutrition(date: date) {
+            toast.showUndo(t("nut.cleared")) { [store] in store.restoreNutrition(before) }
+        }
+        dismiss()
+    }
 
 }
 
