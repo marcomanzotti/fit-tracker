@@ -62,13 +62,15 @@ public struct WatchExercise: Codable, Equatable, Identifiable {
     public var targetSec: Int?
     /// Previous session's per-set hold seconds (timed exercises) as strings.
     public var lastSeconds: [String]?
+    /// Rest after a set of this exercise, seconds (plan value or the default).
+    public var restSec: Int?
 
     public init(id: String, name: String, sets: Int, reps: String,
                 lastReps: [String], lastWeight: [String],
-                kind: String? = nil, targetSec: Int? = nil, lastSeconds: [String]? = nil) {
+                kind: String? = nil, targetSec: Int? = nil, lastSeconds: [String]? = nil, restSec: Int? = nil) {
         self.id = id; self.name = name; self.sets = sets; self.reps = reps
         self.lastReps = lastReps; self.lastWeight = lastWeight
-        self.kind = kind; self.targetSec = targetSec; self.lastSeconds = lastSeconds
+        self.kind = kind; self.targetSec = targetSec; self.lastSeconds = lastSeconds; self.restSec = restSec
     }
 
     /// True when this exercise should be tracked as a timed isometric hold.
@@ -175,6 +177,7 @@ public enum WatchWire {
     public static let resultKey  = "fittracker.result" // watch -> phone (finished)
     public static let liveKey    = "fittracker.live"   // watch -> phone (live telemetry)
     public static let startKey   = "fittracker.start"  // phone -> watch (start activity id)
+    public static let restKey    = "fittracker.rest"   // phone -> watch (rest ends at, seconds since 1970)
 
     public static func encode<T: Encodable>(_ value: T, key: String) -> [String: Any] {
         guard let data = try? JSONEncoder().encode(value) else { return [:] }

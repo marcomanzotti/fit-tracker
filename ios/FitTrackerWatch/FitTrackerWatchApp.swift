@@ -40,6 +40,7 @@ struct WatchRootView: View {
         // catalog it refers to arrive separately and in either order, so both are
         // watched: a request for an activity not synced yet waits for the catalog.
         .onReceive(link.$startRequest) { id in startRequested(id, in: link.activities) }
+        .onReceive(link.$restEndsAt.compactMap { $0 }) { end in workout.startRest(until: end) }
         .onReceive(link.$activities) { activities in startRequested(link.startRequest, in: activities) }
         .alert(workout.startError ?? "", isPresented: Binding(
             get: { workout.startError != nil }, set: { if !$0 { workout.startError = nil } })) {

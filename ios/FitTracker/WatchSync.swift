@@ -94,7 +94,8 @@ final class WatchSync: NSObject, ObservableObject {
                                      reps: pe.reps,
                                      lastReps: logged?.sets.map { $0.reps } ?? [],
                                      lastWeight: logged?.sets.map { $0.weight } ?? [],
-                                     kind: pe.kind, targetSec: targetSec, lastSeconds: lastSeconds)
+                                     kind: pe.kind, targetSec: targetSec, lastSeconds: lastSeconds,
+                                     restSec: pe.restTimerSec ?? store.prefs.timer)
             }
             return WatchActivity(id: plan.id, kind: WatchKind.strength.rawValue, name: plan.name,
                                  color: plan.color, sub: plan.sub, sport: nil, exercises: exs)
@@ -125,6 +126,17 @@ final class WatchSync: NSObject, ObservableObject {
     /// Ask a reachable watch to start an activity (its plan/cardio id). `completion`
     /// reports, on the main queue, whether the watch acknowledged the command; it is
     /// not called at all when there is no reachable watch to ask.
+    /// A rest started on the phone during a workout the watch is recording: the
+    /// wrist counts it down and buzzes at the end. Nothing when it is not reachable.
+    func sendRest(endsAt: Date) {
+        #if canImport(WatchConnectivity)
+        guard WCSession.isSupported() else { return }
+        let s = WCSession.default
+        guard s.activationState == .activated, s.isReachable else { return }
+        s.sendMessage([WatchWire.restKey: endsAt.timeIntervalSince1970], replyHandler: nil, errorHandler: nil)
+        #endif
+    }
+
     func startOnWatch(activityId: String, completion: @escaping (_ acknowledged: Bool) -> Void) {
         #if canImport(WatchConnectivity)
         guard WCSession.isSupported() else { return }

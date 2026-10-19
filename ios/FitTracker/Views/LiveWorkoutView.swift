@@ -370,6 +370,7 @@ struct LiveWorkoutView: View {
     private func startRest(_ seconds: Int) {
         timer.start(seconds)
         RestNotifier.schedule(after: seconds)
+        if isWatchLive { watch.sendRest(endsAt: Date().addingTimeInterval(Double(seconds))) }
         pushLiveActivity(restEndsAt: Date().addingTimeInterval(Double(seconds)))
     }
 

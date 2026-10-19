@@ -1,6 +1,9 @@
 import Foundation
 import Combine
 import HealthKit
+#if canImport(WatchKit)
+import WatchKit
+#endif
 
 // MARK: - Live workout tracking (HealthKit on the watch)
 // Drives an HKWorkoutSession + HKLiveWorkoutBuilder: starts the right activity
@@ -287,8 +290,35 @@ final class WorkoutManager: NSObject, ObservableObject {
     func isWeightEntered(_ ex: Int, _ set: Int) -> Bool { exists(ex, set) && exLogs[ex].setWeight[set] != nil }
     func isDone(_ ex: Int, _ set: Int) -> Bool { exists(ex, set) && exLogs[ex].setDone[set] }
 
-    /// Mark a set as performed (or not) without changing its numbers.
-    func toggleDone(_ ex: Int, _ set: Int) { change(ex, set) { $0.setDone[set].toggle() } }
+    /// Mark a set as performed (or not) without changing its numbers. A set just
+    /// done starts the exercise's rest on the wrist.
+    func toggleDone(_ ex: Int, _ set: Int) {
+        let wasDone = isDone(ex, set)
+        change(ex, set) { $0.setDone[set].toggle() }
+        if !wasDone, let rest = activity?.exercises?[safe: ex]?.restSec, rest > 0 {
+            startRest(until: Date().addingTimeInterval(Double(rest)))
+        }
+    }
+
+    // MARK: Rest on the wrist
+    @Published private(set) var restEndsAt: Date?
+    private var restBuzz: Task<Void, Never>?
+
+    /// Count down to `end` and tap the wrist when it comes, unless a newer rest replaced it.
+    func startRest(until end: Date) {
+        guard end > Date() else { return }
+        restEndsAt = end
+        restBuzz?.cancel()
+        restBuzz = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(end.timeIntervalSinceNow))
+            guard !Task.isCancelled, let self, self.restEndsAt == end else { return }
+            #if canImport(WatchKit)
+            WKInterfaceDevice.current().play(.notification)
+            #endif
+        }
+    }
+
+    func skipRest() { restBuzz?.cancel(); restEndsAt = nil }
     // Editing a value confirms the set: nobody dials in numbers for a set they skipped.
     func setReps(_ ex: Int, _ set: Int, _ v: Double) { change(ex, set) { $0.setReps[set] = max(0, v); $0.setDone[set] = true } }
     func setWeight(_ ex: Int, _ set: Int, _ v: Double) { change(ex, set) { $0.setWeight[set] = max(0, v); $0.setDone[set] = true } }
@@ -419,6 +449,7 @@ final class WorkoutManager: NSObject, ObservableObject {
 
     func reset() {
         finishedWorkout = nil; effortGiven = nil
+        skipRest()
         session = nil; builder = nil; activity = nil; result = nil
         heartRate = 0; activeCalories = 0; distanceMeters = 0; elapsed = 0
         avgHR = 0; maxHR = 0; paused = false; locked = false; discarding = false
@@ -494,4 +525,8 @@ extension WorkoutManager: HKLiveWorkoutBuilderDelegate {
             if let v = stats.sumQuantity()?.doubleValue(for: .meter()) { distanceMeters = v }
         }
     }
+}
+
+extension Array {
+    subscript(safe index: Int) -> Element? { indices.contains(index) ? self[index] : nil }
 }

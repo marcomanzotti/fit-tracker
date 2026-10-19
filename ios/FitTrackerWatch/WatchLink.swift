@@ -19,6 +19,8 @@ final class WatchLink: NSObject, ObservableObject {
     /// Set when the phone asks the wrist to start an activity (its id). The root
     /// view observes this and launches the matching workout.
     @Published var startRequest: String?
+    /// End of a rest the phone started, for the wrist to count down.
+    @Published var restEndsAt: Date?
     @Published private(set) var delivery: Delivery = .none
 
     private static let pendingKey = "fittracker.watch.pendingResults"
@@ -116,6 +118,11 @@ final class WatchLink: NSObject, ObservableObject {
         // A "start this activity" command from the phone arrives as a plain string.
         if let actId = message[WatchWire.startKey] as? String {
             startRequest = actId
+            return
+        }
+        // A rest started on the phone: counted down on the wrist.
+        if let end = message[WatchWire.restKey] as? Double {
+            restEndsAt = Date(timeIntervalSince1970: end)
             return
         }
         guard let ctx = WatchWire.decode(WatchContext.self, from: message, key: WatchWire.contextKey) else {

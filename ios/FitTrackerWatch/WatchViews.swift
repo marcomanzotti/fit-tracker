@@ -177,6 +177,32 @@ struct ControlsPage: View {
     }
 }
 
+// MARK: - Rest on the wrist
+/// The rest still to run after a set; "go" once it is over, tap to dismiss.
+struct RestCountdown: View {
+    @EnvironmentObject var workout: WorkoutManager
+    let end: Date
+
+    var body: some View {
+        Button { wkTap(); workout.skipRest() } label: {
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                let left = max(0, Int(end.timeIntervalSince(context.date).rounded(.up)))
+                HStack {
+                    Image(systemName: "hourglass").font(.system(size: 11))
+                    Text(left > 0 ? "\(wt("rest")) \(fmtClock(left))" : wt("go")).font(.num(15))
+                    Spacer()
+                }
+                .foregroundColor(left > 0 ? T.blue : T.acc)
+                .padding(.vertical, 5).padding(.horizontal, 8)
+                .background((left > 0 ? T.blue : T.acc).opacity(0.14))
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .accessibilityLabel(left > 0 ? "\(wt("rest")) \(left) \(wt("sec"))" : wt("go"))
+            }
+        }
+        .buttonStyle(.plain)
+    }
+}
+
 // MARK: - Workout clock
 /// The running time, drawn by a TimelineView: every second on screen, once a minute
 /// with the wrist down (Always-On), where seconds would only go stale.
@@ -264,6 +290,13 @@ struct StrengthLiveView: View {
     }
 
     private var metricsHeader: some View {
+        VStack(spacing: 6) {
+            header
+            if let end = workout.restEndsAt { RestCountdown(end: end) }
+        }
+    }
+
+    private var header: some View {
         HStack(spacing: 8) {
             WorkoutClock(size: 20)
             Spacer()
