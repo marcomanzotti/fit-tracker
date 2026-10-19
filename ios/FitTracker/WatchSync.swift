@@ -99,7 +99,11 @@ final class WatchSync: NSObject, ObservableObject {
             WatchActivity(id: "cardio-\($0.id)", kind: WatchKind.cardio.rawValue, name: $0.name,
                           color: $0.color, sub: $0.sportType.label, sport: $0.sport)
         }
-        let ctx = WatchContext(activities: activities, lang: store.prefs.langCode)
+        let next = store.nextUp()
+        let glance = WatchGlance(nextName: next?.name ?? "", nextColor: next?.color ?? "ffe000",
+                                 nextIcon: next?.icon ?? "dumbbell.fill", readiness: store.readiness().score,
+                                 lang: store.prefs.langCode)
+        let ctx = WatchContext(activities: activities, lang: store.prefs.langCode, glance: glance)
         let payload = WatchWire.encode(ctx, key: WatchWire.contextKey)
         guard !payload.isEmpty else {
             appLog.error("Watch catalog could not be encoded")

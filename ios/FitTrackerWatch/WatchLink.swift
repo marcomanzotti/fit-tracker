@@ -1,4 +1,5 @@
 import Foundation
+import WidgetKit
 import Combine
 import WatchConnectivity
 
@@ -132,6 +133,11 @@ final class WatchLink: NSObject, ObservableObject {
         WL.lang = ctx.lang
         activities = ctx.activities
         hasContext = true
+        // The watch face follows: next workout and readiness.
+        if let glance = ctx.glance, glance != WatchGlance.load() {
+            glance.save()
+            WidgetCenter.shared.reloadAllTimelines()
+        }
     }
 }
 

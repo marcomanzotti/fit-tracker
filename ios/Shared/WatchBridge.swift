@@ -82,9 +82,39 @@ public struct WatchExercise: Codable, Equatable, Identifiable {
 public struct WatchContext: Codable, Equatable {
     public var activities: [WatchActivity]
     public var lang: String      // "it" | "en"
+    /// What the watch face shows: the next workout and today's readiness.
+    public var glance: WatchGlance?
 
-    public init(activities: [WatchActivity], lang: String) {
-        self.activities = activities; self.lang = lang
+    public init(activities: [WatchActivity], lang: String, glance: WatchGlance? = nil) {
+        self.activities = activities; self.lang = lang; self.glance = glance
+    }
+}
+
+/// The next workout and today's readiness, for the complication and the Smart
+/// Stack. The watch app keeps the last one in the shared App Group container.
+public struct WatchGlance: Codable, Equatable {
+    public var nextName: String       // empty when nothing is planned
+    public var nextColor: String      // hex
+    public var nextIcon: String       // SF Symbol
+    public var readiness: Int?        // 0-100
+    public var lang: String
+
+    public init(nextName: String, nextColor: String, nextIcon: String, readiness: Int?, lang: String) {
+        self.nextName = nextName; self.nextColor = nextColor; self.nextIcon = nextIcon
+        self.readiness = readiness; self.lang = lang
+    }
+
+    private static let suite = "group.com.marco.manzotti.fittracker"
+    private static let key = "watchGlance"
+
+    public static func load() -> WatchGlance? {
+        guard let data = UserDefaults(suiteName: suite)?.data(forKey: key) else { return nil }
+        return try? JSONDecoder().decode(WatchGlance.self, from: data)
+    }
+
+    public func save() {
+        guard let data = try? JSONEncoder().encode(self) else { return }
+        UserDefaults(suiteName: Self.suite)?.set(data, forKey: Self.key)
     }
 }
 
