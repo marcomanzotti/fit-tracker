@@ -62,7 +62,6 @@ final class WorkoutManager: NSObject, ObservableObject {
     private var ticker: AnyCancellable?
     private var discarding = false                 // restart/discard: skip the summary
     private var finishing = false                   // a failure and the end transition can both ask
-    private var liveTick = 0                        // throttles live streaming to the phone
 
     var available: Bool { HKHealthStore.isHealthDataAvailable() }
 
@@ -171,15 +170,21 @@ final class WorkoutManager: NSObject, ObservableObject {
         startTicker()
     }
 
+    /// Time trained so far, pause-aware, read when a view draws it: the screen
+    /// redraws through a TimelineView, so nothing republishes every second and the
+    /// wrist-down (Always-On) display can update once a minute.
+    func currentElapsed() -> TimeInterval { builder?.elapsedTime ?? elapsed }
+
+    private static let liveStreamSec: TimeInterval = 3
+
     private func startTicker() {
-        ticker = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+        // Stream live telemetry to the phone every 3 s so it can mirror the session
+        // (HR / calories / distance) without re-entry at the end.
+        ticker = Timer.publish(every: Self.liveStreamSec, on: .main, in: .common).autoconnect()
             .sink { [weak self] _ in
                 guard let self, let b = self.builder else { return }
                 self.elapsed = b.elapsedTime
-                // Stream live telemetry to the phone every 3 s so it can mirror the
-                // session (HR / calories / distance) without re-entry at the end.
-                self.liveTick += 1
-                if self.liveTick % 3 == 0 { self.sendLive(ended: false) }
+                self.sendLive(ended: false)
             }
     }
 
@@ -215,7 +220,7 @@ final class WorkoutManager: NSObject, ObservableObject {
             activityId: a.id, kind: a.kind,
             hr: Int(heartRate.rounded()), avgHR: avgHR, maxHR: maxHR,
             kcal: Int(activeCalories.rounded()), distanceKm: km,
-            elapsedSec: Int(elapsed.rounded()),
+            elapsedSec: Int(currentElapsed().rounded()),
             exercises: resultExercises(), ended: ended)
         WatchLink.shared.sendLive(sample)
     }

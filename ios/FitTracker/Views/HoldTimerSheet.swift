@@ -97,7 +97,7 @@ struct HoldTimerSheet: View {
                 .animation(.linear(duration: 0.1), value: progress)
             VStack(spacing: 2) {
                 Text(bigNumber).font(.num(64)).foregroundColor(ringColor).monospacedDigit()
-                Text("SEC").font(.head(11, .semibold)).tracking(3).foregroundColor(Theme.sub)
+                Text(t("hold.sec_unit")).font(.head(11, .semibold)).tracking(3).foregroundColor(Theme.sub)
             }
         }
         .frame(width: 240, height: 240)

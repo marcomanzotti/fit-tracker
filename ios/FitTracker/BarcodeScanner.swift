@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import VisionKit
+import AVFoundation
 
 // MARK: - Barcode scanner (VisionKit)
 // A thin SwiftUI wrapper around DataScannerViewController (iOS 16+) that reports
@@ -11,24 +12,42 @@ import VisionKit
 struct BarcodeScannerSheet: View {
     @Environment(\.dismiss) private var dismiss
     var onCode: (String) -> Void
+    /// Camera permission: nil while iOS is still asking.
+    @State private var cameraAllowed: Bool? = BarcodeScannerSheet.currentPermission
+
+    private static var currentPermission: Bool? {
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized:           return true
+        case .denied, .restricted:  return false
+        default:                    return nil
+        }
+    }
 
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
 
-            if DataScannerViewController.isSupported {
+            if !DataScannerViewController.isSupported {
+                message(t("food.scan_unavailable"))
+            } else if cameraAllowed == false {
+                // A refused camera used to leave a black screen: say why and where to fix it.
+                VStack(spacing: 14) {
+                    message(t("food.camera_denied"))
+                    Button {
+                        if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
+                    } label: {
+                        Text(t("hk.open_settings")).font(.system(size: 14, weight: .semibold)).foregroundColor(Theme.bg)
+                            .padding(.horizontal, 20).frame(minHeight: Theme.minTapTarget)
+                            .background(Theme.acc).clipShape(Capsule())
+                    }
+                }
+            } else if cameraAllowed == true {
                 DataScannerRepresentable { code in
                     haptic(.success)
                     onCode(code)
                     dismiss()
                 }
                 .ignoresSafeArea()
-            } else {
-                VStack(spacing: 12) {
-                    Image(systemName: "barcode.viewfinder").font(.system(size: 40)).foregroundColor(Theme.sub)
-                    Text(t("food.scan_unavailable")).font(.system(size: 13)).foregroundColor(Theme.sub)
-                        .multilineTextAlignment(.center).padding(.horizontal, 30)
-                }
             }
 
             VStack {
@@ -37,6 +56,8 @@ struct BarcodeScannerSheet: View {
                     Button { dismiss() } label: {
                         Image(systemName: "xmark.circle.fill").font(.system(size: 28))
                             .foregroundColor(.white).shadow(radius: 3)
+                            .frame(width: Theme.minTapTarget, height: Theme.minTapTarget)
+                            .accessibilityLabel(t("a11y.close"))
                     }
                 }
                 Spacer()
@@ -49,6 +70,18 @@ struct BarcodeScannerSheet: View {
         }
         .preferredColorScheme(.dark)
         .keyboardDoneBar()
+        .task {
+            guard cameraAllowed == nil else { return }
+            cameraAllowed = await AVCaptureDevice.requestAccess(for: .video)
+        }
+    }
+
+    private func message(_ text: String) -> some View {
+        VStack(spacing: 12) {
+            Image(systemName: "barcode.viewfinder").font(.system(size: 40)).foregroundColor(Theme.sub)
+            Text(text).font(.system(size: 13)).foregroundColor(Theme.sub)
+                .multilineTextAlignment(.center).padding(.horizontal, 30)
+        }
     }
 }
 

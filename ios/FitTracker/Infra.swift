@@ -499,10 +499,10 @@ final class SessionKeeper {
             .store(in: &bag)
 
         workout.$plan.map { $0?.id }.removeDuplicates().receive(on: main)
-            .sink { [weak self] _ in self?.strengthSessionChanged() }
+            .sink { [weak self] _ in self?.liveSessionChanged() }
             .store(in: &bag)
         cardio.$type.map { $0?.id }.removeDuplicates().receive(on: main)
-            .sink { [weak self] _ in self?.sessionChanged() }
+            .sink { [weak self] _ in self?.liveSessionChanged() }
             .store(in: &bag)
 
         NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)
@@ -520,12 +520,15 @@ final class SessionKeeper {
             .store(in: &bag)
     }
 
-    /// A strength workout started, was restored or ended: the Lock Screen activity
-    /// follows it.
-    private func strengthSessionChanged() {
+    /// A workout or a cardio session started, was restored or ended: the Lock Screen
+    /// activity follows it.
+    private func liveSessionChanged() {
         if let plan = workout.plan, let start = workout.startDate {
             LiveActivityController.resume(planName: plan.name, planColor: plan.color, startDate: start,
                                           enabled: store.prefs.liveActivityEnabled)
+        } else if let type = cardio.type, let start = cardio.startDate {
+            LiveActivityController.resume(planName: type.name, planColor: type.color, startDate: start,
+                                          icon: type.sportType.icon, enabled: store.prefs.liveActivityEnabled)
         } else {
             // Also clears an activity stranded by a session that could not be restored.
             LiveActivityController.end()
@@ -668,13 +671,13 @@ enum LiveActivityController {
     /// dismissed.
     private static var activeId: String?
 
-    static func start(planName: String, planColor: String, startDate: Date, enabled: Bool) {
+    static func start(planName: String, planColor: String, startDate: Date, icon: String? = nil, enabled: Bool) {
         #if canImport(ActivityKit)
         guard enabled else { return }
         guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
         // A stale activity from a crashed session would otherwise sit there forever.
         endAll()
-        let attrs = WorkoutActivityAttributes(planName: planName, planColor: planColor)
+        let attrs = WorkoutActivityAttributes(planName: planName, planColor: planColor, icon: icon)
         let state = WorkoutActivityAttributes.ContentState(
             startDate: startDate, exercise: "", setsDone: 0, restEndsAt: nil)
         do {
@@ -691,7 +694,7 @@ enum LiveActivityController {
 
     /// Show the activity for a workout that is running: keep the one already on the
     /// Lock Screen when the app was relaunched mid-workout, otherwise start one.
-    static func resume(planName: String, planColor: String, startDate: Date, enabled: Bool) {
+    static func resume(planName: String, planColor: String, startDate: Date, icon: String? = nil, enabled: Bool) {
         #if canImport(ActivityKit)
         guard enabled else { return }
         if activeId != nil { return }
@@ -701,7 +704,7 @@ enum LiveActivityController {
             activeId = existing.id
             return
         }
-        start(planName: planName, planColor: planColor, startDate: startDate, enabled: enabled)
+        start(planName: planName, planColor: planColor, startDate: startDate, icon: icon, enabled: enabled)
         #endif
     }
 
@@ -714,7 +717,9 @@ enum LiveActivityController {
         state.exercise = exercise
         state.setsDone = setsDone
         state.restEndsAt = restEndsAt
-        Task { await activity.update(ActivityContent(state: state, staleDate: nil)) }
+        // Stale when the rest ends: the system redraws then, and the view says "go"
+        // instead of a countdown frozen on 0:00.
+        Task { await activity.update(ActivityContent(state: state, staleDate: restEndsAt)) }
         #endif
     }
 

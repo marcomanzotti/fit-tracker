@@ -240,20 +240,22 @@ struct ProfileFormBody: View {
     }
 }
 
-// MARK: - Clean starting numbers per sex (round, generic placeholders)
-struct SexDefaults { let height: String; let weight: String; let goal: String }
-let maleDefaults   = SexDefaults(height: "180", weight: "80", goal: "75")
-let femaleDefaults = SexDefaults(height: "165", weight: "65", goal: "60")
-
 // MARK: - Onboarding (first launch)
+/// Four short steps with empty fields: who you are, your body, your goal, Apple
+/// Health. Nothing is prefilled, so no made-up 80 kg ends up as a real check-in.
 struct OnboardingView: View {
     @EnvironmentObject var store: Store
     @State private var f: ProfileFields
+    @State private var step = 0
     @State private var showGuide = false
+    @State private var healthLinked = false
+
+    private static let steps = 4
+    private static let plausibleHeightCm = 120.0...230.0
 
     init() {
-        // Store isn't available at init time; seed with defaults, refresh on appear.
-        _f = State(initialValue: ProfileFields(Prefs(), currentWeight: 80))
+        // Store isn't available at init time; refreshed on appear.
+        _f = State(initialValue: ProfileFields(Prefs(), currentWeight: 0))
     }
 
     var body: some View {
@@ -261,56 +263,147 @@ struct OnboardingView: View {
             Theme.bg.ignoresSafeArea()
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack(spacing: 0) {
-                            Text("FIT TR").foregroundColor(Theme.txt)
-                            Text("A").foregroundColor(Theme.acc)
-                            Text("CKER").foregroundColor(Theme.txt)
-                        }
-                        .font(.head(28, .bold)).tracking(1)
-                        Text(t("ob.welcome").uppercased())
-                            .font(.head(13, .semibold)).tracking(2).foregroundColor(Theme.acc)
-                        Text(t("ob.intro")).font(.system(size: 14)).foregroundColor(Theme.sub).lineSpacing(4)
+                    header
+                    switch step {
+                    case 0: Card { aboutYou }
+                    case 1: Card { yourBody }
+                    case 2: Card { yourGoal }
+                    default: healthStep
                     }
-                    .padding(.top, 30)
-
-                    Card { ProfileFormBody(f: $f) }
-
-                    // Optional: point new users at the watch-setup guide so any
-                    // wearable (Apple Watch, Garmin, Polar, Huawei via file…) can
-                    // feed the app from day one.
-                    Card {
-                        Lbl(text: t("guide.open"), color: Theme.acc2).padding(.bottom, 6)
-                        Text(t("guide.intro")).font(.system(size: 11)).foregroundColor(Theme.sub).lineSpacing(3)
-                            .padding(.bottom, 10)
-                        GhostButton(title: t("guide.open"), color: Theme.blue) { showGuide = true }
+                    if let problem { Text(problem).font(.system(size: 12, weight: .medium)).foregroundColor(Theme.acc2) }
+                    HStack(spacing: 10) {
+                        if step > 0 { GhostButton(title: t("ob.back")) { step -= 1 } }
+                        BigButton(title: step == Self.steps - 1 ? t("ob.finish") : t("ob.next")) { next() }
+                            .disabled(problem != nil)
+                            .opacity(problem == nil ? 1 : 0.5)
                     }
-
-                    BigButton(title: t("ob.finish")) { finish() }
-                        .padding(.bottom, 30)
+                    .padding(.bottom, 30)
                 }
                 .padding(.horizontal, 18)
             }
             .scrollDismissesKeyboard(.interactively)
         }
         .preferredColorScheme(.dark)
+        .keyboardDoneBar()
         .sheet(isPresented: $showGuide) { WatchSetupGuide() }
         .onChange(of: f.lang) { store.prefs.language = f.lang; store.syncLang() }
-        .onChange(of: f.sex) { _, newSex in
-            // Swap in the selected sex's clean defaults, but only if the user
-            // hasn't already typed their own numbers (i.e. the fields still hold
-            // the other sex's defaults).
-            let from = newSex == "m" ? femaleDefaults : maleDefaults
-            let to   = newSex == "m" ? maleDefaults   : femaleDefaults
-            if f.heightCm == from.height && f.weight == from.weight && f.goalWeight == from.goal {
-                f.heightCm = to.height; f.weight = to.weight; f.goalWeight = to.goal
+        .onAppear {
+            f = ProfileFields(store.prefs, currentWeight: 0)
+            f.heightCm = ""; f.weight = ""; f.goalWeight = ""; f.rate = ""
+        }
+    }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 0) {
+                Text("FIT TR").foregroundColor(Theme.txt)
+                Text("A").foregroundColor(Theme.acc)
+                Text("CKER").foregroundColor(Theme.txt)
+            }
+            .font(.head(28, .bold)).tracking(1)
+            Text("\(t("ob.welcome").uppercased()) · \(step + 1)/\(Self.steps)")
+                .font(.head(13, .semibold)).tracking(2).foregroundColor(Theme.acc)
+            if step == 0 { Text(t("ob.intro")).font(.system(size: 14)).foregroundColor(Theme.sub).lineSpacing(4) }
+            Bar(value: Double(step + 1) / Double(Self.steps))
+        }
+        .padding(.top, 30)
+    }
+
+    private var aboutYou: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            FieldRow(label: t("ob.language")) {
+                PillSelect(options: ["it", "en"], title: { $0 == "it" ? "Italiano" : "English" }, selection: $f.lang)
+            }
+            FieldRow(label: t("ob.sex")) {
+                PillSelect(options: ["m", "f"], title: { $0 == "m" ? t("ob.male") : t("ob.female") }, selection: $f.sex)
+            }
+            FieldRow(label: t("ob.birth")) {
+                DatePicker("", selection: $f.birth, in: ...Date(), displayedComponents: .date)
+                    .datePickerStyle(.compact).labelsHidden().colorScheme(.dark).tint(Theme.acc)
             }
         }
-        .onAppear { f = ProfileFields(store.prefs, currentWeight: store.lastWeight) }
+    }
+
+    private var yourBody: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 12) {
+                FieldRow(label: "\(t("ob.height")) (\(Units.heightLabel))") { InputField(placeholder: "", text: $f.heightCm) }
+                FieldRow(label: "\(t("ob.weight")) (\(Units.wLabel))") { InputField(placeholder: "", text: $f.weight) }
+            }
+            FieldRow(label: t("ob.activity")) {
+                PillSelect(options: ["sedentary", "light", "moderate", "high", "athlete"],
+                           title: activityTitle, selection: $f.activity)
+            }
+            Text(activityDesc(f.activity)).font(.system(size: 11)).foregroundColor(Theme.sub)
+        }
+    }
+
+    private var yourGoal: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            FieldRow(label: t("ob.goal_mode")) {
+                PillSelect(options: ["cut", "maintain", "bulk"], title: goalTitle, selection: $f.goalMode)
+            }
+            if f.goalMode != GoalMode.maintain.rawValue {
+                HStack(spacing: 12) {
+                    FieldRow(label: "\(t("ob.goal_weight")) (\(Units.wLabel))") { InputField(placeholder: "", text: $f.goalWeight) }
+                    FieldRow(label: rateLabel(f.goalMode)) { InputField(placeholder: Units.imperial ? "1" : "0.5", text: $f.rate) }
+                }
+            }
+        }
+    }
+
+    private var healthStep: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Card {
+                Lbl(text: t("hk.connect"), color: Theme.acc2).padding(.bottom, 6)
+                Text(t("hk.hint")).font(.system(size: 11)).foregroundColor(Theme.sub).lineSpacing(3).padding(.bottom, 12)
+                if !HealthKitManager.shared.isAvailable {
+                    Text(t("hk.unavailable")).font(.system(size: 12)).foregroundColor(Theme.sub)
+                } else if healthLinked {
+                    Text(t("hk.connected").uppercased()).font(.head(11, .semibold)).tracking(0.5).foregroundColor(Theme.good)
+                } else {
+                    FilledButton(title: t("hk.connect")) {
+                        store.syncHealth { ok, _, _ in
+                            guard ok else { return }
+                            healthLinked = true
+                            var p = store.prefs; p.healthKit = true; store.prefs = p
+                        }
+                    }
+                }
+            }
+            // Any wearable (Apple Watch, Garmin, Polar, Huawei via file…) can feed the app.
+            Card {
+                Lbl(text: t("guide.open"), color: Theme.acc2).padding(.bottom, 6)
+                Text(t("guide.intro")).font(.system(size: 11)).foregroundColor(Theme.sub).lineSpacing(3).padding(.bottom, 10)
+                GhostButton(title: t("guide.open"), color: Theme.blue) { showGuide = true }
+            }
+        }
+    }
+
+    /// What blocks the current step, or nil when it can go on.
+    private var problem: String? {
+        switch step {
+        case 1:
+            let h = Units.heightIn(pf(f.heightCm)) * 100
+            if !Self.plausibleHeightCm.contains(h) { return f.heightCm.isEmpty ? t("ob.need_height") : t("ob.bad_height") }
+            if !Store.plausibleWeightKg.contains(Units.wIn(pf(f.weight))) { return f.weight.isEmpty ? t("ob.need_weight") : t("ob.bad_weight") }
+        case 2:
+            guard f.goalMode != GoalMode.maintain.rawValue else { return nil }
+            if !Store.plausibleWeightKg.contains(Units.wIn(pf(f.goalWeight))) { return t("ob.need_goal") }
+        default: break
+        }
+        return nil
+    }
+
+    private func next() {
+        guard problem == nil else { return }
+        tap()
+        if step < Self.steps - 1 { step += 1 } else { finish() }
     }
 
     private func finish() {
         var p = store.prefs
+        if f.goalMode == GoalMode.maintain.rawValue { f.goalWeight = f.weight; f.rate = "" }
         f.apply(to: &p)
         let wKg = Units.wIn(pf(f.weight))    // input is in the active unit; store kg
         p.startWeight = wKg > 0 ? wKg : p.startWeight

@@ -25,6 +25,19 @@ private func wl(_ it: String, _ en: String, lang: String? = WidgetSnapshot.load(
     return code == "it" ? it : en
 }
 
+/// The link the activity opens: the app shows the running session.
+private let openSessionURL = URL(string: "fittracker://session")
+
+/// A rest that has run out: shown as "go" until the next set.
+private func restDone(_ state: WorkoutActivityAttributes.ContentState) -> Bool {
+    guard let end = state.restEndsAt else { return false }
+    return end <= Date()
+}
+
+private func symbol(_ context: ActivityViewContext<WorkoutActivityAttributes>) -> String {
+    context.attributes.icon ?? "dumbbell.fill"
+}
+
 /// The rest still to run, from one reading of the clock: reading it twice (once to
 /// test, once to build the range) traps when the rest ends in between.
 private func restRange(_ state: WorkoutActivityAttributes.ContentState) -> ClosedRange<Date>? {
@@ -37,6 +50,7 @@ struct WorkoutLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: WorkoutActivityAttributes.self) { context in
             lockScreen(context)
+                .widgetURL(openSessionURL)
                 .activityBackgroundTint(W.bg)
                 .activitySystemActionForegroundColor(W.acc)
         } dynamicIsland: { context in
@@ -73,12 +87,13 @@ struct WorkoutLiveActivity: Widget {
                     }
                 }
             } compactLeading: {
-                Image(systemName: "dumbbell.fill").foregroundColor(Color(hex: context.attributes.planColor))
+                Image(systemName: symbol(context)).foregroundColor(Color(hex: context.attributes.planColor))
             } compactTrailing: {
                 compactTimer(context).font(.caption2.monospacedDigit()).frame(width: 42)
             } minimal: {
-                Image(systemName: "dumbbell.fill").foregroundColor(Color(hex: context.attributes.planColor))
+                Image(systemName: symbol(context)).foregroundColor(Color(hex: context.attributes.planColor))
             }
+            .widgetURL(openSessionURL)
             .keylineTint(Color(hex: context.attributes.planColor))
         }
     }
@@ -93,7 +108,9 @@ struct WorkoutLiveActivity: Widget {
                     Text(context.attributes.planName.uppercased())
                         .font(.caption.weight(.bold)).foregroundColor(planColor).lineLimit(1)
                 }
-                if context.state.exercise.isEmpty {
+                if context.attributes.icon != nil {
+                    EmptyView()
+                } else if context.state.exercise.isEmpty {
                     Text("\(context.state.setsDone) \(wl("serie", "sets"))")
                         .font(.caption2).foregroundColor(W.sub)
                 } else {
@@ -114,6 +131,8 @@ struct WorkoutLiveActivity: Widget {
                             .frame(width: 46, alignment: .trailing)
                     }
                     .foregroundColor(W.blue)
+                } else if restDone(context.state) {
+                    Text(wl("VAI", "GO")).font(.caption.weight(.bold)).foregroundColor(W.acc)
                 } else {
                     Text(wl("in corso", "in progress")).font(.caption2).foregroundColor(W.sub)
                 }
@@ -133,6 +152,7 @@ struct WorkoutLiveActivity: Widget {
         if let rest = restRange(context.state) {
             return Text(timerInterval: rest, countsDown: true)
         }
+        if restDone(context.state) { return Text(wl("VAI", "GO")).foregroundColor(W.acc) }
         return Text(context.state.startDate, style: .timer)
     }
 }

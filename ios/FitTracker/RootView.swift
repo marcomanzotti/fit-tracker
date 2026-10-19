@@ -149,6 +149,13 @@ struct RootView: View {
             if phase == .background { store.flushNow() }
         }
         .onChange(of: store.repairedNumbers) { announceRepairedNumbers() }
+        // The Lock Screen activity opens the session that is running.
+        .onOpenURL { url in
+            guard url.scheme == "fittracker", url.host == "session" else { return }
+            activeWorkout.minimized = false
+            activeCardio.minimized = false
+            tab = .allena
+        }
     }
 
     /// Said once: a save met a number that was not a number and wrote it as 0.

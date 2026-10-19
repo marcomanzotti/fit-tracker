@@ -118,7 +118,11 @@ struct BodyView: View {
         let score = (e?.sleep ?? 0) > 0 ? e?.sleep : nil
         let sHR = (e?.sleepHR ?? 0) > 0 ? e?.sleepHR : nil
         let hrs = (e?.sleepHours ?? 0) > 0 ? e?.sleepHours : nil
-        let hasHealthData = score != nil || hrv != nil || sHR != nil || hrs != nil
+        // "From Apple Health" only for values Health actually brought, not typed ones.
+        let hasHealthData = (score != nil && e?.sleepScoreManual != true)
+            || (hrv != nil && e?.isManual(.hrvSleep) != true)
+            || (sHR != nil && e?.isManual(.sleepHR) != true)
+            || (hrs != nil && e?.isManual(.sleepHours) != true)
 
         return Card {
             HStack(spacing: 6) {
@@ -235,7 +239,9 @@ struct BodyView: View {
             HStack(spacing: 6) {
                 InfoLbl(text: t("lbl.steps"), info: .steps, color: Theme.acc2)
                 Spacer()
-                Text(t("hk.from_health").uppercased()).font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.sub)
+                if let e = store.dailyEntry(day), (e.steps ?? 0) > 0, e.stepsManual != true {
+                    Text(t("hk.from_health").uppercased()).font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.sub)
+                }
             }
             .padding(.bottom, 10)
             HStack(spacing: 10) {
@@ -523,8 +529,12 @@ struct BodyView: View {
 
             if let navy {
                 let hipPart = store.prefs.sex_ == "f" ? " · \(t("body.hips")) \(bl?.hips.map(dispLen) ?? "?")" : ""
-                Text("Navy: \(trimNum(navy))% · \(t("body.neck")) \(bl?.neck.map(dispLen) ?? "?") · \(t("body.waist")) \(bl?.waist.map(dispLen) ?? "?")\(hipPart) \(Units.lenLabel)")
-                    .font(.system(size: 10)).foregroundColor(Theme.sub).padding(.top, 8)
+                HStack(spacing: 2) {
+                    Text("Navy: \(trimNum(navy))% · \(t("body.neck")) \(bl?.neck.map(dispLen) ?? "?") · \(t("body.waist")) \(bl?.waist.map(dispLen) ?? "?")\(hipPart) \(Units.lenLabel)")
+                        .font(.system(size: 10)).foregroundColor(Theme.sub)
+                    InfoButton(id: .navy, size: 18)
+                }
+                .padding(.top, 8)
             } else if store.prefs.sex_ == "f", bl?.waist != nil, bl?.neck != nil, bl?.hips == nil {
                 // Women's Navy estimate needs the hip measurement — tell the user.
                 Text(t("body.navy_need_hips")).font(.system(size: 10)).foregroundColor(Theme.acc2).padding(.top, 8)

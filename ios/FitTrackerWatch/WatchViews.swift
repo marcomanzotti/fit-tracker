@@ -154,9 +154,9 @@ struct ControlsPage: View {
             }
             .padding(.horizontal, 6)
         }
-        .alert(wt("restart"), isPresented: $confirmRestart) {
-            Button(wt("end"), role: .destructive) { workout.restart() }
-            Button(wt("done"), role: .cancel) {}
+        .alert(wt("restart_q"), isPresented: $confirmRestart) {
+            Button(wt("restart"), role: .destructive) { workout.restart() }
+            Button(wt("cancel"), role: .cancel) {}
         }
         .alert(wt("end_q"), isPresented: $confirmEnd) {
             Button(wt("end")) { wkSuccess(); workout.end() }
@@ -177,6 +177,24 @@ struct ControlsPage: View {
     }
 }
 
+// MARK: - Workout clock
+/// The running time, drawn by a TimelineView: every second on screen, once a minute
+/// with the wrist down (Always-On), where seconds would only go stale.
+struct WorkoutClock: View {
+    @EnvironmentObject var workout: WorkoutManager
+    @Environment(\.isLuminanceReduced) private var dimmed
+    let size: CGFloat
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: dimmed ? 60 : 1)) { _ in
+            let seconds = Int(workout.currentElapsed())
+            Text(dimmed ? "\(seconds / 60) min" : wkClock(seconds))
+                .font(.num(size)).foregroundColor(workout.paused || dimmed ? T.sub : T.acc)
+                .accessibilityLabel("\(wt("time")) \(seconds / 60) min")
+        }
+    }
+}
+
 // MARK: - Cardio live (paged: metrics / controls)
 struct CardioLiveView: View {
     @EnvironmentObject var workout: WorkoutManager
@@ -184,9 +202,7 @@ struct CardioLiveView: View {
         TabView {
             ScrollView {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text(wkClock(Int(workout.elapsed)))
-                        .font(.num(34)).foregroundColor(workout.paused ? T.sub : T.acc)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    WorkoutClock(size: 34).frame(maxWidth: .infinity, alignment: .leading)
                     liveMetric(icon: "heart.fill", color: T.red,
                                value: workout.heartRate > 0 ? "\(Int(workout.heartRate))" : "—", unit: wt("bpm"))
                     liveMetric(icon: "flame.fill", color: T.acc2,
@@ -249,12 +265,20 @@ struct StrengthLiveView: View {
 
     private var metricsHeader: some View {
         HStack(spacing: 8) {
-            Text(wkClock(Int(workout.elapsed))).font(.num(20)).foregroundColor(workout.paused ? T.sub : T.acc)
+            WorkoutClock(size: 20)
             Spacer()
-            Image(systemName: "heart.fill").font(.system(size: 11)).foregroundColor(T.red)
-            Text(workout.heartRate > 0 ? "\(Int(workout.heartRate))" : "—").font(.num(16)).foregroundColor(T.txt)
-            Image(systemName: "flame.fill").font(.system(size: 11)).foregroundColor(T.acc2)
-            Text("\(Int(workout.activeCalories.rounded()))").font(.num(16)).foregroundColor(T.txt)
+            HStack(spacing: 4) {
+                Image(systemName: "heart.fill").font(.system(size: 11)).foregroundColor(T.red)
+                Text(workout.heartRate > 0 ? "\(Int(workout.heartRate))" : "—").font(.num(16)).foregroundColor(T.txt)
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("\(wt("hr")) \(workout.heartRate > 0 ? "\(Int(workout.heartRate)) \(wt("bpm"))" : "—")")
+            HStack(spacing: 4) {
+                Image(systemName: "flame.fill").font(.system(size: 11)).foregroundColor(T.acc2)
+                Text("\(Int(workout.activeCalories.rounded()))").font(.num(16)).foregroundColor(T.txt)
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("\(wt("cal")) \(Int(workout.activeCalories.rounded())) \(wt("kcal"))")
         }
         .padding(.vertical, 6).padding(.horizontal, 8)
         .frame(maxWidth: .infinity)

@@ -23,6 +23,9 @@ struct WorkoutSummary: Identifiable, Equatable {
     var records: [Record]
     var kcal: Int
     var trimp: Double?
+    /// A run or a ride shows its distance instead of sets and volume.
+    var cardio = false
+    var distanceKm: Double?
 
     /// Change in volume against last time, as a fraction (0.08 = +8%).
     var volumeChange: Double? {
@@ -43,7 +46,8 @@ struct WorkoutSummary: Identifiable, Equatable {
         return WorkoutSummary(planName: session.planName, planColor: session.planColor,
                               durationSec: session.durationSeconds, sets: session.totalSets,
                               volume: session.volume, previousVolume: previous?.volume,
-                              records: records, kcal: kcal, trimp: trimp)
+                              records: records, kcal: kcal, trimp: trimp,
+                              cardio: session.sportType.isCardio, distanceKm: session.distanceKm)
     }
 }
 
@@ -59,10 +63,15 @@ struct WorkoutSummaryView: View {
             ScrollView {
                 VStack(spacing: 14) {
                     header
-                    HStack(spacing: 9) {
-                        StatTile(label: t("sum.sets"), value: "\(summary.sets)", valueColor: Theme.txt)
-                        StatTile(label: t("wk.vol"), value: "\(Int(summary.volume))", unit: "kg",
-                                 valueColor: Theme.txt, note: volumeNote, info: .volume)
+                    if summary.cardio {
+                        StatTile(label: t("wk.distance"), value: summary.distanceKm.map { trimNum(Units.distOut($0)) } ?? "—",
+                                 unit: Units.distLabel, valueColor: Theme.txt)
+                    } else {
+                        HStack(spacing: 9) {
+                            StatTile(label: t("sum.sets"), value: "\(summary.sets)", valueColor: Theme.txt)
+                            StatTile(label: t("wk.vol"), value: "\(Int(summary.volume))", unit: "kg",
+                                     valueColor: Theme.txt, note: volumeNote, info: .volume)
+                        }
                     }
                     HStack(spacing: 9) {
                         StatTile(label: t("wk.calories"), value: "\(summary.kcal)", unit: "kcal",

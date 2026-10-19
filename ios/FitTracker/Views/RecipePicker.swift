@@ -191,9 +191,9 @@ struct RecipeQuantitySheet: View {
                 Card(accent: Theme.acc) {
                     HStack {
                         macro("\(log.kcal)", "kcal", Theme.acc)
-                        macro(trimNum(log.protein), "P", Theme.blue)
-                        macro(trimNum(log.carbs), "C", Theme.acc2)
-                        macro(trimNum(log.fat), "F", Theme.good)
+                        macro(trimNum(log.protein), t("nut.protein_short"), Theme.blue)
+                        macro(trimNum(log.carbs), t("nut.carbs_short"), Theme.acc2)
+                        macro(trimNum(log.fat), t("nut.fat_short"), Theme.good)
                     }
                 }
 
@@ -342,7 +342,7 @@ struct RecipeFormSheet: View {
                     Text(t("recipe.total_macros_label").uppercased())
                         .font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.acc2)
                 } else {
-                    Text("PER 100g".uppercased())
+                    Text(t("food.per_100g").uppercased())
                         .font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.acc2)
                 }
 

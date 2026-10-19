@@ -10,7 +10,6 @@ struct WorkoutView: View {
     @State private var editing: WorkoutPlan?
     @State private var isNew = false
     @State private var editingSession: WorkoutSession?
-    @State private var loggingCardio: CardioType?
     @State private var editingCardio: CardioType?
     @State private var isNewCardio = false
     // Recent-sessions list: free-text filter over the whole history + cap toggle.
@@ -45,7 +44,8 @@ struct WorkoutView: View {
             LiveCardioView(
                 type: store.cardioType(started.id) ?? started,
                 onBack: { activeCardio.minimized = true },     // minimize, keep running
-                onSaved: { endCardio() }                        // finish / discard ends it
+                onSaved: { endCardio() },                       // discard ends it
+                onFinished: { endCardio(); summary = $0 }       // finish ends it and shows the recap
             )
         } else if editing != nil {
             // editing != nil is guaranteed here, but never force-unwrap: during
@@ -88,7 +88,6 @@ struct WorkoutView: View {
             recentSessions
         }
         .sheet(item: $editingSession) { s in SessionEditorView(session: s) }
-        .sheet(item: $loggingCardio) { ct in CardioLoggerView(type: ct) }
         .sheet(item: $editingCardio) { ct in CardioTypeEditorView(type: ct, isNew: isNewCardio) }
     }
 
@@ -105,10 +104,10 @@ struct WorkoutView: View {
     }
 
     private func cardioTile(_ ct: CardioType) -> some View {
-        // Card body → open the cardio logger. Circular Play (bottom-right) starts
-        // the activity (on a paired watch too, when reachable) and opens the logger.
+        // Card body → edit the activity, like a strength day. Circular Play
+        // (bottom-right) starts it (on a paired watch too, when reachable).
         ZStack(alignment: .topTrailing) {
-            Button { tap(); loggingCardio = ct } label: {
+            Button { tap(); editCardio(ct) } label: {
                 VStack(alignment: .leading, spacing: 0) {
                     HStack(spacing: 8) {
                         Image(systemName: ct.sportType.icon).font(.system(size: 15, weight: .bold))
@@ -312,7 +311,7 @@ struct WorkoutView: View {
                                                 .foregroundColor(Theme.red)
                                         }
                                     }
-                                    Text("\(s.date) · \(s.sportType.isCardio ? cardioSummary(s) : "\(s.exercises.count) \(t("wk.exercises_n"))") · \(store.estimateCalories(s)) kcal")
+                                    Text("\(fmtDM(s.date)) · \(s.sportType.isCardio ? cardioSummary(s) : "\(s.exercises.count) \(t("wk.exercises_n"))") · \(store.estimateCalories(s)) kcal")
                                         .font(.system(size: 10)).foregroundColor(Theme.sub)
                                 }
                                 Spacer()

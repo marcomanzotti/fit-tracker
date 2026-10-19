@@ -203,7 +203,7 @@ struct StatsView: View {
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(item.name).font(.system(size: 13, weight: .semibold)).foregroundColor(Theme.txt)
-                        if let d = pr?.date { Text(d).font(.system(size: 10)).foregroundColor(Theme.sub) }
+                        if let d = pr?.date { Text(fmtDM(d)).font(.system(size: 10)).foregroundColor(Theme.sub) }
                     }
                     Spacer()
                     Text((pr?.weight ?? 0) > 0 ? "\(trimNum(pr!.weight)) kg" : "—")

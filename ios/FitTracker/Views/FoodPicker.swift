@@ -522,9 +522,9 @@ struct FoodQuantitySheet: View {
                 Card(accent: Theme.acc) {
                     HStack {
                         macro("\(log.kcal)", "kcal", Theme.acc)
-                        macro(trimNum(log.protein), "P", Theme.blue)
-                        macro(trimNum(log.carbs), "C", Theme.acc2)
-                        macro(trimNum(log.fat), "F", Theme.good)
+                        macro(trimNum(log.protein), t("nut.protein_short"), Theme.blue)
+                        macro(trimNum(log.carbs), t("nut.carbs_short"), Theme.acc2)
+                        macro(trimNum(log.fat), t("nut.fat_short"), Theme.good)
                     }
                 }
 

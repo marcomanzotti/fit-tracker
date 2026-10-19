@@ -184,7 +184,7 @@ struct LiveWorkoutView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(plan.name.uppercased()).font(.head(20, .bold)).tracking(0.5)
                     .foregroundColor(Color(hex: plan.color))
-                Text("\(plan.sub) · \(today())").font(.system(size: 10)).foregroundColor(Theme.sub)
+                Text("\(plan.sub) · \(fmtDM(today()))").font(.system(size: 10)).foregroundColor(Theme.sub)
             }
             Spacer()
         }
@@ -241,7 +241,10 @@ struct LiveWorkoutView: View {
                             // Estimated 1RM — the best single-effort strength signal,
                             // more comparable across rep ranges than top weight alone.
                             if let e = store.bestE1RM(ex.name), e > 0 {
-                                Text("e1RM \(trimNum(e)) kg").font(.system(size: 10, weight: .semibold)).foregroundColor(Theme.acc2)
+                                HStack(spacing: 0) {
+                                    Text("e1RM \(trimNum(e)) kg").font(.system(size: 10, weight: .semibold)).foregroundColor(Theme.acc2)
+                                    InfoButton(id: .e1rm, color: Theme.acc2, size: 16)
+                                }
                             }
                         }
                     }

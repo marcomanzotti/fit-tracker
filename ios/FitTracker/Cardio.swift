@@ -1,117 +1,6 @@
 import Combine
 import SwiftUI
 
-// MARK: - Cardio logger (logs a session for a saved, customizable activity type)
-// Mirrors strength days: every cardio activity is a saved CardioType with its own
-// name and color. Calories are estimated from the user's global profile (weight,
-// age, sex, and avg HR when provided).
-struct CardioLoggerView: View {
-    @EnvironmentObject var store: Store
-    @EnvironmentObject var toast: ToastCenter
-    @Environment(\.dismiss) private var dismiss
-
-    let type: CardioType
-
-    @State private var durationSec: Int? = nil
-    @State private var distance = ""
-    @State private var avgHR = ""
-    @State private var calManual = ""
-    @State private var paceManual: Double? = nil
-
-    var body: some View {
-        ZStack {
-            Theme.bg.ignoresSafeArea()
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    HStack(spacing: 10) {
-                        Image(systemName: type.sportType.icon)
-                            .font(.system(size: 18, weight: .bold)).foregroundColor(Theme.bg)
-                            .frame(width: 40, height: 40)
-                            .background(Color(hex: type.color))
-                            .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(t("wk.log_cardio").uppercased()).font(.head(10, .semibold)).tracking(1.5).foregroundColor(Theme.sub)
-                            Text(type.name.uppercased()).font(.head(18, .bold)).tracking(0.5).foregroundColor(Color(hex: type.color))
-                        }
-                        Spacer()
-                        Button { dismiss() } label: {
-                            Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).foregroundColor(Theme.sub).frame(width: Theme.minTapTarget, height: Theme.minTapTarget)
-                        }
-                    }
-                    .padding(.top, 18)
-
-                    Card {
-                        HMSField(label: t("wk.duration"), seconds: $durationSec)
-                        Spacer().frame(height: 14)
-                        HStack(alignment: .top, spacing: 12) {
-                            FieldRow(label: "\(t("wk.distance")) (\(Units.distLabel))") { InputField(placeholder: "8", text: $distance) }
-                            FieldRow(label: t("wk.avg_hr")) { InputField(placeholder: "150", text: $avgHR, keyboard: .numberPad) }
-                        }
-                        Spacer().frame(height: 14)
-                        PaceField(session: buildSession(), manual: $paceManual)
-                    }
-
-                    // Live calorie estimate from the user's global data.
-                    Card(accent: Theme.acc) {
-                        HStack(spacing: 2) {
-                            Lbl(text: t("wk.est_calories"), color: Theme.acc2)
-                            InfoButton(id: .calories, color: Theme.acc2)
-                            Spacer()
-                            HStack(alignment: .firstTextBaseline, spacing: 4) {
-                                Text(calManual.isEmpty ? (estCalories.map { "\($0)" } ?? "—") : calManual)
-                                    .font(.num(28)).foregroundColor(Theme.acc)
-                                Text("kcal").font(.system(size: 11, weight: .semibold)).foregroundColor(Theme.sub)
-                            }
-                        }
-                        .padding(.bottom, 10)
-                        HStack(spacing: 8) {
-                            Text(t("wk.cal_override").uppercased()).font(.head(10, .semibold)).tracking(1).foregroundColor(Theme.sub)
-                            Spacer()
-                            InputField(placeholder: estCalories.map { "\($0)" } ?? "—", text: $calManual, keyboard: .numberPad)
-                                .frame(width: 110)
-                        }
-                        Text(t("wk.est_cal_hint")).font(.system(size: 10)).foregroundColor(Theme.sub).padding(.top, 6)
-                    }
-
-                    BigButton(title: t("save")) { save() }
-                        .padding(.bottom, 30)
-                }
-                .padding(.horizontal, 18)
-            }
-            .scrollDismissesKeyboard(.interactively)
-        }
-        .preferredColorScheme(.dark)
-        .keyboardDoneBar()
-    }
-
-    private func buildSession() -> WorkoutSession {
-        WorkoutSession(
-            date: today(), planId: "cardio-\(type.id)", planName: type.name, planColor: type.color,
-            exercises: [], sport: type.sport, durationSec: durationSec,
-            avgHR: Int(avgHR),
-            distanceKm: distance.isEmpty ? nil : Units.distIn(pf(distance)),
-            paceManual: paceManual,
-            caloriesManual: Int(calManual).flatMap { $0 > 0 ? $0 : nil })
-    }
-
-    private var estCalories: Int? {
-        guard let dur = durationSec, dur > 0 else { return nil }
-        return store.estimateCalories(buildSession())
-    }
-
-    private func save() {
-        guard let dur = durationSec, dur > 0 else { toast.show(t("wk.duration")); return }
-        let session = buildSession()
-        store.saveSession(session)
-        if store.prefs.exportsToHealth {
-            store.exportToHealth(session) { [toast] ok in toast.show(t(ok ? "hk.exported" : "hk.export_failed")) }
-        }
-        haptic(.success)
-        toast.show(t("save"))
-        dismiss()
-    }
-}
-
 // MARK: - Cardio type editor (create / edit / delete a saved activity)
 struct CardioTypeEditorView: View {
     @EnvironmentObject var store: Store
@@ -217,9 +106,12 @@ struct LiveCardioView: View {
 
     let type: CardioType
     let onBack: () -> Void      // minimize, keep running
-    let onSaved: () -> Void     // finish / discard ends it
+    let onSaved: () -> Void     // discard ends it
+    var onFinished: (WorkoutSummary) -> Void = { _ in }   // finish ends it and shows the recap
 
     @State private var confirmDiscard = false
+    /// Finish with no time recorded: nothing to save, so it is asked, not dropped silently.
+    @State private var confirmEmpty = false
     // Only redraws the clock: the time itself is kept by ActiveCardio from dates,
     // so it is right whether or not this screen was showing.
     @State private var now = Date()
@@ -301,7 +193,7 @@ struct LiveCardioView: View {
                 liveTile(label: t("wk.distance"), value: distanceKm.map { dispDist($0) } ?? "—",
                          unit: Units.distLabel, color: accent)
                 liveTile(label: t("wk.speed_pace"), value: paceValue, unit: paceUnit, color: Theme.acc2)
-                liveTile(label: t("wk.avg_hr"), value: liveHR.map { "\($0)" } ?? "—",
+                liveTile(label: t("wk.hr"), value: liveHR.map { "\($0)" } ?? "—",
                          unit: liveHR != nil ? "bpm" : nil, color: Theme.red)
             }
             if activeCardio.usesGPS && !activeCardio.gpsAuthorized {
@@ -382,6 +274,10 @@ struct LiveCardioView: View {
             Button(t("wk.discard_session"), role: .destructive) { discard() }
             Button(t("cancel"), role: .cancel) {}
         }
+        .confirmationDialog(t("wk.empty_cardio_q"), isPresented: $confirmEmpty, titleVisibility: .visible) {
+            Button(t("wk.discard_session"), role: .destructive) { discard() }
+            Button(t("cancel"), role: .cancel) {}
+        }
     }
 
     // MARK: Pace/speed display in the sport's native unit.
@@ -408,9 +304,11 @@ struct LiveCardioView: View {
     }
 
     private func finish() {
-        guard var s = activeCardio.finishedSession(live: liveSample) else { discard(); return }
+        guard var s = activeCardio.finishedSession(live: liveSample) else { confirmEmpty = true; return }
         // The watch's measured energy is already on the session; else the estimate.
         if s.caloriesManual == nil, let k = estCalories, k > 0 { s.caloriesManual = k }
+        let summary = WorkoutSummary.make(session: s, previous: store.lastSession(forPlan: s.planId),
+                                          recordBefore: { _ in 0 }, kcal: store.estimateCalories(s), trimp: store.trimp(s))
         store.saveSession(s)
         store.flushNow()            // before the draft is removed
         // To Health with its GPS track, when the user opted in. A session the
@@ -421,8 +319,7 @@ struct LiveCardioView: View {
             }
         }
         haptic(.success)
-        toast.show(t("wk.session_saved"))
-        onSaved()
+        onFinished(summary)
     }
 
     private func discard() { onSaved() }

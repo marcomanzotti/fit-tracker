@@ -12,7 +12,7 @@ enum InfoTopic: String, CaseIterable {
     // Load and training
     case trimp, acwr, load, monotony, strain, overload, volume, muscleVol = "muscle_vol"
     case calories, pace, activity, weekplan, sessions, streak, goal
-    case form, recovery, intensity, decoupling, strength
+    case form, recovery, intensity, decoupling, strength, e1rm
     // Recovery and sleep
     case readiness, hrv, vitals, nightVitals = "night_vitals", sleep, sleepStages = "sleep_stages"
     case sleepEff = "sleep_eff", sleepReg = "sleep_reg", sleepHR = "sleep_hr", sleepDebt = "sleep_debt"
@@ -24,7 +24,7 @@ enum InfoTopic: String, CaseIterable {
     // Daily activity
     case steps, activeKcal = "active_kcal", exerciseMin = "exercise_min", stand, daylight, flights
     // Body
-    case weight, bmi, bodyfat, ffmi, measures
+    case weight, bmi, bodyfat, ffmi, measures, navy
     // Nutrition
     case tdee, macros, carbcycle, lea, trend, adherence, intake, nutCalendar = "nut_calendar", salt
 

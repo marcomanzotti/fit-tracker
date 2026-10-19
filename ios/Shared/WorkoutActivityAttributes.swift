@@ -26,6 +26,8 @@ struct WorkoutActivityAttributes: ActivityAttributes {
     /// Fixed for the life of the activity.
     var planName: String
     var planColor: String      // hex, matches the plan's colour in the app
+    /// SF Symbol of a cardio session; nil for a strength workout.
+    var icon: String?
 }
 #endif
 

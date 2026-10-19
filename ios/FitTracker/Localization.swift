@@ -313,6 +313,13 @@ enum L {
         "ob.max_hr_suggest": ("Dai tuoi allenamenti risultano %d bpm: usala", "Your workouts show %d bpm: use it"),
         "ob.sleep_need":     ("Ore di sonno di cui hai bisogno (7–9)", "Hours of sleep you need (7–9)"),
         "ob.finish":         ("Inizia ad allenarti", "Start training"),
+        "ob.next":           ("Avanti", "Next"),
+        "ob.back":           ("Indietro", "Back"),
+        "ob.need_height":    ("Scrivi la tua altezza", "Enter your height"),
+        "ob.bad_height":     ("L'altezza non sembra giusta", "That height doesn't look right"),
+        "ob.need_weight":    ("Scrivi il tuo peso", "Enter your weight"),
+        "ob.bad_weight":     ("Il peso non sembra giusto", "That weight doesn't look right"),
+        "ob.need_goal":      ("Scrivi il peso che vuoi raggiungere", "Enter the weight you want to reach"),
 
         // --- Settings / profile --------------------------------------------
         "set.title":         ("Impostazioni", "Settings"),
@@ -378,6 +385,17 @@ enum L {
         "wk.finish":         ("Termina", "Finish"),
         "nut.drop_foods_q":  ("Cancellare gli alimenti di questo giorno?", "Delete this day's foods?"),
         "nut.drop_foods_body": ("In questa modalità gli alimenti registrati uno per uno o per pasto non vengono tenuti.", "This mode does not keep the foods logged one by one or per meal."),
+        "food.camera_denied": ("FitTracker non può usare la fotocamera. Consenti l'accesso nelle Impostazioni per leggere i codici a barre.", "FitTracker can't use the camera. Allow access in Settings to scan barcodes."),
+        "wk.empty_cardio_q": ("Nessun tempo registrato: scartare la seduta?", "No time recorded: discard the session?"),
+        "nut.macros_short":  ("P %d · C %d · G %d g", "P %d · C %d · F %d g"),
+        "hold.sec_unit":     ("SECONDI", "SEC"),
+        "food.per_100g":     ("ogni 100 g", "per 100 g"),
+        "wk.hr":             ("FC", "HR"),
+        "wk.remove_ex":      ("Rimuovi esercizio", "Remove exercise"),
+        "a11y.more":         ("Altre azioni", "More actions"),
+        "nut.protein_short": ("P", "P"),
+        "nut.carbs_short":   ("C", "C"),
+        "nut.fat_short":     ("G", "F"),
         "nut.delete_day_q":  ("Cancellare quello che hai mangiato in questo giorno?", "Delete what you ate on this day?"),
         "wk.pause":          ("Pausa", "Pause"),
         "wk.resume":         ("Riprendi", "Resume"),
@@ -1005,6 +1023,16 @@ enum L {
             "Il grasso corporeo è la percentuale del tuo peso totale composta da tessuto adiposo. È un indicatore molto più preciso del BMI per valutare la composizione corporea, perché distingue la massa grassa da quella magra (muscoli, ossa, organi).\n\nPerché è utile: monitorare il grasso corporeo nel tempo è il modo più diretto per capire se stai perdendo grasso mantenendo il muscolo, o stai semplicemente perdendo peso. È anche rilevante per la salute metabolica e cardiovascolare.\n\nRange di riferimento per adulti:\n• Donne: 20–32% normale, 14–20% atletico, sotto 14% essenziale\n• Uomini: 10–22% normale, 6–13% atletico, sotto 6% essenziale\n\nCome inserirlo: puoi misurarlo con plicometro, bilancia smart con bioimpedenza, o DEXA. In alternativa usa la stima Navy dell'app, calcolata dalle misure di collo, vita e (per le donne) fianchi. La stima Navy ha un margine di errore di ±3–4%, quindi usa il trend nel tempo piuttosto che il valore assoluto di una singola misurazione.",
             "Body fat is the percentage of your total weight made up of adipose tissue. It is a far more accurate indicator than BMI for evaluating body composition, because it distinguishes fat mass from lean mass (muscles, bones, organs).\n\nWhy it matters: tracking body fat over time is the most direct way to understand whether you are losing fat while preserving muscle, or simply losing weight. It is also relevant for metabolic and cardiovascular health.\n\nReference ranges for adults:\n• Women: 20–32% normal, 14–20% athletic, below 14% essential\n• Men: 10–22% normal, 6–13% athletic, below 6% essential\n\nHow to measure: you can use calipers, a smart scale with bioimpedance, or DEXA. Alternatively use the app's Navy estimate, calculated from neck, waist and (for women) hip measurements. The Navy estimate has a ±3–4% margin of error, so track the trend over time rather than relying on any single measurement."),
 
+        "info.e1rm.title": ("1RM stimato (e1RM)", "Estimated 1RM (e1RM)"),
+        "info.e1rm.body": (
+            "Il carico che riusciresti a sollevare una sola volta, stimato dalle tue serie con la formula di Epley: peso × (1 + ripetizioni ÷ 30). Serve a confrontare serie con ripetizioni diverse: 100 kg per 5 e 90 kg per 8 valgono quasi lo stesso (117 e 114 kg).\n\nÈ una stima, più precisa fino a circa 10 ripetizioni: non è un massimale da provare.",
+            "The load you could lift once, estimated from your sets with Epley's formula: weight × (1 + reps ÷ 30). It lets sets with different reps be compared: 100 kg for 5 and 90 kg for 8 are worth almost the same (117 and 114 kg).\n\nIt is an estimate, most accurate up to about 10 reps: not a max to attempt."
+        ),
+        "info.navy.title": ("Formula della U.S. Navy", "U.S. Navy formula"),
+        "info.navy.body": (
+            "Stima la percentuale di grasso da altezza e circonferenze prese con un metro da sarta: collo e vita all'ombelico, e per le donne anche i fianchi nel punto più largo (Hodgdon e Beckett, 1984).\n\nRispetto a una DEXA sbaglia in media di 3–4 punti, ma segue bene i cambiamenti se misuri sempre allo stesso modo: al mattino, a stomaco vuoto, senza stringere il metro. Un valore da bilancia o da DEXA scritto a mano vince sul calcolo.",
+            "It estimates body fat from height and circumferences taken with a tape measure: neck and waist at the navel, and for women the hips at the widest point too (Hodgdon and Beckett, 1984).\n\nAgainst a DEXA scan it is off by 3–4 points on average, but it tracks changes well if you always measure the same way: in the morning, on an empty stomach, without pulling the tape tight. A value from a scale or a DEXA typed in wins over the estimate."
+        ),
         "info.tdee.title": ("TDEE & metabolismo basale", "TDEE & basal metabolism"),
         "info.tdee.body": (
             "Il metabolismo basale (BMR) è la quantità di energia che il tuo corpo consuma in uno stato di completo riposo solo per mantenere le funzioni vitali — respirazione, circolazione, termoregolazione. È influenzato dal peso corporeo, dall'altezza, dall'età e dal sesso biologico.\n\nIl TDEE (Total Daily Energy Expenditure) è il tuo consumo calorico reale nell'arco della giornata, cioè il BMR moltiplicato per un fattore che tiene conto del tuo livello di attività fisica. È il numero di calorie attorno al quale ruota tutta la pianificazione nutrizionale: per perdere peso devi stare sotto, per aumentare sopra, per mantenere intorno a esso.\n\nPerché è utile: avere un punto di partenza preciso per le calorie giornaliere evita di affidarsi a stime generiche che spesso sottostimano o sovrastimano il consumo reale di una persona attiva.\n\nCosa influenza il valore: peso corporeo, altezza, età, sesso biologico e il livello di attività selezionato nel tuo profilo. Cambiando il livello di attività il TDEE cambia immediatamente.",

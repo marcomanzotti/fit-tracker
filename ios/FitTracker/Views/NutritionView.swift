@@ -30,7 +30,7 @@ struct NutritionView: View {
                 Text("/ \(Int(e.target)) kcal").font(.system(size: 12, weight: .semibold)).foregroundColor(Theme.sub)
                 Spacer()
                 if logged {
-                    Text("P \(Int(entry?.totalProtein ?? 0)) · C \(Int(entry?.totalCarbs ?? 0)) · F \(Int(entry?.totalFat ?? 0)) g")
+                    Text(t("nut.macros_short", Int(entry?.totalProtein ?? 0), Int(entry?.totalCarbs ?? 0), Int(entry?.totalFat ?? 0)))
                         .font(.system(size: 10)).foregroundColor(Theme.sub)
                 }
             }
