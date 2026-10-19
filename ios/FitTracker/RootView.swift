@@ -47,9 +47,8 @@ struct RootView: View {
          activeWorkout.isActive && tab == .allena && !activeWorkout.minimized,
          timer.active]
     }
-    /// Height of everything pinned to the bottom, so the page can end above it.
-    @State private var barsHeight: CGFloat = 0
-    private static let barsBreathing: CGFloat = 16
+    /// Air under the last card, above the bars pinned to the bottom.
+    private static let endOfPageGap: CGFloat = 20
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -73,7 +72,7 @@ struct RootView: View {
                             }
                         }
                         .frame(width: geo.size.width - 32, alignment: .top)
-                        .padding(.horizontal, 16).padding(.top, 14).padding(.bottom, barsHeight + Self.barsBreathing)
+                        .padding(.horizontal, 16).padding(.top, 14).padding(.bottom, Self.endOfPageGap)
                     }
                     .scrollDismissesKeyboard(.interactively)
                     // A new scroll view per tab: each tab opens at its top instead
@@ -82,40 +81,40 @@ struct RootView: View {
                     .id("\(tab.rawValue)-\(typeSize)")
                 }
             }
-
-            VStack(spacing: 8) {
-                // "Workout in progress" strip — tapping it reopens the live view.
-                // Shown whenever a workout is active but the live screen isn't
-                // on-screen: either the user is on another tab, or they minimized
-                // it while staying on the Train tab.
-                if activeWorkout.isActive && (tab != .allena || activeWorkout.minimized) {
-                    ActiveWorkoutStrip {
-                        activeWorkout.minimized = false
-                        tab = .allena
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                VStack(spacing: 8) {
+                    // "Workout in progress" strip — tapping it reopens the live view.
+                    // Shown whenever a workout is active but the live screen isn't
+                    // on-screen: either the user is on another tab, or they minimized
+                    // it while staying on the Train tab.
+                    if activeWorkout.isActive && (tab != .allena || activeWorkout.minimized) {
+                        ActiveWorkoutStrip {
+                            activeWorkout.minimized = false
+                            tab = .allena
+                        }
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                }
-                // Same floating strip for a running cardio session.
-                if activeCardio.isActive && (tab != .allena || activeCardio.minimized) {
-                    ActiveCardioStrip {
-                        activeCardio.minimized = false
-                        tab = .allena
+                    // Same floating strip for a running cardio session.
+                    if activeCardio.isActive && (tab != .allena || activeCardio.minimized) {
+                        ActiveCardioStrip {
+                            activeCardio.minimized = false
+                            tab = .allena
+                        }
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    // Time and Finish stay in reach while training.
+                    if activeWorkout.isActive && tab == .allena && !activeWorkout.minimized {
+                        LiveWorkoutBar().transition(.move(edge: .bottom).combined(with: .opacity))
+                    }
+                    if timer.active { TimerStrip().transition(.move(edge: .bottom).combined(with: .opacity)) }
+                    if case .saveFailed(let reason) = store.storageProblem { StorageBanner(reason: reason) }
+                    NavBar(tab: $tab)
                 }
-                // Time and Finish stay in reach while training.
-                if activeWorkout.isActive && tab == .allena && !activeWorkout.minimized {
-                    LiveWorkoutBar().transition(.move(edge: .bottom).combined(with: .opacity))
-                }
-                if timer.active { TimerStrip().transition(.move(edge: .bottom).combined(with: .opacity)) }
-                if case .saveFailed(let reason) = store.storageProblem { StorageBanner(reason: reason) }
-                NavBar(tab: $tab)
+                // Strips slide up from the bar they sit on and leave the same way,
+                // instead of popping in and shoving the layout.
+                .animation(reduceMotion ? nil : Theme.settle, value: stripsShown)
             }
-            .background(GeometryReader { Color.clear.preference(key: BarsHeightKey.self, value: $0.size.height) })
-            .onPreferenceChange(BarsHeightKey.self) { barsHeight = $0 }
-            // Strips slide up from the bar they sit on and leave the same way,
-            // instead of popping in and shoving the layout.
-            .animation(reduceMotion ? nil : Theme.settle, value: stripsShown)
+
         }
         .overlay(alignment: .top) {
             if let m = toast.message {
@@ -271,16 +270,11 @@ struct NavBar: View {
                 .accessibilityAddTraits(t == tab ? .isSelected : [])
             }
         }
-        .padding(.vertical, 11)
-        .padding(.bottom, 8)
-        .background(Theme.c1.opacity(0.96))
+        .padding(.top, 9).padding(.bottom, 2)
+        // The bar's colour runs under the home indicator; its icons stay above it.
+        .background(Theme.c1.opacity(0.96), ignoresSafeAreaEdges: .bottom)
         .overlay(alignment: .top) { Rectangle().fill(Theme.brd).frame(height: 1) }
     }
-}
-
-private struct BarsHeightKey: PreferenceKey {
-    static let defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
 }
 
 // MARK: - Live workout bar (time and Finish, pinned while the workout is on screen)
