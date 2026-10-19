@@ -5,24 +5,21 @@ import WatchKit
 #endif
 
 // MARK: - Watch visual identity
-// A self-contained copy of the phone app's palette and font helpers so the wrist
-// looks identical (dark surfaces, Lamborghini-bright yellow accent, rounded stat
-// numbers). The phone's Theme/Components import UIKit and can't be shared with
-// watchOS, so the small subset the watch needs is mirrored here.
-
+// The phone's palette (Shared/Style.swift), under the short names the watch
+// views use, so the wrist looks identical.
 enum T {
-    static let bg   = Color(hex: "0b0b0d")
-    static let c1   = Color(hex: "141417")
-    static let c2   = Color(hex: "1f1f23")
-    static let c3   = Color(hex: "2a2a30")
-    static let brd  = Color(hex: "2a2a30")
-    static let acc  = Color(hex: "ffe000")
-    static let acc2 = Color(hex: "ffb000")
-    static let txt  = Color(hex: "f4efe6")
-    static let sub  = Color(hex: "9a958d")
-    static let red  = Color(hex: "ff5a52")
-    static let blue = Color(hex: "4fb8c4")
-    static let good = Color(hex: "7fc950")
+    static let bg   = Palette.bg
+    static let c1   = Palette.c1
+    static let c2   = Palette.c2
+    static let c3   = Palette.c3
+    static let brd  = Palette.c3
+    static let acc  = Palette.acc
+    static let acc2 = Palette.acc2
+    static let txt  = Palette.txt
+    static let sub  = Palette.sub
+    static let red  = Palette.red
+    static let blue = Palette.blue
+    static let good = Palette.good
     static let radius: CGFloat = 14
 }
 

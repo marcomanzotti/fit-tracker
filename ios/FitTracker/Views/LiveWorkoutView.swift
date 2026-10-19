@@ -61,16 +61,7 @@ struct LiveWorkoutView: View {
             // Finish (primary) + Discard (destructive). Back never ends the
             // workout — only these explicit actions do.
             BigButton(title: t("wk.finish_session")) { showFinish = true }
-            Button { tap(); confirmDiscard = true } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "trash").font(.ui(12, weight: .bold))
-                    Text(t("wk.discard_session")).font(.ui(14, weight: .semibold))
-                }
-                .foregroundColor(Theme.red)
-                .frame(maxWidth: .infinity, minHeight: 48)
-                .overlay(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous).stroke(Theme.red.opacity(0.45), lineWidth: 1))
-            }
-            .buttonStyle(PressableStyle())
+            DestructiveButton(title: t("wk.discard_session")) { confirmDiscard = true }
             .confirmationDialog(t("wk.discard_q"), isPresented: $confirmDiscard, titleVisibility: .visible) {
                 Button(t("wk.discard_session"), role: .destructive) { discardSession() }
                 Button(t("cancel"), role: .cancel) {}

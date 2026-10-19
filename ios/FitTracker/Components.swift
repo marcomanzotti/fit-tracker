@@ -398,6 +398,25 @@ struct InputField: View {
     }
 }
 
+/// The one look of a destructive action (delete, discard, clear): red, outlined,
+/// with a bin, so it never reads like the primary button above it.
+struct DestructiveButton: View {
+    let title: String
+    let action: () -> Void
+    var body: some View {
+        Button { tap(); action() } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "trash").font(.ui(12, weight: .bold))
+                Text(title).font(.ui(14, weight: .semibold))
+            }
+            .foregroundColor(Theme.red)
+            .frame(maxWidth: .infinity, minHeight: 48)
+            .overlay(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous).stroke(Theme.red.opacity(0.45), lineWidth: 1))
+        }
+        .buttonStyle(PressableStyle())
+    }
+}
+
 /// The colour picker of a workout day or a cardio activity: real buttons, named
 /// for VoiceOver and with the selected one marked.
 struct ColorSwatches: View {

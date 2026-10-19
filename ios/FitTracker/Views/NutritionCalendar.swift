@@ -134,10 +134,7 @@ struct NutritionDayEditor: View {
                             Button(t("save"), role: .destructive) { saveAction() }
                             Button(t("cancel"), role: .cancel) {}
                         } message: { Text(t("nut.drop_foods_body")) }
-                    Button { tap(); confirmDelete = true } label: {
-                        Text(t("delete")).font(.head(13, .semibold)).foregroundColor(Theme.red)
-                            .frame(maxWidth: .infinity, minHeight: 44)
-                    }
+                    DestructiveButton(title: t("delete")) { confirmDelete = true }
                     .padding(.bottom, 30)
                     .confirmationDialog(t("nut.delete_day_q"), isPresented: $confirmDelete, titleVisibility: .visible) {
                         Button(t("delete"), role: .destructive) { deleteDay() }

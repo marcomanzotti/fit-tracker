@@ -125,7 +125,7 @@ struct WatchSetupGuide: View {
             Text(t("guide.title")).font(.head(20, .bold)).foregroundColor(Theme.txt)
             Spacer()
             Button { dismiss() } label: {
-                Image(systemName: "xmark.circle.fill").accessibilityLabel(t("a11y.close")).font(.ui(22)).foregroundColor(Theme.sub)
+                Image(systemName: "xmark").accessibilityLabel(t("a11y.close")).font(.ui(17)).foregroundColor(Theme.sub)
             }
         }
         .padding(.top, 18)

@@ -126,11 +126,7 @@ struct WeeklyPlanView: View {
                     }
 
                     if store.prefs.hasSchedule {
-                        Button { tap(); store.clearSchedule(); toast.show(t("plan.saved")) } label: {
-                            Text(t("plan.clear")).font(.head(13, .semibold)).foregroundColor(Theme.red)
-                                .frame(maxWidth: .infinity, minHeight: 46)
-                                .overlay(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous).stroke(Theme.red.opacity(0.4), lineWidth: 1))
-                        }
+                        DestructiveButton(title: t("plan.clear")) { store.clearSchedule(); toast.show(t("plan.saved")) }
                     }
                     Spacer(minLength: 30)
                 }

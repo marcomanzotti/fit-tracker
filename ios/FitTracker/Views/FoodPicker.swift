@@ -336,7 +336,7 @@ struct FoodPickerSheet: View {
             }
             .buttonStyle(PressableStyle())
             Button { tap(); sheet = .form(f) } label: {
-                Image(systemName: "slider.horizontal.3").accessibilityLabel(t("a11y.edit")).font(.ui(13)).foregroundColor(Theme.sub).frame(width: 30, height: 30)
+                Image(systemName: "pencil").accessibilityLabel(t("a11y.edit")).font(.ui(13)).foregroundColor(Theme.sub).frame(width: 30, height: 30)
             }
         }
         .padding(.vertical, 9).padding(.horizontal, 12)
@@ -439,10 +439,7 @@ struct FoodFormSheet: View {
 
                     BigButton(title: t("food.save_food")) { save() }
                     if !food.name.isEmpty {
-                        Button { tap(); deleteWithUndo() } label: {
-                            Text(t("delete")).font(.head(13, .semibold)).foregroundColor(Theme.red)
-                                .frame(maxWidth: .infinity, minHeight: 44)
-                        }
+                        DestructiveButton(title: t("delete")) { deleteWithUndo() }
                     }
                     Spacer().frame(height: 20)
                 }

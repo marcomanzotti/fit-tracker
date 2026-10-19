@@ -169,12 +169,7 @@ struct PlanEditorView: View {
             BigButton(title: isNew ? t("wk.create_day") : t("pe.save_changes")) { onSave() }
 
             if !isNew {
-                Button { tap(); confirmDelete = true } label: {
-                    Text(t("pe.delete_day")).font(.ui(13, weight: .semibold))
-                        .foregroundColor(Theme.red)
-                        .frame(maxWidth: .infinity, minHeight: 46)
-                        .overlay(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous).stroke(Theme.red.opacity(0.4), lineWidth: 1))
-                }
+                DestructiveButton(title: t("pe.delete_day")) { confirmDelete = true }
                 .padding(.top, 2)
                 .confirmationDialog(t("pe.delete_day_q"), isPresented: $confirmDelete, titleVisibility: .visible) {
                     Button(t("delete"), role: .destructive) { onDelete() }

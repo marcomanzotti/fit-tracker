@@ -51,11 +51,7 @@ struct CardioTypeEditorView: View {
                     BigButton(title: isNew ? t("add") : t("save")) { save() }
 
                     if !isNew {
-                        Button { tap(); confirmDelete = true } label: {
-                            Text(t("delete")).font(.ui(13, weight: .semibold)).foregroundColor(Theme.red)
-                                .frame(maxWidth: .infinity, minHeight: 46)
-                                .overlay(RoundedRectangle(cornerRadius: Theme.radiusS, style: .continuous).stroke(Theme.red.opacity(0.4), lineWidth: 1))
-                        }
+                        DestructiveButton(title: t("delete")) { confirmDelete = true }
                         .confirmationDialog(t("wk.delete_cardio_q"), isPresented: $confirmDelete, titleVisibility: .visible) {
                             Button(t("delete"), role: .destructive) {
                                 if let removed = store.deleteCardioType(type.id) {

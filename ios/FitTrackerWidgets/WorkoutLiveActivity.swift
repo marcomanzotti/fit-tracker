@@ -6,16 +6,15 @@ import ActivityKit
 // Shows the running workout without unlocking the phone: elapsed clock, current
 // exercise, sets done, and the rest countdown when one is running.
 //
-// This extension is deliberately self-contained — it can't see the app's Theme or
-// localization (those live in the app target), so it carries the few colours and
-// strings it needs, exactly as the watch app does.
+// The extension can't see the app's Theme or localization (they live in the app
+// target): colours come from the shared Palette, strings are carried here.
 
 private enum W {
-    static let bg = Color(hex: "0b0b0d")
-    static let txt = Color(hex: "f4efe6")
-    static let sub = Color(hex: "9a958d")
-    static let acc = Color(hex: "ffe000")
-    static let blue = Color(hex: "4fb8c4")
+    static let bg = Palette.bg
+    static let txt = Palette.txt
+    static let sub = Palette.sub
+    static let acc = Palette.acc
+    static let blue = Palette.blue
 }
 
 /// Italian/English pair in the app's language, which the app writes into the

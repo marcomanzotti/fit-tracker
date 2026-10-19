@@ -65,7 +65,7 @@ struct StatsView: View {
             MetricChartCard(title: t("home.weight"), info: .weight, color: Theme.acc) {
                 $0.weight.map { Units.wOut($0) }
             }
-            MetricChartCard(title: t("st.bmi_time"), info: .bmi, color: Color(hex: "b08fff")) {
+            MetricChartCard(title: t("st.bmi_time"), info: .bmi, color: Theme.purple) {
                 e in e.weight.map { store.bmi($0) }
             }
             // FFMI alongside BMI, normalised like the card and the "i" sheet, and only on
@@ -110,7 +110,7 @@ struct StatsView: View {
             MetricChartCard(title: t("st.rhr_time"), info: .restingHR, color: Theme.red, unit: "bpm") {
                 $0.restHR.map(Double.init)
             }
-            MetricChartCard(title: t("st.resp_time"), info: .respRate, color: Color(hex: "4fb8c4"), unit: "/min") { $0.respRate }
+            MetricChartCard(title: t("st.resp_time"), info: .respRate, color: Theme.blue, unit: "/min") { $0.respRate }
             MetricChartCard(title: t("st.spo2_time"), info: .spo2, color: Color(hex: "ff5d5d"), unit: "%") { $0.spo2 }
             MetricChartCard(title: t("st.walk_hr_time"), info: .walkingHR, color: Theme.acc2, unit: "bpm") {
                 $0.walkingHR.map(Double.init)
@@ -118,7 +118,7 @@ struct StatsView: View {
                 VitalsTrendCard()
             }
             StatsSection(id: "activity", title: t("st.sec_activity")) {
-            MetricChartCard(title: t("st.steps_time"), info: .steps, color: Color(hex: "ff9500"), kind: .bar) {
+            MetricChartCard(title: t("st.steps_time"), info: .steps, color: Theme.orange, kind: .bar) {
                 $0.steps.map(Double.init)
             }
             MetricChartCard(title: t("st.daylight_time"), info: .daylight, color: Theme.acc, kind: .bar, unit: "min") {
@@ -245,7 +245,7 @@ struct StatsView: View {
                     Spacer()
                     Button { tap(); showManage = true } label: {
                         HStack(spacing: 5) {
-                            Image(systemName: "slider.horizontal.3").font(.ui(11, weight: .bold))
+                            Image(systemName: "pencil").font(.ui(11, weight: .bold))
                             Text(t("st.manage")).font(.head(10, .semibold)).tracking(0.5)
                         }
                         .foregroundColor(Theme.sub)
@@ -326,7 +326,7 @@ struct StatsView: View {
             Text(selEx).font(.ui(13, weight: .semibold)).foregroundColor(Theme.acc).lineLimit(1)
             Spacer()
             Button { tap(); editingFam = FamilyEdit(base: selEx) } label: {
-                Image(systemName: "slider.horizontal.3").accessibilityLabel(t("a11y.edit")).font(.ui(12)).foregroundColor(Theme.sub).frame(width: 28, height: 28)
+                Image(systemName: "pencil").accessibilityLabel(t("a11y.edit")).font(.ui(12)).foregroundColor(Theme.sub).frame(width: 28, height: 28)
             }.buttonStyle(PressableStyle())
             Button { tap(); selEx = ""; selVariant = nil } label: {
                 Image(systemName: "xmark.circle.fill").accessibilityLabel(t("a11y.clear")).foregroundColor(Theme.sub)

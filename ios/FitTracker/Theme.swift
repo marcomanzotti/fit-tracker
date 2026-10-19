@@ -2,23 +2,25 @@ import SwiftUI
 
 // MARK: - Palette
 enum Theme {
-    static let bg     = Color(hex: "0b0b0d")
-    static let c1     = Color(hex: "141417")
-    static let c2     = Color(hex: "1f1f23")
-    static let c3     = Color(hex: "2a2a30")
-    static let brd    = Color(hex: "2a2a30")
-    static let brd2   = Color(hex: "3a3a42")
-    static let acc    = Color(hex: "ffe000")   // Lamborghini-bright yellow (was ffd21e)
-    static let acc2   = Color(hex: "ffb000")
-    static let txt    = Color(hex: "f4efe6")
-    static let sub    = Color(hex: "9a958d")   // 5.2:1 on the card surface (AA)
-    static let mut    = Color(hex: "161619")
-    static let red    = Color(hex: "ff5a52")
-    static let blue   = Color(hex: "4fb8c4")
-    static let good   = Color(hex: "7fc950")
+    static let bg     = Palette.bg
+    static let c1     = Palette.c1
+    static let c2     = Palette.c2
+    static let c3     = Palette.c3
+    static let brd    = Palette.c3
+    static let brd2   = Palette.brd2
+    static let acc    = Palette.acc
+    static let acc2   = Palette.acc2
+    static let txt    = Palette.txt
+    static let sub    = Palette.sub
+    static let mut    = Palette.mut
+    static let red    = Palette.red
+    static let blue   = Palette.blue
+    static let good   = Palette.good
     /// Body-fat accent — a distinct magenta so fat never reads as BMI (purple)
     /// or lean mass (blue) in the body-composition views.
-    static let fat    = Color(hex: "ff5da2")
+    static let fat    = Palette.fat
+    static let purple = Palette.purple
+    static let orange = Palette.orange
     /// Apple's workout/exercise-ring green, used to mark sessions imported from
     /// Apple Health (e.g. a watch hike) so they read as "from Apple Health".
     static let appleGreen = "92e82a"

@@ -353,10 +353,7 @@ struct SessionEditorView: View {
                         }
                     }
                     if !isNew {
-                        Button { tap(); confirmDelete = true } label: {
-                            Text(t("wk.del_session")).font(.head(13, .semibold)).foregroundColor(Theme.red)
-                                .frame(maxWidth: .infinity, minHeight: 44)
-                        }
+                        DestructiveButton(title: t("wk.del_session")) { confirmDelete = true }
                     }
                     Spacer().frame(height: 30)
                 }

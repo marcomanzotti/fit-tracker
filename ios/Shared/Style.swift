@@ -43,6 +43,28 @@ var appVersionLabel: String {
         .compactMap { $0 as? String }.filter { !$0.isEmpty && !$0.hasPrefix("$(") }
     return parts.joined(separator: " · ")
 }
+// MARK: - Palette (phone, watch and widgets)
+/// The one place the app's colours are defined; the phone's Theme, the watch's T
+/// and the widgets read from here.
+enum Palette {
+    static let bg     = Color(hex: "0b0b0d")
+    static let c1     = Color(hex: "141417")
+    static let c2     = Color(hex: "1f1f23")
+    static let c3     = Color(hex: "2a2a30")
+    static let brd2   = Color(hex: "3a3a42")
+    static let mut    = Color(hex: "161619")
+    static let acc    = Color(hex: "ffe000")
+    static let acc2   = Color(hex: "ffb000")
+    static let txt    = Color(hex: "f4efe6")
+    static let sub    = Color(hex: "9a958d")   // 5.2:1 on the card surface (AA)
+    static let red    = Color(hex: "ff5a52")
+    static let blue   = Color(hex: "4fb8c4")
+    static let good   = Color(hex: "7fc950")
+    static let fat    = Color(hex: "ff5da2")
+    static let purple = Color(hex: "b08fff")
+    static let orange = Color(hex: "ff9500")
+}
+
 extension Color {
     init(hex: String) {
         let h = hex.trimmingCharacters(in: CharacterSet(charactersIn: "#")).uppercased()
