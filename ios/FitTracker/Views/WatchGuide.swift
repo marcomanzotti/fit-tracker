@@ -60,9 +60,11 @@ struct WatchSetupGuide: View {
     @State private var showingBand = false
 
     private var fileTypes: [UTType] {
-        var t: [UTType] = [.xml]
-        if let g = UTType(filenameExtension: "gpx") { t.append(g) }
-        if let c = UTType(filenameExtension: "tcx") { t.append(c) }
+        // FIT has no system type: .data lets the picker offer it.
+        var t: [UTType] = [.xml, .data]
+        for ext in ["gpx", "tcx", "fit"] {
+            if let type = UTType(filenameExtension: ext) { t.append(type) }
+        }
         return t
     }
 

@@ -246,6 +246,7 @@ extension Store {
         s.maxHRSes = (r.maxHR ?? 0) > 0 ? r.maxHR : nil
         s.distanceKm = (r.distanceKm ?? 0) > 0 ? r.distanceKm : nil
         if let k = r.activeKcal, k > 0 { s.caloriesManual = k }
+        s.healthUUID = r.healthUUID
         sessions.append(s)
     }
 }

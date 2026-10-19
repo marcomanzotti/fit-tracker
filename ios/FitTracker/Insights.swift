@@ -496,10 +496,16 @@ struct SessionEditorView: View {
                         InfoLbl(text: t("load.title"), info: .load).padding(.bottom, 12)
                         HMSField(label: t("wk.duration"), seconds: durationBinding)
                         Spacer().frame(height: 12)
-                        metricField(t("wk.avg_hr"), intBinding(\.avgHR), info: .trimp)
+                        HStack(alignment: .top, spacing: 10) {
+                            metricField(t("wk.avg_hr"), intBinding(\.avgHR), info: .trimp)
+                            metricField(t("wk.max_hr"), intBinding(\.maxHRSes))
+                        }
                         if session.sportType.isCardio {
                             Spacer().frame(height: 12)
-                            metricField("\(t("wk.distance")) (\(Units.distLabel))", distanceBinding, keyboard: .decimalPad)
+                            HStack(alignment: .top, spacing: 10) {
+                                metricField("\(t("wk.distance")) (\(Units.distLabel))", distanceBinding, keyboard: .decimalPad)
+                                metricField("\(t("wk.elevation")) (m)", elevationBinding)
+                            }
                             Spacer().frame(height: 12)
                             PaceField(session: session, manual: $session.paceManual)
                         }
@@ -529,6 +535,17 @@ struct SessionEditorView: View {
                         }
                         .padding(.bottom, 10)
                         metricField(t("wk.cal_override"), intBinding(\.caloriesManual), keyboard: .numberPad)
+                        // The app's own formula next to a device's figure: the
+                        // number to compare across devices.
+                        if session.caloriesManual != nil {
+                            Text("\(t("wk.cal_app")): \(store.estimateCalories(appEstimateSession)) kcal")
+                                .font(.system(size: 10)).foregroundColor(Theme.sub).padding(.top, 6)
+                        }
+                    }
+
+                    DeviceMetricsCard(session: $session)
+                    if let uuid = session.healthUUID {
+                        WorkoutSeriesCard(uuid: uuid, zones: store.hrZones(), paceIsSpeed: session.paceIsSpeed)
                     }
 
                     ForEach($session.exercises) { $ex in
@@ -727,5 +744,15 @@ struct SessionEditorView: View {
     private var distanceBinding: Binding<String> {
         Binding(get: { session.distanceKm.map(dispDist) ?? "" },
                 set: { session.distanceKm = $0.isEmpty ? nil : Units.distIn(pf($0)) })
+    }
+    private var elevationBinding: Binding<String> {
+        Binding(get: { session.elevationM.map { trimNum($0.rounded()) } ?? "" },
+                set: { session.elevationM = $0.isEmpty ? nil : pf($0) })
+    }
+    /// The session as the app's own formula sees it: no device calories.
+    private var appEstimateSession: WorkoutSession {
+        var s = session
+        s.caloriesManual = nil
+        return s
     }
 }

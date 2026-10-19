@@ -142,6 +142,9 @@ final class ActiveWorkout: ObservableObject {
     /// Id of the watch workout folded into this session. The saved session takes
     /// it, so the same result arriving again over the second transport dedupes.
     private(set) var watchResultId: String?
+    /// The HKWorkout the watch saved for this session. Not in the draft: a session
+    /// restored after a relaunch is saved without it.
+    private var watchHealthUUID: String?
     /// Last time the log or a session field changed.
     private(set) var lastEditAt: Date?
 
@@ -212,6 +215,7 @@ final class ActiveWorkout: ObservableObject {
         openNotes = []
         restored = nil
         watchResultId = nil
+        watchHealthUUID = nil
         lastEditAt = nil
         durationFromWatch = nil
         avgHRFromWatch = nil
@@ -283,6 +287,7 @@ final class ActiveWorkout: ObservableObject {
         if let exs = r.exercises { mergeWatchExercises(exs) }
         objectWillChange.send()     // watchResultId is part of the draft
         watchResultId = r.id
+        watchHealthUUID = r.healthUUID
     }
 
     /// Fill empty set fields from the wrist's per-set values (never overwrites).
@@ -335,6 +340,8 @@ final class ActiveWorkout: ObservableObject {
         var session = WorkoutSession(date: isoFormatter.string(from: startDate), planId: plan.id,
                                      planName: plan.name, planColor: plan.color, exercises: exercises)
         if let id = watchResultId.flatMap(UUID.init(uuidString:)) { session.id = id }
+        // Already in Health from the watch: linked, so it is not exported twice.
+        session.healthUUID = watchHealthUUID
         // Duration source of truth: the value the user typed, else whatever the
         // paired watch streamed in (both land in durationSec), else the clock.
         session.durationSec = durationSec ?? fallbackDurationSec(now: clock())

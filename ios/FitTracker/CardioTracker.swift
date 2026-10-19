@@ -196,6 +196,7 @@ final class ActiveCardio: ObservableObject {
         session.maxHRSes = (watchResult?.maxHR).flatMap { $0 > 0 ? $0 : nil }
         session.distanceKm = distanceKm(live: live)
         session.caloriesManual = (watchResult?.activeKcal ?? watchKcal).flatMap { $0 > 0 ? $0 : nil }
+        session.healthUUID = watchResult?.healthUUID
         return session
     }
 }

@@ -105,14 +105,18 @@ public struct WatchResult: Codable, Equatable {
     public var distanceKm: Double?
     // Strength only: the per-exercise sets logged on the wrist (reps × weight).
     public var exercises: [WatchResultExercise]?
+    /// The HKWorkout the watch saved, so the phone can read everything else it
+    /// measured (power, cadence, route…) from Health. Nil when the save failed.
+    public var healthUUID: String?
 
     public init(id: String, date: String, kind: String, activityId: String, name: String,
                 color: String, sport: String?, durationSec: Int, avgHR: Int?, maxHR: Int?,
-                activeKcal: Int?, distanceKm: Double?, exercises: [WatchResultExercise]? = nil) {
+                activeKcal: Int?, distanceKm: Double?, exercises: [WatchResultExercise]? = nil,
+                healthUUID: String? = nil) {
         self.id = id; self.date = date; self.kind = kind; self.activityId = activityId
         self.name = name; self.color = color; self.sport = sport; self.durationSec = durationSec
         self.avgHR = avgHR; self.maxHR = maxHR; self.activeKcal = activeKcal; self.distanceKm = distanceKm
-        self.exercises = exercises
+        self.exercises = exercises; self.healthUUID = healthUUID
     }
 }
 

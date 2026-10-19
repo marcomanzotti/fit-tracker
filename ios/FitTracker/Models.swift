@@ -483,6 +483,12 @@ struct WorkoutSession: Codable, Identifiable, Equatable {
     /// UUID of the HKWorkout this app WROTE for this session (opt-in export). Set
     /// means "already in Health" — it stops a second save creating a duplicate.
     var exportedHealthUUID: String?
+    /// What the device measured beyond the fields above, keyed by `WorkoutMetric`
+    /// raw value, in its canonical unit. Rewritten when the device reports again.
+    var metrics: [String: Double]?
+    /// Values typed by the user for those metrics: they win over the device's and
+    /// no sync ever touches them.
+    var metricOverrides: [String: Double]?
 
     /// Every Health UUID this session accounts for — its own plus any it absorbed.
     var allHealthUUIDs: [String] { (healthUUID.map { [$0] } ?? []) + (mergedHealthUUIDs ?? []) }

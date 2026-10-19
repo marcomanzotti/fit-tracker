@@ -1103,53 +1103,80 @@ extension Store {
         }
     }
 
-    // MARK: Apple Health workout import (any paired watch)
-    /// Turn HKWorkout records (Apple Watch, Garmin, Fitbit, Polar, Coros, Huawei, …)
-    /// into the app's own cardio/strength sessions. Three dedupe guards keep it from
-    /// creating doubles:
-    ///   1. a workout already imported (matched by its HKWorkout UUID) is skipped;
-    ///   2. a workout recorded by FitTracker's own Apple Watch app is skipped — the
-    ///      companion already delivered it over WatchConnectivity;
-    ///   3. a workout that overlaps an existing session (same day + same sport +
-    ///      duration within 2 min) is skipped, covering manually logged sessions.
+    // MARK: Apple Health workout import (any paired watch, the band, files)
+    /// Bring HKWorkout records (Apple Watch, Garmin, Polar, Coros, the band, …)
+    /// into the app, one session per workout and never two:
+    ///   1. a workout a session already stands for is read again: what the device
+    ///      measured refreshes, what the user typed (or cleared) stays;
+    ///   2. one this app exported, or recorded with its own Apple Watch app, is
+    ///      skipped: the session it belongs to already carries its UUID;
+    ///   3. any other device's enriches the session the user logged for the same
+    ///      workout (same day and sport, about as long);
+    ///   4. one a second device recorded at the same time as an already linked
+    ///      session (watch and band both worn) joins that session;
+    ///   5. else it becomes a session.
+    /// `importNew` false (the user turned workout import off) keeps 1-2 only.
     @discardableResult
-    func applyHealthWorkouts(_ workouts: [HealthWorkout]) -> (count: Int, sources: [String]) {
+    func applyHealthWorkouts(_ workouts: [HealthWorkout], importNew: Bool = true) -> (count: Int, sources: [String]) {
+        var list = sessions
         var imported = 0
         var srcs = Set<String>()
-        // Includes UUIDs absorbed by a merge — otherwise a workout merged into
-        // another session reads as never-imported and comes straight back.
-        let known = Set(sessions.flatMap { $0.allHealthUUIDs })
         for w in workouts {
-            if w.fromThisApp { continue }
-            if known.contains(w.uuid) { continue }
-            if hasSession(on: w.date, strength: w.sport == "strength", sport: w.sport,
-                          durationSec: w.durationSec) { continue }
-
-            sessions.append(sessionFromHealth(w))
-            imported += 1
+            if let i = list.firstIndex(where: { $0.healthUUID == w.uuid }) {
+                list[i].absorbDevice(w.measures.metrics)
+                continue
+            }
+            // Absorbed by a merge, or exported from a session.
+            if list.contains(where: { $0.allHealthUUIDs.contains(w.uuid) || $0.exportedHealthUUID == w.uuid }) { continue }
+            if w.fromThisApp || !importNew { continue }
+            if let i = Store.matchingSession(for: w, in: list) {
+                list[i].link(w)
+            } else if let i = Store.matchingSession(for: w, in: list, linked: true) {
+                list[i].mergedHealthUUIDs = (list[i].mergedHealthUUIDs ?? []) + [w.uuid]
+                list[i].absorb(w.measures, onlyMissingMetrics: true)
+            } else {
+                list.append(sessionFromHealth(w))
+                imported += 1
+            }
             if !w.sourceName.isEmpty { srcs.insert(w.sourceName) }
         }
+        if list != sessions { sessions = list }
         return (imported, srcs.sorted())
+    }
+
+    /// The session logged for the same workout as `w`: same day and sport, and as
+    /// long within a tolerance. `linked` false looks among sessions not linked to
+    /// Health yet, where one with no duration matches when it is the day's only
+    /// candidate; `linked` true among those already linked to another workout.
+    static func matchingSession(for w: HealthWorkout, in list: [WorkoutSession], linked: Bool = false) -> Int? {
+        let strength = w.sport == "strength"
+        let tolerance = max(sameWorkoutToleranceSec, w.durationSec / 10)
+        let candidates = list.indices.filter { i in
+            let s = list[i]
+            let isLinked = s.healthUUID != nil || s.exportedHealthUUID != nil
+            return s.date == w.date && isLinked == linked && (strength ? s.sport == nil : s.sport == w.sport)
+        }
+        let gap = { (i: Int) in abs((list[i].durationSeconds ?? 0) - w.durationSec) }
+        if let best = candidates.filter({ list[$0].durationSeconds != nil && gap($0) <= tolerance }).min(by: { gap($0) < gap($1) }) {
+            return best
+        }
+        guard !linked else { return nil }
+        return candidates.count == 1 && list[candidates[0]].durationSeconds == nil ? candidates[0] : nil
     }
 
     /// Build a WorkoutSession from a Health workout. Imported sessions get Apple's
     /// workout green and the HK display name ("Weight Training", "Running", …) so
     /// they read as "from Apple Health" on the calendar and carry every metric the
-    /// device recorded (duration, kcal, avg/max HR, distance).
+    /// device recorded.
     private func sessionFromHealth(_ w: HealthWorkout) -> WorkoutSession {
-        let isStrength = w.sport == "strength"
         let sportType = Sport(rawValue: w.sport) ?? .other
         let sessionName = w.displayName.isEmpty ? sportType.label : w.displayName
         var s = WorkoutSession(date: w.date, planId: "health-\(w.sport)",
                                planName: sessionName, planColor: Theme.appleGreen)
-        s.sport = isStrength ? nil : w.sport
-        s.durationSec = w.durationSec > 0 ? w.durationSec : nil
-        s.avgHR = (w.avgHR ?? 0) > 0 ? w.avgHR : nil
-        s.maxHRSes = (w.maxHR ?? 0) > 0 ? w.maxHR : nil
-        s.distanceKm = (w.distanceKm ?? 0) > 0 ? w.distanceKm : nil
-        if let k = w.kcal, k > 0 { s.caloriesManual = k }
+        s.sport = w.sport == "strength" ? nil : w.sport
         s.healthUUID = w.uuid
         s.source = w.sourceName.isEmpty ? nil : w.sourceName
+        s.absorb(w.measures)
         return s
     }
 
@@ -1166,10 +1193,13 @@ extension Store {
         return s
     }
 
-    // MARK: Workout file import (GPX / TCX — any device that can export a file)
-    /// Parse a GPX/TCX file the user exported from a watch app that does NOT sync
-    /// to Apple Health (e.g. Huawei Health) and turn it into a session. Returns
-    /// the created session on success so the caller can confirm / let the user edit.
+    // MARK: Workout file import (FIT / GPX / TCX — any device that can export a file)
+    /// Parse a file the user exported from a watch app that does NOT sync to Apple
+    /// Health (Huawei Health, Strava, Garmin Connect's export…) and turn it into a
+    /// session with every metric the file holds. With export to Health on, the
+    /// workout also goes into Health with its heart rate and route, so the session
+    /// opens with the same charts as a watch's. Returns the created session so the
+    /// caller can confirm / let the user edit.
     enum FileImportOutcome { case imported(WorkoutSession), alreadyLogged, unreadable }
 
     func importWorkoutFile(_ url: URL) -> FileImportOutcome {
@@ -1182,7 +1212,7 @@ extension Store {
             appLog.error("Workout file unreadable: \(String(describing: error), privacy: .public)")
             return .unreadable
         }
-        guard let p = WorkoutFileParser.parse(data: data) else { return .unreadable }
+        guard let p = WorkoutFile.parse(data) else { return .unreadable }
 
         let sportType = Sport(rawValue: p.sport) ?? .other
         let isStrength = p.sport == "strength"
@@ -1192,14 +1222,16 @@ extension Store {
         var s = WorkoutSession(date: p.date, planId: "file-\(p.sport)",
                                planName: sportType.label, planColor: Theme.appleGreen)
         s.sport = isStrength ? nil : p.sport
-        s.durationSec = p.durationSec > 0 ? p.durationSec : nil
-        s.avgHR = (p.avgHR ?? 0) > 0 ? p.avgHR : nil
-        s.maxHRSes = (p.maxHR ?? 0) > 0 ? p.maxHR : nil
-        s.distanceKm = (p.distanceKm ?? 0) > 0 ? p.distanceKm : nil
-        if let k = p.kcal, k > 0 { s.caloriesManual = k }
+        s.absorb(p.measures)
         s.source = url.lastPathComponent
         setRestDay(p.date, on: false)
         sessions.append(s)
+        if prefs.healthKitEnabled, prefs.exportsToHealth {
+            HealthKitManager.shared.saveImported(p) { [weak self] uuid in
+                guard let self, let uuid, let i = self.sessions.firstIndex(where: { $0.id == s.id }) else { return }
+                self.sessions[i].healthUUID = uuid
+            }
+        }
         return .imported(s)
     }
 
@@ -1287,14 +1319,13 @@ extension Store {
                 if let last = samples.compactMap({ $0.values[.restHR] }).last, last > 0 {
                     self.prefs.restingHR = Int(last.rounded())
                 }
-                // Importing past workouts from other watches is opt-in (formats
-                // don't always translate cleanly), so honor the user's choice.
-                guard self.prefs.importWorkoutsEnabled else { finish(true, 0, []); return }
                 // Workouts stay on the 90-day window even during the daily-metric
                 // backfill: a year of imported sessions from another watch would
-                // bury the user's own log, and importing them is a separate opt-in.
+                // bury the user's own log. Sessions already linked to Health are
+                // refreshed whatever the import choice; only new sessions from
+                // other devices wait for it.
                 hk.fetchWorkouts(days: min(window, Store.healthRoutineDays)) { workouts in
-                    let r = self.applyHealthWorkouts(workouts)
+                    let r = self.applyHealthWorkouts(workouts, importNew: self.prefs.importWorkoutsEnabled)
                     finish(true, r.count, r.sources)
                 }
             }
@@ -1344,6 +1375,8 @@ extension Store {
         copy.source = nil
         copy.avgHR = nil
         copy.maxHRSes = nil
+        copy.metrics = nil
+        copy.metricOverrides = nil
         // Fresh set ids, so editing the copy can never touch the original's rows.
         copy.exercises = src.exercises.map { e in
             var ex = e
@@ -1434,6 +1467,11 @@ extension Store {
             merged.mergedHealthUUIDs = ((merged.mergedHealthUUIDs ?? []) + absorbed).uniqued()
         }
         if merged.source == nil, let src = others.compactMap({ $0.source }).first { merged.source = src }
+        // Extra metrics: the primary's win, the others fill what it lacks.
+        for o in others {
+            if let m = o.metrics { merged.metrics = (merged.metrics ?? [:]).merging(m) { mine, _ in mine } }
+            if let m = o.metricOverrides { merged.metricOverrides = (merged.metricOverrides ?? [:]).merging(m) { mine, _ in mine } }
+        }
 
         sessions.removeAll { s in others.contains { $0.id == s.id } }
         updateSession(merged)

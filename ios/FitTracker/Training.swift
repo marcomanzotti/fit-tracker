@@ -162,15 +162,7 @@ extension HealthKitManager {
             let bpmUnit = HKUnit.count().unitDivided(by: .minute())
             let hr = ((samples as? [HKQuantitySample]) ?? []).map { ($0.startDate, $0.quantity.doubleValue(for: bpmUnit)) }
             guard hr.count >= 2 else { done(nil); return }
-            // Each reading stands for the time until the next one, capped so a
-            // dropout is not credited to the last zone seen.
-            var zones = [Double](repeating: 0, count: 5)
-            for (i, s) in hr.enumerated() {
-                let next = i + 1 < hr.count ? hr[i + 1].0 : w.endDate
-                let seconds = min(next.timeIntervalSince(s.0), Self.longestSampleGap)
-                let zone = max(0, min(4, bounds.lastIndex { Double($0) <= s.1 } ?? 0))
-                zones[zone] += max(0, seconds)
-            }
+            let zones = hrZoneSeconds(hr, end: w.endDate, bounds: bounds, longestGap: Self.longestSampleGap)
             let date = isoFormatter.string(from: w.startDate)
             let sport = Self.sportName(w.workoutActivityType)
             guard sport == "running", w.duration >= Self.decouplingMinSeconds else {

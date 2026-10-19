@@ -187,13 +187,15 @@ struct HealthWorkout {
     var date: String          // yyyy-MM-dd of the start
     var sport: String         // Sport raw value (running/cycling/…/strength/other)
     var displayName: String   // human-readable activity name ("Weight Training", "Running", …)
-    var durationSec: Int
-    var kcal: Int?            // active energy burned
-    var distanceKm: Double?
-    var avgHR: Int?
-    var maxHR: Int?
-    var fromThisApp: Bool     // recorded by FitTracker itself (our Apple Watch app)
+    var measures: WorkoutMeasures
+    var fromThisApp: Bool     // recorded or exported by FitTracker itself (not the band it syncs)
     var sourceName: String    // origin app name ("Garmin Connect", "Polar Flow", …)
+
+    var durationSec: Int { measures.durationSec }
+    var kcal: Int? { measures.kcal }
+    var distanceKm: Double? { measures.distanceKm }
+    var avgHR: Int? { measures.avgHR }
+    var maxHR: Int? { measures.maxHR }
 }
 
 final class HealthKitManager {
@@ -229,8 +231,13 @@ final class HealthKitManager {
             if let t = HKObjectType.quantityType(forIdentifier: id) { share.insert(t) }
         }
         if let t = HKObjectType.categoryType(forIdentifier: .sleepAnalysis) { share.insert(t) }
+        // An imported file goes into Health with its distance and route.
+        for id in [HKQuantityTypeIdentifier.distanceCycling, .distanceSwimming] {
+            if let t = HKObjectType.quantityType(forIdentifier: id) { share.insert(t) }
+        }
+        share.insert(HKSeriesType.workoutRoute())
 
-        var read = Set<HKObjectType>([HKObjectType.workoutType()])
+        var read = Set<HKObjectType>([HKObjectType.workoutType()]).union(Self.workoutReadTypes)
         let quantities = Self.dailyStats.map(\.id) + Self.nightVitals.map(\.id)
             + [.distanceWalkingRunning, .distanceCycling, .distanceSwimming]
         for id in quantities {
@@ -404,7 +411,7 @@ final class HealthKitManager {
 
     #if canImport(HealthKit)
     /// The app's Sport mapped to the HealthKit activity type we write.
-    private static func activityType(for s: Sport) -> HKWorkoutActivityType {
+    static func activityType(for s: Sport) -> HKWorkoutActivityType {
         switch s {
         case .strength: return .traditionalStrengthTraining
         case .running:  return .running
@@ -416,7 +423,7 @@ final class HealthKitManager {
     }
 
     /// Which distance quantity applies to a sport (nil when distance is meaningless).
-    private static func distanceIdentifier(for s: Sport) -> HKQuantityTypeIdentifier? {
+    static func distanceIdentifier(for s: Sport) -> HKQuantityTypeIdentifier? {
         switch s {
         case .running, .walking: return .distanceWalkingRunning
         case .cycling:           return .distanceCycling
@@ -425,36 +432,21 @@ final class HealthKitManager {
         }
     }
 
-    /// Reduce one HKWorkout to the fields the app stores in a WorkoutSession.
+    /// Reduce one HKWorkout to what the app keeps: core fields and every extra
+    /// metric the device wrote (see `measures(of:)`). A workout from the band is
+    /// written by this app but is the band's: it is named after the band and
+    /// imported like any watch's.
     private func summarize(_ w: HKWorkout, appBundle: String) -> HealthWorkout {
-        let bpmUnit = HKUnit.count().unitDivided(by: .minute())
-        var avg: Int? = nil, mx: Int? = nil
-        if let hrType = HKObjectType.quantityType(forIdentifier: .heartRate),
-           let stats = w.statistics(for: hrType) {
-            if let a = stats.averageQuantity()?.doubleValue(for: bpmUnit), a > 0 { avg = Int(a.rounded()) }
-            if let m = stats.maximumQuantity()?.doubleValue(for: bpmUnit), m > 0 { mx = Int(m.rounded()) }
-        }
-        var kcal: Int? = nil
-        if let eType = HKObjectType.quantityType(forIdentifier: .activeEnergyBurned),
-           let v = w.statistics(for: eType)?.sumQuantity()?.doubleValue(for: .kilocalorie()), v > 0 {
-            kcal = Int(v.rounded())
-        } else if let v = w.totalEnergyBurned?.doubleValue(for: .kilocalorie()), v > 0 {
-            kcal = Int(v.rounded())
-        }
-        var km: Double? = nil
-        if let v = w.totalDistance?.doubleValue(for: .meter()), v > 0 {
-            km = (v / 1000 * 100).rounded() / 100
-        }
         let src = w.sourceRevision.source.bundleIdentifier
+        let band = Self.isBandWorkout(w)
         return HealthWorkout(
             uuid: w.uuid.uuidString,
             date: isoFormatter.string(from: w.startDate),
             sport: Self.sport(for: w.workoutActivityType),
             displayName: Self.displayName(for: w.workoutActivityType),
-            durationSec: Int(w.duration.rounded()),
-            kcal: kcal, distanceKm: km, avgHR: avg, maxHR: mx,
-            fromThisApp: src == appBundle || src.hasPrefix("com.marco.manzotti.fittracker"),
-            sourceName: w.sourceRevision.source.name)
+            measures: Self.measures(of: w),
+            fromThisApp: !band && (src == appBundle || src.hasPrefix("com.marco.manzotti.fittracker")),
+            sourceName: band ? (w.device?.name ?? "Xiaomi Smart Band") : w.sourceRevision.source.name)
     }
 
     /// Map an HKWorkoutActivityType to the app's Sport raw value.

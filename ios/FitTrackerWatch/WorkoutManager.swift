@@ -76,6 +76,12 @@ final class WorkoutManager: NSObject, ObservableObject {
         if let t = HKObjectType.quantityType(forIdentifier: .distanceWalkingRunning) { read.insert(t) }
         if let t = HKObjectType.quantityType(forIdentifier: .distanceCycling) { read.insert(t) }
         if let t = HKObjectType.quantityType(forIdentifier: .distanceSwimming) { read.insert(t) }
+        // What the live data source can add on its own for each sport: running
+        // power and dynamics, steps, strokes, cycling power and cadence.
+        var extra: [HKQuantityTypeIdentifier] = [.stepCount, .runningPower, .runningSpeed, .runningStrideLength,
+                                                 .runningGroundContactTime, .runningVerticalOscillation, .swimmingStrokeCount]
+        if #available(watchOS 10.0, *) { extra += [.cyclingPower, .cyclingCadence, .cyclingSpeed] }
+        for id in extra { if let t = HKObjectType.quantityType(forIdentifier: id) { read.insert(t) } }
         do {
             try await store.requestAuthorization(toShare: share, read: read)
             return true
@@ -95,7 +101,7 @@ final class WorkoutManager: NSObject, ObservableObject {
 
         let config = HKWorkoutConfiguration()
         config.activityType = hkType(for: activity)
-        config.locationType = .outdoor
+        config.locationType = activity.kindValue == .strength ? .indoor : .outdoor
 
         do {
             let session = try HKWorkoutSession(healthStore: store, configuration: config)
@@ -340,9 +346,10 @@ final class WorkoutManager: NSObject, ObservableObject {
         finishing = true
         ticker?.cancel()
         guard let builder else { phase = .ended; return }
+        var savedUUID: String?
         do {
             try await builder.endCollection(at: Date())
-            _ = try await builder.finishWorkout()
+            savedUUID = try await builder.finishWorkout()?.uuid.uuidString
         } catch {
             // The summary is still built from what was collected and still goes to
             // the phone; only the copy in Health is missing, and the user is told.
@@ -369,7 +376,8 @@ final class WorkoutManager: NSObject, ObservableObject {
             maxHR: maxHR > 0 ? maxHR : nil,
             activeKcal: kcal > 0 ? kcal : nil,
             distanceKm: km,
-            exercises: resultEx
+            exercises: resultEx,
+            healthUUID: savedUUID
         )
         result = r
         // Final live sample (ended) so the phone clears its live banner; the full
