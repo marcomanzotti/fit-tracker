@@ -67,7 +67,7 @@ export function mailbox() {
     sendMail: async (mail: Mail) => {
       outbox.push(mail);
     },
-    // The token at the end of the last invitation link.
-    lastToken: () => outbox.at(-1)?.text.split("/invito/")[1]?.trim() ?? "",
+    // The token after "#" in the last invitation link.
+    lastToken: () => outbox.at(-1)?.text.split("/invito#")[1]?.trim() ?? "",
   };
 }

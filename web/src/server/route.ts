@@ -4,9 +4,29 @@ import type { Db } from "@/db/client";
 import { requireActor, type Actor } from "./actor";
 import type { Auth } from "./auth";
 import { env } from "./env";
-import { errorResponse } from "./http";
+import { errorResponse, forbidden, HttpError } from "./http";
 import { sendMail, type SendMail } from "./mail";
+import { createRateLimiter } from "./rate-limit";
 import { getAuth, getDatabase } from "./runtime";
+
+const REQUESTS_PER_MINUTE = 300;
+const allowRequest = createRateLimiter(REQUESTS_PER_MINUTE, 60_000);
+const SAFE_METHODS = new Set(["GET", "HEAD"]);
+
+// Cheap checks before any database work:
+// - a per-IP request budget (X-Real-IP is set by Caddy; Better Auth limits /api/auth);
+// - CSRF: a browser call authenticated by cookie must come from our own origin.
+//   The Android app authenticates with a bearer header, which browsers never add
+//   on their own, so those calls are exempt.
+function guard(request: Request): void {
+  if (!allowRequest(request.headers.get("x-real-ip") ?? "unknown")) {
+    throw new HttpError(429, "rate_limited", "Too many requests, slow down");
+  }
+  if (SAFE_METHODS.has(request.method) || request.headers.has("authorization")) return;
+  if (request.headers.get("origin") !== new URL(env().BETTER_AUTH_URL).origin) {
+    throw forbidden("bad_origin", "Cross-site request refused");
+  }
+}
 
 type RouteContext<P> = {
   request: Request;
@@ -28,6 +48,7 @@ export function route<P = Record<string, never>>(handler: (ctx: RouteContext<P>)
     // Outside the try: during prerendering it rejects on purpose and Next must see it.
     await connection();
     try {
+      guard(request);
       const [{ db }, auth] = await Promise.all([getDatabase(), getAuth()]);
       const params = await context.params;
       return await handler({

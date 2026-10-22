@@ -29,6 +29,20 @@
       "when": 1792646798200,
       "tag": "0003_custom_sync_triggers",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792647860550,
+      "tag": "0004_security_and_index_fixes",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792647861247,
+      "tag": "0005_custom_sync_lock_in_trigger",
+      "breakpoints": true
     }
   ]
 }

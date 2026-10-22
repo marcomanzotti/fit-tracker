@@ -1,5 +1,8 @@
 import { z } from "zod";
-import { badRequest, notFound } from "./http";
+import { badRequest, HttpError, notFound } from "./http";
+
+// Far above any legitimate request (a 500-mutation sync batch is ~100 KB).
+const MAX_BODY_BYTES = 1_000_000;
 
 export function parseWith<T>(schema: z.ZodType<T>, input: unknown): T {
   const parsed = schema.safeParse(input);
@@ -9,8 +12,15 @@ export function parseWith<T>(schema: z.ZodType<T>, input: unknown): T {
 
 // The JSON body as untrusted data; the service it goes to validates it.
 export async function readBody(request: Request): Promise<unknown> {
+  if (!(request.headers.get("content-type") ?? "").startsWith("application/json")) {
+    throw new HttpError(415, "unsupported_media_type", "Send the body as application/json");
+  }
+  const tooLarge = () => new HttpError(413, "body_too_large", "Request body is too large");
+  if (Number(request.headers.get("content-length") ?? 0) > MAX_BODY_BYTES) throw tooLarge();
+  const text = await request.text();
+  if (Buffer.byteLength(text) > MAX_BODY_BYTES) throw tooLarge();
   try {
-    return await request.json();
+    return JSON.parse(text) as unknown;
   } catch {
     throw badRequest("invalid_json", "Request body is not valid JSON");
   }

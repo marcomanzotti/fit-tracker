@@ -7,7 +7,8 @@ export const APP = {
 } as const;
 
 // Version of the privacy notice and consent texts the user is shown. Bump it when
-// the texts change: consents given on an older version are asked again.
+// the texts change: consents given on an older version stay valid but are marked
+// `outdated`, and the apps ask the user to review them again.
 export const PRIVACY_POLICY_VERSION = "2026-10-22-draft";
 
 export const INVITATION_TTL_DAYS = 7;

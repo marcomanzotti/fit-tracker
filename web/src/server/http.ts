@@ -33,8 +33,29 @@ export const notFound = (what = "Resource") => new HttpError(404, "not_found", `
 export const conflict = (code: string, message: string) => new HttpError(409, code, message);
 export const badRequest = (code: string, message: string) => new HttpError(400, code, message);
 
+// Postgres SQLSTATE of a driver error; Drizzle wraps it in `cause`.
+export function pgErrorCode(error: unknown): string | undefined {
+  for (let current: unknown = error; current instanceof Error; current = current.cause) {
+    const code = (current as { code?: unknown }).code;
+    if (typeof code === "string" && /^[0-9A-Z]{5}$/.test(code)) return code;
+  }
+  return undefined;
+}
+
+// Class 22 (bad data) and 23 (constraint violation): the request, not the server.
+export const isDataError = (code: string) => code.startsWith("22") || code.startsWith("23");
+
+const UNIQUE_VIOLATION = "23505";
+const LOCK_NOT_AVAILABLE = "55P03";
+
 export function errorResponse(error: unknown): Response {
   if (error instanceof HttpError) return fail(error.status, error.code, error.message);
-  console.error("unhandled API error", error);
+  const code = pgErrorCode(error);
+  // Two requests racing to create the same thing: the loser gets a clean 409.
+  if (code === UNIQUE_VIOLATION) return fail(409, "conflict", "This already exists");
+  if (code === LOCK_NOT_AVAILABLE) return fail(503, "busy", "Busy, try again in a moment");
+  // Log the SQLSTATE and message only: Drizzle errors carry the query parameters,
+  // which can be health data.
+  console.error("unhandled API error", code ?? "", error instanceof Error ? error.message.split("\nparams:")[0] : error);
   return fail(500, "internal_error", "Something went wrong");
 }

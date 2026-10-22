@@ -20,7 +20,15 @@ const PASSWORD = "correct-horse-battery";
 const mails: string[] = [];
 
 type Handler<P = Record<string, string>> = (request: Request, context: { params: Promise<P> }) => Promise<Response>;
-type Call<P> = { method?: string; body?: unknown; bearer?: string; ip?: string; params?: P };
+type Call<P> = {
+  method?: string;
+  body?: unknown;
+  bearer?: string;
+  ip?: string;
+  params?: P;
+  origin?: string;
+  contentType?: string;
+};
 
 let routes: Awaited<ReturnType<typeof loadRoutes>>;
 
@@ -33,8 +41,9 @@ async function loadRoutes() {
     auth: (await import("../auth/[...all]/route")) as unknown as Record<string, Handler>,
     me: await import("./me/route"),
     invitations: await import("./invitations/route"),
-    preview: await import("./invitations/[token]/route"),
-    accept: await import("./invitations/[token]/accept/route"),
+    preview: await import("./invitations/preview/route"),
+    accept: await import("./invitations/accept/route"),
+    revoke: await import("./invitations/[id]/revoke/route"),
     care: await import("./care/route"),
     push: await import("./sync/push/route"),
     body: await import("./clients/[clientId]/body-measurements/route"),
@@ -45,8 +54,8 @@ async function loadRoutes() {
 }
 
 async function call<P>(handler: Handler<P>, path: string, options: Call<P> = {}) {
-  const headers: Record<string, string> = { origin: BASE, "x-real-ip": options.ip ?? "198.51.100.1" };
-  if (options.body !== undefined) headers["content-type"] = "application/json";
+  const headers: Record<string, string> = { origin: options.origin ?? BASE, "x-real-ip": options.ip ?? "198.51.100.1" };
+  if (options.body !== undefined) headers["content-type"] = options.contentType ?? "application/json";
   if (options.bearer) headers.authorization = `Bearer ${options.bearer}`;
   const response = await handler(
     new Request(`${BASE}${path}`, {
@@ -79,7 +88,7 @@ async function setUser(id: string, values: { role?: "admin"; twoFactorEnabled?: 
   await db.update(user).set(values).where(eq(user.id, id));
 }
 
-const invitationToken = () => mails.at(-1)?.split("/invito/")[1]?.trim() ?? "";
+const invitationToken = () => mails.at(-1)?.split("/invito#")[1]?.trim() ?? "";
 
 beforeAll(async () => {
   delete (globalThis as { __fitTracker?: unknown }).__fitTracker;
@@ -118,11 +127,7 @@ describe("studio onboarding and staff access over HTTP", () => {
     const pt = await register("pt@example.test", "Paola PT", "198.51.100.11");
     Object.assign(state, { pt: pt.bearer, ptId: pt.id });
 
-    const accepted = await call(routes.accept.POST, `/api/v1/invitations/${token}/accept`, {
-      bearer: pt.bearer,
-      body: {},
-      params: { token },
-    });
+    const accepted = await call(routes.accept.POST, "/api/v1/invitations/accept", { bearer: pt.bearer, body: { token } });
     const without2fa = await call(routes.invitations.POST, "/api/v1/invitations", {
       bearer: pt.bearer,
       body: { kind: "client", email: "luca@example.test", assignmentRole: "pt" },
@@ -140,14 +145,13 @@ describe("studio onboarding and staff access over HTTP", () => {
       body: { kind: "client", email: "luca@example.test", assignmentRole: "pt" },
     });
     const token = invitationToken();
-    const preview = await call(routes.preview.GET, `/api/v1/invitations/${token}`, { params: { token } });
+    const preview = await call(routes.preview.POST, "/api/v1/invitations/preview", { body: { token } });
     const client = await register("luca@example.test", "Luca", "198.51.100.12");
     Object.assign(state, { client: client.bearer, clientId: client.id });
 
-    const accepted = await call(routes.accept.POST, `/api/v1/invitations/${token}/accept`, {
+    const accepted = await call(routes.accept.POST, "/api/v1/invitations/accept", {
       bearer: client.bearer,
-      params: { token },
-      body: { consent: { policyVersion: PRIVACY_POLICY_VERSION, healthProcessing: true, staffSharing: true } },
+      body: { token, consent: { policyVersion: PRIVACY_POLICY_VERSION, healthProcessing: true, staffSharing: true } },
     });
     const care = await call(routes.care.GET, "/api/v1/care", { bearer: client.bearer });
 
@@ -207,6 +211,37 @@ describe("studio onboarding and staff access over HTTP", () => {
 
     expect(anonymous).toMatchObject({ status: 401, json: { success: false, error: { code: "unauthorized" } } });
     expect(badId).toMatchObject({ status: 404, json: { error: { code: "not_found" } } });
+  });
+
+  it("lets the inviter list and revoke a pending invitation", async () => {
+    await call(routes.invitations.POST, "/api/v1/invitations", {
+      bearer: state.pt,
+      body: { kind: "client", email: "typo@example.test", assignmentRole: "pt" },
+    });
+    const token = invitationToken();
+    const pending = await call(routes.invitations.GET, "/api/v1/invitations", { bearer: state.pt });
+    const id = pending.json.data.find((i: { email: string }) => i.email === "typo@example.test").id;
+
+    const revoked = await call(routes.revoke.POST, `/api/v1/invitations/${id}/revoke`, { bearer: state.pt, params: { id } });
+    const preview = await call(routes.preview.POST, "/api/v1/invitations/preview", { body: { token } });
+
+    expect(revoked.status).toBe(200);
+    expect(preview.json.data.status).toBe("revoked");
+  });
+
+  it("refuses cookie-style calls from another site and non-JSON bodies", async () => {
+    const crossSite = await call(routes.preview.POST, "/api/v1/invitations/preview", {
+      body: { token: "x".repeat(40) },
+      origin: "https://evil.example",
+    });
+    const notJson = await call(routes.push.POST, "/api/v1/sync/push", {
+      bearer: state.client,
+      body: { mutations: [] },
+      contentType: "text/plain",
+    });
+
+    expect(crossSite).toMatchObject({ status: 403, json: { error: { code: "bad_origin" } } });
+    expect(notJson.status).toBe(415);
   });
 
   it("searches the exercise library for signed-in users", async () => {

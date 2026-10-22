@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { PRIVACY_POLICY_VERSION } from "@/config";
 import type { Database, Db } from "@/db/client";
-import { auditLog } from "@/db/schema";
+import { eq } from "drizzle-orm";
+import { auditLog, user } from "@/db/schema";
 import { freshDatabase, makeUser, mailbox, META } from "@/test/harness";
 import { withClientAccess, type AccessRequest } from "./access";
 import type { Actor } from "./actor";
@@ -28,7 +29,7 @@ beforeEach(async () => {
     { sendMail: mail.sendMail, baseUrl: "https://studio.example" },
   );
   const consent = { policyVersion: PRIVACY_POLICY_VERSION, healthProcessing: true as const, staffSharing: true };
-  await acceptInvitation(db, client, mail.lastToken(), { consent }, META);
+  await acceptInvitation(db, client, { token: mail.lastToken(), consent }, META);
 });
 
 afterEach(async () => {
@@ -54,9 +55,30 @@ describe("withClientAccess", () => {
     });
   });
 
-  it("refuses a scope the assignment does not cover", async () => {
+  it("refuses a scope the assignment does not cover and logs the attempt", async () => {
     await expect(read(pt, { scope: "nutrition", resource: "food_log" })).rejects.toMatchObject({ code: "no_access" });
-    expect(await db.select().from(auditLog)).toEqual([]);
+
+    const logs = await db.select().from(auditLog);
+    expect(logs).toEqual([
+      expect.objectContaining({ action: "denied", actorId: pt.id, clientId: client.id, resource: "food_log" }),
+    ]);
+  });
+
+  it("logs a refused attempt on an id that is not a user, without linking it", async () => {
+    await expect(
+      withClientAccess(db, pt, "00000000-0000-4000-8000-000000000000", BODY, async () => "data"),
+    ).rejects.toMatchObject({ status: 403 });
+
+    const [log] = await db.select().from(auditLog);
+    expect(log).toMatchObject({ action: "denied", clientId: null });
+  });
+
+  it("keeps the professional's name in the log after their account is deleted", async () => {
+    await read(pt);
+    await db.delete(user).where(eq(user.id, pt.id));
+
+    const [log] = await db.select().from(auditLog);
+    expect(log).toMatchObject({ actorId: null, actorName: pt.name, actorEmail: pt.email });
   });
 
   it("refuses a professional who does not follow the client", async () => {

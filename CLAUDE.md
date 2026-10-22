@@ -25,7 +25,8 @@ FitTracker is turning from a personal iOS app into a coached platform for one st
 - **Server wiring:** `src/server/runtime.ts` is the only place that builds the database and auth. Factories (`createDatabase`, `createAuth`) take their dependencies so tests can inject them.
 - **API responses** use the envelope in `src/server/http.ts`: `{ success, data, error }`. Exception: `/api/auth/*` is Better Auth and answers `{ message, code }`; clients handle both.
 - **Validation:** every input from a request, the Android app or Health Connect is validated with zod at the boundary.
-- **Staff access to client data** goes only through the access guard (`withClientAccess`, phase F1), which checks assignment, scope and consent and writes `audit_log`. No direct staff queries.
+- **Staff access to client data** goes only through `withClientAccess` (`src/server/access.ts`), which checks assignment, scope and consent and writes `audit_log`. No direct staff queries; new reads go in `src/server/client-data.ts`.
+- **Services validate their own input** with zod (`parseWith`), so routes stay thin: read the body or query, call the service, `ok(...)`. Routes use `route()` from `src/server/route.ts`, which handles rate limiting, CSRF (origin check for cookie calls), errors and `connection()`.
 - **Roles** (`ROLES` in `src/db/schema/auth.ts`) are set only by the server, never from sign-up input.
 - **Database:** timestamps are `timestamptz`. Synced tables get client UUIDs, `rev`, `updated_at`, `deleted_at` (ADR-0002).
 - **Health Connect:** only request a data type that a visible feature uses (ADR-0005). Individual data is never sold or used for ads.
@@ -33,12 +34,26 @@ FitTracker is turning from a personal iOS app into a coached platform for one st
 - **Language:** UI text in Italian first (English second); code, comments and commit bodies follow the existing repo style.
 - **Lean code** (Marco's standing preference): no dead code, extend an existing file before adding one, files under 800 lines, report line/file counts at the end of a phase.
 
-## Carried over from the F0 reviews
+## Open items from the F0/F1 reviews
 
-- **F1:**
-  - Enforce 2FA for `staff`/`admin` sessions.
-  - Add a CI job that runs the sync and access-guard tests against a real Postgres service. PGlite serializes everything on one connection, so it hides races and tx-vs-db mistakes.
+Done in F1:
+- 2FA is enforced for staff/admin.
+- CI job `postgres` runs `src/server` tests on Postgres 17.
+- The sync lock lives in the `bump_sync_rev` trigger.
+- Denied access attempts are logged.
+
+Still open:
+- **F2 and later (sync):**
+  - Every new synced table needs the `bump_sync_rev` trigger (custom migration).
+  - Register the table in `entities` in `src/server/sync.ts`.
+  - Staff-written client data (programs) must be written in a transaction; the trigger takes the client's lock.
+- **F3 (jobs):**
+  - Purge sync tombstones and expired or revoked invitations after a retention period.
+  - Set and apply an `audit_log` retention period (see docs/gdpr.md).
+  - Batch sync upserts if pushes get large.
 - **F6:**
+  - Add a sync "epoch" bumped on a backup restore, so devices whose cursor is ahead of the restored sequence resync from scratch.
+  - Revoke UPDATE/DELETE on `audit_log` for the app role.
   - Caddy must set `header_up X-Real-IP {remote_host}`. Better Auth reads the client IP only from `X-Real-IP`.
   - Never publish the app port.
   - Send HSTS, then add a nonce-based CSP.

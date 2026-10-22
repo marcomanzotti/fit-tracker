@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import { and, eq, inArray, ne, or } from "drizzle-orm";
+import { and, count, desc, eq, gt, inArray, isNull, ne, or } from "drizzle-orm";
 import { z } from "zod";
 import { APP, INVITATION_TTL_DAYS } from "@/config";
 import type { Db } from "@/db/client";
@@ -20,15 +20,24 @@ import { badRequest, conflict, forbidden, HttpError, notFound } from "./http";
 import type { SendMail } from "./mail";
 import { parseWith, type RequestMeta } from "./validate";
 
-// What each professional sees by default; the inviter can narrow or widen it and
-// the client sees the exact list before consenting.
+// What each professional sees by default, and the most they may ask for: a
+// physio never sees the food diary, a nutritionist never sees workouts. The
+// client sees the exact list before consenting, and it is stored with the consent.
 export const DEFAULT_SCOPES: Record<Discipline, Scope[]> = {
   pt: ["training", "body", "sleep", "vitals", "notes"],
   nutrition: ["nutrition", "body", "notes"],
   physio: ["training", "body", "sleep", "vitals", "notes"],
 };
+const ALLOWED_SCOPES: Record<Discipline, Scope[]> = {
+  pt: ["training", "body", "sleep", "vitals", "notes"],
+  nutrition: ["nutrition", "body", "sleep", "vitals", "notes"],
+  physio: ["training", "body", "sleep", "vitals", "notes"],
+};
 
 const DAY_MS = 86_400_000;
+// Caps against invitation spam from a compromised or careless account.
+const MAX_INVITES_PER_INVITER_PER_DAY = 20;
+const MAX_INVITES_PER_EMAIL_PER_DAY = 3;
 const email = z.email().transform((value) => value.toLowerCase());
 const disciplines = z.array(z.enum(DISCIPLINES)).min(1);
 const scopes = z.array(z.enum(SCOPES)).min(1);
@@ -44,7 +53,12 @@ export const invitationInput = z.discriminatedUnion("kind", [
   }),
 ]);
 
+const token = z.string().min(20).max(100);
+
+export const previewInput = z.object({ token });
+
 export const acceptInput = z.object({
+  token,
   // Required for client invitations: the consents shown on the acceptance page.
   consent: z
     .object({
@@ -67,6 +81,15 @@ export const respondInput = z.object({ accept: z.boolean(), policyVersion: z.str
 type MailDeps = { sendMail: SendMail; baseUrl: string };
 
 const hashToken = (token: string) => createHash("sha256").update(token).digest("hex");
+
+function scopesFor(role: Discipline, requested: Scope[] | undefined): Scope[] {
+  const chosen = requested ?? DEFAULT_SCOPES[role];
+  const notAllowed = chosen.filter((scope) => !ALLOWED_SCOPES[role].includes(scope));
+  if (notAllowed.length > 0) {
+    throw badRequest("scope_not_allowed", `This role cannot see: ${notAllowed.join(", ")}`);
+  }
+  return chosen;
+}
 
 async function disciplinesOf(db: Db, userId: string): Promise<Discipline[]> {
   const [profile] = await db
@@ -93,8 +116,11 @@ export async function createInvitation(db: Db, actor: Actor, raw: unknown, deps:
     }
   }
 
-  const token = randomBytes(32).toString("base64url");
   const assignmentRole = input.kind === "client" ? input.assignmentRole : undefined;
+  const scopes = assignmentRole ? scopesFor(assignmentRole, input.kind === "client" ? input.scopes : undefined) : null;
+  await assertInvitationQuota(db, actor.id, input.email);
+
+  const token = randomBytes(32).toString("base64url");
   const [created] = await db
     .insert(invitation)
     .values({
@@ -102,7 +128,7 @@ export async function createInvitation(db: Db, actor: Actor, raw: unknown, deps:
       kind: input.kind,
       disciplines: input.kind === "client" ? null : (input.disciplines ?? null),
       assignmentRole: assignmentRole ?? null,
-      scopes: assignmentRole ? ((input.kind === "client" && input.scopes) || DEFAULT_SCOPES[assignmentRole]) : null,
+      scopes,
       invitedBy: actor.id,
       tokenHash: hashToken(token),
       expiresAt: new Date(Date.now() + INVITATION_TTL_DAYS * DAY_MS),
@@ -112,9 +138,72 @@ export async function createInvitation(db: Db, actor: Actor, raw: unknown, deps:
   await deps.sendMail({
     to: input.email,
     subject: `${APP.name}: ${actor.name} ti ha invitato`,
-    text: `${actor.name} ti ha invitato su ${APP.name}. Apri il link entro ${INVITATION_TTL_DAYS} giorni:\n${deps.baseUrl}/invito/${token}`,
+    // The token travels after "#": browsers never send it to the server, so it
+    // stays out of access logs and Referer headers; the page posts it to the API.
+    text: `${actor.name} ti ha invitato su ${APP.name}. Apri il link entro ${INVITATION_TTL_DAYS} giorni:\n${deps.baseUrl}/invito#${token}`,
   });
   return created;
+}
+
+async function assertInvitationQuota(db: Db, inviterId: string, email: string): Promise<void> {
+  const since = new Date(Date.now() - DAY_MS);
+  const [[byInviter], [byEmail]] = await Promise.all([
+    db
+      .select({ n: count() })
+      .from(invitation)
+      .where(and(eq(invitation.invitedBy, inviterId), gt(invitation.createdAt, since))),
+    db
+      .select({ n: count() })
+      .from(invitation)
+      .where(and(eq(invitation.email, email), gt(invitation.createdAt, since))),
+  ]);
+  if (byInviter.n >= MAX_INVITES_PER_INVITER_PER_DAY || byEmail.n >= MAX_INVITES_PER_EMAIL_PER_DAY) {
+    throw new HttpError(429, "too_many_invitations", "Too many invitations today, try again tomorrow");
+  }
+}
+
+// Pending invitations: the inviter's own, or all of them for an admin.
+export async function listInvitations(db: Db, actor: Actor) {
+  if (!isStaffRole(actor.role)) throw forbidden();
+  return db
+    .select({
+      id: invitation.id,
+      email: invitation.email,
+      kind: invitation.kind,
+      assignmentRole: invitation.assignmentRole,
+      scopes: invitation.scopes,
+      expiresAt: invitation.expiresAt,
+      createdAt: invitation.createdAt,
+    })
+    .from(invitation)
+    .where(
+      and(
+        isNull(invitation.acceptedAt),
+        isNull(invitation.revokedAt),
+        gt(invitation.expiresAt, new Date()),
+        actor.role === "admin" ? undefined : eq(invitation.invitedBy, actor.id),
+      ),
+    )
+    .orderBy(desc(invitation.createdAt));
+}
+
+// A mistyped address must be stoppable before someone else uses the link.
+export async function revokeInvitation(db: Db, actor: Actor, invitationId: string) {
+  if (!isStaffRole(actor.role)) throw forbidden();
+  const [revoked] = await db
+    .update(invitation)
+    .set({ revokedAt: new Date() })
+    .where(
+      and(
+        eq(invitation.id, invitationId),
+        isNull(invitation.acceptedAt),
+        isNull(invitation.revokedAt),
+        actor.role === "admin" ? undefined : eq(invitation.invitedBy, actor.id),
+      ),
+    )
+    .returning({ id: invitation.id });
+  if (!revoked) throw notFound("Pending invitation");
+  return revoked;
 }
 
 type InvitationRow = typeof invitation.$inferSelect;
@@ -127,7 +216,8 @@ function invitationStatus(row: InvitationRow): "valid" | "accepted" | "revoked" 
 }
 
 // What the acceptance page shows before the user signs in.
-export async function previewInvitation(db: Db, token: string) {
+export async function previewInvitation(db: Db, raw: unknown) {
+  const { token } = parseWith(previewInput, raw);
   const [row] = await db
     .select({ invitation, inviterName: user.name })
     .from(invitation)
@@ -146,13 +236,13 @@ export async function previewInvitation(db: Db, token: string) {
   };
 }
 
-export async function acceptInvitation(db: Db, actor: Actor, token: string, raw: unknown, meta: RequestMeta) {
+export async function acceptInvitation(db: Db, actor: Actor, raw: unknown, meta: RequestMeta) {
   const input = parseWith(acceptInput, raw);
   return db.transaction(async (tx) => {
     const [inv] = await tx
       .select()
       .from(invitation)
-      .where(eq(invitation.tokenHash, hashToken(token)))
+      .where(eq(invitation.tokenHash, hashToken(input.token)))
       .for("update");
     if (!inv) throw notFound("Invitation");
     const status = invitationStatus(inv);
@@ -163,12 +253,18 @@ export async function acceptInvitation(db: Db, actor: Actor, token: string, raw:
 
     const assignmentId =
       inv.kind === "client" ? await joinAsClient(tx, actor, inv, input, meta) : await joinAsStaff(tx, actor, inv);
-    await tx.update(invitation).set({ acceptedAt: new Date(), acceptedBy: actor.id }).where(eq(invitation.id, inv.id));
+    // The email is erased: from now on the account holds it (GDPR minimisation).
+    await tx
+      .update(invitation)
+      .set({ acceptedAt: new Date(), acceptedBy: actor.id, email: null })
+      .where(eq(invitation.id, inv.id));
     return { kind: inv.kind, assignmentId };
   });
 }
 
 async function joinAsStaff(tx: Db, actor: Actor, inv: InvitationRow): Promise<null> {
+  // Lock the user row so a concurrent assignment cannot slip in during the switch.
+  const [current] = await tx.select({ role: user.role }).from(user).where(eq(user.id, actor.id)).for("update");
   const [openCare] = await tx
     .select({ id: careAssignment.id })
     .from(careAssignment)
@@ -176,7 +272,9 @@ async function joinAsStaff(tx: Db, actor: Actor, inv: InvitationRow): Promise<nu
     .limit(1);
   if (openCare) throw conflict("followed_as_client", "End your care as a client before joining the staff");
 
-  await tx.update(user).set({ role: inv.kind }).where(eq(user.id, actor.id));
+  // An admin accepting a staff invitation stays admin (never demoted by a link).
+  const role = current?.role === "admin" ? "admin" : inv.kind;
+  await tx.update(user).set({ role }).where(eq(user.id, actor.id));
   if (inv.disciplines?.length) {
     await tx
       .insert(staffProfile)
@@ -204,14 +302,15 @@ async function joinAsClient(
   await tx.insert(clientProfile).values({ userId: actor.id }).onConflictDoNothing();
   if (!inv.assignmentRole) return null;
 
+  const scopes = (inv.scopes ?? DEFAULT_SCOPES[inv.assignmentRole as Discipline]) as Scope[];
   const assignmentId = await activateAssignment(tx, {
     clientId: actor.id,
     staffId: inv.invitedBy,
     role: inv.assignmentRole as Discipline,
-    scopes: (inv.scopes ?? DEFAULT_SCOPES[inv.assignmentRole as Discipline]) as Scope[],
+    scopes,
     createdBy: inv.invitedBy,
   });
-  await recordConsent(tx, actor.id, { purpose: "staff_sharing", granted: true, refId: assignmentId }, meta);
+  await recordConsent(tx, actor.id, { purpose: "staff_sharing", granted: true, refId: assignmentId, scopes }, meta);
   return assignmentId;
 }
 
@@ -271,7 +370,7 @@ export async function createAssignment(db: Db, actor: Actor, raw: unknown) {
       clientId: input.clientId,
       staffId: input.staffId,
       role: input.role,
-      scopes: input.scopes ?? DEFAULT_SCOPES[input.role],
+      scopes: scopesFor(input.role, input.scopes),
       createdBy: actor.id,
     })
     .onConflictDoNothing()
@@ -317,7 +416,12 @@ export async function respondToAssignment(
       )
       .where(eq(careAssignment.id, assignmentId))
       .returning();
-    await recordConsent(tx, actor.id, { purpose: "staff_sharing", granted: input.accept, refId: assignmentId }, meta);
+    await recordConsent(
+      tx,
+      actor.id,
+      { purpose: "staff_sharing", granted: input.accept, refId: assignmentId, scopes: assignment.scopes },
+      meta,
+    );
     return updated;
   });
 }

@@ -27,7 +27,7 @@ beforeEach(async () => {
     { sendMail: mail.sendMail, baseUrl: "https://studio.example" },
   );
   const consent = { policyVersion: PRIVACY_POLICY_VERSION, healthProcessing: true as const, staffSharing: true };
-  await acceptInvitation(db, client, mail.lastToken(), { consent }, META);
+  await acceptInvitation(db, client, { token: mail.lastToken(), consent }, META);
   await push(db, client, {
     mutations: [
       { entity: "body_measurement", op: "upsert", id: randomUUID(), data: { measuredOn: "2026-10-01", kind: "weight", value: 84 } },

@@ -40,6 +40,7 @@ export const exercise = pgTable(
     archivedAt: timestamp("archived_at", TZ),
   },
   (t) => [
+    index("exercise_created_by_idx").on(t.createdBy),
     check("exercise_category_check", sql`${t.category} in (${sql.raw(inList(MUSCLE_GROUPS))})`),
     check("exercise_kind_check", sql`${t.kind} in (${sql.raw(inList(EXERCISE_KINDS))})`),
   ],

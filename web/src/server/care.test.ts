@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { PRIVACY_POLICY_VERSION } from "@/config";
 import type { Database, Db } from "@/db/client";
-import { careAssignment, invitation, staffProfile, user } from "@/db/schema";
+import { careAssignment, consent, invitation, staffProfile, user } from "@/db/schema";
 import { freshDatabase, makeUser, mailbox, META } from "@/test/harness";
 import type { Actor } from "./actor";
 import {
@@ -13,6 +13,7 @@ import {
   listCare,
   previewInvitation,
   respondToAssignment,
+  revokeInvitation,
 } from "./care";
 import { consentState, currentConsent, setConsent } from "./consents";
 
@@ -48,7 +49,7 @@ describe("staff invitations", () => {
     await createInvitation(db, admin, { kind: "staff", email: "Nina@Example.test", disciplines: ["nutrition"] }, deps());
     const nina = await makeUser(db, { email: "nina@example.test" });
 
-    await acceptInvitation(db, nina, mail.lastToken(), {}, META);
+    await acceptInvitation(db, nina, { token: mail.lastToken() }, META);
 
     const [stored] = await db.select({ role: user.role }).from(user).where(eq(user.id, nina.id));
     const [profile] = await db.select().from(staffProfile).where(eq(staffProfile.userId, nina.id));
@@ -77,7 +78,7 @@ describe("client invitations", () => {
     const token = await inviteClient(pt, "luca@example.test");
     const luca = await makeUser(db, { email: "luca@example.test" });
 
-    const result = await acceptInvitation(db, luca, token, { consent: CONSENT }, META);
+    const result = await acceptInvitation(db, luca, { token: token, consent: CONSENT }, META);
 
     const [assignment] = await db.select().from(careAssignment).where(eq(careAssignment.clientId, luca.id));
     expect(result.assignmentId).toBe(assignment.id);
@@ -90,7 +91,7 @@ describe("client invitations", () => {
   it("previews who invited the person before they sign in", async () => {
     const token = await inviteClient(pt, "anna@example.test");
 
-    const preview = await previewInvitation(db, token);
+    const preview = await previewInvitation(db, { token });
 
     expect(preview).toMatchObject({ inviterName: "Paola PT", assignmentRole: "pt", status: "valid" });
   });
@@ -99,7 +100,7 @@ describe("client invitations", () => {
     const token = await inviteClient(pt, "noconsent@example.test");
     const client = await makeUser(db, { email: "noconsent@example.test" });
 
-    await expect(acceptInvitation(db, client, token, {}, META)).rejects.toMatchObject({
+    await expect(acceptInvitation(db, client, { token: token }, META)).rejects.toMatchObject({
       status: 400,
       code: "consent_required",
     });
@@ -110,7 +111,7 @@ describe("client invitations", () => {
     const client = await makeUser(db, { email: "old@example.test" });
 
     await expect(
-      acceptInvitation(db, client, token, { consent: { ...CONSENT, policyVersion: "2020-01-01" } }, META),
+      acceptInvitation(db, client, { token: token, consent: { ...CONSENT, policyVersion: "2020-01-01" } }, META),
     ).rejects.toMatchObject({ code: "policy_outdated" });
   });
 
@@ -118,7 +119,7 @@ describe("client invitations", () => {
     const token = await inviteClient(pt, "right@example.test");
     const someoneElse = await makeUser(db, { email: "wrong@example.test" });
 
-    await expect(acceptInvitation(db, someoneElse, token, { consent: CONSENT }, META)).rejects.toMatchObject({
+    await expect(acceptInvitation(db, someoneElse, { token: token, consent: CONSENT }, META)).rejects.toMatchObject({
       code: "email_mismatch",
     });
   });
@@ -126,9 +127,9 @@ describe("client invitations", () => {
   it("can be used only once", async () => {
     const token = await inviteClient(pt, "once@example.test");
     const client = await makeUser(db, { email: "once@example.test" });
-    await acceptInvitation(db, client, token, { consent: CONSENT }, META);
+    await acceptInvitation(db, client, { token: token, consent: CONSENT }, META);
 
-    await expect(acceptInvitation(db, client, token, { consent: CONSENT }, META)).rejects.toMatchObject({
+    await expect(acceptInvitation(db, client, { token: token, consent: CONSENT }, META)).rejects.toMatchObject({
       status: 410,
       code: "invitation_accepted",
     });
@@ -139,7 +140,7 @@ describe("client invitations", () => {
     await db.update(invitation).set({ expiresAt: new Date(Date.now() - 1000) });
     const client = await makeUser(db, { email: "late@example.test" });
 
-    await expect(acceptInvitation(db, client, token, { consent: CONSENT }, META)).rejects.toMatchObject({
+    await expect(acceptInvitation(db, client, { token: token, consent: CONSENT }, META)).rejects.toMatchObject({
       code: "invitation_expired",
     });
   });
@@ -159,11 +160,84 @@ describe("client invitations", () => {
   });
 });
 
+describe("invitation safeguards", () => {
+  it("refuses scopes outside the professional's role", async () => {
+    const physio = await makeUser(db, { role: "staff", disciplines: ["physio"] });
+
+    await expect(
+      createInvitation(
+        db,
+        physio,
+        { kind: "client", email: "p@example.test", assignmentRole: "physio", scopes: ["nutrition"] },
+        deps(),
+      ),
+    ).rejects.toMatchObject({ code: "scope_not_allowed" });
+  });
+
+  it("caps invitations to the same address per day", async () => {
+    for (let i = 0; i < 3; i++) await inviteClient(pt, "spam@example.test");
+
+    await expect(inviteClient(pt, "spam@example.test")).rejects.toMatchObject({ status: 429 });
+  });
+
+  it("erases the email from the invitation once accepted", async () => {
+    const token = await inviteClient(pt, "erase@example.test");
+    const client = await makeUser(db, { email: "erase@example.test" });
+
+    await acceptInvitation(db, client, { token, consent: CONSENT }, META);
+
+    const [row] = await db.select({ email: invitation.email }).from(invitation);
+    expect(row.email).toBeNull();
+  });
+
+  it("can be revoked by the inviter, after which the link no longer works", async () => {
+    const created = await createInvitation(db, pt, { kind: "client", email: "rev@example.test", assignmentRole: "pt" }, deps());
+    const token = mail.lastToken();
+    const client = await makeUser(db, { email: "rev@example.test" });
+
+    await revokeInvitation(db, pt, created.id);
+
+    await expect(acceptInvitation(db, client, { token, consent: CONSENT }, META)).rejects.toMatchObject({
+      code: "invitation_revoked",
+    });
+  });
+
+  it("cannot be revoked by an unrelated professional", async () => {
+    const created = await createInvitation(db, pt, { kind: "client", email: "mine@example.test", assignmentRole: "pt" }, deps());
+    const other = await makeUser(db, { role: "staff", disciplines: ["pt"] });
+
+    await expect(revokeInvitation(db, other, created.id)).rejects.toMatchObject({ status: 404 });
+  });
+
+  it("never demotes an admin who accepts a staff invitation", async () => {
+    const owner = await makeUser(db, { role: "admin", email: "owner@example.test" });
+    await createInvitation(db, admin, { kind: "staff", email: "owner@example.test", disciplines: ["pt"] }, deps());
+
+    await acceptInvitation(db, owner, { token: mail.lastToken() }, META);
+
+    const [stored] = await db.select({ role: user.role }).from(user).where(eq(user.id, owner.id));
+    expect(stored.role).toBe("admin");
+  });
+
+  it("accepts only once even when two requests race", async () => {
+    const token = await inviteClient(pt, "race@example.test");
+    const client = await makeUser(db, { email: "race@example.test" });
+
+    const results = await Promise.allSettled([
+      acceptInvitation(db, client, { token, consent: CONSENT }, META),
+      acceptInvitation(db, client, { token, consent: CONSENT }, META),
+    ]);
+
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    expect(await db.select().from(careAssignment).where(eq(careAssignment.clientId, client.id))).toHaveLength(1);
+  });
+});
+
 describe("assignments", () => {
   async function joinedClient() {
     const token = await inviteClient(pt, "base@example.test");
     const client = await makeUser(db, { email: "base@example.test" });
-    await acceptInvitation(db, client, token, { consent: CONSENT }, META);
+    await acceptInvitation(db, client, { token: token, consent: CONSENT }, META);
     return client;
   }
 
@@ -247,6 +321,17 @@ describe("consent state", () => {
     const state = await consentState(db, client.id);
 
     expect(state.marketing?.granted).toBe(false);
+    expect(state.marketing?.outdated).toBe(false);
     expect(state.health_processing).toBeUndefined();
+  });
+
+  it("marks consents given on an older privacy notice as outdated", async () => {
+    const client = await makeUser(db);
+    await setConsent(db, client, { purpose: "marketing", granted: true, policyVersion: PRIVACY_POLICY_VERSION }, META);
+    await db.update(consent).set({ policyVersion: "2020-01-01" });
+
+    const state = await consentState(db, client.id);
+
+    expect(state.marketing).toMatchObject({ granted: true, outdated: true });
   });
 });

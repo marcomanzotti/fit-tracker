@@ -13,9 +13,18 @@ La piattaforma raccoglie dati di salute: sonno, frequenza cardiaca, HRV, peso, a
 **Accesso dello staff**
 - I professionisti vedono un cliente solo tramite un'assegnazione attiva con scope: training, nutrition, body, sleep, vitals, notes.
 - Ogni lettura passa da un'unica guardia, `withClientAccess`, che registra l'accesso in `audit_log`.
+- Gli scope possibili dipendono dalla disciplina: un fisioterapista non può chiedere il diario alimentare, un nutrizionista non vede gli allenamenti.
+- Anche i tentativi rifiutati finiscono nel registro (azione `denied`).
+- Ogni riga del registro conserva nome ed email del professionista, così il cliente vede chi ha guardato i suoi dati anche dopo che quell'account è stato cancellato.
+- Essere admin non dà accesso ai dati di salute: serve un'assegnazione come per chiunque altro (aggiunto il 2026-10-22, fase F1).
+- La 2FA è obbligatoria per staff e admin su tutte le API.
 
 **Consensi**
 - Un consenso per ogni finalità, con versione del testo, data e revoca. Le finalità sono: trattamento dei dati di salute (necessario al servizio), condivisione con ogni professionista, statistiche anonime, ogni studio di ricerca, marketing.
+- Il consenso alla condivisione registra anche gli scope esatti accettati dal cliente.
+- Revocare il trattamento dei dati di salute chiude subito tutte le assegnazioni.
+- Un consenso dato su una versione precedente dell'informativa resta valido, ma viene segnato `outdated` e le app chiedono di rivederlo.
+- Lo storico dei consensi si cancella insieme all'account (cascade): una volta eliminato l'utente non resta un trattamento da dimostrare. Da confermare col consulente.
 
 **Health Connect**
 - Si chiede un tipo di dato solo quando una funzione lo mostra.
@@ -30,7 +39,8 @@ La piattaforma raccoglie dati di salute: sonno, frequenza cardiaca, HRV, peso, a
 - **Non progettiamo la vendita di dati individuali** né l'uso per pubblicità.
 
 **Diritti e conservazione**
-- Export dei dati (art. 20) e cancellazione dell'account (art. 17) disponibili dall'app e dal web.
+- Export dei dati (art. 20) e cancellazione dell'account (art. 17) disponibili dall'app e dal web. L'export include il registro di chi ha consultato i dati.
+- I link d'invito portano il token dopo `#`, quindi il token non arriva mai nei log del server. L'email resta salvata nell'invito solo finché non viene accettato.
 - Le cancellazioni arrivano anche ai backup entro il loro periodo di conservazione.
 - Dati in UE: VPS e object storage Hetzner.
 - Una DPIA è obbligatoria. La bozza è in [`docs/gdpr.md`](../gdpr.md) e va rivista da un consulente prima del lancio.

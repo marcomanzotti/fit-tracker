@@ -28,12 +28,13 @@ export type ConsentPurpose = (typeof CONSENT_PURPOSES)[number];
 const scopesCheck = (column: unknown) =>
   sql`${column} <@ array[${sql.raw(inList(SCOPES))}]::text[]`;
 
-// A link sent by email. Only the SHA-256 of the token is stored.
+// A link sent by email. Only the SHA-256 of the token is stored, and the email is
+// erased on acceptance (the account holds it from then on).
 export const invitation = pgTable(
   "invitation",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    email: text("email").notNull(),
+    email: text("email"),
     kind: text("kind").notNull(),
     // kind = staff: what the professional does.
     disciplines: text("disciplines").array(),
@@ -52,6 +53,8 @@ export const invitation = pgTable(
   },
   (t) => [
     index("invitation_email_idx").on(t.email),
+    index("invitation_invited_by_idx").on(t.invitedBy),
+    index("invitation_accepted_by_idx").on(t.acceptedBy),
     check("invitation_kind_check", sql`${t.kind} in (${sql.raw(inList(INVITATION_KINDS))})`),
     check("invitation_email_lower_check", sql`${t.email} = lower(${t.email})`),
     check(
@@ -86,7 +89,9 @@ export const careAssignment = pgTable(
     uniqueIndex("care_assignment_open_unique")
       .on(t.clientId, t.staffId, t.role)
       .where(sql`${t.status} <> 'ended'`),
-    index("care_assignment_staff_idx").on(t.staffId).where(sql`${t.status} = 'active'`),
+    index("care_assignment_staff_idx").on(t.staffId),
+    index("care_assignment_created_by_idx").on(t.createdBy),
+    index("care_assignment_ended_by_idx").on(t.endedBy),
     index("care_assignment_client_idx").on(t.clientId),
     check("care_assignment_role_check", sql`${t.role} in (${sql.raw(inList(DISCIPLINES))})`),
     check("care_assignment_status_check", sql`${t.status} in (${sql.raw(inList(ASSIGNMENT_STATUSES))})`),
@@ -95,11 +100,13 @@ export const careAssignment = pgTable(
   ],
 );
 
-// Append-only history: the newest row per (user, purpose, ref) is the current state.
+// Append-only history: the newest row per (user, purpose, ref) is the current
+// state. "Newest" is `seq`, which a clock adjustment on the host cannot reorder.
 export const consent = pgTable(
   "consent",
   {
     id: uuid("id").defaultRandom().primaryKey(),
+    seq: bigint("seq", { mode: "number" }).generatedAlwaysAsIdentity().notNull(),
     userId: uuid("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
@@ -107,25 +114,33 @@ export const consent = pgTable(
     // staff_sharing: the care_assignment; research: the study.
     refId: uuid("ref_id"),
     granted: boolean("granted").notNull(),
+    // staff_sharing: the exact scopes the client agreed to share.
+    scopes: text("scopes").array(),
     policyVersion: text("policy_version").notNull(),
     ipAddress: text("ip_address"),
     userAgent: text("user_agent"),
-    // clock_timestamp, not now(): two rows written in one transaction (grant, then
-    // revoke) must still sort in the order they happened.
     createdAt: timestamp("created_at", TZ).default(sql`clock_timestamp()`).notNull(),
   },
   (t) => [
     index("consent_user_purpose_idx").on(t.userId, t.purpose, t.createdAt),
+    index("consent_current_idx").on(t.userId, t.purpose, t.refId, t.seq),
     check("consent_purpose_check", sql`${t.purpose} in (${sql.raw(inList(CONSENT_PURPOSES))})`),
   ],
 );
 
-// Every read or write of a client's data by a professional (ADR-0005).
+export const AUDIT_ACTIONS = ["read", "write", "denied"] as const;
+export type AuditAction = (typeof AUDIT_ACTIONS)[number];
+
+// Every read or write of a client's data by a professional, and every refused
+// attempt (ADR-0005). Name and email are copied in, so the client's access log
+// still says who looked even after that professional's account is deleted.
 export const auditLog = pgTable(
   "audit_log",
   {
     id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
     actorId: uuid("actor_id").references(() => user.id, { onDelete: "set null" }),
+    actorName: text("actor_name"),
+    actorEmail: text("actor_email"),
     clientId: uuid("client_id").references(() => user.id, { onDelete: "set null" }),
     action: text("action").notNull(),
     resource: text("resource").notNull(),
@@ -136,6 +151,6 @@ export const auditLog = pgTable(
   (t) => [
     index("audit_log_client_idx").on(t.clientId, t.at),
     index("audit_log_actor_idx").on(t.actorId, t.at),
-    check("audit_log_action_check", sql`${t.action} in ('read', 'write')`),
+    check("audit_log_action_check", sql`${t.action} in (${sql.raw(inList(AUDIT_ACTIONS))})`),
   ],
 );

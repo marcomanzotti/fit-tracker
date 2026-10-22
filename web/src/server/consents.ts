@@ -15,7 +15,11 @@ export const consentInput = z.object({
   policyVersion: z.string().min(1),
 });
 
-export type ConsentState = Partial<Record<ConsentPurpose, { granted: boolean; policyVersion: string; at: Date }>>;
+// `outdated`: given on an older privacy notice. It still counts (the notice change
+// may be minor) but the apps ask the user to review and confirm again.
+export type ConsentState = Partial<
+  Record<ConsentPurpose, { granted: boolean; policyVersion: string; outdated: boolean; at: Date }>
+>;
 
 export async function currentConsent(
   db: Db,
@@ -33,7 +37,7 @@ export async function currentConsent(
         refId ? eq(consent.refId, refId) : isNull(consent.refId),
       ),
     )
-    .orderBy(desc(consent.createdAt))
+    .orderBy(desc(consent.seq))
     .limit(1);
   return row?.granted === true;
 }
@@ -41,7 +45,7 @@ export async function currentConsent(
 export async function recordConsent(
   db: Db,
   userId: string,
-  entry: { purpose: ConsentPurpose; granted: boolean; refId?: string },
+  entry: { purpose: ConsentPurpose; granted: boolean; refId?: string; scopes?: string[] },
   meta: RequestMeta,
 ): Promise<void> {
   await db.insert(consent).values({
@@ -49,6 +53,7 @@ export async function recordConsent(
     purpose: entry.purpose,
     granted: entry.granted,
     refId: entry.refId ?? null,
+    scopes: entry.scopes ?? null,
     policyVersion: PRIVACY_POLICY_VERSION,
     ipAddress: meta.ipAddress,
     userAgent: meta.userAgent,
@@ -96,8 +101,16 @@ export async function consentState(db: Db, userId: string): Promise<ConsentState
     })
     .from(consent)
     .where(and(eq(consent.userId, userId), isNull(consent.refId)))
-    .orderBy(consent.purpose, desc(consent.createdAt));
+    .orderBy(consent.purpose, desc(consent.seq));
   return Object.fromEntries(
-    rows.map((row) => [row.purpose, { granted: row.granted, policyVersion: row.policyVersion, at: row.at }]),
+    rows.map((row) => [
+      row.purpose,
+      {
+        granted: row.granted,
+        policyVersion: row.policyVersion,
+        outdated: row.policyVersion !== PRIVACY_POLICY_VERSION,
+        at: row.at,
+      },
+    ]),
   );
 }

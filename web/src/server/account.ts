@@ -58,12 +58,15 @@ export async function exportAccount(db: Db, actor: Actor) {
         purpose: consent.purpose,
         refId: consent.refId,
         granted: consent.granted,
+        scopes: consent.scopes,
         policyVersion: consent.policyVersion,
+        ipAddress: consent.ipAddress,
+        userAgent: consent.userAgent,
         at: consent.createdAt,
       })
       .from(consent)
       .where(eq(consent.userId, actor.id))
-      .orderBy(asc(consent.createdAt)),
+      .orderBy(asc(consent.seq)),
     care: await db
       .select({
         role: careAssignment.role,
@@ -86,10 +89,15 @@ export async function exportAccount(db: Db, actor: Actor) {
       .from(bodyMeasurement)
       .where(and(eq(bodyMeasurement.userId, actor.id), isNull(bodyMeasurement.deletedAt)))
       .orderBy(asc(bodyMeasurement.measuredOn)),
+    // From the copy kept in each row, so it survives the professional's account.
     accessLog: await db
-      .select({ at: auditLog.at, action: auditLog.action, resource: auditLog.resource, staff })
+      .select({
+        at: auditLog.at,
+        action: auditLog.action,
+        resource: auditLog.resource,
+        staff: { name: auditLog.actorName, email: auditLog.actorEmail },
+      })
       .from(auditLog)
-      .leftJoin(user, eq(user.id, auditLog.actorId))
       .where(eq(auditLog.clientId, actor.id))
       .orderBy(desc(auditLog.at)),
   };
