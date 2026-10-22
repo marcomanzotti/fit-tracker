@@ -1,6 +1,7 @@
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { PGlite } from "@electric-sql/pglite";
+import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
 import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
 import { migrate as migratePglite } from "drizzle-orm/pglite/migrator";
 import { drizzle as drizzlePg } from "drizzle-orm/node-postgres";
@@ -8,11 +9,13 @@ import { migrate as migratePg } from "drizzle-orm/node-postgres/migrator";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import { Pool } from "pg";
 import * as schema from "./schema";
+import { seedReferenceData } from "./seed";
 
 export type Db = PgDatabase<PgQueryResultHKT, typeof schema>;
 
 export type Database = {
   db: Db;
+  // Applies pending migrations, then the idempotent reference data (db/seed).
   migrate(): Promise<void>;
   close(): Promise<void>;
 };
@@ -28,11 +31,16 @@ export function createDatabase(url: string): Database {
     const dir = url.slice(PGLITE_PREFIX.length);
     const inMemory = dir === "memory";
     if (!inMemory) mkdirSync(dir, { recursive: true });
-    const client = new PGlite(inMemory ? undefined : dir);
+    // Options in one object: with the (dataDir, options) form and no dataDir,
+    // PGlite 0.5 ignores the extensions.
+    const client = new PGlite({ dataDir: inMemory ? undefined : dir, extensions: { pg_trgm } });
     const db = drizzlePglite(client, { schema });
     return {
       db,
-      migrate: () => migratePglite(db, MIGRATIONS),
+      migrate: async () => {
+        await migratePglite(db, MIGRATIONS);
+        await seedReferenceData(db);
+      },
       close: () => client.close(),
     };
   }
@@ -43,7 +51,10 @@ export function createDatabase(url: string): Database {
   const db = drizzlePg(pool, { schema });
   return {
     db,
-    migrate: () => migrateWithLock(pool),
+    migrate: async () => {
+      await migrateWithLock(pool);
+      await seedReferenceData(db);
+    },
     close: () => pool.end(),
   };
 }

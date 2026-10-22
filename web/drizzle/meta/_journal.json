@@ -8,6 +8,27 @@
       "when": 1792644845705,
       "tag": "0000_auth",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1792646445200,
+      "tag": "0001_custom_sync_and_extensions",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792646797510,
+      "tag": "0002_care_people_training_health",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792646798200,
+      "tag": "0003_custom_sync_triggers",
+      "breakpoints": true
     }
   ]
 }

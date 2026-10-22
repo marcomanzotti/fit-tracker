@@ -50,6 +50,9 @@ export function createAuth({ db, secret, baseURL, sendMail, rateLimit = true }: 
         sendMail({ to: user.email, subject: `${APP.name}: conferma la tua email`, text: url }),
     },
     user: {
+      // GDPR art. 17 and the Play Store requirement: users delete their own
+      // account (password confirmed); every table cascades from user.
+      deleteUser: { enabled: true },
       additionalFields: {
         // input: false = never accepted from sign-up or profile updates; only the
         // server (staff invitations, phase F1) assigns staff and admin roles.

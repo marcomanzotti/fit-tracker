@@ -1,5 +1,7 @@
+import { randomUUID } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createDatabase, type Database } from "@/db/client";
+import { bodyMeasurement } from "@/db/schema";
 import { createAuth, type Auth } from "./auth";
 import type { Mail } from "./mail";
 
@@ -138,6 +140,41 @@ describe("sign-in", () => {
 
     expect(stored?.token).toBeTruthy();
     expect(session).toBeNull();
+  });
+});
+
+describe("account deletion", () => {
+  it("removes the user and everything stored about them", async () => {
+    await signUp("leaving@example.test");
+    await verifyLastMail();
+    const signIn = await post("/sign-in/email", { email: "leaving@example.test", password: PASSWORD });
+    const bearer = signIn.headers.get("set-auth-token") ?? "";
+    const { user } = await signIn.json();
+    await database.db.insert(bodyMeasurement).values({
+      id: randomUUID(),
+      userId: user.id,
+      measuredOn: "2026-10-01",
+      kind: "weight",
+      value: 80,
+    });
+
+    const res = await post("/delete-user", { password: PASSWORD }, { authorization: `Bearer ${bearer}` });
+
+    expect(res.status).toBe(200);
+    expect(await database.db.query.user.findMany()).toEqual([]);
+    expect(await database.db.select().from(bodyMeasurement)).toEqual([]);
+  });
+
+  it("requires the password", async () => {
+    await signUp("stay@example.test");
+    await verifyLastMail();
+    const signIn = await post("/sign-in/email", { email: "stay@example.test", password: PASSWORD });
+    const bearer = signIn.headers.get("set-auth-token") ?? "";
+
+    const res = await post("/delete-user", { password: "not-my-password" }, { authorization: `Bearer ${bearer}` });
+
+    expect(res.status).toBe(400);
+    expect(await database.db.query.user.findMany()).toHaveLength(1);
   });
 });
 
