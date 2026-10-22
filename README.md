@@ -22,6 +22,26 @@ Un port Android in Kotlin/Compose e' esistito fino ad agosto 2026; e' stato rimo
 perche' non veniva piu' mantenuto in pari con le funzioni iOS. Resta nella storia git
 se dovesse servire.
 
+## Piattaforma per lo studio (in sviluppo, da ottobre 2026)
+
+Accanto all'app personale nasce una piattaforma per lo studio:
+- **server in UE** con account e dati dei clienti;
+- **sito** e area cliente;
+- **dashboard** per PT, nutrizionisti e fisioterapisti, con un editor strutturato
+  delle schede al posto di Excel;
+- **app Android** nativa con Health Connect.
+
+L'app iOS qui sopra resta locale e senza account finche' non arriva la fase di sync.
+
+| Componente | Cartella | Tecnologia |
+|---|---|---|
+| Server, sito, dashboard, API | [`web/`](web/) | Next.js 16 + PostgreSQL + Drizzle + Better Auth |
+| Decisioni architetturali | [`docs/adr/`](docs/adr/README.md) | ADR |
+| Protezione dei dati | [`docs/gdpr.md`](docs/gdpr.md) | Registro dei trattamenti e bozza DPIA |
+
+Sviluppo locale: `cd web && npm install && npm run dev` (database Postgres
+integrato con PGlite, nessuna installazione richiesta); test con `npm test`.
+
 ## Obiettivi del progetto
 
 - **Tutto calcolato dai tuoi dati.** Mostriamo solo metriche derivabili da cio' che
