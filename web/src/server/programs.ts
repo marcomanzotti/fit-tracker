@@ -36,7 +36,11 @@ export const createProgramInput = z.object({
   goal: z.string().trim().max(500).optional(),
   weeks: z.int().min(1).max(MAX_WEEKS).default(4),
 });
-export const saveDraftInput = z.object({ draft: programDocumentSchema, revision: z.int().min(1) });
+export const saveDraftInput = z.object({
+  draft: programDocumentSchema,
+  revision: z.int().min(1),
+  title: z.string().trim().min(1).max(120).optional(),
+});
 export const publishInput = z.object({
   changeNote: z.string().trim().max(500).optional(),
   startDate: z.iso.date().optional(),
@@ -137,9 +141,9 @@ export async function saveDraft(db: Db, actor: Actor, id: string, raw: unknown) 
     await assertExercisesExist(tx, input.draft);
     const [saved] = await tx
       .update(program)
-      .set({ draft: input.draft, draftRevision: input.revision + 1 })
+      .set({ draft: input.draft, draftRevision: input.revision + 1, ...(input.title ? { title: input.title } : {}) })
       .where(and(eq(program.id, id), eq(program.draftRevision, input.revision)))
-      .returning({ draftRevision: program.draftRevision, updatedAt: program.updatedAt });
+      .returning({ draftRevision: program.draftRevision, title: program.title, updatedAt: program.updatedAt });
     if (!saved) throw conflict("edited_elsewhere", "Someone else changed this program: reload to see their edits");
     return saved;
   });

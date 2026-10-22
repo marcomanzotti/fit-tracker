@@ -43,6 +43,8 @@ export function createAuth({ db, secret, baseURL, sendMail, rateLimit = true }: 
     },
     emailVerification: {
       sendOnSignUp: true,
+      // Signing in with an unconfirmed email sends the link again.
+      sendOnSignIn: true,
       // false: a verification link opened by someone else must not sign them in
       // to the sender's account (login CSRF).
       autoSignInAfterVerification: false,

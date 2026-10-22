@@ -133,12 +133,13 @@ describe("program drafts", () => {
   it("are created by the client's professional and saved with a revision check", async () => {
     const created = await createProgram(db, pt, { clientId: client.id, title: "Ipertrofia", weeks: 6 });
 
-    const saved = await saveDraft(db, pt, created.id, { draft: strengthDoc(), revision: 1 });
+    const saved = await saveDraft(db, pt, created.id, { draft: strengthDoc(), revision: 1, title: "Forza 12 settimane" });
     const stale = saveDraft(db, pt, created.id, { draft: strengthDoc(), revision: 1 });
 
     expect(created).toMatchObject({ status: "draft", draftRevision: 1 });
     expect(created.draft.weeks).toBe(6);
     expect(saved.draftRevision).toBe(2);
+    expect(saved.title).toBe("Forza 12 settimane");
     await expect(stale).rejects.toMatchObject({ code: "edited_elsewhere" });
   });
 

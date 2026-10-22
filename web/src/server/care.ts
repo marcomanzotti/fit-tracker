@@ -91,7 +91,7 @@ function scopesFor(role: Discipline, requested: Scope[] | undefined): Scope[] {
   return chosen;
 }
 
-async function disciplinesOf(db: Db, userId: string): Promise<Discipline[]> {
+export async function disciplinesOf(db: Db, userId: string): Promise<Discipline[]> {
   const [profile] = await db
     .select({ disciplines: staffProfile.disciplines })
     .from(staffProfile)
