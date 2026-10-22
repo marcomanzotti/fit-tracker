@@ -43,6 +43,20 @@
       "when": 1792647861247,
       "tag": "0005_custom_sync_lock_in_trigger",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792648757206,
+      "tag": "0006_programs_and_sessions",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792648757964,
+      "tag": "0007_custom_session_sync_trigger",
+      "breakpoints": true
     }
   ]
 }

@@ -1,33 +1,78 @@
-import { and, asc, eq, gt, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Db } from "@/db/client";
-import { BODY_KINDS, bodyMeasurement, MEASUREMENT_SOURCES } from "@/db/schema";
+import { BODY_KINDS, bodyMeasurement, MEASUREMENT_SOURCES, workoutSession } from "@/db/schema";
 import type { Actor } from "./actor";
 import { currentConsent } from "./consents";
 import { forbidden, isDataError, pgErrorCode } from "./http";
+import { readSessions, upsertSession, type UpsertResult } from "./sessions";
 import { parseWith } from "./validate";
 
-// Sync protocol (ADR-0002). Each entity the apps sync is registered here with
-// the shape of its data; every synced table carries id, user_id, rev, deleted_at.
+// Sync protocol (ADR-0002). Every synced table carries the syncColumns (id,
+// user_id, rev, deleted_at); each entity registered here knows how to write and
+// read its own data, while pull, delete and ownership are shared.
+
+// The shared columns are defined once (syncColumns), so the generic queries are
+// typed against one synced table and work on all of them.
+type SyncTable = typeof bodyMeasurement;
+
+type SyncEntity = {
+  table: SyncTable | typeof workoutSession;
+  upsert(tx: Db, userId: string, id: string, data: unknown): Promise<UpsertResult>;
+  // The data of live rows, by id.
+  read(tx: Db, ids: string[]): Promise<Map<string, unknown>>;
+};
+
+const bodyData = z.object({
+  measuredOn: z.iso.date(),
+  kind: z.enum(BODY_KINDS),
+  value: z.number().positive().lt(1000),
+  source: z.enum(MEASUREMENT_SOURCES).default("manual"),
+});
+
 const entities = {
   body_measurement: {
     table: bodyMeasurement,
-    data: z.object({
-      measuredOn: z.iso.date(),
-      kind: z.enum(BODY_KINDS),
-      value: z.number().positive().lt(1000),
-      source: z.enum(MEASUREMENT_SOURCES).default("manual"),
-    }),
-    toData: (row: typeof bodyMeasurement.$inferSelect) => ({
-      measuredOn: row.measuredOn,
-      kind: row.kind,
-      value: row.value,
-      source: row.source,
-    }),
+    async upsert(tx, userId, id, raw) {
+      const parsed = bodyData.safeParse(raw);
+      if (!parsed.success) return { status: "invalid", error: z.prettifyError(parsed.error) };
+      const values = { ...parsed.data, deletedAt: null };
+      // Insert, or update only when the existing row belongs to this user. A
+      // later upsert of a deleted row brings it back (deletedAt reset).
+      const written = await tx
+        .insert(bodyMeasurement)
+        .values({ ...values, id, userId })
+        .onConflictDoUpdate({ target: bodyMeasurement.id, set: values, setWhere: eq(bodyMeasurement.userId, userId) })
+        .returning({ id: bodyMeasurement.id });
+      return { status: written.length > 0 ? "ok" : "forbidden" };
+    },
+    async read(tx, ids) {
+      const rows = await tx
+        .select({
+          id: bodyMeasurement.id,
+          measuredOn: bodyMeasurement.measuredOn,
+          kind: bodyMeasurement.kind,
+          value: bodyMeasurement.value,
+          source: bodyMeasurement.source,
+        })
+        .from(bodyMeasurement)
+        .where(inArray(bodyMeasurement.id, ids));
+      return new Map(rows.map(({ id, ...data }) => [id, data]));
+    },
   },
-};
+  workout_session: {
+    table: workoutSession,
+    upsert: upsertSession,
+    async read(tx, ids) {
+      const sessions = await readSessions(tx, ids);
+      return new Map(sessions.map(({ id, ...data }) => [id, data]));
+    },
+  },
+} satisfies Record<string, SyncEntity>;
+
 type EntityName = keyof typeof entities;
 const ENTITY_NAMES = Object.keys(entities) as [EntityName, ...EntityName[]];
+const shared = (entity: EntityName) => entities[entity].table as SyncTable;
 
 const DEFAULT_PULL = 500;
 const MAX_PULL = 1000;
@@ -81,20 +126,22 @@ export async function pull(db: Db, actor: Actor, raw: unknown) {
 }
 
 async function pullEntity(tx: Db, userId: string, entity: EntityName, cursor: number, limit: number) {
-  const { table, toData } = entities[entity];
+  const table = shared(entity);
   const rows = await tx
-        .select()
+    .select({ id: table.id, rev: table.rev, deletedAt: table.deletedAt })
     .from(table)
     .where(and(eq(table.userId, userId), gt(table.rev, cursor)))
     .orderBy(asc(table.rev))
     .limit(limit + 1);
+  const live = rows.filter((row) => row.deletedAt === null).map((row) => row.id);
+  const data = live.length > 0 ? await entities[entity].read(tx, live) : new Map<string, unknown>();
   return rows.map(
     (row): Change => ({
       entity,
       id: row.id,
       rev: row.rev,
       deleted: row.deletedAt !== null,
-      data: row.deletedAt ? null : toData(row),
+      data: row.deletedAt ? null : (data.get(row.id) ?? null),
     }),
   );
 }
@@ -131,39 +178,25 @@ export async function push(db: Db, actor: Actor, raw: unknown): Promise<Mutation
 type Mutation = z.infer<typeof pushInput>["mutations"][number];
 
 async function applyMutation(tx: Db, actor: Actor, mutation: Mutation): Promise<MutationResult> {
-  const { table, data } = entities[mutation.entity];
-  const where = and(eq(table.id, mutation.id), eq(table.userId, actor.id));
-
-  if (mutation.op === "delete") {
-    // Only live rows: a repeated delete must not bump rev again.
-    const deleted = await tx
-      .update(table)
-      .set({ deletedAt: new Date() })
-      .where(and(where, isNull(table.deletedAt)))
-      .returning({ id: table.id });
-    if (deleted.length > 0) return { id: mutation.id, status: "ok" };
-    // Already deleted, or never seen by the server (created and deleted offline):
-    // fine. Someone else's row: not.
-    const owner = await ownerOf(tx, table, mutation.id);
-    return owner && owner !== actor.id ? forbiddenResult(mutation.id) : { id: mutation.id, status: "ok" };
-  }
-
-  const parsed = data.safeParse(mutation.data);
-  if (!parsed.success) return { id: mutation.id, status: "invalid", error: z.prettifyError(parsed.error) };
-  const values = { ...parsed.data, deletedAt: null };
-  // Insert, or update only when the existing row belongs to this user. A later
-  // upsert of a deleted row brings it back (deletedAt reset).
-  const written = await tx
-    .insert(table)
-    .values({ ...values, id: mutation.id, userId: actor.id })
-    .onConflictDoUpdate({ target: table.id, set: values, setWhere: eq(table.userId, actor.id) })
-    .returning({ id: table.id });
-  return written.length > 0 ? { id: mutation.id, status: "ok" } : forbiddenResult(mutation.id);
+  if (mutation.op === "delete") return removeRow(tx, actor, mutation);
+  const result = await entities[mutation.entity].upsert(tx, actor.id, mutation.id, mutation.data);
+  if (result.status === "forbidden") return forbiddenResult(mutation.id);
+  return result.status === "invalid" ? { id: mutation.id, ...result } : { id: mutation.id, status: "ok" };
 }
 
-async function ownerOf(tx: Db, table: (typeof entities)[EntityName]["table"], id: string): Promise<string | null> {
-  const [row] = await tx.select({ userId: table.userId }).from(table).where(eq(table.id, id));
-  return row?.userId ?? null;
+async function removeRow(tx: Db, actor: Actor, mutation: Mutation): Promise<MutationResult> {
+  const table = shared(mutation.entity);
+  // Only live rows: a repeated delete must not bump rev again.
+  const deleted = await tx
+    .update(table)
+    .set({ deletedAt: new Date() })
+    .where(and(eq(table.id, mutation.id), eq(table.userId, actor.id), isNull(table.deletedAt)))
+    .returning({ id: table.id });
+  if (deleted.length > 0) return { id: mutation.id, status: "ok" };
+  // Already deleted, or never seen by the server (created and deleted offline):
+  // fine. Someone else's row: not.
+  const [row] = await tx.select({ userId: table.userId }).from(table).where(eq(table.id, mutation.id));
+  return row && row.userId !== actor.id ? forbiddenResult(mutation.id) : { id: mutation.id, status: "ok" };
 }
 
 const forbiddenResult = (id: string): MutationResult => ({ id, status: "forbidden", error: "Not your record" });
