@@ -12,8 +12,8 @@ const LINKS = [
   { href: "/studio/sicurezza", label: "Sicurezza" },
 ];
 
-// The studio's left rail (top bar on phones). The current section is marked by
-// a signal-yellow bar, the same mark the editor uses for the current week.
+// The studio's left rail (top bar on phones). The current section is the one
+// on a raised surface; yellow stays reserved for the primary action.
 export function StudioNav() {
   const pathname = usePathname();
   const router = useRouter();
@@ -36,7 +36,7 @@ export function StudioNav() {
           key={link.href}
           href={link.href}
           aria-current={isActive(link.href) ? "page" : undefined}
-          className="rounded-[var(--radius-control)] px-3 py-2 text-sm font-medium text-ash hover:text-chalk aria-[current=page]:bg-steel aria-[current=page]:text-chalk md:border-l-2 md:border-transparent md:aria-[current=page]:border-signal"
+          className="rounded-[var(--radius-control)] px-3 py-2 text-sm font-medium text-ash hover:text-chalk aria-[current=page]:bg-steel aria-[current=page]:text-chalk"
         >
           {link.label}
         </Link>
