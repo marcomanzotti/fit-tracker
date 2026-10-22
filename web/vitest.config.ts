@@ -12,6 +12,10 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["src/**/*.test.ts"],
+    // Booting a fresh PGlite (WebAssembly Postgres) takes several seconds on CI
+    // runners, more with coverage on.
+    testTimeout: 30_000,
+    hookTimeout: 30_000,
     coverage: {
       include: ["src/**/*.ts"],
       exclude: ["src/**/*.test.ts"],
