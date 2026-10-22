@@ -49,7 +49,7 @@ export function ProgramGrid({ doc, day, names, currentWeek, progress, onChange, 
       <table className="w-full border-collapse text-sm">
         <thead>
           <tr className="border-b border-seam bg-graphite text-left text-ash">
-            <th scope="col" className="sticky left-0 z-10 min-w-56 bg-graphite px-3 py-2 font-medium">
+            <th scope="col" className="sticky left-0 z-10 min-w-64 bg-graphite px-3 py-2 font-medium">
               Esercizio
             </th>
             <th scope="col" className="min-w-36 px-3 py-2 font-medium">
@@ -61,7 +61,7 @@ export function ProgramGrid({ doc, day, names, currentWeek, progress, onChange, 
                 <th
                   key={week}
                   scope="col"
-                  className={`min-w-36 px-2 py-2 font-medium ${week === currentWeek ? "border-b-2 border-signal text-chalk" : ""}`}
+                  className={`group/week min-w-36 px-2 py-2 font-medium ${week === currentWeek ? "border-b-2 border-signal text-chalk" : ""}`}
                 >
                   <span className="flex items-center justify-between gap-2">
                     <span>Sett. {week}</span>
@@ -71,9 +71,13 @@ export function ProgramGrid({ doc, day, names, currentWeek, progress, onChange, 
                         onClick={() => onChange(toggleDeload(doc, week))}
                         aria-pressed={deload}
                         title={deload ? "Togli lo scarico" : "Rendi settimana di scarico"}
-                        className={`rounded px-1.5 text-xs ${deload ? "bg-teal/20 text-teal" : "text-ash/60 hover:text-chalk"}`}
+                        className={`rounded px-1.5 text-xs ${
+                          deload
+                            ? "bg-teal/20 text-teal"
+                            : "text-ash/60 opacity-0 group-hover/week:opacity-100 hover:text-chalk focus:opacity-100"
+                        }`}
                       >
-                        {deload ? "Scarico" : "Normale"}
+                        {deload ? "Scarico" : "Rendi scarico"}
                       </button>
                     )}
                   </span>
@@ -209,6 +213,8 @@ function PrescriptionCell({ item, week, doc, cellId, onCommit, onPaste, onEnter 
         aria-describedby={error ? errorId : undefined}
         title={error ?? (overridden ? "Modificata a mano: svuota per tornare alla progressione" : undefined)}
         value={text ?? shown}
+        // Grow with long cells (top set + back-off) instead of cutting them off.
+        style={{ width: `max(100%, ${(text ?? shown).length + 4}ch)` }}
         onChange={(event) => setText(event.target.value)}
         onFocus={(event) => event.target.select()}
         onBlur={commit}
@@ -285,12 +291,12 @@ function RowActions({ onUp, onDown, onLink, onUnlink, onRemove }: RowActionsProp
   const actions = [
     { label: "Su", run: onUp },
     { label: "Giù", run: onDown },
-    { label: "Superserie con sopra", run: onLink },
+    { label: "Unisci", run: onLink },
     { label: "Separa", run: onUnlink },
     { label: "Togli", run: onRemove, danger: true },
   ].filter((action) => action.run);
   return (
-    <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+    <div className="mt-1 flex gap-x-2.5 whitespace-nowrap opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
       {actions.map((action) => (
         <button
           key={action.label}

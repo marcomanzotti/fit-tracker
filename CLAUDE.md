@@ -16,6 +16,7 @@ FitTracker is turning from a personal iOS app into a coached platform for one st
 
 - `npm run dev`: dev server on an embedded PGlite database in `web/.data/` (env from `.env.development`).
 - `npm test`: Vitest. Every test gets a fresh in-memory Postgres (`createDatabase("pglite://memory")`).
+- `npm run seed:demo`: fills the local dev database with demo data (admin@demo.test and luca@demo.test, password `demo-password-123`, a published program, workouts, weigh-ins). Delete `web/.data/dev` to start over.
 - `npm run lint && npm run typecheck && npm run build`: what CI (`.github/workflows/web.yml`) runs.
 - `npm run db:generate -- --name <topic>`: write a SQL migration after changing `src/db/schema/`. Read the SQL before committing; the app applies migrations at startup.
 

@@ -297,6 +297,8 @@ export async function myProgram(db: Db, actor: Actor) {
     title: active.program.title,
     goal: active.program.goal,
     startDate: active.program.startDate,
+    // The client's calendar day: the app dates logged workouts with it.
+    today,
     week,
     weeks: doc.weeks,
     days: doc.days.map((day) => ({

@@ -10,7 +10,8 @@
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
-    "db:generate": "drizzle-kit generate"
+    "db:generate": "drizzle-kit generate",
+    "seed:demo": "DEMO_DATABASE_URL=pglite://.data/dev vitest run src/test/demo-seed.test.ts"
   },
   "dependencies": {
     "@electric-sql/pglite": "0.5.8",
@@ -25,6 +26,7 @@
     "zod": "4.6.5"
   },
   "devDependencies": {
+    "@playwright/test": "1.64.0",
     "@tailwindcss/turbopack": "^4",
     "@types/node": "24.19.2",
     "@types/pg": "8.23.1",

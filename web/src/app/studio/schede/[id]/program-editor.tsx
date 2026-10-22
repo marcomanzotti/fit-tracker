@@ -51,7 +51,9 @@ export function ProgramEditor({ program, exerciseNames }: { program: EditorProgr
   const revision = useRef(program.revision);
   // Saves run one after another, so two never race with the same revision.
   const queue = useRef<Promise<void>>(Promise.resolve());
-  const loaded = useRef(true);
+  // What the server has: an edit that brings the document back to it saves nothing
+  // (and opening the page never saves, even when React runs effects twice).
+  const lastSaved = useRef(JSON.stringify({ doc: program.draft, title: program.title }));
 
   function change(next: ProgramDocument) {
     setDoc(next);
@@ -60,12 +62,11 @@ export function ProgramEditor({ program, exerciseNames }: { program: EditorProgr
 
   // Autosave: the server is an external system, so this is an effect.
   useEffect(() => {
-    if (loaded.current) {
-      loaded.current = false;
-      return;
-    }
+    const snapshot = JSON.stringify({ doc, title });
+    if (snapshot === lastSaved.current) return;
     const timer = setTimeout(() => {
       queue.current = queue.current.then(async () => {
+        if (snapshot === lastSaved.current) return;
         setSave({ kind: "saving" });
         try {
           const saved = await api<{ draftRevision: number }>(`/api/v1/programs/${program.id}/draft`, {
@@ -73,6 +74,7 @@ export function ProgramEditor({ program, exerciseNames }: { program: EditorProgr
             body: { draft: doc, revision: revision.current, title: title.trim() || undefined },
           });
           revision.current = saved.draftRevision;
+          lastSaved.current = snapshot;
           setSave({ kind: "saved" });
         } catch (failure: unknown) {
           const conflict = failure instanceof ApiError && failure.code === "edited_elsewhere";
